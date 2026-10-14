@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 86 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 730-page working reader;
+Recovery and continuation recorded 87 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 734-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[730 pages](../../causal_proposal_agent_backends_v2_2026-10-14.pdf), hash
-`405aa94f0b01281ecd858acd43c39aa233eef6c935bcd81339398446f89ce0fb`.
-Its traceability review covers 538 cited records and 156 genuine scholarly
+[734 pages](../../causal_proposal_commercial_contracts_v2_2026-10-14.pdf), hash
+`30b84c062c6a8b620af34efc718bc732b30dd7f38f97efded64cf9b39feff2b2`.
+Its traceability review covers 549 cited records and 156 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -56,8 +56,16 @@ and matched comparisons are connected through exact project examples.
 Its coverage review remains **inconclusive** because the named-provider and
 broader framework comparison is incomplete. Official OpenAI documentation
 reads returned HTTP403; no unobserved service capability or price is inferred.
-Continue `SW.COMM.identification_counterfactual`, assessing exact vendor
-edition evidence, documented strengths, local gaps and licensing/cost unknowns.
+The identification/counterfactual commercial comparison is recorded as
+inconclusive: four developed vendor comparisons and twelve unresolved or
+adjacent-only families remain. Twelve bounded public reads supplied exact
+Bayes Server manuals, two API references, release/version evidence and public
+Commercial/GBP prices. The linked benchmark-disclosure restriction and
+uncertain-abduction behavior remain explicit. Existing JMP sources repaired
+a cross-lane omission. A failed TeX inclusion was preserved and repaired in
+a successor; extracted text and all-page bounds pass. Continue
+`SW.DECISION.inherited_causalpy`: pinned source and license inspection for a
+narrow regression-discontinuity reuse decision.
 The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
@@ -70,11 +78,11 @@ LFS upload completed, the branch push succeeded, and `git ls-remote` verified
 `0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
 The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
 preserves this observation. Later commits retain that ancestry. Remote `main`
-was independently verified at `cb0ee3bed0b9c1824df70c6e25a7de89a10990ca`, including
-the custody reader and reviews; the
-[verification receipt](2026-10-14/program-refresh/git-publication-cb0ee3be.json)
-records the exact observation. L6 and subsequent comparison work continue
-as successors; use Git status for pending changes.
+was independently verified at `a74c83eaa1396017d1827340228678189e85f58c`, including
+the L6 reader and reviews; the
+[verification receipt](2026-10-14/program-refresh/git-publication-a74c83ea.json)
+records the exact observation. Later commercial-comparison and reuse work
+continues as successors; use Git status for pending changes.
 
 ## Execution loop
 
