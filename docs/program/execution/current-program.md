@@ -4,6 +4,28 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
+## Current continuation on 15 October 2026
+
+The d3rlpy reuse decision brings recorded proposal operations to 102 of376.
+The current working reader is [789 pages](../../causal_proposal_d3rlpy_contracts_v2_2026-10-15.pdf),
+SHA-256 6e7f7b2e98f70e660139fd63b05869c5667d5443e524dd2fd2a331cdd5c3b8b2.
+Section23.13, printed234-238 (physical252-256), integrates eighteen
+pinned source blobs and seven exact banking/semantic reference families.
+It distinguishes policy identity, episode boundaries, start-state weighting,
+physical discount clocks, reward units, action support and uncertainty.
+A selected initial-state metric averages batch starts; an overlap test label
+does not exercise simultaneous flags. Concrete public/generated prototype
+remedies are specified. Reference use is selected, with integration disabled.
+No native package run, bank performance or ROI is inferred. The source endpoint
+error and first TeX compile failure are preserved; the corrected successor
+compiles without material warnings and passes all-page text bounds.
+All614 inherited records and citation contexts remain; the reader has619
+records and172 genuine scholarly PDFs. Q2-Q4 exact-reader reviews pass for this 789-page successor. Q1/Q5 remain open.
+The next eligible lane is latent/temporal LLM-assisted discovery.
+The preceding survival release was pushed and independently verified at
+commit12b42087712d507934e687f95ed916e049d7dfc5. Publication and research
+continue independently. The following refresh describes its preserved state.
+
 ## Refresh on 15 October 2026
 
 Recovery and continuation recorded 101 of 376 proposal operations, with no
