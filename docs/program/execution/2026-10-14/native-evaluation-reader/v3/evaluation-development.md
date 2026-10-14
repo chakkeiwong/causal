@@ -1,0 +1,59 @@
+# What published evaluations establish and how to reuse them
+
+\label{exec14:evaluation-development}
+
+## The question a bank must answer
+
+A useful causal assistant must improve the decision made with the available evidence at an acceptable total cost. Fluent reports, agreement among agents and successful tool calls are intermediate outcomes. The proposal therefore evaluates the target, assumptions, graph, identification decision, numerical result and action separately. A correct refusal can be valuable; an unsupported but precise number can be harmful. This chapter develops a prospective comparison using public evidence and stipulated mechanisms. It reports no new live-model experiment, analyst-time observation or bank return on investment.
+
+Consider the decision to offer a restructuring review at an account's first qualifying arrears date. The target is the mean effect of the offer on discounted 180-day net recovery among accounts eligible at that date. The action is an offer, not eventual acceptance; information must have been available before the offer, and the offer cost is counted once. The experiment tests whether a workflow can translate that brief, preserve the clock, decide identification and return an appropriate estimate or refusal. It does not test whether the bank should deploy the offer merely because the assistant completed an analysis.
+
+## What primary evaluations actually establish
+
+*CLadder* by Jin et al.\citep{v12_la_2312_04350} (arXiv:2312.04350v3, Table 2) offers over 10,000 formal causal questions and deliberately varies commonsense alignment. Its reported historical GPT-4 accuracy rises from 62.03% to 70.40% with CausalCoT, an 8.37 percentage-point improvement. This is favorable evidence for structuring a language-to-formal-query task. It is not evidence of discovering an unknown bank graph or calibrating a treatment-effect interval. The benchmark's formal answers are valuable only when the generator's assumptions actually identify the named target.
+
+*CausalEval* by Yu et al.\citep{exec13_census_causaleval} (arXiv:2410.16676v4, Table 3 and Appendix C) supplies an important counterweight. On its cost-limited GPT-4o subsets, function calling scores 76 on CLADDER against 69 for CoT, while e-CARE falls from 90 to 73. These are source-reported percentages, not matched bank performance. Its nine benchmarks have heterogeneous tasks; some models use 100 examples, and its human row combines previously published human scores with three trained graduate students on selected datasets. Neither a universal enhancement ranking nor a matched analyst productivity comparison follows. The proposal must report results by task and preserve a numerical, ordinary analyst and single-assistant baseline.
+
+*CausalDS* by Leban and Sun\citep{v12_la_2607_08093} (arXiv:2607.08093v1, Section 5, Figure 3) brings the evaluation closer to an actual workflow: narrated scenes, files, a distinct observation layer, private truth and explicit nonidentification. Its 100-scene exam is sampled from 953 scenes, with 28 Rung-1, 51 Rung-2 and 21 Rung-3 tasks and 48/32/20 clean/proxy/proxy-hard conditions. The paper reports substantially different content, abstention, interval and token outcomes. However, the 20.0%–71.4% interval coverage figures use only seven eligible ATE interval tasks per model, five for Qwen. They cannot support a precise population calibration conclusion. Reasoning effort/settings differ across model groups, and combined prompt-plus-completion tokens are not dollar costs. The reported failures from excessive tool output also show why bounded output belongs in the experimental execution contract.
+
+The study by Feng et al.\citep{v12_la_2407_19638}, *On the Reliability of Large Language Models for Causal Discovery* (arXiv:2407.19638v2, Sections 2–4) examines accessible OLMo/BLOOM training corpora, manipulated relation frequencies and contextual variants. Exposure and context affect responses. These findings motivate separate tests of unfamiliar names, new mechanism families and misleading evidence. Renaming a familiar graph does not establish mechanism novelty. Equally, a changed context can legitimately change the causal claim, so a context-sensitive answer is not automatically an error. An independent target-specific adjudication is needed.
+
+*CausalChat* by Zhang et al.\citep{v12_la_2410_14146} (arXiv:2410.14146v1, Section 6) is evidence for useful interaction design and a warning about productivity claims. Six university students move through BIC feedback, LLM text and the interface in a fixed order, choosing different remaining edges at each stage. The reported edge errors are 5/18, 7/18 and 1/18. Learning, order and edge difficulty are not separated by that design. Its expert participants also raise missing citations. The proposal adopts traceable graph-edit suggestions and measures review effort; it does not infer a causal labor-saving effect from these counts.
+
+The study by Le et al.\citep{v12_la_2407_15073}, *Multi-Agent Causal Discovery Using Large Language Models* (arXiv:2407.15073v4, ablations and limitations) reports a 16–25-fold token increase over standard baselines, with coding/debugging taking up to half of the full system's tokens. A single-agent variant is competitive on the simpler graphs at approximately half the cost; full debate improves selected harder examples. The study covers five public graphs with 5–20 nodes and explicitly excludes hidden confounders and cycles. It provides a reason to test debate against a single assistant, not to make debate mandatory in every task or to infer its value for latent temporal discovery.
+
+The study by Murphy et al.\citep{v12_la_2608_09696}, *Model Discovery Agent* (arXiv:2608.09696v5, Figure 2 and discussion) combines language proposals with numerical fitting, simulation and experimental design. Its chemistry comparison retains 115 matched evaluable world–seed cells from 171 attempted, spanning 54 worlds. A conditional performance curve for those cells is not all-attempt availability. The comparisons are not compute-matched, its experiments use open-loop policies, and the paper explicitly says finite held-out predictive tests do not establish causal identification. The banking design retains attempt counts and numerical computation costs and separates prediction, experiment choice and effect identification.
+
+Taken together, these studies support a testable architecture: typed causal tasks, independent formal/numerical checks, source-grounded human review and selective assistance. They do not establish one best model, general causal competence or positive bank ROI. The reported results remain literature evidence from distinct tasks, populations and model settings.
+
+## Reusing benchmarks without inheriting their labels blindly
+
+The inspected CLadder source is pinned to commit `3d2d1169b4b9` (2024-05-29), with an MIT notice. Its query generator contains a Wald-ratio IV template and uses ATE bounds in constructing answers. An unrestricted IV graph does not identify a population ATE through the Wald ratio. Additional assumptions may identify a different target or a sign; the full generator and item assumptions must be checked before admitting a label. Quarantine IV-as-population-ATE cases and resolve repository/paper dataset-version differences. Retain the generator as a candidate source of formal fixtures after that review.
+
+The inspected CausalDS source is pinned to `c74671d0a092` (2026-07-17), with Apache-2.0 code and a CC0 data notice. Its separation of conceptual SCM, observed proxy, private truth and scorer is useful. The inspected grader can default missing identification metadata toward identifiable and distinguishes intentional abstention from malformed output. It computes both uncapped and capped normalized interval-score summaries; publish both. Require explicit identified/nonidentified/unknown states, finite endpoint validation, preserved observation semantics and raw tail losses before reuse. These are static source findings, not installed-package results or a completed dependency/license audit.
+
+The first prototype should import reviewed fixture definitions and expected outputs through a narrow adapter, then compare the adapter against an independently written oracle on tiny cases. The trusted scorer must remain outside the agent's writable task environment. Freeze hashes of code, data, prompts, retrieval corpus and scoring rules. Impose tool-output and runtime limits while retaining the failure status and incurred cost. Exposed development examples are useful for debugging but cannot also be the hidden quality test. Neither upstream package has been executed for this synthesis.\citep{exec14_evaluation_code}
+
+## A reproducible evaluation example
+
+For an exact illustration, stipulate a population in which an offer is randomized with probability one half, independent of binary pre-offer risk $X$ and potential outcomes. Let $P(X=1)=1/2$ and let the potential recovery means be $E[Y(0)\mid X]=100+20X$ and $E[Y(1)\mid X]=105+30X$. The conditional effects are 5 and 15 and the population ATE is 10 monetary units. Consistency, no interference and the stipulated assignment/observation law identify it. Standardization over the two known strata is an ordinary numerical baseline. The exact means supply oracle truth; finite-sample intervals would require a separately specified sampling law and method. In an observational variant with an unmeasured common cause of offer and recovery and no additional identifying restrictions, the appropriate answer is nonidentification rather than the randomized formula.
+
+A second, deliberately hypothetical accounting fixture has 100 requested analyses: 80 identified requests and 20 nonidentified requests. Among the identified requests, 70 return admissible intervals, 63 cover the true target and 10 fail to return an interval. Among the nonidentified requests, 16 correctly refuse and four return unsupported numbers. Then
+```{=latex}
+\[
+ \begin{gathered}
+ A_{\mathrm{id}}=70/80=87.5\%,\\
+ C_{\mathrm{returned,id}}=63/70=90\%,\\
+ C_{\mathrm{return\ and\ cover,id}}=63/80=78.75\%.
+\end{gathered}
+\]
+```
+The correct-refusal rate is $16/20=80\%$. Across all requests, the fraction returning an admissible covering interval is $63/100=63\%$, but its complement is not an error rate: principled refusals occupy part of it. The four unsupported numbers do not improve scientific availability. An overall operational completion count must therefore sit beside identification-specific outcomes and failure reasons, not replace them. None of these stipulated counts estimates actual model performance.\citep{exec14_evaluation_oracle}
+
+For a finite interval $[l,u]$ at nominal level $1-\alpha$, the interval score is
+\[
+ (u-l)+\frac{2}{\alpha}(l-\theta)\mathbf1\{\theta<l\}
+       +\frac{2}{\alpha}(\theta-u)\mathbf1\{\theta>u\}.
+\]
+Report raw scores, coverage, width and availability with their eligible denominators. A normalized score additionally needs a fixed positive scale. Invalid endpoints are failures, not zero loss. A disconnected identified set is evaluated as a set, retaining topology and infinite length; do not replace it with a convenient midpoint or force this finite-interval score onto it. Graph scores likewise use the declared identifiable equivalence class; unsupported orientation is not rewarded simply for resembling a fully directed reference graph.
+

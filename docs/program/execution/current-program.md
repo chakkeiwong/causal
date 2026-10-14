@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery verified 73 of 376 proposal operations recorded, 256 ready, and no
-global research blocker. Q2–Q4 passed for the exact 683-page working reader;
+Recovery and continuation recorded 81 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 705-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -17,13 +17,35 @@ designs now have passing design receipts; a design receipt is not an executed
 study. Preserve the hash-bound scope document rather than changing its old
 evidence in place.
 
-Resume `SW.DECISION.inherited_causalml` from its recorded evidence, finish its
-scoped source/reuse review, and continue the next eligible lane. The
+The CausalML reuse, native latent-discovery, evaluation/cost, and workspace
+disposition reviews now have recorded outcomes. L5 drafting and substantive
+review are complete: its longitudinal/panel/observation development receives
+11 nonduplicate substantive pages against its 10/11/12 allocation. The initial
+8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
+panel-composition derivations repair that shortfall; no fitted coverage or
+bank ROI is inferred. The integrated reader is
+[705 pages](../../causal_proposal_software_lifecycle_2026-10-14.pdf), hash
+`4037793ee34d0514d10d7a1d565d0858711a9b6fe46116c7e9f414ab3d6dc876`.
+Its traceability review covers 518 cited records and 153 genuine scholarly
+PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
+four pathways from three vendor families have bounded evidence, while matched
+edition/runtime/pricing and wider family coverage remain open. The CausalNex
+reuse decision rejects default adoption on explicit maintenance and inspected
+semantic grounds; its substantive discussion is integrated in this reader.
+Continue `LL.TASK.expert_evidence`, the active lane on citations, conflicting
+expert accounts, evidence absence and causal refusal. The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
 check-in and supplied `github.com/chakkeiwong/causal`. Git is now initialized,
 the existing remote `main` history is preserved, and large evidence files use
 Git LFS. Repository publication proceeds independently of research work.
+The initial snapshot is commit `0217f743`, preserving remote parent `627acbc8`.
+The first ordinary push failed during the large-file transfer. The recovered
+LFS upload completed, the branch push succeeded, and `git ls-remote` verified
+`0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
+The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
+preserves this observation. Reviewed successor work is committed and published
+without rewriting that history; use Git status for pending changes.
 
 ## Execution loop
 
