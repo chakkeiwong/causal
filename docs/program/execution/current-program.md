@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 88 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 738-page working reader;
+Recovery and continuation recorded 89 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 742-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[738 pages](../../causal_proposal_causalpy_contracts_2026-10-14.pdf), hash
-`5545aa5a927bf74aa84de238d02feeec93bfb006d35ea54a03a9b631ecc70126`.
-Its traceability review covers 552 cited records and 156 genuine scholarly
+[742 pages](../../causal_proposal_llm_identification_v2_2026-10-14.pdf), hash
+`bedc4b4f1dc6f434b38725b2b9426940384b526459fc46a107bf69a4c74d9f46`.
+Its traceability review covers 558 cited records and 159 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -69,9 +69,17 @@ support a reference decision with production integration deferred. The section
 distinguishes finite prediction contrasts, local causal targets and point versus
 posterior uncertainty. Two inaccurate source-anchor labels were corrected in a
 preserved successor review. No upstream runtime or bank qualification is claimed.
-Continue LL.TASK.identification: compare frontier evidence and formal-engine
-contracts for LLM-assisted identification, retaining unknown and unsupported
-results separately from proven nonidentification.
+LL.TASK.identification is now recorded and integrated. Two newly acquired
+primary papers (CounterBench and METER), four inherited papers and selected
+pinned package paths support a task-specific comparison. Exact principal-strata
+examples show equal observed laws and complier effect1 but population effects
+0.5/1 and stipulated policy values minus25/plus25 USD. The proposed three-state
+contract preserves unknown, invalid input, criterion failure and certified
+nonidentification separately. No live LLM or upstream runtime result is claimed.
+An inherited bibliography-year default was preserved in an unpublished743-page
+candidate and repaired in the current742-page successor. Continue
+SW.CELL.discovery_temporal_interventional.R with the reviewed plan and pinned
+primary acquisition in the r-temporal execution directory.
 The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
@@ -84,9 +92,9 @@ LFS upload completed, the branch push succeeded, and `git ls-remote` verified
 `0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
 The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
 preserves this observation. Later commits retain that ancestry. Remote `main`
-was independently verified at `93e8de78db4739923c65aebaedca3bb69d50c7ad`, including
-the commercial-contracts reader and reviews; the
-[verification receipt](2026-10-14/program-refresh/git-publication-93e8de78.json)
+was independently verified at `843235d767ca26521fb9b7fa409cadb56b55b136`, including
+the CausalPy reader and reviews; the
+[verification receipt](2026-10-14/program-refresh/git-publication-843235d7.json)
 records the exact observation. Later commercial-comparison and reuse work
 continues as successors; use Git status for pending changes.
 
