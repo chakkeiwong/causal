@@ -4,7 +4,31 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation on 15 October 2026
+## Current continuation: latent and temporal discovery
+
+The active continuation has recorded 103 of 376 proposal operations. The
+current working reader is [799 pages](../../causal_proposal_latent_temporal_2026-10-15.pdf),
+SHA-256 `06f30d3b17a51087f67109169832a85efe3e0c703fb8e8d16eef67a50b678867`.
+The latent/temporal task synthesis is integrated on printed pages 436–443.
+Eleven primary papers, including three newly recovered publisher originals,
+and twenty-two source blobs verified against pinned trees support the review.
+Nine exact reference families distinguish temporal order, observational
+equivalence, higher cumulants, multiple hidden loadings, IV targets, graph
+conversions, coverage composition and the value of information. The source
+trace identifies concrete LCM and CausalAgent prototype repairs, including
+the actual caller's second cycle check and its discarded edited graph.
+No native or live model execution is claimed. General graph/effect-set
+calibration, useful precision and specialist search coverage remain open.
+Two unresolved originals and the package/code/weight obligations are retained
+in the [omissions register](2026-10-15/latent-temporal/omissions-register.json).
+The new reader preserves all 619 prior citation records and their uses; it
+contains 626 records and 175 genuine scholarly PDFs. The preserving build
+has no material warnings and passes all-page text bounds. Q1/Q5 and visual
+acceptance remain open. The next eligible lane is the Java temporal and
+interventional software cell. The previous d3rlpy revision was pushed and
+verified at `4a0db55cd044d4c84a82585b37cf164ab1503dc1`.
+
+## Preserved d3rlpy continuation on 15 October 2026
 
 The d3rlpy reuse decision brings recorded proposal operations to 102 of376.
 The current working reader is [789 pages](../../causal_proposal_d3rlpy_contracts_v2_2026-10-15.pdf),

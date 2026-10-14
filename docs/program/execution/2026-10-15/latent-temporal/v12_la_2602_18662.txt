@@ -1,0 +1,1667 @@
+                                               Large Causal Models for Temporal Causal
+                                                             Discovery
+
+                                            Nikolaos Kougioulis1,2 ( ), Nikolaos Gkorgkolis1,2 , MingXue Wang3 , Bora
+                                            Caglayan3 , Dario Simionato3 , Andrea Tonon3 , and Ioannis Tsamardinos1,2
+                                                    1
+                                                        Institute of Applied & Computational Mathematics, FORTH
+                                                           2
+                                                               Computer Science Department, University of Crete
+                                                                   nikolaos.kougioulis@iacm.forth.gr
+                                                                    {gkorgkolis, tsamard}@csd.uoc.gr
+                                                             3
+                                                                Huawei Ireland Research Centre, Dublin, Ireland
+                                                                {wangmingxue1, bora.caglayan}@huawei.com
+                                                                    dario.simionato1@h-partners.com
+                                                                   andrea.tonon1@huawei-partners.com
+arXiv:2602.18662v3 [cs.LG] 7 Aug 2026
+
+
+
+
+                                                Abstract. Causal discovery for both cross-sectional and temporal data
+                                                has traditionally followed a dataset-specific paradigm, where a new model
+                                                is fitted for each individual dataset. Such an approach limits the po-
+                                                tential of multi-dataset pretraining. The concept of large causal models
+                                                (LCMs) envisions a class of pre-trained neural architectures specifically
+                                                designed for temporal causal discovery. Prior approaches are constrained
+                                                to small variable counts, degrade with larger inputs, and rely heavily on
+                                                synthetic data, limiting generalization. We propose a principled frame-
+                                                work for LCMs, combining diverse synthetic generators with realistic
+                                                time-series datasets, allowing learning at scale. Extensive experiments
+                                                on synthetic, semi-synthetic and realistic benchmarks show that LCMs
+                                                scale effectively to higher variable counts and deeper architectures while
+                                                maintaining strong performance. Trained models achieve competitive or
+                                                superior accuracy compared to classical and neural baselines, particularly
+                                                in out-of-distribution settings, while enabling fast, single-pass inference.
+                                                Results demonstrate LCMs as a promising foundation-model paradigm
+                                                for temporal causal discovery. Experiments and model weights are avail-
+                                                able at https://github.com/kougioulis/LCM.
+
+
+                                        Keywords: Causal Discovery, Foundation Models, Large Causal Models, Time-
+                                        Series
+
+
+                                        1     Introduction
+
+                                        Causal discovery (CD) aims to recover the causal structure of data [42, 49]. In
+                                        many domains, data are inherently temporal, motivating causal discovery from
+                                        multivariate time series [45–47].
+                                           Classical temporal CD methods provide strong identifiability guarantees un-
+                                        der explicit assumptions [45, 49], yet rely on conditional independence testing
+2       N. Kougioulis et al.
+
+or combinatorial search, whose computational and statistical complexity scales
+poorly with input dimensionality. Methods assuming known functional forms
+(e.g., linearity) [26, 40] degrade when assumptions are violated.
+    Neural methods have been introduced that attempt to amortize CD, in-
+clude variational approaches [1, 19, 35], autoregressive and attention-based mod-
+els [28], and adversarial-based frameworks [21,22]. While promising, most remain
+dataset-specific and struggle to generalize across heterogeneous systems, espe-
+cially in zero-shot settings.
+    In parallel, foundation models (FMs) [3] have demonstrated that large neural
+architectures trained on diverse data can generalize effectively across tasks [13,
+29,33,34,44,54], thus motivating Large Causal Models (LCMs): pre-trained FMs
+that can leverage multiple datasets and perform efficient, fast temporal CD.
+Prior work [50] remains proof-of-concept, limited to low dimensions and narrow
+synthetic training distributions.
+    Importantly, a key obstacle to scaling large causal models is the scarcity of
+large, diverse time-series datasets with ground-truth causal graphs, with prior
+work relying on synthetic generators [2], which limits generalization.
+    In this work, we demonstrate that LCMs can be made scalable and robust
+through data-centric training on a large and heterogeneous corpus, enabling reli-
+able zero-shot generalization and systematic evaluation across diverse temporal
+settings. Our contributions can be summarized as follows:
+
+ 1. We formalize Large Causal Models (LCMs) as FMs for temporal CD across
+    heterogeneous data distributions, replacing dataset-specific algorithms with
+    foundation model-style pretraining,
+ 2. We demonstrate that scaling failures in prior work stem from insufficient
+    training distribution diversity and propose the inclusion of realistic data,
+ 3. We curate a large-scale collection of time-series samples and causal graph
+    pairs suitable for both training of LCMs and benchmarking CD methods,
+ 4. We demonstrate superior or competitive performance compared to classical
+    CD methods, with substantially reduced runtime via single-pass CD.
+
+Temporal Structural Causal Models (TSCMs). A Structural Causal Model (SCM)
+represents each endogenous variable as a function of its causal parents and an ex-
+                                                                       1            k ′
+                                                          Vt =
+ogenous noise term [42,43,49]. For a multivariate time series      (Vt , . . . , Vt ) ,
+a Temporal SCM (TSCM) is defined as [45] Vtj := f j Pa(Vtj ) + ϵjt , t ∈ Z,
+where Pa(Vtj ) denotes the set of lagged causal parents drawn from the past
+ℓmax time steps, Pa(Vtj ) ⊆ {Vt−1 , . . . , Vt−ℓmax }. Here, ℓmax is a fixed maxi-
+mum causal lag. We assume additive noise models, causal stationarity, no latent
+confounders, and no contemporaneous effects (i.e. effects within a lag ℓ = 0).
+Detailed definitions are provided in Appendix .1.
+
+Lagged Causal Graphs. Temporal causal relationships in a TSCM are represented
+by a lagged causal graph (window graph) [2], a DAG whose nodes correspond to
+                                                                  i
+time-indexed variables and whose directed edges are of the form Vt−ℓ → Vtj for
+                        Large Causal Models for Temporal Causal Discovery                   3
+
+                                                                             Lag ℓ = 2
+
+                                                                          A(1)   V1   V2   V3
+                                                                          V1     0    0    0
+                                                                          V2     0    0    0
+     1            1                                                       V3
+    Vt−2         Vt−1        Vt1                                                 0    1    0
+                                                         Lag ℓ = 1
+            f2          f2                           (0)
+                                                    A      V1   V2   V3
+                                                    V1     0    0    0
+                                                    V2     1    0    0
+                                                    V3     0    0    0
+     2            2
+    Vt−2         Vt−1        Vt2
+
+
+                  f3                          (b) Binary lagged ad-
+                                               jacency tensor slices
+                                                       (ℓ−1)
+     3            3
+                                              Entry Aj,i     = 1 rep-
+    Vt−2         Vt−1        Vt3                          i
+                                                resents Vt−ℓ → Vtj
+
+    (a) Lagged causal graph
+Fig. 1. Temporal causal dependencies represented as a (a) lagged causal graph and (b)
+binary adjacency tensor. Each slice A(ℓ−1) encodes edges at a discrete lag ℓ ≤ ℓmax ,
+             (ℓ−1)
+where entry Aj,i = 1 denotes Vt−ℓi
+                                    → Vtj .
+
+
+ℓ ∈ {1, . . . , ℓmax }. Edges are oriented forward in time and denote direct causal
+effects, while indirect effects are encoded via directed paths.
+
+Adjacency Tensor Representation. For V variables and maximum lag ℓmax , the
+lagged causal graph is equivalently represented by a binary adjacency tensor
+                              (ℓ)
+A ∈ {0, 1}V ×V ×ℓmax , where Aj,i = 1 indicates a directed edge Vt−ℓ
+                                                                  i
+                                                                     → Vtj [20,
+50](Figure 1).
+
+
+2    Related Work
+
+Despite advances in deep learning, few works explore pre-trained models for
+Causality. Most approaches remain task or dataset specific and do not exhibit
+the broad generalization associated with foundation models.
+    In causal inference, [56] propose CInA, a transformer-based framework for
+estimating average treatment effects (ATEs) [43] from observational data, which
+targets treatment effect estimation rather than causal discovery.
+    Neural approaches to CD include attention-based models for static graph pre-
+diction under i.i.d. assumptions [55], supervised sequence formulations in atem-
+poral setups [28] and amortized variational methods under Granger causality
+assumptions [37]. These methods typically operate on limited synthetic datasets,
+output summary graphs and do not demonstrate large-scale zero-shot general-
+ization, particularly in temporal or heterogeneous settings.
+    The closest work is [50], which formulates CD as a multi-class classification
+problem, and introduces various architectural backbones, notably transform-
+ers [52,57]. Although conceptually aligned with our notion for LCMs, it remains
+a proof of concept; limited to small systems, training relies on narrow synthetic
+4               N. Kougioulis et al.
+
+
+                                                                   2. Supervised Training of LCMs
+    1. Data curation
+                                                                  Ground truth lagged       Corresponding
+                                                                     causal graph        time-series samples                                LCM
+
+
+
+
+                                       Causal Graph) Pairs
+
+                                       Large-Scale Corpus
+     Synthetic TSCM                                                                                                                                             Discovered lagged
+
+
+
+
+                                         of (Timeseries,
+       generators        Padding &                                                                                                                                 causal graph
+
+     Realistic TSCM    Normalization
+                                                                                                                                             𝑓𝜃                                  ℒ                            ,
+                                                                                                                                                                 of the underlying
+       simulators
+                                                                                                                                                                       TSCM
+                                                                                           𝑿 ∈ ℝ𝐿max×𝑉max                                                                                        ∈
+                                                                            ∈
+                                                                                                                                                                                        [0,1]𝑉max×𝑉max×ℓmax
+                                                                   [0,1]𝑉max×𝑉max×ℓmax
+
+
+                                                                                                                                 Backprop𝛁
+       3. Zero-shot Causal Discovery
+     Unseen Time-series                                 Pre-trained LCM                                                                                                                                            Discovered
+                                                                                                                         Cause                                                  CD Method            AUC
+         samples        Padding to                                                                                                Cause                                                                           causal graph
+                        𝐿max × 𝑉max                                              Causal Discovery                       𝑉1     𝑉𝟐 𝑉𝟑                    Evaluation                   LCM             ...          / adj. tensor
+                                                                                                                                𝑉1    𝑉𝟐    𝑉𝟑
+
+                                                             𝑓𝜃                                               𝑉1         0     0.5   0                                               PCMCI           ...
+
+
+
+
+                                                                                                     Effect
+                                                                                                                          𝑉1     0    0.8   0
+
+
+
+
+                                                                                                               Effect
+                                                                                                              𝑉2         0      0    0                                         DYNOTEARS             ...          Ground truth
+                       Normalization                                                                                      𝑉2     0     0    0    (if ground truth available)                                      causal graph
+                                                                                                              𝑉3        0.1     0    0                                         VARLINGAM             ...          / adj. tensor
+           𝑿 ∈ ℝL×V                                                                                                       𝑉3    0.1    0    0
+                                       No retraining, no 𝛁 updates
+
+
+
+
+Fig. 2. Overview of the large causal model (LCM) pipeline. (1) Synthetic and realistic
+TSCM generators produce training pairs of multivariate time series and their lagged
+causal graphs. (2) The LCM is trained via supervised learning on these pairs to discover
+a lagged adjacency tensor Â for a time series X ∈ RL×V , padded and normalized for
+stability. (3) At inference (CD phase), the pre-trained LCM predicts causal structure
+on unseen datasets in a zero-shot manner.
+
+
+distributions, and performance degrading sharply with increasing di-
+mensionality [50, Figure 3].
+
+Positioning of Our Work. We study Large Causal Models as robust, scalable
+FMs for temporal CD. Unlike prior work, we emphasize data diversity as a
+prerequisite for scaling, train on a large heterogeneous corpus, and evaluate
+zero-shot and out-of-distribution generalization across diverse benchmarks. This
+positions LCMs as practical alternatives to existing CD methods.
+
+
+3        Problem Formulation
+
+We study temporal CD across heterogeneous datasets and underlying causal
+mechanisms. The task is to construct a Large Causal Model (LCM), i.e. an FM
+that infers lagged causal graphs from multivariate time series, while generalizing
+across domains, lengths, and causal mechanisms.
+   Let X = {Xt }L t=1 ∈ R
+                          L×V
+                               denote a multivariate time series with V variables
+and L timesteps. Each dataset D = X is generated by a TSCM G, D ∼ PG ,
+where A is the (ground truth) lagged adjacency tensor of G. The task is to infer
+                                                                                                              fθ
+G from D via a parametric mapping X −→ Â, where fθ is a neural model and
+Â ∈ RVmax ×Vmax ×ℓmax encodes the discovered lagged causal graph (Figure 1).
+                                                       i
+Each entry Âj,i,ℓmax −ℓ represents the confidence in Xt−ℓ → Xtj .
+    Probabilistically, the LCM learns an amortized approximation of the con-
+ditional distributions P(Aj,i,ℓmax −ℓ = 1|X) under the training distribution over
+the TSCMs. Rather than performing dataset-specific DAG search, the model
+                                Large Causal Models for Temporal Causal Discovery                                     5
+
+
+                                                                                             Transformer Encoder
+
+         Feed-Forward Network                                                           N𝑥
+                                                                                                  BatchNorm
+
+                                                   Sigmoid
+                                                                                                 Distillation Block
+                Linear                                                                            (Conv1D + Pool)
+
+                                           Feed-Forward Network
+                 ELU                                                                              BatchNorm
+                                                   Concat               Training Aids
+
+              LayerNorm                                                                             Conv1D
+
+                                            Transformer Encoder                                      GELU
+                Linear
+
+                                   Positional
+                                                                                                    Conv1D
+                                   Encoding           ＋
+                                                                                                  BatchNorm
+                                          Time-series Conv. Embedding
+
+                                                                                                  Multi-Head
+                                                                                                 Self Attention
+
+
+                                                                                                  BatchNorm
+
+
+
+
+Fig. 3. LCM architecture: A multivariate time series is embedded via Conv1D layers
+and positional encodings, processed through a Transformer encoder stack with distil-
+lation blocks, and augmented with lagged cross-correlations (training aids). A feed-
+forward head outputs a lagged adjacency tensor representing the discovered temporal
+causal graph. Adapted from [30].
+
+
+learns a parametric approximation of the mapping from time-series samples to
+causal graphs under the training distribution. The discovered lagged adjacency
+tensor hence represents edge probabilities under the implicit prior induced by
+the training corpus. An overview of the pipeline is depicted in Figure 2.
+
+Model Hyperparameters. Lmax (max time-series length) and Vmax (maximum
+input variables) are model-specific, akin to token limits in language models [8],
+while ℓmax (max assumed lag) follows standard assumptions in temporal CD [45].
+
+
+4   Model Overview
+The implemented LCM, illustrated in Figure 3, follows a convolution-enhanced
+Transformer encoder [50, 57]:
+
+Input Embeddings. Input samples X ∈ RL×V are normalized and noise-padded
+(Appendix .2) to RLmax ×Vmax , projected via Conv1D to extract local temporal
+features at dimension dmodel , with positional encodings added element-wise [52].
+
+Encoder Stack. N layers of multi-head self-attention and feedforward networks
+with residual connections produce contextualized representations. A Conv1D-
+based distillation layer aims to reduces sequence length for long-horizon process-
+ing.
+
+Training Aids. Lagged cross-correlations are concatenated to the final encoder
+representations to enhance inductive bias (correlation injection [50]).
+6       N. Kougioulis et al.
+
+Feedforward Head. A fully-connected network, followed by a sigmoid activation
+outputs Â ∈ [0, 1]Vmax ×Vmax ×ℓmax , where Aj,i,ℓ is the probability of Xt−ℓ
+                                                                          i
+                                                                              → Xtj .
+   The framework is encoder-agnostic; we adopt Transformers as a scalable,
+well-understood backbone for multivariate time series [13, 33, 34] rather than as
+a novel contribution; details are provided in Appendix .4.
+
+
+4.1   Loss Function
+
+Supervised training of LCMs requires an informative objective that encourages
+accurate edge predictions while leveraging any observed statistical dependen-
+cies. A composite loss is employed, combining supervised edge prediction with a
+correlation-based regularizing term.
+
+Edge Prediction Loss. Let Â ∈ RVmax ×Vmax ×ℓmax denote the discovered lagged
+adjacency tensor and A the ground truth. Each potential edge Xt−ℓ   i
+                                                                        → Xtj is
+treated as a binary classification problem, optimized via binary cross-entropy:
+
+                                  1     X                        
+                     Ledge =    2 ℓ
+                                          BCE  A j,i,ℓ , Â j,i,ℓ
+                               Vmax max
+                                          i,j,ℓ
+
+
+
+Regularization term. As observed by [50], causal discovery FMs for time-series
+can benefit from the inclusion of observed statistics. To improve stability and
+generalization, an auxiliary term is added, aligning predictions with lagged cross-
+correlations observed in input time-series. For X = {Xt }L  t=1 , correlations up to
+lag ℓmax are computed and normalized (we denote this tensor CC).   ˜ The correla-
+                                                                              ˜ 2⊙
+                                                                      
+tion loss corresponds to a weighted mean squared error: Lcorr = E (Â − CC)
+    γ
+ ˜
+CC     where γ > 1 emphasizes strong correlations. This term encourages confi-
+dent causal predictions to align with empirical temporal dependencies without
+imposing hard constraints. Although [50] adopt a different regularizing term, we
+adopt their terminology, correlation regularization (CR), for clarity.
+
+Overall Objective. The final loss combines the two components: L = λedge Ledge +
+λcorr Lcorr , where λedge = 1 and λcorr = 3/4 are selected by default (Table 1).
+
+
+5     Training Setup
+
+5.1   Datasets
+
+LCMs require paired samples (D, G) for supervised training. To promote zero-
+shot generalization under distribution shift, we construct a large, diverse corpus
+combining synthetic, semi-synthetic, and realistic time-series datasets.
+                       Large Causal Models for Temporal Causal Discovery        7
+
+Synthetic. We generate random TSCMs by sampling graphs from parametrized
+random families (e.g., Erdős–Rényi [7,17,23]) and performing ancestral sampling
+[38, Section 4.2.5], dynamically varying the number of variables, ℓmax , graph
+density, and functional mechanisms (linear and nonlinear additive noise models
+[27]). Our primary large-scale collection (Synthetic_2) contains 230k instances;
+CDML [32] and Synthetic_1 [50] provide additional synthetic evaluation. Details
+in Appendix .3.
+
+Semi-synthetic. For Out-Of-Distribution (OOD) evaluation, we use mechanis-
+tic simulators with known causal connectivities: f MRI-based dynamic nonlin-
+ear models (f MRI_5, f MRI) [9, 37, 48] and Kuramoto coupled oscillator systems
+(Kuramoto_5, Kuramoto_10) [31,37]. These are never used for training and serve
+exclusively as OOD benchmarks.
+
+Realistic. We incorporate realistic TSCMs derived from real-world time series
+following [20], to the best of our knowledge the only method constructing cali-
+brated causal twins from observed, real data. Input datasets span multiple do-
+mains (energy, weather, transportation) [24], yielding 45k instances. Additional
+realistic datasets are further reserved for OOD evaluation (Appendix .3).
+
+Mixture Collections. To analyze synthetic-to-realistic ratio effects, we construct
+four mixture datasets (MIX_1–MIX_4) with proportions from 100/0 to 20/80,
+each containing 50k instances with identical temporal characteristics.
+
+Large-Scale Training Corpus. Our main corpus (LS) combines synthetic and
+realistic data, totaling 275k instances (137.5M time points). All evaluations
+use holdout test sets for in-distribution scenarios and separate OOD benchmarks.
+Beyond LCM training, these corpora constitute a substantial benchmark
+resource for systematic evaluation of existing and future temporal CD methods.
+
+
+6     Experimental Setup
+Dataset configurations are described in Section 5.1. Regarding LCMs, we con-
+sider multiple variants with increasing model capacity, from ≈ 900K to 24M
+parameters. Larger models are used to study scalability in variable count and
+data size, while smaller models are employed for ablation studies and compar-
+isons (Subsections 7.1, 7.2). The selection of such parameter counts is motivated
+by established time-series forecasting FMs, such as MOIRAI [53], Timer [34], and
+TimesFM [13]. Configurations, implementation and training details are provided
+in Appendix .7.
+
+6.1   Evaluation Metrics
+Edge discovery performance is evaluated by the Area Under the ROC Curve
+(AUC) [4], computed directly from the discovered lagged adjacency tensor [11,
+8       N. Kougioulis et al.
+
+20]: edges are ranked by confidence, and the area under the TPR–FPR curve is
+computed across thresholds. Higher AUC scores indicate better recovery of the
+ground-truth lagged causal graph. Standard errors are estimated across datasets
+within each collection.
+    Statistical significance of AUC differences between LCMs and baseline meth-
+ods is asserted using the Wilcoxon signed-rank test [12], a non-parametric paired
+test appropriate for potentially non-Gaussian AUC distributions, under a Bon-
+ferroni correction (αcorrected = α/k) where k is the number of performed com-
+parisons and α the level of significance.
+
+6.2   Baselines
+We compare LCMs against established temporal CD methods: PCMCI [46],
+DYNOTEARS [40] and VARLinGAM [26], representing constraint-based,
+score-based, and functional-model approaches respectively. For small datasets
+(V = 5, ℓmax = 3), we additionally include the pre-trained Transformer from [50]
+(≈ 1.4M parameters).
+    All baselines use official implementations. Outputs are converted to lagged
+adjacency tensors for fair comparison. Regarding constraint-based methods, edge
+confidence corresponds to inverse p-values. For methods producing causal effect
+estimates, edge probabilities are estimated via bootstrap resampling (Appendix
+.8 & Algorithm 1).
+
+
+7     Experimental Results
+We present representative results in each of the following subsections. Our exper-
+imental evaluation spans a broad range of settings, including both in-distribution
+(holdout, out-of-sample test sets) and out-of-distribution scenarios. Across these
+settings, we show that LCMs consistently match or outperform classical base-
+lines, which require fitting a new model for each individual dataset. This further
+highlights the effectiveness of LCMs for efficient CD.
+
+7.1   Observed Statistics Improve LCM Performance
+We study the impact of incorporating observed statistics into LCM training
+through a set of training aids, as defined in Section 4. We evaluate a baseline
+LCM, LCM + CI, and LCM + CI + CR following a grid search procedure [25]
+over λcorr ∈ {1/4, 1/2, 3/4, 1}, keeping all other hyperparameters fixed. Experi-
+ments are conducted on the Synthetic_1 holdout set.
+    Using these training aids substantially improves performance. CI alone yields
+a significant improvement over the baseline, and adding CR further increases
+AUC across all tested weights. The highest mean AUC is achieved for λcorr ∈
+[0.25, 0.75], with no statistically significant difference among them. We adopt
+λcorr = 0.75 for all subsequent experiments. In the remainder of this paper, we
+refer to the combination of CI and CR collectively as training aids.
+                        Large Causal Models for Temporal Causal Discovery              9
+
+Table 1. Ablation of training aids on Synthetic_1. Asterisks (*) indicate statistical
+significance over the preceding model (left column).
+
+
+                           LCM +CI              +CR (λ)
+
+                                          .25     .5     .75   1.0
+
+                    AUC .868 .914* .926* .918* .926 .925
+
+Table 2. Out-of-distribution performance of LCMs trained on varying syn-
+thetic/realistic mixtures, evaluated on semi-synthetic f MRI benchmarks and the OOD
+Power & Climate benchmarks. Statistical significance versus the 80/20% reference
+(bold) is indicated by an asterisk (*).
+
+      Synth/Realistic%      f MRI_5         f MRI          Power         Climate
+      100/0%               .924* ± .050   .874* ± .142   .966* ± .011   .938* ± .035
+      80/20%               .966 ± .028    .960 ± .028    .981 ± .006    .982 ± .011
+      50/50%                .951 ± .050   .944* ± .047    .979 ± .008    .988 ± .010
+      20/80%                .968 ± .004   .966* ± .036   .975* ± .010    .986 ± .015
+
+
+
+7.2    LCMs benefit from training on mixtures of synthetic and
+       realistic data
+
+Training LCMs solely on synthetic data limits generalization beyond narrowly
+defined causal structures. To mitigate this, we adopt a dataset mixing approach,
+combining synthetic with realistic datasets during training (Subsection 5.1).
+    Table 2 shows OOD CD performance on semi-synthetic f MRI benchmarks
+and the real-data–derived Power and Climate collections. Models trained solely
+on synthetic cases are consistently outperformed by mixed-dataset models.
+    Adding a modest fraction of realistic data (20%) yields systematic, statisti-
+cally significant performance gains. Higher proportions provide marginal or in-
+consistent improvements. Thus, an 80/20 synthetic-to-realistic mixture balances
+structural diversity and real-world fidelity, consistent with recent time-series FM
+findings [13], and is adopted for all subsequent large-scale experiments.
+
+
+7.3    Rich Training Data Enable Scalable, Large-Scale LCMs
+
+Prior work suggests that scaling LCMs to higher-dimensional settings leads to
+near-random performance, even with increased model capacity [50, Figure 3],
+implying the need for prohibitively deep models. Our results indicate that these
+scaling failures are inherent to limitations of the training data distribution rather
+than architectural constraints. By training on rich datasets, LCMs can scale
+beyond previously studied small systems (e.g., 3–5 variables), demonstrating
+stable convergence and generalization up to Vmax = 12 in our experiments.
+10      N. Kougioulis et al.
+
+Performance on Synthetic Data Table 3 shows that LCMs achieve state-of-
+the-art performance on synthetic benchmarks, outperforming all baselines. We
+attribute their lower performance to their restrictive assumptions, as our models
+benefit from exposure to a diverse large-scale training corpus.
+
+
+Table 3. Causal discovery performance (AUC) of large-scale LCMs and baseline meth-
+ods across synthetic benchmarks. Results are reported as mean ± standard deviation
+across datasets. An asterisk indicates a statistically significant difference with respect
+to the best-performing model (LCM-12.2M), which achieves the highest mean AUC
+across all semi-synthetic collections.
+
+          Model                Synthetic_1       Synthetic_2         CDML
+          LCM2.5M                .995* ± .013      .903* ± .107     .772 ± .177
+          LCM9.4M                .995* ± .013      .906* ± .106     .768 ± .171
+          LCM12.2M                .996 ± .013       .909 ± .103     .773 ± .172
+          LCM24M                 .990* ± .012      .865* ± .133    .727* ± .183
+          CP (Stein et al.)      .943* ± .151           –               –
+          PCMCI                  .671* ± .444      .800* ± .181    .521* ± .108
+          DYNO                   .551* ± .216      .605* ± .152     490* ± .087
+          VARLiNGAM              .922* ± .145      .861* ± .136    .517* ± .099
+
+
+
+
+Out-of-distribution / Zero-shot Performance We evaluate zero-shot trans-
+fer on semi-synthetic and real-world datasets (Subsection 5.1), unseen during
+training, to assess generalization under distribution shifts, in Tables 4 & 5 re-
+spectively. An asterisk indicates a statistically significant difference with respect
+to the best-performing model (LCM24M for Table 4, LCM2.5M for Table 5), achiev-
+ing the highest mean AUC across most collections.
+    Results demonstrate that all model sizes achieve superior or competitive zero-
+shot performance compared to baseline methods. This highlights that richer,
+diverse training data enable strong generalization, confirming that scaling failures
+stem from insufficient training distributions rather than architectural limitations.
+
+
+7.4   Running Times
+
+We compare computational runtimes of LCMs and conventional CD algorithms
+(Section 6.2) to highlight scalability advantages. For an LCM, this corresponds to
+a single forward pass, effectively replacing iterative search of classic CD methods
+with parametric approximation. Each method is run 10 times per dataset, and
+results are averaged (Figure 4).
+    A key observation is that LCM runtimes remain effectively independent of
+input dimensionality, as computations operate on learned representations rather
+                             Large Causal Models for Temporal Causal Discovery                11
+
+Table 4. Out-of-distribution (zero-shot) causal discovery performance (AUC) of large-
+scale LCMs and baseline methods across semi-synthetic benchmarks. Results are re-
+ported as mean ± standard deviation across datasets.
+
+    Model               f MRI_5           f MRI       Kuramoto_5            Kuramoto_10
+    LCM2.5M              .981 ± .017    .978 ± .017        .956* ± .017        .919* ± .018
+    LCM9.4M              .983 ± .007    .979 ± .012         .972 ± .009        .924* ± .008
+    LCM12.2M             .986 ± .007    .982 ± .012        .953* ± .016        .921* ± .014
+    LCM24M               .987 ± .006    .984 ± .010         .973 ± .007         .931 ± .010
+    CP (Stein et al.)   .883* ± .078        –              .541* ± .108             –
+    PCMCI               .746* ± .111   .768* ± .110        .476* ± .103        .635* ± .046
+    DYNO                .528* ± .152   .483* ± .159        .498* ± .077        .519* ± .027
+    VARLiNGAM           .793* ± .095   .781* ± .101        .479* ± .105        .647* ± .053
+
+Table 5. Out-of-distribution (zero-shot) causal discovery performance (AUC) of large-
+scale LCMs and baseline methods across realistic benchmarks. Results are mean ±
+std. across datasets. AQ = AirQualityMS, Clim = Climate, Gar = Garments, ETT =
+ETTm2, Gear = Gearbox, Pow = Power.
+
+ Model                  AQ         Clim         Gar            ETT         Gear          Pow
+ LCM2.5M            .985±.014    .989±.007    .995±.004      .977±.007    .998±.007    .980∗±.007
+ LCM9.4M            .982±.013    .983±.012    .996±.004      .965±.024    .998±.005    .983±.005
+ LCM12.2M           .977∗±.018   .987±.010    .996±.003      .975±.010    .999±.003    .983∗±.005
+ LCM24M             .970∗±.020   .982±.014    .995±.006      .972±.053    .996±.010    .979∗±.008
+ PCMCI              .565∗±.209   .927±.096    .972∗±.053     .898∗±.035   .980±.040    .966±.028
+ DYNO               .706∗±.218   .708∗±.118   .536∗±.051     .566∗±.037   .693∗±.083   .551∗±.053
+ VARLiNGAM          .539∗±.146   .938∗±.075   .984∗±.020     .906∗±.024   .995∗±.009   .941∗±.030
+
+
+
+than fitting a new model per input dataset. In contrast, traditional methods ex-
+hibit superlinear scaling with variable count and temporal lag, possibly limiting
+applicability in real-time, high-dimensional settings.
+
+
+8      Model Complexity
+
+We derive a closed-form expression for the number of trainable parameters of
+our LCM models. Let B denote the number of encoder blocks, dmodel the model
+dimension, nheads the number of attention heads, and dff the feedforward dimen-
+sion. We introduce the binary indicators Itrain , Idistil ∈ {0, 1} for the use of our
+correlation-based training aids and attention distillation respectively. The kernel
+size of the convolutional embedding is denoted by k.
+    The total number of trainable parameters decomposes into terms for (i) input
+token embeddings, (ii) B encoder blocks, (iii) (B − 1) distillation layers when
+enabled, and (iv) the final causal prediction head. Summing the above,
+12      N. Kougioulis et al.
+
+                                                                              Distribution of Running Times
+                                                   1.4
+
+                                                   1.2
+
+
+
+
+              Avg running time per dataset (sec)
+                                                   1.0
+
+                                                   0.8
+
+                                                   0.6
+
+                                                   0.4
+
+                                                   0.2
+
+                                                   0.0
+                                                             M          M         .2M         M      CI           ARS             AM
+                                                         _2.5       _9.4       _12         _24    PCM         OTE           ING
+                                                     LCM         LCM        LCM         LCM               DYN           VAR
+                                                                                                                           L
+
+
+
+Fig. 4. Running times (in seconds) for LCMs and baseline algorithms on the
+Synthetic_2 holdout set, averaged over 10 runs. Traditional methods (e.g., PCMCI &
+DYNOTEARS) scale superlinearly with lag and variable count, while Transformer-
+based LCMs remain effectively independent of input dimensionality due to their
+constant-time forward pass.
+
+
+
+
+             Ptotal = (dmodel Vmax · k + dmodel )
+                                                            + B 4 · d2model + 2dff · dmodel + dff + 9 · dmodel
+                                                                                                               
+
+                                                            + Idistil (B − 1) d2model · k + 3 · dmodel
+                                                                                                       
+                                                                                               
+                                                            + (dmodel + Itrain · A)dff + dff + (dff · A + A).
+                  2
+    where A = Vmax   ℓmax and dmodel is assumed to be divisible by nheads . Domi-
+                           2
+nant term grows as Θ(Vmax     ℓmax ), i.e., pairwise causal edges in the feedforward
+head. For Vmax = 25, ℓmax = 3 with 24M hyperparameters, the head alone con-
+tributes ≈ 2M parameters, total ≈ 75M. Our considered input dimensionality
+(Vmax = 12, ℓmax = 3) represents a careful balance between scalability, gen-
+eralization, and applicability, with higher-dimensional extensions possible via
+time-series selection [51], for example in genomics applications.
+
+
+9    Training Data–Model Size Convergence
+
+We study the interaction between model capacity and training data size by
+training 500K, 1M, and 2M parameter LCMs on subsampled datasets of sizes
+{10K, 25K, 50K, 100K} from our large-scale corpus (five random seeds; fixed val-
+idation/test sets of 2 · 103 samples).
+    As shown in Figure 5, smaller models saturate early with diminishing returns
+from additional data, while larger models continue to improve at scale. Results
+confirm that LCM performance is jointly constrained by model capacity and data
+availability: scaling either alone yields limited gains, but scaling both together
+                        Large Causal Models for Temporal Causal Discovery        13
+
+
+
+
+Fig. 5. Empirical convergence of LCMs with increasing training data. Test AUC for
+500K, 1M, and 2M parameter models trained on subsampled datasets. Validation/test
+sets are fixed to isolate the effect of data scale.
+
+
+leads to consistent improvements. We do not claim a universal scaling law; rather,
+these findings inform practical design choices for large-scale temporal CD.
+
+
+10    Concluding Remarks & Future Work
+
+Large Causal Models (LCMs) are foundation models for temporal causal discov-
+ery that amortize CD under a supervised scheme, enabling fast, single-pass graph
+prediction without any optimization. Trained on mixed data collections, LCMs
+exhibit strong in- and out-of-distribution generalization, consistently matching
+or outperforming established baselines. Future work includes relaxing causal suf-
+ficiency to handle latent confounders, contemporaneous effects, and scaling to
+higher-dimensional systems and longer horizons.
+
+
+11    Limitations
+
+LCMs operate under the causal assumptions defined in Section 1 and do not
+detect or correct violations. When assumptions are violated, predictions may
+reflect training distribution biases rather than true causal structure, and should
+be interpreted accordingly.
+
+
+12    Impact Statement
+
+LCMs enable scalable, zero-shot temporal causal discovery without dataset-
+specific retraining, potentially accelerating scientific discovery in fields such as
+biology and marketing by reducing reliance on costly randomized control trials
+& A/B testing.
+14      N. Kougioulis et al.
+
+Disclosure of Interests. Nikolaos Kougioulis, Nikolaos Gkorgkolis & Ioan-
+nis Tsamardinos have received funding from Huawei Ireland Research Centre,
+Dublin, Ireland.
+
+
+References
+ 1. Ashman, M., Ma, C., Hilmkil, A., Jennings, J., Zhang, C.: Causal reasoning in
+    the presence of latent confounders via neural ADMG learning. arXiv preprint
+    arXiv:2303.12703 (2023)
+ 2. Assaad, C.K., Devijver, E., Gaussier, E.: Survey and evaluation of causal discovery
+    methods for time series. Journal of Artificial Intelligence Research 73, 767–819
+    (2022)
+ 3. Bommasani, R.: On the opportunities and risks of foundation models. arXiv
+    preprint arXiv:2108.07258 (2021)
+ 4. Bradley, A.P.: The use of the area under the ROC curve in the evaluation of
+    machine learning algorithms. Pattern Recognition 30(7), 1145–1159 (1997)
+ 5. Breiman, L.: Random forests. Machine Learning 45(1), 5–32 (2001)
+ 6. Brockwell, P.J., Davis, R.A.: Time series: Theory and Methods. Springer Science
+    & Business Media (1991)
+ 7. Brouillard, P., Lachapelle, S., Lacoste, A., Lacoste-Julien, S., Drouin, A.: Differen-
+    tiable causal discovery from interventional data. Advances in Neural Information
+    Processing Systems (2020)
+ 8. Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J.D., Dhariwal, P., Nee-
+    lakantan, A., Shyam, P., Sastry, G., Askell, A., et al.: Language models are few-shot
+    learners. Advances in Neural Information Processing Systems 33, 1877–1901 (2020)
+ 9. Buxton, R.B., Wong, E.C., Frank, L.R.: Dynamics of blood flow and oxygena-
+    tion changes during brain activation: the balloon model. Magnetic Resonance in
+    Medicine 39(6) (1998)
+10. Chen, T., Guestrin, C.: Xgboost: A scalable tree boosting system. In: Proceedings
+    of the 22nd acm sigkdd international conference on knowledge discovery and data
+    mining. pp. 785–794 (2016)
+11. Cheng, Y., Wang, Z., Xiao, T., Zhong, Q., Suo, J., He, K.: Causaltime: Realis-
+    tically generated time-series for benchmarking of causal discovery. International
+    Conference on Learning Representations (2024)
+12. Conover, W.J.: Practical Nonparametric Statistics. Wiley & Sons (1999)
+13. Das, A., Kong, W., Sen, R., Zhou, Y.: A decoder-only foundation model for time-
+    series forecasting. In: International Conference on Machine Learning. vol. 41 (2024)
+14. Dickey, D.A., Fuller, W.A.: Distribution of the estimators for autoregressive time-
+    series with a unit root. Journal of the American statistical association 74(366a),
+    427–431 (1979)
+15. Dinh, L., Sohl-Dickstein, J., Bengio, S.: Density estimation using real nvp. In:
+    International Conference on Learning Representations (2017)
+16. Durkan, C., Bekasov, A., Murray, I., Papamakarios, G.: Neural spline flows. Ad-
+    vances in neural information processing systems 32 (2019)
+17. Fienberg, S.E.: A brief history of statistical models for network analysis and open
+    challenges. Journal of Computational and Graphical Statistics 21(4), 825–839
+    (2012)
+18. Fix, E.: Discriminatory analysis: nonparametric discrimination, consistency prop-
+    erties, vol. 1. USAF school of Aviation Medicine (1985)
+                         Large Causal Models for Temporal Causal Discovery           15
+
+19. Geffner, T., Antoran, J., Foster, A., Gong, W., Ma, C., Kiciman, E., Sharma,
+    A., Lamb, A., Kukla, M., Pawlowski, N., et al.: Deep end-to-end causal inference.
+    Transactions of Machine Learning Research (2024)
+20. Gkorgkolis, N., Kougioulis, N., Wang, M., Caglayan, B., Tonon, A., Simionato,
+    D., Tsamardinos, I.: Adversarial causal tuning for realistic time-series generation.
+    arXiv preprint arXiv:2506.02084 (2026)
+21. Goudet, O., Kalainathan, D., Caillou, P., Guyon, I., Lopez-Paz, D., Sebag, M.:
+    Causal generative neural networks. arXiv preprint arXiv:1711.08936 (2017)
+22. Goudet, O., Kalainathan, D., Caillou, P., Guyon, I., Lopez-Paz, D., Sebag, M.:
+    Learning functional causal models with generative neural networks. Explainable
+    and Interpretable Models in Computer Vision and Machine Learning pp. 39–80
+    (2018)
+23. Hagberg, A., Swart, P.J., Schult, D.A.: Exploring network structure, dynamics,
+    and function using networkx. Tech. rep., Los Alamos National Laboratory (LANL)
+    (2007)
+24. Hahn, Y., Langer, T., Meyes, R., Meisen, T.: Time series dataset survey for fore-
+    casting with deep learning. Forecasting 5(1), 315–335 (2023)
+25. Hutter, F., Kotthoff, L., Vanschoren, J.: Automated Machine Learning: Methods,
+    Systems, Challenges. Springer Nature (2019)
+26. Hyvärinen, A., Zhang, K., Shimizu, S., Hoyer, P.O.: Estimation of a structural
+    vector autoregression model using non-gaussianity. Journal of Machine Learning
+    Research 11(5) (2010)
+27. Kalainathan, D., Goudet, O., Guyon, I., Lopez-Paz, D., Sebag, M.: Structural ag-
+    nostic modeling: Adversarial learning of causal graphs. Journal of Machine Learn-
+    ing Research 23(219), 1–62 (2022)
+28. Ke, N.R., Chiappa, S., Wang, J.X., Bornschein, J., Goyal, A., Rey, M., Weber, T.,
+    Botvinick, M., Mozer, M.C., Rezende, D.J.: Learning to induce causal structure.
+    In: International Conference on Learning Representations (2023)
+29. Kolesnikov, A., Dosovitskiy, A., Weissenborn, D., Heigold, G., Uszkoreit, J., Beyer,
+    L., Minderer, M., Dehghani, M., Neil, H., Sylvain, G., Unterthiner, T., Zhai, X.:
+    An image is worth 16x16 words: Transformers for image recognition at scale. In:
+    International Conference on Learning Representations (2021)
+30. Kougioulis, N.: Large Causal Models for Temporal Causal Discovery. Master’s the-
+    sis, University of Crete (2025)
+31. Kuramoto, Y.: Self-entrainment of a population of coupled non-linear oscillators.
+    In: International Symposium on Mathematical Problems in Theoretical Physics:
+    Kyoto University, Kyoto/Japan. Springer (1975)
+32. Lawrence, A.R., Kaiser, M., Sampaio, R., Sipos, M.: Data generating process to
+    evaluate causal discovery techniques for time series data. NeurIPS Causal Discovery
+    & Causality-Inspired Machine Learning Workshop (2020)
+33. Liu, Y., Qin, G., Huang, X., Wang, J., Long, M.: Timer-xl: Long-context trans-
+    formers for unified time series forecasting. arXiv preprint arXiv:2410.04803 (2024)
+34. Liu, Y., Zhang, H., Li, C., Huang, X., Wang, J., Long, M.: Timer: Generative pre-
+    trained transformers are large time series models. arXiv preprint arXiv:2402.02368
+    (2024)
+35. Lorch, L., Sussex, S., Rothfuss, J., Krause, A., Schölkopf, B.: Amortized inference
+    for causal structure learning. Advances in Neural Information Processing Systems
+    35, 13104–13118 (2022)
+36. Loshchilov, I., Hutter, F.: Fixing weight decay regularization in adam. In: Interna-
+    tional Conference on Learning Representations (ICLR) (2019)
+16      N. Kougioulis et al.
+
+37. Löwe, S., Madras, D., Zemel, R., Welling, M.: Amortized causal discovery: Learning
+    to infer causal graphs from time-series data. In: Conference on Causal Learning
+    and Reasoning. pp. 509–525. PMLR (2022)
+38. Murphy, K.P.: Probabilistic Machine Learning: Advanced Topics. MIT Press (2023)
+39. Nauta, M., Bucur, D., Seifert, C.: Causal discovery with attention-based convo-
+    lutional neural networks. Machine Learning and Knowledge Extraction 1(1), 19
+    (2019)
+40. Pamfil, R., Sriwattanaworachai, N., Desai, S., Pilgerstorfer, P., Georgatzis, K.,
+    Beaumont, P., Aragam, B.: DYNOTEARS: Structure learning from time-series
+    data. In: International Conference on Artificial Intelligence and Statistics. pp.
+    1595–1605. Proceedings of Machine Learning Research (2020)
+41. Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen,
+    T., Lin, Z., Gimelshein, N., Antiga, L., et al.: Pytorch: An imperative style, high-
+    performance deep learning library. Advances in neural information processing sys-
+    tems 32 (2019)
+42. Pearl, J.: Causality. Cambridge University Press, 2nd edn. (2009)
+43. Peters, J., Janzing, D., Schölkopf, B.: Elements of causal inference: foundations
+    and learning algorithms. The MIT Press (2017)
+44. Radford, A., Narasimhan, K., Salimans, T., Sutskever, I.: Improving language un-
+    derstanding by generative pre-training. OpenAI (2018)
+45. Runge, J.: Causal network reconstruction from time series: From theoretical as-
+    sumptions to practical estimation. Chaos: An Interdisciplinary Journal of Nonlin-
+    ear Science 28(7) (2018)
+46. Runge, J., Bathiany, S., Bollt, E., Camps-Valls, G., Coumou, D., Deyle, E., Gly-
+    mour, C., Kretschmer, M., Mahecha, M.D., Muñoz-Marí, J., et al.: Inferring cau-
+    sation from time series in earth system sciences. Nature communications 10(1),
+    2553 (2019)
+47. Runge, J., Gerhardus, A., Varando, G., Eyring, V., Camps-Valls, G.: Causal infer-
+    ence for time series. Nature Reviews Earth & Environment 4(7), 487–505 (2023)
+48. Smith, S.M., Miller, K.L., Salimi-Khorshidi, G., Webster, M., Beckmann, C.F.,
+    Nichols, T.E., Ramsey, J.D., Woolrich, M.W.: Network modelling methods for
+    fMRI. Neuroimage 54(2), 875–891 (2011)
+49. Spirtes, P., Glymour, C., Scheines, R.: Causation, Prediction, and Search. MIT
+    Press (2001)
+50. Stein, G., Shadaydeh, M., Denzler, J.: Embracing the black box: Heading towards
+    foundation models for causal discovery from time series data. AAAI Workshop
+    (AI4TS) (2024)
+51. Vareille, E., Linardi, M., Tsamardinos, I., Christophides, V.: Chronoepilogi: Scal-
+    able time series selection with multiple solutions. Advances in Neural Information
+    Processing Systems 37, 134287–134316 (2024)
+52. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N., Kaiser,
+    Ł., Polosukhin, I.: Attention is all you need. Advances in Neural Information Pro-
+    cessing Systems 30 (2017)
+53. Woo, G., Liu, C., Kumar, A., Xiong, C., Savarese, S., Sahoo, D.: Unified training
+    of universal time series forecasting transformers. PMLR (2024)
+54. Wu, D., He, Y., Cao, Y., Fan, J., Liu, H.: Transformers and their roles as time
+    series foundation models. arXiv preprint arXiv:2502.03383 (2025)
+55. Wu, M., Bao, Y., Barzilay, R., Jaakkola, T.: Sample, estimate, aggregate: A recipe
+    for causal discovery foundation models. In: ICLR Workshop on Machine Learning
+    for Genomics Explorations (2024)
+                         Large Causal Models for Temporal Causal Discovery           17
+
+56. Zhang, J., Jennings, J., Hilmkil, A., Pawlowski, N., Zhang, C., Ma, C.: Towards
+    causal foundation model: On duality between causal inference and attention. arXiv
+    preprint arXiv:2310.00809 (2023)
+57. Zhou, H., Zhang, S., Peng, J., Zhang, S., Li, J., Xiong, H., Zhang, W.: Informer:
+    Beyond efficient transformer for long sequence time-series forecasting. In: Proceed-
+    ings of AAAI. pp. 11106–11115 (2021)
+18       N. Kougioulis et al.
+
+.1    Causal Assumptions & Brief Definitions
+
+All Causal Discovery algorithms are governed by a set of assumptions, regarding
+the statistical properties of the data and the underlined structure of the causal
+model. The following assumptions are defined in a way to be applied to either a
+(standard) causal graph or a temporal causal graph.
+
+Definition 1 (Causal Markov Condition, [42,49]). Let G be a causal graph
+with vertex set V and P a probability distribution over V, generated by the causal
+structure induced by G. Then G and P satisfy the Markov Condition if and only
+if ∀ W ∈ V, W is independent of its non-descendants on the causal DAG (non
+causal effects) given its parents (direct causes) on G.
+
+Definition 2 (Faithfulness, [42, 49]). Let G be a causal graph and P a proba-
+bility distribution over V. We say that G and P are faithful to each other if and
+only if the all and only the independence relations of P are entailed by the Causal
+Markov condition of G. Specifically, G and P satisfy the Faithfulness Condition
+if-f every conditional independence relation true in P is entailed by the Causal
+Markov Condition applied to G.
+
+Definition 3 (Causal Sufficiency, [42, 49]). A set V of variables is causally
+sufficient for a population if and only if in the population every common cause
+of any two or more variables in V is in V , or has the same value for all units
+in the population. The common cause Z of two or more variables in a DAG
+X ← Z → Y is called a confounder of X and Y . Hence Causal Sufficiency
+implies no unobserved confounders. The notion of causal sufficiency is being
+used without explicitly mentioning the population.
+
+Definition 4 (Causal Stationarity, [45]). Consider the            SCM description
+                                                                            
+from Section 1. If the causal relationships between variables Vt−τ  i
+                                                                       , Vtj for time
+                                                               
+lag τ > 0 also hold for all time-shifted versions Vti′ −τ , Vtj′ , the described pro-
+cess is causally stationary. Informally, the graph structure and noise distribution
+of the SCM are time-invariant.
+
+Definition 5 (Time-series Stationarity, [6]). Let {Xt }t∈Z be a time-series
+with index set Z = {0, ±1, ±2, . . .}. The series is said to be stationary if:
+
+1. E|Xt |2 < ∞, ∀t ∈ Z
+2. EXt = m, ∀t ∈ Z
+3. γX (r, s) = γX (r + t, s + t),   ∀r, s, t ∈ Z
+
+where γX (r, s) = Cov(Xr , Xs ) = E [(Xr − EXr )(Xs − EXs )] , r, s ∈ Z is the
+autocovariance function of the stochastic process {Xt }t∈Z .
+
+     We now give definitions on used terminology for our causal graphs.
+                         Large Causal Models for Temporal Causal Discovery            19
+
+Definition 6 (Lagged Causal Graph - Window Causal Graph). A Lagged
+Causal Graph is a directed acyclic graph (DAG) that represents the causal rela-
+tionships between time-shifted variables in a multivariate time-series. Formally,
+let Vt = {Vt1 , Vt2 , . . . , Vtk } denote the set of observed variables at time step t.
+A lagged causal graph G contains directed edges of the form Vt−τ       i
+                                                                           → Vtj , where
+                                                                     j
+τ ∈ {1, 2, . . . , ℓmax } is a positive time lag. An edge Vt−τ → Vt indicates that V i
+                                                             i
+
+is a direct cause of V j with a time lag of τ .
+Definition 7 (Summary Causal Graph). Given a lagged causal graph G with
+                     i
+edges of the form Vt−τ   → Vtj for various lags τ , the corresponding summary
+graph S contains an edge V i → V j if there exists at least one lag τ such that
+  i
+Vt−τ is a direct cause of Vtj in G.
+    Essentially, a summary graph is a simplified representation of the lagged
+causal structure in a time-series, where the temporal information about lags is
+abstracted away. The summary graph captures whether a causal relationship
+exists between two variables, but it does not specify the lag or delay at which
+the causal influence occurs.
+
+.2    Input Handling and Padding Strategies
+
+
+
+                          W/o Training Aids               W/ Training Aids
+     Input                                                            2
+                                  dmodel                dmodel + 2 · Vmax × ℓmax
+     dimensions
+     Hidden state
+
+     Fig. 6. Hidden state representations with and without auxiliary training aids.
+
+
+    In order to handle variable-length time-series, variable numbers of time-series
+and differing maximum lags across datasets, we adopt a set of standardized
+padding strategies, both for the input time-series and the ground truth lagged
+adjacency tensor. This enables consistent batch processing and generalization of
+trained models across heterogeneous dataset configurations, as the model is able
+to handle an input of fixed dimensions, as in conventional foundation models.
+
+Time-Series Padding. When the number of observed time-steps (samples) L
+is less than the configured maximum number of samples Lmax , the time-series
+is padded with Gaussian noise N (0, 0.01) along the time-step dimension. This
+prevents introducing zero artifacts, preserving the marginal statistics, and makes
+the model robust to handling varying sequence lengths. When inputs are longer
+than the configured maximum (either in time-steps L or the number of time-
+series dmax ), the excess is truncated to fit the maximum dimensions. This is
+conceptually similar to how Foundation models like large language models -
+LLMs truncate input lengths that exceed the maximum allowed tokens [8].
+20      N. Kougioulis et al.
+
+Causal Graph Padding. A similar procedure is carried out for padding of the
+lagged causal graph. When a dataset has fewer variables than Vmax , or the lagged
+causal graph assumes a lower maximum lag l < ℓmax , the lagged adjacency
+tensor is zero-padded alongside the unused variable and lag dimensions. Such
+padding explicitly encodes the absence of nodes or time dependencies outside the
+observed configuration. Such a step, together with time-series padding described
+previously, is crucial for both training of the LCMs, as well as during evaluation
+against the ground truth causal graph, as it allows handling of time-series and
+causal graph pairs of variable time-step, node and lag dimensions. An illustration
+of the above is shown in Figure .2.
+
+Input Concatenation. Implemented LCMs, unless specified otherwise, concate-
+nate lagged crosscorrelations (training aids), which are flattened along the batch
+dimension to the last hidden state (as illustrated in Figure 3 of the main text).
+We depict the above in Figure 6.
+
+
+                                                               Lagged Adjacency Tensor (V < Vmax )
+                    Observed Time-Series (V < Vmax )
+                                                                 W      W       W          0   0
+       Xt1   Xt2         Xt3      ···       ···        N   N
+
+                                                                 W      W       W          0   0
+       1
+      Xt+1    2
+             Xt+1        3
+                        Xt+1      ···       ···        N   N
+
+                                                                 W      W       W          0   0
+
+      ···    ···        ···       ···       ···        N   N
+
+                                                                 0      0        0         0   0
+
+       N     ···        ···       ···       ···        N   N
+
+                                                                 0      0        0         0   0
+
+
+
+
+                        Gaussian Noise Padding                              Zero Padding
+
+
+
+Fig. 7. Illustration of the padding strategies in LCMs. Left: Gaussian noise padding
+for time-series where V < Vmax and L < Lmax . Right: Zero padding of lagged adjacency
+tensors when V < Vmax or ℓ < ℓmax . Red dashed boxes indicate padded regions. N
+denotes N (0, 0.01) for brevity.
+
+
+
+
+.3   Datasets
+Synthetic In line with the synthetic temporal data generators provided in
+Tigramite [47], we implement a temporal SCM-based time-series generator to
+produce synthetic datasets for training and validating our LCMs. The generator
+produces both observational samples by simulating temporal structural equa-
+tion models with additive noise, as defined in Section 1. Synthetic data allow us
+to evaluate and compare algorithms under controlled conditions while ensuring
+reproducibility and flexibility.
+    The data generation process consists of several steps. Initially, a lagged tem-
+poral causal graph is constructed by sampling a random directed acyclic graph
+(DAG) following the Erdős-Rényi scheme [7]. Similar to [32], our implementation
+                        Large Causal Models for Temporal Causal Discovery         21
+
+offers extensive configurability, including the number of variables and samples,
+the minimum and maximum lags ℓmin and ℓmax , as well as the graph density. To
+model a variety of realistic causal mechanisms, we incorporate a diverse set of
+(equiprobable) functional dependencies in the SCM, including both linear and
+nonlinear relationships, and additive Gaussian noise; examples are summarized
+in Table 7. Observational samples are generated via ancestral sampling, similar
+to the procedure used in latent variable models [38, Section 4.2.5], by traversing
+the topological order of the lagged causal graph. The overall sampling procedure
+is summarized in Algorithm 2. For ensuring stability of the generated time-series
+samples, we employ a warm-up period as in [47], discarding an initial set of sam-
+ples before collecting data.
+
+
+Table 6. Synthetic time-series dataset collections. L = linear, NL = non-linear func-
+tional relationships.
+
+      Collection     Pairs    Variables    Timesteps      ℓmax   Func. Rels.
+     Synthetic_1      100k       3–5           500          3        L, NL
+     Synthetic_2      270k       3–12          500          3        L, NL
+         CDML         240        4–11          500          3        L, NL
+
+
+
+    An important consideration in synthetic data generation is the stationarity
+of the resulting time-series. The generator in Tigramite addresses this by per-
+forming eigenvalue tests on the stability matrix and aborting the generation if
+instability is detected, without adjusting the parameters. In contrast, [50] han-
+dle instability by repeatedly resampling until stationarity is achieved. Both ap-
+proaches, however, become impractical when generating large, high-dimensional
+datasets needed for training our LCMs. We mitigate this issue by wrapping the
+outcomes of unbounded functional dependencies with bounded functions, such
+as the hyperbolic tangent tanh or the sigmoid σ. This strategy caps the growth
+of unbounded functions, ensuring stationarity without altering the underlying
+causal relationships, and thereby improves the stability and scalability of our
+synthetic data generation while preserving causal structure.
+
+Semi-synthetic Semi-synthetic datasets combine analytically defined struc-
+tural equations with generative processes and experimental knowledge (e.g.,
+Markov processes of physical systems). These datasets simulate complex systems
+where the underlying causal graph is known, allowing for controlled benchmark-
+ing under quasi-realistic dynamics. An overview is provided in Table 8.
+    The f MRI collection comprises 27 datasets with variable counts of 5, 10,
+and 15, and observation lengths ranging from 50 to 5000, simulating BOLD
+(Blood-Oxygen-Level Dependent) responses from different regions of interest in
+the brain. The simulation process follows a non-linear balloon model [9], trans-
+lating neural activity into hemodynamic responses, and is designed to mimic
+22        N. Kougioulis et al.
+
+          Table 7. Functional dependencies used in synthetic SCM generation.
+
+
+ Category         Example Function                     Description
+
+ Linear           f (x) = ax + b                       Additive linear effect
+                  f (x1 , x2 ) = a1 x1 + a2 x2 + b     Linear combination of parents
+
+ Non-linear       f (x) = αn xn + . . . α0 x0          Polynomial
+                            x
+                  f (x) = e                            Exponential Transformation
+                  f (x) = sin(x)                       Sinusoidal
+                  f (x1 , x2 ) = x1 x2                 Multiplicative interaction
+                  f (x) = log(1 + |x|)                 Logarithmic transformation
+
+ Bounded          f (x) = tanh(x)                      Hyperbolic tangent (bounded in [−1, 1])
+                                                       Sigmoid 1+e1−x
+                                                                      
+                  f (x) = σ(x)
+
+
+          Table 8. Overview of semi-synthetic time-series dataset collections.
+
+
+      Collection         Datasets        Vars    Timesteps          Max Lag         Rels.
+       f MRI5                   21        5          1200–5000          1       Non-linear
+          f MRI                 26       5–10        1200–5000          1       Non-linear
+     Kuramoto_5               1000        5             500             1       Non-linear
+     Kuramoto_10              1000        10            500             1       Non-linear
+
+
+
+realistic neural connectivity patterns based on known structural priors. Due to
+our model input limitations, the 15-variable case is discarded.
+
+
+
+Realistic To generate realistic (simulated) time-series datasets paired with
+ground-truth temporal causal graphs, we employ the methodology of [20], which
+takes as input real multivariate time-series data, learns a TSCM (the directed
+causal graph, functional mechanisms, and noise models), and synthesizes arbi-
+trary numbers of time-series samples from the learned causal model. This proce-
+dure produces fully supervised dataset–graph pairs suitable for training LCMs.
+    For any of these input time-series, we verify for stationarity using the Aug-
+mented Dickey-Fuller test [14] (ADF). In case non-stationarity is observed, it
+is normalized using finite differences up to second order. This step assures that
+data fed into training of LCMs do not possess extreme trends, possibly resulting
+in unstable training. We follow the python implementation of statsmodels with
+                           T 1/4
+                              
+maximum lag order 12 · 100         where T is the number of observed timesteps.
+                          Large Causal Models for Temporal Causal Discovery          23
+
+Table 9. Overview of real time-series datasets used for generating realistic data pairs,
+employing the methodology by [20].
+
+
+              Collection         Variables     Timesteps         Domain
+                 WTH                 12           35064          Weather
+                ETTh1                 7           17420           Power
+                ETTm1                 7           69680           Power
+            AirQualityUCI            12           9357           Weather
+              Bike-usage              5           52584       Transportation
+               Outdoors               3           1440        Environmental
+                ETTm2                 7           69680           Power
+                Climate               4           1463        Environmental
+               Garments               7            692        Manufacturing
+          power-consumption           8           52416           Power
+             Gearbox-fault            3           2000          Automotive
+            AirQualityMS             36           4937           Weather
+
+
+
+Used configurations & algorithms We implement the same methods for
+CD, functional dependency and noise estimation for the generation of simulated
+data as in [20]4 , apart from Random Forest Regressors. We instead use kNN
+Regressors [18] and Gradient Boosting [10] for improved computational efficiency
+of generating large amounts of data pairs. An overview is shown in Table 10.
+    Apart from the generation of different time-series samples and causal graph
+data pairs generated from different configurations of algorithms in Phases 1-3
+of ACT, we apply two augmentation strategies before processing them through
+the pipeline to increase the number of simulated datasets: i) time window sub-
+sampling and ii) node subsets sub-sampling.
+
+Time Window Sub-sampling Given a multivariate time-series of minimum length
+L = 400, we extract multiple non-overlapping windows of fixed length w = 200.
+Each window is treated as an independent dataset and passed through the full
+ACT pipeline (causal discovery, function approximation, and noise modeling),
+resulting in a distinct simulated time-series and corresponding lagged causal
+graph.
+
+Node sub-sampling For each time window, we additionally generate subsets of
+variables of size k ∈ {3, 5, 7}. Each subset is independently simulated via ACT,
+with their total count dependent on the dimension of the original dataset. The
+4
+    https://github.com/kougioulis/ACT
+24       N. Kougioulis et al.
+
+Table 10. Implemented Methods for Temporal Functional Dependency Estimation,
+Noise Density Estimation in Temporal Causal Discovery.
+
+
+                                   Causal Discovery
+
+     Method                         Description
+
+     PCMCI [45]                     Constraint-Based Algorithm
+     DYNOTEARS [40]                 Constraint Optimization Algorithm
+     CP [50]                        Pre-trained Transformer
+
+                                Functional Dependencies
+
+     Random Forest Regressor [5] Ensemble Learning Regressor
+     kNN Regressors [18]            Non-parametric Supervised Method
+     XGBoost [10]                   Gradient Boosting Tree Algorithm
+     AD-DSTCN [39]                  Time-series Forecasting Model (TCDF module)
+     TimesFM [13]                   Foundational Time-series Forecaster
+
+                                     Noise Density
+
+     Normal Distribution            Fitted Parametric Distribution
+     Uniform Distribution           Fitted Parametric Distribution
+     Neural Splines [16]            Normalizing Flows
+     RealNVP [15]                   Normalizing Flows
+
+
+
+above strategies increase variability of training pairs by exposing the model to
+smaller-scale graphs.
+   The final collections for training and evaluation are provided in Table 11.
+
+
+.4    Architecture of LCMs
+
+This section provides a detailed description of the implemented architecture
+[50, 57] used throughout experiments, consistent with the formulation presented
+in the main text.
+
+
+Input Handling & Embeddings
+
+Input Embeddings. The model receives an observational multivariate time series
+X ∈ RB×L×V , where B denotes the batch dimension, L the number of timesteps,
+and V the number of variables. During inference, B = 1. All inputs are min–max
+normalized per variable. To allow training across datasets with heterogeneous
+dimensionality and sequence length, inputs are padded (or truncated) to fixed
+                        Large Causal Models for Temporal Causal Discovery          25
+
+Table 11. Overview of realistically generated time-series collections for training and
+OOD evaluation of LCMs. Collections in bold notate inclusion in the SIM training
+corpus and the large scale, LS corpus.
+
+
+                Collection           Variables   ℓmax   Num. Datasets
+                  WTH                  3-12       3         20200
+                  ETTh1                 3-7       3          9000
+                 ETTm1                  3-7       3          9000
+             AirQualityUCI             3-12       3          3900
+                Bike-usage              3-5       3          1800
+                Outdoors                 3        3           800
+                  ETTm2                 3-7       3           15
+                  Climate               3,4       3           17
+                 Garments               3-7       3           24
+                   Power                3-8       3           18
+               Gearbox-fault             3        3           20
+               AirQualityMS            3-12       3           54
+
+
+upper bounds Lmax = 500 and Vmax = 12, as described in Subsection .4. Tem-
+poral padding is performed using i.i.d. Gaussian noise z ∼ N (0, 0.01).
+
+.5   Min–Max Normalization
+To ensure consistent scaling across heterogeneous datasets and to stabilize op-
+timization, each variable is min–max normalized prior to being processed. This
+transformation is applied during both training and inference. For a variable xvt ,
+the normalized value x̃vt is defined as
+
+                                  xvt − min(xv )
+                            x̃vt =                   ,                 (1)
+                             max(xv ) − min(xv ) + ϵ
+   where ϵ > 0 ensures numerical stability.
+   After min–max normalization, sequences are padded along both temporal
+and variable dimensions to fixed sizes Lmax and Vmax with sequences longer
+than Lmax truncated, as in Appendix .2.
+
+Temporal Convolutional Embedding. The normalized and padded input is then
+projected into a latent representation using a one-dimensional convolution oper-
+ating along the temporal dimension. After permuting the tensor to channel-first
+format [B, Vmax , Lmax ], a convolution is applied with cin = Vmax , cout = dmodel ,
+where dmodel denotes the model dimension. The resulting embeddings are Xtok =
+Conv1D(X) ∈ RB×Lmax ×dmodel .
+26       N. Kougioulis et al.
+
+    This convolutional projection serves as a learnable feature extractor captur-
+ing local temporal dependencies prior to global attention. It replaces the purely
+linear token embedding of the vanilla Transformer, following the Informer design.
+
+Positional Encoding. Because self-attention is permutation-invariant with re-
+spect to temporal order, explicit positional information is injected using sinu-
+soidal encodings [52]:
+                                                       
+                                               t
+                        PE(t,2i) = sin                    ,
+                                         100002i/dmodel
+                                                                           (2)
+                                               t
+                       PE(t,2i+1) = cos                   .
+                                         100002i/dmodel
+   The final embedding representation is thus Xemb = Xtok + PE, followed by
+dropout for regularization.
+
+
+.6    Transformer Encoder
+
+The embedding representation Xemb is processed by a stack of Informer-style
+encoder layers. For a layer l:
+                                                             
+                   E ′(l) = LayerNorm E (l) + SelfAttn(E (l) ) ,
+                                                                      (3)
+                 E (l+1) = LayerNorm E ′(l) + FFN(E ′(l) ) .
+
+     Where SelfAttn(·) denotes scaled multi-head self-attention and
+                                                                
+                    FFN(x) = Conv1D2 GELU Conv1D1 (x)                             (4)
+    is a two-layer convolutional feed-forward network applied position-wise. Resid-
+ual connections and layer normalization are also applied after both sublayers to
+ensure stable propagation of gradients.
+
+Temporal Distillation. Between encoder blocks, a self-attention distillation layer
+is inserted (included in all trained models). It performs convolutional downsam-
+pling followed by normalization, activation, and max pooling:
+                                                                  
+             Xdistil = MaxPool ELU BatchNorm(Conv1D(E (l) )) .                 (5)
+
+   This reduces the temporal dimension and lowers computational cost while
+preserving dominant temporal patterns.
+                                                   ′
+   Let the final encoder output be Eenc ∈ RB×L ×dmodel (L′ ≤ Lmax ) where only
+the final timestep embedding is retained: h = Eenc [:, −1, :] ∈ RB×dmodel .
+   This design relies on the global receptive field of self-attention: the final token
+representation can attend to all preceding timesteps and therefore serves as a
+global summary of the sequence.
+                         Large Causal Models for Temporal Causal Discovery           27
+
+Auxiliary Correlation Injection To assist the model in inferring directed
+dependencies, empirical Pearson cross-correlations are computed for each or-
+dered variable pair (X i , X j ) and lag τ ∈ {1, . . . , ℓmax }, which are flattened and
+concatenated to the learned neural representations of the final encoder block.
+
+                                               i         j
+                                          Cov(X1:T −τ , Xτ +1:T )
+                    ρX i ,X j (τ ) = q                                 .
+                                              i             j
+                                         Var(X1:T −τ ) Var(Xτ +1:T )
+
+
+    These values form a tensor CC˜ ∈ RB×Vmax ×Vmax ×ℓmax , which is flattened and
+                                                                                     ˜ .
+                                                                                       
+concatenated with the encoder representation: Z = Concat Flatten(X̄), Flatten(CC)
+This correlation injection acts as a statistical training aid, aligning learned rep-
+resentations with empirically observable lagged dependencies.
+
+
+Feedforward Head and Output Interpretation The concatenated represen-
+tation Z is passed through a two-layer feedforward head with layer normalization
+and SwiGLU activation: H = SwiGLU LN(W1 Z + b1 ) , Âflat = W2 H + b2 .
+    After reshaping and a sigmoid activation for the transformation of logits, the
+lagged adjacency tensor corresponding to the discovered lagged causal graph is
+                                       
+                 Â = σ Reshape(Âflat ) ∈ [0, 1]B×Vmax ×Vmax ×ℓmax
+
+                                                                             i
+   Each entry Âj,i,τ represents the confidence on the directed lagged edge Xt−τ →
+ j
+Xt existence. Since multiple edges and lags may simultaneously be active, sig-
+moid activation is used instead of softmax, thus framing temporal causal discov-
+ery as a multi-label classification problem.
+
+Limitations. The flattened output head does not enforce permutation equivari-
+ance by design. Future directions can explore equivariant neural models that
+meet this desiderata by design, while retaining expressivity.
+
+
+.7   Model Sizes & Training Setup
+
+Table 12 summarizes the implemented models and their configurations used in
+Section 7.
+    All models are implemented in Python 3.10 using PyTorch 2.2 [41]. Training
+uses an effective batch size of 64, with gradient accumulation when necessary
+to accommodate larger models, using the AdamW optimizer [36] and a learning
+rate of 1e − 4 throughout. Learning rate scheduling and early stopping based
+on validation AUC are employed to ensure stable convergence. Training was
+conducted on a dedicated workstation equipped with a NVIDIA RTX 4090 GPU
+(32 GB VRAM) and 128 GB physical memory. Training of large-scale models
+took around two weeks to complete. Causal Discovery (LCM Inference step) is
+performed on an AMD Ryzen 5 CPU.
+28     N. Kougioulis et al.
+
+Table 12. Model configurations and parameter sizes for the LCM variants used in the
+ablations and additional results in Section 7.
+
+ Model         #Params        Enc. Layers   dmodel   Attn. Heads       dff      Usage
+
+ -             905K-914K           1          256          2          128    Subsection 7.1
+ -                 1M              1          256          2          256    Subsection 7.2
+ LCM-2.5M         2.5M             4          256          4          256    Subsection 7.3
+ LCM-9.4M         9.4M             4          512          4          512    Subsection 7.3
+ LCM-12.2M        12.2M            4          512          4          512    Subsection 7.3
+ LCM-24M           24M             8         1024          8          1024   Subsection 7.3
+
+
+Algorithm 1 Bootstrap-based Estimation of Edge Probabilities
+Require: Time-series dataset D, maximum lag ℓmax , number of bootstraps n, causal
+    discovery algorithm configuration BCD
+Ensure: Soft adjacency matrix A ∈ [0, 1]V ×V ×ℓmax
+ 1: Initialize accumulator S ← 0V ×V ×ℓmax
+ 2: for b = 1 to n do
+ 3:    {Bootstrap Sampling Phase}
+ 4:    Draw bootstrap sample D(b) from D by resampling with replacement
+ 5:    {Causal Discovery Phase}
+ 6:    A(b) ← causalAlg(D(b) , BCD )
+ 7:    {Edge Confidence Update}
+ 8:    S ← S + f (A(b) )
+ 9:    {f extracts edge indicators or confidence scores}
+10: end for
+11: {Normalization Phase}
+12: A ← S/n
+13: return A
+
+
+
+.8   Model Evaluation Methodology
+
+    To ensure a fair and consistent evaluation across all causal discovery methods,
+we compute performance metrics based on each model’s native output format
+while adapting our evaluation pipeline accordingly. For models that produce real-
+valued edge confidences (our LCMs and CausalPretraining models), the values
+are used verbatim as continuous scores for computing the Area Under the ROC
+Curve (AUC) and the (binarized) ground-truth adjacency labels. For constraint-
+based methods like PCMCI, we use the inverse of the edge p-values as confidence
+scores. For models that output an adjacency matrix of causal effect coefficients
+(like VARLiNGAM and DYNOTEARS), results are not directly comparable
+to our LCMs that output soft adjacency probabilities and computing AUCs
+is not directly applicable. For a fair comparison, we follow a bootstrap-based
+procedure to estimate the probability of each causal edge, as shown in the official
+                             Large Causal Models for Temporal Causal Discovery            29
+
+documentation5 . Specifically, we run VARLiNGAM n = 10 times with resampled
+datasets and compute the proportion of times each edge is discovered, resulting
+in a soft adjacency matrix of edge probabilities. We follow the same procedure for
+DYNOTEARS and the same number of boostrapped datasets, as in Algorithm
+1.
+
+.9     Pseudocodes
+
+
+Algorithm 2 Temporal SCM Ancestral Sampling (ANCESTRAL)
+Input: Temporal Causal Graph G of time-series {Xt }ℓt=1
+                                                      max
+                                                          , causal discovery algorithm
+       configuration BCD , predictive model configuration Bpred , noise estimator con-
+       figuration Bnoise , max lag ℓmax ∈ BCD , number of timesteps T , number of
+       warmup steps W
+Output: Generated time-series sample {Xt }Tt=1
+             i
+Initialize Xt=0  for all i ∈ {1, . . . , N } with random noise
+// Forward Sampling
+for t = W + ℓmax + 1 to T do
+    for each variable Xti in topological order based on G do
+                                                      j
+        Determine lagged parents PaXti ← {Xt−k           | (X j , X i ) ∈ G, 1 ≤ k ≤ ℓmax } ;
+                                    j         i
+         // Lagged parents X of X at time t
+        Compute Xti := fi (Pait ) + ϵit
+    end
+end
+Return generated time-series dataset {Xit }TW +ℓmax
+
+
+
+    Algorithm 2 describes the ancestral sampling procedure for obtaining mul-
+tivariate time-series samples from a known TSCM. Initial warming steps are
+discarded as a way to ensure stability [45].
+
+.10     Illustrative Example & Visualizations
+To provide an intuitive demonstration of LCMs, we construct a synthetic tem-
+poral causal process consisting of three variables V 1 , V 2 and V3 . The example is
+governed by a simple, linear temporal structural causal model:
+
+            Vt1 := ϵ1 (t),    Vt2 := 3Vt−1
+                                        1
+                                           + ϵ2t ,   Vt3 := Vt−2
+                                                              2       1
+                                                                 + 5Vt−3 + ϵ3t ,
+
+   where ϵit ∼ N (0, 1) ∀i ∈ {1, 2, 3}, t ∈ Z. The TSCM thus induces the following
+lagged causal relationships:
+
+                   V 1 −−−−→ V 2 ,     V 1 −−−−→ V 3 ,    V 2 −−−−→ V 3 .
+                        lag=1               lag=3             lag=2
+
+5
+     https://lingam.readthedocs.io/en/latest/tutorial/var.html
+30      N. Kougioulis et al.
+
+
+
+
+Fig. 8. Heatmap visualization of the discovered lagged adjacency matrix (bottom row)
+compared to the ground truth (top row) in an example with nmax = 12 and ℓmax =
+3 using the pretrained LCM-2.4M model. Brighter colors in the predicted adjacency
+indicate stronger confidence for edge existence.
+
+
+   In Figure 8 we visualize the discovered causal graph of the final feedforward
+head against the ground truth; the pretrained LCM successfully captures the
+underlying causal structure of this simple temporal dataset, resulting in a perfect
+AUC score of 1.00.
+
+
+.11   Statistical Significance of Results
+We evaluate statistical significance of AUC differences between LCMs and base-
+line methods using the Wilcoxon signed-rank test [12], a non-parametric paired
+test appropriate for potentially non-Gaussian AUC distributions. To control the
+family-wise error rate across multiple pairwise comparisons, we apply Bonferroni
+correction (αcorrected = α/k) where k is the number of performed comparisons.
+    For each dataset collection, we report the median paired difference in AUC
+(∆AUC ) relative to a common reference model (the highest average AUC per
+collection).
+    Figures 9–11 visualize the paired effects from Subsection 7.3. Asterisks denote
+statistically significant differences after correction.
+                                             Synthetic Datasets                Paired median AUC differences vs LCM_2.5M
+                            Synthetic_1                                                        Synthetic_2                                                               CDML
+        VARLINGAM                         *(p < 1e-10)              VARLINGAM                                       *(p < 1e-10)            VARLINGAM                      *(p < 1e-10)
+             PCMCI                           *(p < 1e-10)                PCMCI                                  (p < 1e-10)
+                                                                                                                *                                PCMCI                     *(p < 1e-10)
+          LCM_9.4M                           *(p=0.44)                LCM_9.4M                                        *(p=4e-09)              LCM_9.4M                                       *(p=0.47)
+           LCM_24M                           *(p < 1e-10)              LCM_24M                                      *(p < 1e-10)               LCM_24M                                    *(p < 1e-10)
+
+
+
+
+Model
+                                                            Model
+                                                                                                                                    Model
+          LCM_2.5M                                                    LCM_2.5M                                                                LCM_2.5M
+         LCM_12.2M                           *(p=0.00023)            LCM_12.2M                                       *(p < 1e-10)            LCM_12.2M                                       *(p=0.15)
+        DYNOTEARS *(p < 1e-10)                                      DYNOTEARS                    *(p < 1e-10)                               DYNOTEARS                    *(p < 1e-10)
+              CP_trf                         *(p < 1e-10)                 CP_trf                                                                  CP_trf
+                     0.5 0.4 0.3 0.2 0.1 0.0                                       0.5   0.4     0.3 0.2 0.1 0.0                                           0.5   0.4     0.3 0.2 0.1 0.0
+                               Median AUC                                                      Median AUC                                                              Median AUC
+
+
+
+Fig. 9. Paired median AUC differences relative to the reference model across Synthetic collections. Positive values indicate improved
+performance. Statistical significance is determined via Wilcoxon signed-rank test with Bonferroni correction.
+                                                                                                                                                                                                         Large Causal Models for Temporal Causal Discovery
+                                                                                                                                                                                                         31
+                                                           Semi-synthetic Datasets                     Paired median AUC differences vs LCM_24M
+                                                                                  fMRI_5                                                                     fMRI
+                                                  VARLINGAM                             *(p=9.5e-07)                          VARLINGAM                             *(p=3e-08)
+                                                       PCMCI                         *(p=9.5e-07)                                  PCMCI                            *(p=3e-08)
+                                                    LCM_9.4M                                            *(p=0.16)               LCM_9.4M                                         *(p=0.043)
+                                                     LCM_24M                                                                     LCM_24M
+                                          Model
+
+
+
+
+                                                                                                                      Model
+                                                    LCM_2.5M                                            *(p=0.62)               LCM_2.5M                                         *(p=0.23)
+                                                   LCM_12.2M                                            *(p=0.83)              LCM_12.2M                                         *(p=0.23)
+                                                  DYNOTEARS        *(p=9.5e-07)                                               DYNOTEARS *(p=3e-08)
+                                                        CP_trf                                    *(p=9.5e-07)                      CP_trf
+                                                                 0.5   0.4     0.3 0.2 0.1 0.0                                             0.5 0.4         0.3 0.2 0.1 0.0
+                                                                             Median AUC                                                                  Median AUC
+                                                                             Kuramoto_5                                                                  Kuramoto_10
+                                                  VARLINGAM *(p < 1e-10)                                                      VARLINGAM                       *(p < 1e-10)
+                                                       PCMCI *(p < 1e-10)                                                          PCMCI                     *(p < 1e-10)
+                                                    LCM_9.4M                                            *(p=0.0061)             LCM_9.4M                                         *(p < 1e-10)
+                                                     LCM_24M                                                                     LCM_24M
+                                          Model
+
+
+
+
+                                                                                                                      Model
+                                                    LCM_2.5M                                           *(p < 1e-10)             LCM_2.5M                                         *(p < 1e-10)
+N. Kougioulis et al.
+
+
+
+
+                                                   LCM_12.2M                                           *(p < 1e-10)            LCM_12.2M                                         *(p < 1e-10)
+                                                  DYNOTEARS *(p < 1e-10)                                                      DYNOTEARS            *(p < 1e-10)
+                                                        CP_trf    *(p < 1e-10)                                                      CP_trf
+                                                                 0.5   0.4     0.3 0.2 0.1 0.0                                               0.5   0.4     0.3 0.2 0.1 0.0
+                                                                             Median AUC                                                                  Median AUC
+                       Fig. 10. Paired median AUC differences across Semi-Synthetic collections. Positive values indicate improved performance. Statistical
+                       significance is determined via Wilcoxon signed-rank test with Bonferroni correction.
+32
+                                                  Realistic Datasets                Paired median AUC differences vs LCM_2.5M
+                                AirQualityMS                                                         Climate                                                          Garments
+        VARLINGAM *(p=1.6e-10)                                              VARLINGAM                                *(p=0.023)            VARLINGAM                                  *(p=1.3e-05)
+            PCMCI          *(p=1.6e-10)                                         PCMCI                                  *(p=0.33)               PCMCI                                  *(p=0.0012)
+         LCM_9.4M                                    *(p=0.01)               LCM_9.4M                                 *(p=0.08)             LCM_9.4M                                   *(p=0.53)
+          LCM_24M                                   *(p=1.5e-06)              LCM_24M                                *(p=0.055)              LCM_24M                                   *(p=0.3)
+
+
+
+
+Model
+                                                                    Model
+                                                                                                                                   Model
+         LCM_2.5M                                                            LCM_2.5M                                                       LCM_2.5M
+        LCM_12.2M                                    *(p=7.3e-05)           LCM_12.2M                                *(p=0.93)             LCM_12.2M                                   *(p=0.14)
+        DYNOTEARS               *(p=8.6e-07)                                DYNOTEARS                 *(p=1.5e-05)                         DYNOTEARS         *(p=1.2e-07)
+                    0.5   0.4      0.3 0.2 0.1 0.0                                      0.5   0.4     0.3 0.2 0.1 0.0                                  0.5      0.4     0.3 0.2 0.1 0.0
+                                 Median AUC                                                         Median AUC                                                        Median AUC
+                                    ETTm2                                                            Gearbox                                                            Power
+        VARLINGAM                               *(p=6.1e-05)                VARLINGAM                                *(p=0.0098)           VARLINGAM                                *(p=5.3e-05)
+            PCMCI                              *(p=6.1e-05)                     PCMCI                                *(p=0.0049)               PCMCI                                  *(p=0.09)
+         LCM_9.4M                                     *(p=0.23)              LCM_9.4M                                *(p=0.81)              LCM_9.4M                                    *(p=0.0016)
+          LCM_24M                                    *(p=0.28)                LCM_24M                                *(p=0.19)               LCM_24M                                    *(p=0.5)
+
+
+
+
+Model
+                                                                    Model
+                                                                                                                                   Model
+
+
+
+
+         LCM_2.5M                                                            LCM_2.5M                                                       LCM_2.5M
+        LCM_12.2M                                    *(p=0.85)              LCM_12.2M                                *(p=1)                LCM_12.2M                                   *(p=0.01)
+        DYNOTEARS         *(p=6.1e-05)                                      DYNOTEARS               *(p=8.7e-05)                           DYNOTEARS         *(p=7.6e-06)
+                    0.5   0.4      0.3 0.2 0.1 0.0                                      0.5   0.4     0.3 0.2 0.1 0.0                                  0.5      0.4     0.3 0.2 0.1 0.0
+                                 Median AUC                                                         Median AUC                                                        Median AUC
+                                                                                                                                                                                                      Large Causal Models for Temporal Causal Discovery
+
+
+
+
+Fig. 11. Paired median AUC differences across Realistic collections. Positive values indicate improved performance. Statistical significance
+is determined via Wilcoxon signed-rank test with Bonferroni correction.
+                                                                                                                                                                                                      33
+

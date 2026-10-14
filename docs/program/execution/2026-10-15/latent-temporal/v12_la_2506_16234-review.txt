@@ -1,0 +1,2504 @@
+                                        Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+                                        Sequential Causal Discovery with Noisy
+                                        Language Model Priors
+
+                                        Prakhar Verma∗                                                                            prakhar.verma@aalto.fi
+                                        ELLIS Institute Finland and Aalto University
+
+                                        David Arbour                                                                                  arbour@adobe.com
+                                        Adobe Research
+
+                                        Sunav Choudhary                                                                             schoudha@adobe.com
+arXiv:2506.16234v2 [cs.LG] 8 May 2026
+
+
+
+
+                                        Adobe Research
+
+                                        Harshita Chopra†                                                                               hchopra3@uw.edu
+                                        University of Washington, Seattle
+
+                                        Arno Solin                                                                                    arno.solin@aalto.fi
+                                        ELLIS Institute Finland and Aalto University
+
+                                        Atanu R. Sinha                                                                                    atr@adobe.com
+                                        Adobe Research
+
+                                        Reviewed on OpenReview: https: // openreview. net/ forum? id= wFs71JzEO7
+
+
+
+                                                                                              Abstract
+
+                                                  Causal discovery from observational data typically assumes access to complete data and
+                                                  availability of perfect domain experts. In practice, data often arrive in batches, are subject
+                                                  to sampling bias, and expert knowledge is scarce. Language Models (LMs) offer a surrogate
+                                                  for expert knowledge but suffer from hallucinations, inconsistencies, and bias. We present
+                                                  a hybrid framework that bridges these gaps by adaptively integrating sequential batch
+                                                  data with LM-derived noisy, expert knowledge while accounting for both data-induced
+                                                  and LM-induced biases. We propose a representation shift from Directed Acyclic Graph
+                                                  (DAG) to Partial Ancestral Graph (PAG), that accommodates ambiguities within a coherent
+                                                  framework, allowing grounding the global LM knowledge in local observational data. To
+                                                  guide LM interactions, we use a sequential optimization scheme that adaptively queries
+                                                  the most informative edges. Across varied datasets and LMs, we outperform prior work in
+                                                  structural accuracy and extend to parameter estimation, showing robustness to LM noise.
+
+
+                                        1     Introduction
+
+                                        Inference of causal relations from observational data remains a challenge in applications across healthcare,
+                                        economics, business, and scientific discovery (Sanchez et al., 2022; Tu et al., 2019; Sadeghi et al., 2023;
+                                        Ebert-Uphoff & Deng, 2012). The challenge is addressed through a dual approach: applying causal learning
+                                        algorithms to observational data while incorporating domain expertise to resolve structural uncertainties
+                                        (Spirtes et al., 2000; Neapolitan et al., 2004; Spirtes & Zhang, 2016; Chickering, 2002). However, domain
+                                        expertise can be a scarce resource (He & Geng, 2008; Choo & Shiragur, 2023; Mooij et al., 2016; Meek, 2013;
+                                        Constantinou et al., 2023). Advanced Language Models (LMs) create opportunities to explore their potential
+                                        as surrogate experts for causal discovery (Kiciman et al., 2024; Willig et al., 2022). LMs generate informative
+                                            ∗ Work done during an internship with Adobe Research
+                                            † Work done while the author was with Adobe Research
+
+
+
+
+                                                                                                   1
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table 1: LMs are overly optimistic: LM based DAG-Pairwise and DAG-triplet prompting methods
+achieve high recall with low precision across temperatures on two common causal discovery datasets. This
+limitation calls for explicitly modeling data and LM biases. SHD=Structural Hamming Distance.
+ Dataset         Temp.   Method                GPT-3.5turbo                             GPT-4o
+                                    SHD ↓      Precision ↑    Recall ↑      SHD ↓      Precision ↑   Recall ↑   Overly optimistic
+                         Pairwise   3.0±0.0      0.57±0.00    1.0±0.0       2.0±0.0     0.67±0.00    1.0±0.0    behavior of the
+    Earthquake
+
+
+
+
+                  0.0                                                                                           LM experts lead
+                         Triplet    2.1±0.3      0.66±0.03    1.0±0.0       4.8±0.4     0.46±0.02    1.0±0.0
+                         Pairwise   2.8±0.6      0.59±0.05    1.0±0.0       2.2±0.4     0.65±0.04    1.0±0.0    to high recall and
+                  0.5                                                                                           low precision.
+                         Triplet    2.1±0.3      0.66±0.03    1.0±0.0       4.4±0.5     0.48±0.03    1.0±0.0
+                         Pairwise   3.2±0.6      0.56±0.05    1.0±0.0       1.8±0.4     0.69±0.05    1.0±0.0
+                  1.0
+                         Triplet    2.0±0.6      0.67±0.07    1.0±0.0       6.2±0.8     0.39±0.03    1.0±0.0
+                                                                                                                ✗ No global
+                         Pairwise   25.2±0.4     0.24±0.00    1.0±0.0       11.2±0.4    0.42±0.01    1.0±0.0      causal structure
+                  0.0
+                         Triplet    24.5±0.5     0.25±0.00    1.0±0.0       19.0±0.6    0.30±0.01    1.0±0.0    ✗ No grounding
+    Asia
+
+
+
+
+                         Pairwise   23.4±1.0     0.26±0.01    1.0±0.0       11.6±0.5    0.48±0.01    1.0±0.0      to local data
+                  0.5
+                         Triplet    24.0±1.0     0.25±0.01    1.0±0.0       19.2±0.8    0.29±0.01    1.0±0.0    ✗ Need heuristics
+                         Pairwise   23.2±1.5     0.25±0.02    0.9±0.1       11.8±0.4    0.40±0.01    1.0±0.0      to postprocess
+                  1.0
+                         Triplet    23.3±1.0     0.26±0.01    1.0±0.0       26.2±1.7    0.23±0.01    1.0±0.0
+
+
+
+priors or contraints (Takayama et al., 2025; Long et al., 2022; Ban et al., 2023b), improving accuracy when
+combined with data-driven algorithms. Yet, LMs pose their own challenges: hallucination, inconsistency, or
+failure to capture context-specific nuances (Ji et al., 2023; Kiciman et al., 2024).
+The challenges compound since in common applications, observational data arrive batch-wise at a cadence,
+instead of as a complete dataset. Examples include web and app metrics of all online firms, where, for
+example, data could arrive weekly. Privacy regulations and storage constraints may further restrict data
+access to a short look-back window. A given week’s (batch) data may not be representative of the overall
+distribution, which we assume remains stationary. This kind of arrival introduces data-induced bias, since the
+non-random draw of a batch suffers from sample selection bias (hereafter, selection bias Spirtes et al. (1995))
+that distorts causal discovery. Separately, use of LMs, including large ones, poses two problems: (i) As
+surrogates for domain expertise, LMs introduce an LM-induced bias—their responses in terms of informative
+causal priors are prone to hallucinations, contextual brittleness, and inconsistency (Ji et al., 2023; Kiciman
+et al., 2024). (ii) The global knowledge encoded in LMs may not align with domain-specific local patterns
+emblematic of batch-wise data, leading to potentially biased learning.
+Inattention to the dual biases—data-induced and LM-induced—is a key gap in current approaches to causal
+discovery with LMs, which we address. First, we propose a change in representation shift from a Directed
+Acyclic Graph (DAG), which LM-augmented causal discovery methods currently use, to a Partial Ancestral
+Graph (PAG), to accommodate uncertainty in the causal structure arising from the dual biases. Second, we
+propose a novel Bayesian-inspired approach to causal structure discovery, where beliefs over causal structure
+are updated with new data-batch, while augmenting noisy LM-knowledge as priors In support of PAG, we
+show that popular methods of pairwise and triplet prompting are overly-optimistic (cf. Table 1) and generate
+unreliable causal structure in the form of a DAG.
+We introduce NLPSCM (Noisy Languge Prior in Sequential Causal Modeling); see Fig. 1 for an overview
+of the framework. NLPSCM differs from existing methods that either rely solely on access to the complete
+observational data or treat LMs as primary discovery mechanism. In a novelty, the causal structure discovery
+itself is Bayesian-inspired in that the beliefs about causal structure from data are updated iteratively by
+information drawn from an LM, as data arrive in batches. That is, we adopt a data-first approach, where
+for each batch, a traditional causal discovery algorithm, such as FCI from Spirtes et al. (1995), constructs
+an initial PAG conditioned on the background knowledge, which is then iteratively refined through optimized
+LM queries that leverage the global knowledge while remaining grounded in observed data. To maximize
+performance under limited budget, LM interactions are framed as a sequential optimization problem, selecting
+the most important edges to query, while accumulating background knowledge over batches. Moreover, to
+complete the causal discovery process, the parameter (edge weights) estimation we propose is also Bayesian,
+which incorporates potentially noisy LM priors on latent confounders and causal relationships. Our method
+uncovers cross-sectional causal relationships within each batch, rather than modeling temporal dependencies.
+NLPSCM applies especially to situations where studying contemporaneous causal relations among metrics
+is separated from confounding temporal effects.
+
+
+                                                                        2
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Contributions We summarize the contributions as follows: (i) We propose a representation shift from
+DAGs to PAGs, in a hybrid setup of batch, observational data and LM as noisy expert, that inherently
+captures uncertainty in causal structure learning. (ii) A Bayesian-inspired algorithm for causal structure
+discovery with sequential batch data treating LMs as noisy experts thus accounting for dual sources of bias.
+(iii) A sequential optimization strategy for selecting maximally informative LM edge queries under fixed LM
+budget constraints. (iv) A Bayesian parameter estimation algorithm that robustly integrates noisy LM priors
+with batched data. Taken together, these constitute NLPSCM—an end-to-end causal discovery framework
+that jointly addresses both causal structure learning and parameter estimation.
+
+
+2    Literature Review
+
+Traditional causal discovery Traditional causal discovery aims to recover the underlying causal structure
+from observational data by exploiting statistical dependencies, often formalized through graphical models such
+as DAGs and PAGs (Spirtes & Zhang, 2016; Pearl, 2009; Neapolitan et al., 2004). These approaches include
+constraint-based methods (e.g., PC from Spirtes et al. (2000), FCI (Spirtes et al., 1995; Zhang, 2008), RFCI
+from Colombo et al. (2012)), score-based methods (e.g., GES from Chickering (2002)), and functional causal
+models (e.g., LiNGAM (Shimizu et al., 2006; 2011)), typically assuming causal sufficiency and faithfulness
+(Spirtes et al., 2000; Zhang & Spirtes, 2012). They rely on conditional independence tests or likelihood-based
+scoring to causal relationships (Shah & Peters, 2020; Zhang et al., 2011; Peters et al., 2017; Glymour et al., 2019).
+However, these approaches often struggle under data scarcity, presence of latent confounders (Spirtes et al.,
+2000; Monti et al., 2020), or domain-specific constraints not captured by statistical patterns (Mooij et al., 2016;
+Peters et al., 2014). These limitations are addressed by hybrid methods incorporating external domain knowl-
+edge (Meek, 1995; Heckerman et al., 1995; Ogarrio et al., 2016) from human experts, refining causal graphs with
+new variables, modifying edge orientations, or resolving equivalence classes (Brouillard et al., 2020; Wang et al.,
+2017; Constantinou et al., 2023; Ban et al., 2023b). This helps restrict the search space and improves identifia-
+bility, particularly when data is limited, as shown by Wallace et al. (1996). The evolution from purely statistical
+methods to knowledge-augmented approaches fuels advanced machine learning techniques to enhance causal
+discovery (Glymour et al., 2019; Schölkopf et al., 2021). Also, as noted by Baldi & Shahbaba (2020), causal
+research distinguishes general vs. local settings and applies to diverse fields (Andrade & Zachariadis, 2016;
+Bilal & Känzig, 2024; Geist & Lambin, 2002; Kelly et al., 2011; McKinney et al., 2016; Mathers et al., 2009).
+Causal discovery extends to streaming data of networks, stock markets, and sensor systems. Causal Bayesian
+learning and causal discovery with progressively streaming features are well studied (Darvish Rouhani et al.,
+2018; Yu et al., 2010; You et al., 2023; Li et al., 2021; You et al., 2021; Yu et al., 2010). Instead, we focus on
+contemporaneous relationships among a fixed set of variables, which yield data across batches. In batch-wise
+experimentation in medicine and A/B testing, Bridgeford et al. (2021) examines associations between batches,
+with batch effects as causal effects, while Zhang & Yuan (2024) examines adaptive batch-wise intervention.
+We confine to sequential, batch-wise observational data.
+LM-augmented causal structure discovery LM augmented causal discovery relies on LM’s world
+knowledge and includes pairwise prompting (Willig et al., 2022; Long et al., 2022; Kiciman et al., 2024; Jin
+et al., 2024; Long et al., 2023), and triplet-based prompting incorporating voting proposed by Vashishtha
+et al. (2025). Hybrid frameworks integrate LM-generated insights in constraint-based methods or inform
+score-based approaches (Ban et al., 2023b; Takayama et al., 2025). Reliability of LM-derived constraints is
+sensitive to domain specificity and prompt framing (Kiciman et al., 2024; Ji et al., 2023). Ban et al. (2023a)
+proposes ILS-CSL involving iterative refinement of causal graphs by alternating between LM reasoning and
+statistical verification. Augmenting LM prompts with correlation matrices or statistical summaries is explored
+(Jiralerspong et al., 2024; Susanti & Färber, 2025). Yet, LM-aided causal discovery shows inconsistent
+judgments across prompting strategies, difficulties with grounding, and biases. Recently, da Silva et al. (2025)
+proposed the BFS method. It is designed for full dataset while our method is anchored in sequential batched
+data. Additionally, its update is around information gain and does not perform edge-weight estimation.
+Deviating from the prior art, we present a Bayesian-inspired framework for causal structure discovery, where
+data arrive sequentially in batches, and we recognize dual uncertainties—arising from limited observational
+data and noisy LM responses. We depart from DAG-centric discovery to adopt the PAG, a more robust
+
+
+                                                         3
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+                                                            Language Model            (with sequential optimization)
+
+
+
+    Observational Data                                                                         Cumulative Histograms
+           (Di )                  A           D                                                      (HE(i−1) )
+                                                              {A,B}
+Background Knowledge                                                                              Updated Knowledge
+                                  B           C
+        (Bi−1 )                                                       {B,C}                            {HEi , Bi }
+                              As a PAG (see Sec. 4.1)                         {C,D}
+
+
+
+Figure 1: Overview of the NLPSCM framework: At each batch Di , observational data is combined
+with accumulated background knowledge B(i−1) as prior to estimate a PAG structure. A language model is
+then queried—under sequential optimization—to produce beliefs over possible causal relations and update Bi .
+The updated {HEi , Bi } are fed back into the next iteration.
+
+
+
+representation for evolving, uncertain causal structures. We iteratively refine the PAG across batches, while
+framing LM queries as a sequential optimization problem.
+Parameter estimation in SEMs While existing hybrid methods that combine observational data with
+language models (LMs) primarily focus on causal structure discovery, they typically stop short of estimating
+causal effect parameters, which we refer to as parameter estimation. In contrast, prior work on parameter
+estimation is predominantly framed within structural equation models (SEMs) and generally assumes either
+a known structure or purely data-driven priors.
+Within the SEM framework, under assumptions of linearity and Gaussian noise (Bollen, 1989; Shimizu
+et al., 2006), classical approaches estimate parameters using maximum likelihood or two-stage least squares
+method, as described in Pearl (2009). Learning of SEM parameters extends to nonlinear or nonparametric
+settings using neural networks or Gaussian processes, enabling flexible modeling of complex dependencies
+while retaining causal interpretability (Zheng et al., 2020; Lachapelle et al., 2020), and helps in integrating
+expert knowledge with data-driven estimation(Peters et al., 2017; Schölkopf et al., 2021). However, the use of
+LM-derived priors and correlations for SEM parameter estimation remains largely unexplored.
+To bridge this gap and provide an end-to-end causal discovery framework, we jointly perform causal structure
+discovery and SEM parameter estimation. The latter constitutes a key contribution of our work: we propose
+a principled parameter estimation procedure that integrates LM-derived noisy priors into SEMs, yielding
+consistent estimators of causal strengths despite misspecification of priors.
+
+
+3    Problem Setup: Sequential Causal Discovery with LMs
+
+Traditional causal discovery methods uncover causal structure by exploiting statistical dependencies in
+observational data, typically assuming access to the complete dataset, and reliable domain knowledge. In
+contrast, we focus on the setting of sequential, batch-wise observational data. This setting introduces dual
+sources of bias: (i) potentially biased and limited batched observational data, and (ii) noisy LM responses.
+We assume the underlying population distribution p(X) is stationary across batches. However, we allow for
+selection bias, where each batch may not be drawn randomly from the population distribution. That is, for a
+batch i, p(X | batch = i) ̸= p(X). Below we introduce the notation and the problem setup.
+Problem statement Given sequential batches of observational data subject to selection bias, we consider the
+problem of: (i) causal discovery in the presence of latent confounders, (ii) incorporating noisy priors provided
+by LMs, and (iii) parameter estimation of the inferred causal structure. We now define the problem formally.
+Notation and setup We define batches of observational data D = {Di }N           i=0 , where each i
+                                                                                                  th
+                                                                                                     batch is a
+sample from the same underlying ‘true’ distribution, Di ∼ D. Each batch contains same set of observed
+variables, VO , with Di ∈ Rni ×d , where ni is the number of data points, varies by batch, and d = |VO | is the
+number of observed variables. R denotes real numbers. Any categorical value for an observed variable is
+encoded as a numerical value. All notations are succinctly shown in Table A1.
+
+
+                                                        4
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+                 A           B         A          B                           A       B          A           B
+
+Prompt                                                     Prompt
+
+                      C                      C                                    C                    C
+               LM                     DAG                                 LM                    PAG
+
+              (a) Conventional DAG-LM                                   (b) PAG-LM in NLPSCM
+
+Figure 2: PAG-LM streamlines how LMs compose the graph and allows for ambiguities to be indicated in
+the structure. (a) DAG is constructed by iterative prompting ( ) leading to ambiguities (e.g., ) requiring
+heuristics that cannot be represented. (b) NLPSCM represents the causal structure as a PAG that implicitly
+allow ambiguities to be represented providing a richer representation ( e.g., ◦−◦)
+
+For each batch Di , a causal graph G Di =(VO , EDi ) is inferred using a standard causal discovery algorithm,
+where G Di is a PAG with VO nodes and EDi edges. We assume there exists a true causal graph G=(V, E),
+where VO ⊆V and V={VO , VL } represents all the variables, both observed and unobserved latent, and E
+represents the true causal relationships. We assume that each confounder may affect two observed variables.
+LM-augmented sequential causal discovery Traditional hybrid approaches rely on domain experts to
+narrow the gap between the inferred causal graph G Di and the true causal graph G by either introducing
+knowledge about unobserved variables, effectively reducing the set V \ VO , and adding, removing, reorienting
+edges in the inferred graph, aiming to minimize the difference E \ EDi .
+NLPSCM’s hybrid approach extends the prior art in two directions: (i) using an LM as a noisy expert to
+improve the causal structure G Di , obtained via known causal discovery algorithm, where (ii) data arrive
+sequentially in batches. The LM (noisy eXpert), represented X i , helps in reducing the Markov equivalence
+class to yield causal structure (G Xi ). Formally,
+                                      fCD : Di → G Di ; fLM : G Di → G Xi ,                                  (1)
+where G Di = (VO , EDi ) and G Xi = (VXi , EXi ). The aim is to reduce the discrepancy between the inferred
+graph and the true causal structure through LM expertise,
+                          G \ G Xi ≤ G \ G Di ; V \ VXi ≤ V \ VO ; E \ EXi ≤ E \ EDi .                       (2)
+
+The VXi \ VO is the set of LM-suggested variables while EXi \ EDi is the set of LM-suggested edges. To
+integrate the LM’s noisy responses and address the inherent bias in batch data, our Bayesian-inspired causal
+discovery framework explicitly handles both data-induced and LM-induced biases.
+Parameter estimation Once the LM-augmented causal structure G Xi is obtained, we focus on estimating
+the parameters of the structure equation model (SEM) i.e. the edge weights θ and the noise variance σ 2 ;
+ϕ = {θ, σ 2 }. A straightforward method to learn the parameters ϕ is Maximum Likelihood Estimation (MLE),
+∇ϕ log p(Di | G Xi , ϕ). However, a critical limitation appears in the presence of unobserved expert-suggested
+variables (VL ) in the augmented causal structure, as the likelihood becomes intractable. We address this
+by proposing a Bayesian parameter estimation algorithm that incorporates the expert-suggested information
+about the unobserved (latent) variable(s), VL .
+
+4    Sequential Causal Structure Discovery with PAGs
+The promise of LMs as proxies for domain expert in causal structure discovery, as studied in prior art, typically
+queried via pairwise or triplet prompts, faces key limitations: (i) LMs may provide responses regardless
+of causal relations among other variables, resulting in inconsistent or cyclic causal graphs; (ii) LMs may
+hallucinate; (iii) LMs may be overly optimistic, predicting spurious causal relationships with high recall but
+low precision (cf. Table 1). While prior art addresses (i) and (ii) through heuristics or auxiliary models to
+enforce acyclicity and consistency, they add complexity and potentially degrading performance. Crucially,
+(ii) and (iii) remain largely unexplored in the setting of sequential batch data where two distinct sources of
+bias emerge: LM-induced bias and data-induced bias.
+
+
+                                                       5
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+4.1   PAG to Incorporate Uncertainty
+
+Prompting methods (pairwise or triplet) constrain the              Table 2: DAG to PAG: Structural Intervention
+response format to—‘causal’, ‘non-causal’, or ‘unknown’—           Distance (SID) between DAG-Pairwise (Voting)
+which prevent LMs from expressing uncertainty, thus ex-            and PAG-Pairwise depicts benefit of PAG to
+acerbating bias and inconsistency. To address this, we             represent inherent causal uncertainty.
+propose a representational shift from DAG to PAG when
+using LMs as proxy for experts. PAGs encode uncer-                     Dataset Temp. Method                                   SID ↓
+
+tainty and structural ambiguity in a principled manner,                                             Pairwise (Voting)   (1.0, 1.0)±(0.0, 0.0)
+
+
+
+
+                                                                         Earthquake
+                                                                                              0.0
+                                                                                                    PAG-Pairwise        (0.0, 0.0)±(0.0, 0.0)
+accommodating latent confounding and partial orienta-                                               Pairwise (Voting)   (1.4, 1.4)±(1.2, 1.2)
+                                                                                              0.5
+tion (cf. Fig. 2). Formally, we expand the limited edge                                             PAG-Pairwise        (0.0, 0.0)±(0.0, 0.0)
+                                                                                                    Pairwise (Voting)   (1.6, 1.6)±(1.5, 1.5)
+set of DAG, EDAG ={→, ←, ·}, to the richer set for PAG,                                       1.0
+                                                                                                    PAG-Pairwise        (0.8, 0.8)±(1.6, 1.6)
+EPAG ={→, ←, ↔, ◦→, ←◦, ◦−◦, ·, −} 1 , where · represents                                           Pairwise (Voting)   (6.4, 6.4)±(0.8, 0.8)
+                                                                                              0.0
+no causal relation. The expansion allows LM to select from                                          PAG-Pairwise        (3.8, 3.8)±(0.9, 0.9)
+
+
+
+
+                                                                         Asia
+                                                                                                    Pairwise (Voting)   (5.2, 5.2)±(1.7, 1.7)
+more options and improve causal discovery (cf. Table 2).                                      0.5
+                                                                                                    PAG-Pairwise        (3.5, 3.5)±(0.8, 0.8)
+In PAG-pairwise, the LM is queried per variable pair to                                       1.0
+                                                                                                    Pairwise (Voting)   (5.4, 5.4)±(1.8, 1.8)
+                                                                                                    PAG-Pairwise        (4.0, 4.0)±(1.9, 1.9)
+select from EPAG (see Sec. F.2 for the full prompt).
+The representational shift to PAG is a necessary pivot and starting point for addressing dual sources of
+bias—LM-induced and data-induced. The LM’s error prone response constitutes a prior and motivates a
+novel Bayesian causal structure discovery framework in the sequential batch setting, whereby we integrate
+causal predictions from observational data and LMs in a sequential, iterative manner. Building on this key
+observation, we introduce the causal structure learning algorithm of NLPSCM and then on the inferred
+structure introduce the parameter estimation algorithm.
+
+4.2   LM-augmented Causal Structure Discovery
+
+As a principled way to incorporate the dual sources of bias, we adopt a Bayesian-inspired formulation.
+Formally, given data batch Di , cumulative background knowledge B(i−1) up to batch (i − 1), the posterior
+over Gi is obtained via Bayes’ rules,
+
+                                   p(Gi | Di , B(i−1) ) ∝ p(Di | Gi ) p(Gi | B(i−1) ) .                                                    (3)
+                                   |       {z        } | {z } |             {z     }
+                                        Posterior         Likelihood                  Prior
+
+
+The prior p(Gi | B(i−1) ) is iteratively shaped by background knowledge, which accumulates across batches.
+Intuitively, the prior encodes the edge type between node pairs in the causal structure. Once the posterior is
+obtained, an LM is queried to update and obtain background knowledge Bi using Eq. (5) and Eq. (9), which
+shapes the prior for the next batch. We note that this formulation serves as a conceptual motivation for the
+design of NLPSCM; the implementation maintains uncertainty at the edge level (Eqs. (4) and (5)) rather
+than computing a full posterior over graph space. Next we discuss the formulation.
+Given the inherent stochasticity of LMs, its response can be viewed as a sample from an implicit
+distribution over the edge types (EPAG ). This allows explicit modeling of uncertainty in LM responses,
+  (i)
+fLM (A, B, Pr) ∼ p(EAB | A, B), where A, B are the two nodes, Pr is the prompt, and EAB ∈ EPAG . Treating
+LM responses as noisy observations rather than ground truth, addresses the challenge of LM hallucination.
+As more batches are processed, the prompt Pr becomes more informative, thereby decreasing uncertainty
+in LM responses. Formally, we treat LM as a black-box causal edge sampler and aggregate multiple LM
+samples into empirical histograms that are updated iteratively over batches,
+
+                                                                                      (i)
+                        HEi (A, B)[EAB ] = HEi−1 (A, B)[EAB ] + I[fLM (A, B) = EAB ] ,                                                     (4)
+
+   1 To capture selection bias, ambiguous edges (◦−◦, ◦→) and undirected edges ‘−’ can be used. Not all causal discov-
+
+ery algorithms output undirected edges (e.g., https://causal-learn.readthedocs.io/en/latest/search_methods_index/
+Constraint-basedcausaldiscoverymethods/FCI.html), but they output ambiguous edges, which we use as proxy for selec-
+tion bias.
+
+
+                                                            6
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table 3: Semantic Entropy in NLPSCM. We report the mean Shannon entropy of empirical histograms
+over PAG edge predictions (mean ± std over 5 runs) across sequential batches for User Level Data–I and
+User Level Data–II. The observed reduction in entropy indicates decreasing predictive uncertainty over
+PAG edge types as structural context is progressively incorporated.
+
+        Dataset                 Batch-1       Batch-2          Batch-3       Batch-4       Batch-5       Batch-6       Batch-7
+        User Level Data - I    0.48 ± 0.06   0.50 ± 0.05      0.36 ± 0.08   0.17 ± 0.13   0.10 ± 0.06   0.12 ± 0.06   0.09 ± 0.05
+        User Level Data - II   0.31 ± 0.25   0.27 ± 0.22      0.18 ± 0.18   0.12 ± 0.19   0.07 ± 0.15   0.00 ± 0.00   0.00 ± 0.00
+
+
+where HEi (A, B) represents the cumulative histogram up to batch i, and EAB represents a type of causal
+relation. These histograms define an approximate posterior distribution over edge types, capturing the LM’s
+evolving beliefs about causal relationships.
+To determine when accumulated LM evidence is sufficient to promote an edge to background knowledge, we
+define a dynamic threshold that balances distributional uncertainty and sampling uncertainty (motivated by
+the explore-exploit trade-off formalized in Sec. 4.3),
+                                               s                                                                             !
+                                                                                                Ei
+                                                                                             X Hj,e                    Ei
+                                                                Tie                                                   Hj,e
+                                                                   
+            τie = α × Eie × Tie + (1 − α)          Tie       1−       ,     s.t.   Eie = −                × log                  .   (5)
+                                                                Ti                             j
+                                                                                                   Tie                Tie
+
+Here, for batch iPand edge e, τie denotes the threshold, Eie the posterior entropy, Tie the number of LM
+interactions, Ti = e Tie the total interactions, and Hj,e
+                                                      Ei
+                                                          the frequency of bin j in e’s histogram.
+Intuitively, the first term in τie of Eq. (5) accounts for uncertainty in the histogram edge distribution, while
+the second term handles the sampling uncertainty that decreases as more batches of data arrive. The
+hyperparameter α balances between these two terms. Fig. 4 showcases the efficiency of the proposed dynamic
+background threshold (cf. Eq. (5)), with the additional details discussed in Sec. 6.1. The pseudo-code of the
+algorithm is outlined in Alg. 1.
+A key property of our sequential framework is that the prompt Pr becomes progressively more informative
+across batches as G Xi expands, providing increasingly rich structural context to the LM. This corresponds to
+conditioning on accumulated causal constraints, and therefore the model’s predictive uncertainty is expected
+to decrease over iterations. We empirically validate this behavior by reporting the mean histogram entropy
+across batches for the two real world datasets User Level Data–I and User Level Data–II in Table 3,
+and observe a consistent reduction as the graph is incrementally refined.
+From an uncertainty modeling perspective, our histogram-based formulation is closely related to recent work
+on semantic entropy in language models (Farquhar et al., 2024; Nikitin et al., 2024; Kuhn et al., 2023).
+However, in our setting, NLPSCM restricts the LM output space to the finite set of PAG edge types EPAG ,
+yielding purely categorical predictions. Consequently, semantic entropy can be computed directly as the
+Shannon entropy of empirical histograms over sampled edge predictions, without requiring embedding-based
+clustering. While conceptually aligned with prior formulations of semantic entropy, this arises naturally in
+our setting from the discrete decision space induced by PAG edge selection.
+
+4.3   LM Interaction: Sequential Optimization
+
+Given the stochastic LM responses and cumulative histogram-based estimates of edge uncertainty, we next
+address how to allocate LM queries efficiently across candidate edges. We model LM interactions fLM as
+a sequential optimization problem under a limited budget. At each batch i, up to mL calls to the LM are
+allowed. The objective is to strategically allocate these calls to refine the edge distribution HEi and expand
+the set of background knowledge Bi .
+In the edge refinement setting, each query corresponds to selecting a candidate edge e and querying fLM
+to reduce uncertainty about its type. The LM’s response is treated as a noisy sample from the underlying
+distribution over edge types. This induces a natural trade-off: we must explore uncertain edges to improve
+estimates and exploit promising edges that are likely to yield useful and increasing background knowledge.
+
+
+                                                                    7
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Algorithm 1 LM-augmented structure learning                            Algorithm 2 Bayesian Parameter Estimation
+Require: Di , H  E(i−1)
+                       ,H    , B(i−1) , m , m ,
+                          L(i−1)                 E    L
+                                                                       Require: Di , η, G Xi , I P , I ρ
+Ensure: HEi , HLi , Bi                                                 Ensure: ϕ
+ 1: Initial causal structure                                            1: Initialization
+
+ 2: fCD : Di × B(i−1) → G                                               2: Warm-start for ϕ
+                          Di                                                                   O
+
+ 3: Expert-guided causal structure refinement                                ϕ ∈ arg maxϕO p(Di | G−V
+                                                                               O                          Xi
+                                                                                                             L, ϕ )
+                                                                                                                 O
+
+                                                                        3: Get prior over V
+                                                                                              L
+
+ 4: fLM : G Di ×HE(i−1) ×B(i−1) ×mE →(HEi , Bi )                             fLM : G Xi × VL × I P → N (mp , Sp )
+                                                                        4: Get correlation ρ(V , V )
+ 5: Expert-suggested latent confounder
+                                                                                                 L      O
+
+ 6: for A ↔ B in Bi do                                                       fLM : G Xi × I ρ → ρ(VL , VO )
+ 7:   fLM : HEi ×HL(i−1) ×A×B×mL →HLi                                   5: Initialize θ
+                                                                                        L
+                                                                                          to ρ(VL , VO ) or randomly
+ 8: end for                                                             6: Iterative Optimization
+
+                                                                        7: while not converged do
+               Ei
+ 9: return H      , HLi , Bi
+                                                                        8:   Compute posterior over VL using Eq. (10)
+Notation:                                                               9:   Optimize ϕ variables using Eq. (11)
+mE , mL : LM budget for edges and confounder                           10: end while
+HE , HL : histograms for edges and confounders                         11: return ϕ
+I P , I ρ : Prompt for prior and corelation
+
+
+Formally, we cast LM interactions as a sequential decision-making problem:
+
+                      Arms:        A = {All possible edges between variables, EPAG },                                   (6)
+                    Reward:        rk (e) = Information gain from querying edge e at step k,                            (7)
+                      Policy:      π : HEi × G Di → e             (Edge selection rule).                                (8)
+
+
+The optimization objective is to maximize cumulative information gain over mL LM calls, balancing both the
+expansion of background knowledge, and the uncertainty reduction in HEi . To implement π, since the true
+information gain rk (e) is not known before querying, we propose a scoring function that serves as a proxy
+for the expected reward, jointly accounting for epistemic uncertainty, proximity to background knowledge
+thresholds, and exploration,
+                                                            s
+                                           1                    log Ti
+                                                
+                 Sie = w1 Eie + w2                   + w3              ,   s.t.   T Die = τi − max(HEi (e)) ,           (9)
+                                         T Die                    Tie
+
+where T Die is the threshold distance from being included in background knowledge, Eie , Ti , Tie are as defined
+in Eq. (5), and w1 , w2 , w3 are hyper-parameters controlling the trade-off. After querying, the LM’s response
+updates the histogram HEi (e), which constitutes the realized information gain. At each step, the edge
+e∗ = arg maxe Sie is selected for LM interaction. Fig. 4 showcases the effectiveness of the proposed selection
+score (cf. Eq. (9)), with details discussed in Sec. 6.1. This formulation generalizes to other expert-guided
+tasks (e.g., confounder detection) by redefining the arms and reward function.
+While the connection to multi-armed bandits and the derivation of regret bounds are appealing in this setup,
+LM’s stochastic nature, inter-dependent arms, and implicit priors induced by causal structure constraints
+warrant caution. We discuss this in detail in Sec. D.
+
+
+5     Bayesian Parameter Estimation
+
+Once we obtain a causal structure G Xi , we address the critical task of parameter estimation within the
+Structural Equation Model (SEM). The parameters ϕ = {θ, σ 2 } include edge weights (coefficients) and noise
+parameters. With G Xi potentially containing both observed and latent variables VXi ={VO , VL }, we represent
+observed variable edges as θ O and latent confounder edges as θ L , giving θ = {θ O , θ L }.
+
+
+                                                                   8
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table 4: NLPSCM improves causal discovery: We experiment with six datasets–number of observed
+variables ranges 5 (small) to 37 (large)– using two paradigms: Only-Data and Data-LM. We evaluate with 5
+metrics: Modified SHD, SID, Precision, Recall, F1. All methods use GPT-3.5turbo as an LM with temperature
+1. We report mean and standard deviation over 5 runs and perform significance test with α = 0.05.
+
+ Dataset                           Approach    Method           Mod. SHD ↓                 SID ↓                 Precision ↑   Recall ↑    F1 Score ↑
+                                               FCI-Cumulative    2.00±0.00        (0.00, 5.00)±(0.00, 0.00)       1.00±0.00    0.50±0.00   0.67±0.00
+   Earthquake
+
+
+
+
+                                               FCI-Vanilla       3.60±0.80        (8.20, 9.20)±(3.60, 1.60)       0.20±0.40    0.05±0.10   0.08±0.16
+                                   Only-Data
+     (d = 5)
+
+
+
+
+                                               FCI-Iterative     5.00±1.67       (12.20, 12.20)±(4.66, 4.66)      0.30±0.27    0.20±0.19   0.24±0.22
+                                               FCI-Heuristics    3.60±0.80        (8.20, 9.20)±(3.60, 1.60)       0.20±0.40    0.05±0.10   0.08±0.16
+                                               LLM-first         6.00±0.82       (15.00, 15.00)±(0.82, 0.82)      0.11±0.16    0.08±0.12   0.09±0.13
+                                    Data-LM    ILS-CSL           2.38±0.96        (5.25, 6.50)±(0.83, 2.69)       0.88±0.22    0.44±0.21   0.56±0.21
+                                               NLPSCM            1.00±0.63       (2.20, 2.20)±(1.60, 1.60)        1.00±0.00    0.75±0.16   0.85±0.11
+                                               FCI-Cumulative    7.00±0.00       (23.00, 49.00)±(0.00, 0.00)      0.00±0.00    0.00±0.00   0.00±0.00
+                                               FCI-Vanilla       7.80±0.75       (30.00, 35.00)±(5.90, 2.45)      0.00±0.00    0.00±0.00   0.00±0.00
+                                   Only-Data
+   (d = 8)
+
+
+
+
+                                               FCI-Iterative     8.00±1.26       (33.00, 33.00)±(7.46, 7.46)      0.45±0.24    0.23±0.15   0.29±0.18
+    Asia
+
+
+
+
+                                               FCI-Heuristics    7.80±0.75       (30.00, 35.00)±(5.90, 2.45)      0.00±0.00    0.00±0.00   0.00±0.00
+                                               LLM-first         7.33±0.94       (27.67, 27.67)±(2.49, 2.49)      0.58±0.12    0.29±0.06   0.39±0.08
+                                    Data-LM    ILS-CSL           6.50±0.50       (28.50, 28.50)±(3.20, 3.20)      0.79±0.12    0.28±0.11   0.40±0.12
+                                               NLPSCM            4.60±1.02      (13.60, 13.60)±(3.83, 3.83)       0.80±0.12    0.60±0.12   0.67±0.08
+                                               FCI-Cumulative    15.00±2.77       (47.80, 47.80)±(4.62, 4.62)     0.72±0.18    0.37±0.09   0.47±0.09
+    User Level Data-I
+
+
+
+
+                                               FCI-Vanilla       21.30±3.50       (61.60, 61.60)±(5.54, 5.54)     0.41±0.18    0.22±0.10   0.29±0.13
+                                   Only-Data
+                                                                  5.60±1.20                                       0.93±0.04                0.84±0.03
+                         (d = 9)
+
+
+
+
+                                               FCI-Iterative                      (23.40, 23.40)±(7.94, 7.94)                  0.77±0.02
+                                               FCI-Heuristics    21.30±3.50       (61.60, 61.60)±(5.54, 5.54)     0.41±0.18    0.22±0.10   0.29±0.13
+                                               LLM-first          9.68±1.67       (38.12, 38.12)±(4.06, 4.06)     0.80±0.06    0.66±0.04   0.72±0.05
+                                    Data-LM    ILS-CSL            9.20±1.72       (34.20, 34.20)±(3.49, 3.49)     0.82±0.05    0.66±0.05   0.73±0.05
+                                                NLPSCM            5.00±0.71      (13.75, 13.75)±(2.49, 2.49)      0.90±0.04    0.83±0.02   0.86±0.02
+                                               FCI-Cumulative    19.80±2.04     (40.00, 40.00)±(3.03, 3.03)       0.15±0.07    0.10±0.04   0.12±0.05
+    User Level Data-II
+
+
+
+
+                                               FCI-Vanilla       17.40±1.83     (36.80, 39.40)±(2.04, 3.38)       0.07±0.13    0.02±0.03   0.03±0.05
+                                   Only-Data
+                         (d = 8)
+
+
+
+
+                                               FCI-Iterative     20.60±1.77      (42.80, 43.40)±(4.07, 4.22)      0.06±0.08    0.05±0.07   0.05±0.07
+                                               FCI-Heuristics    17.40±1.83     (36.80, 39.40)±(2.04, 3.38)       0.07±0.13    0.02±0.03   0.03±0.05
+                                               LLM-first         18.75±0.43      (44.00, 44.00)±(1.00, 1.00)      0.18±0.01    0.17±0.00   0.18±0.00
+                                    Data-LM    ILS-CSL           16.90±1.50      (44.40, 47.80)±(6.05, 3.49)      0.16±0.03    0.10±0.04   0.12±0.03
+                                                NLPSCM           16.33±1.80     (40.17, 40.17)±(3.14, 3.14)       0.26±0.04    0.18±0.06   0.20±0.04
+                                              FCI-Cumulative     27.50±0.00    (111.00, 131.00)±(0.00, 0.00)      0.38±0.00    0.36±0.00   0.37±0.00
+                                              FCI-Vanilla        28.00±1.48    (129.20, 133.20)±(10.46, 10.76)    0.38±0.04    0.26±0.05   0.31±0.04
+                                   Only-Data
+   (d = 19)
+
+
+
+
+                                              FCI-Iterative      32.10±1.16     (149.00, 164.40)±(7.16, 10.33)    0.27±0.03    0.26±0.04   0.26±0.03
+    Child
+
+
+
+
+                                              FCI-Heuristics     28.00±1.48    (129.20, 133.20)±(10.46, 10.76)    0.38±0.04    0.26±0.05   0.31±0.04
+                                              LLM-first          31.67±2.05    (172.00, 172.00)±(13.42, 13.42)    0.29±0.05    0.30±0.05   0.30±0.05
+                                   Data - LLM ILS-CSL            32.00±2.10    (154.00, 154.00)±(26.53, 26.53)    0.28±0.05    0.28±0.05   0.28±0.05
+                                              NLPSCM             25.50±0.89    (103.40, 112.20)±(8.09, 7.05)      0.43±0.01    0.44±0.02   0.43±0.01
+                                              FCI-Cumulative     45.00±0.00   (626.00, 626.00)±( 0.00, 0.00)      0.25±0.00    0.02±0.00   0.04±0.00
+                                              FCI-Vanilla        49.50±1.61    (617.80, 699.20)±(29.23, 68.43)    0.00±0.00    0.00±0.00   0.00±0.00
+                                   Only-Data
+   (d = 37)
+    Alarm
+
+
+
+
+                                              FCI-Iterative      52.40±6.21   (612.20, 636.80)±(49.87, 43.83)     0.33±0.14    0.12±0.05   0.17±0.07
+                                              FCI-Heuristics     49.50±1.61    (617.80, 699.20)±(29.23, 68.43)    0.00±0.00    0.00±0.00   0.00±0.00
+                                              LLM-first          52.33±3.09    (673.33, 673.33)±(25.63, 25.63)    0.33±0.08    0.13±0.02   0.19±0.03
+                                   Data - LLM ILS-CSL            51.20±1.60    (657.20, 657.20)±(24.07, 24.07)    0.34±0.05    0.10±0.01   0.15±0.02
+                                              NLPSCM             50.90±1.32   (589.80, 591.00)±(26.48, 25.59)     0.42±0.03    0.22±0.02   0.29±0.02
+
+
+
+When no latent confounders exist (VL =∅), standard Maximum Likelihood Estimation (MLE) optimizes the
+parameters ϕ={θ O , σ 2 } as ϕ = arg maxϕ log p(Di | G Xi , ϕ) using a conventional gradient-based methods. We
+focus on the more important and challenging scenario where latent confounders exist (VL ̸=∅).
+With latent confounders, MLE is ill-posed and intractable. We instead employ an iterative Expectation–
+Maximization (EM) algorithm that incorporates LM-provided probability p(VL ) and correlation ρ(VO , VL )
+about latent confounders. Specifically, we propose the following EM steps:
+• E-step: Compute conditional posterior of latent confounder(s) given Di and SEM parameters ϕ,
+                                                            p(VL | G Xi , Di , ϕ) ∝ p(Di | G Xi , VL , ϕ)p(VL ).                                  (10)
+• M-step: Update parameters by maximizing the expected log-likelihood, incorporating LM-provided
+  regularization for latent confounder edges,
+                                                                                                                             −1
+                                      ϕ ∈ arg maxEp(VL | G Xi ,Di ,ϕ) [log p(Di | G Xi , VL , ϕ)] − λ∥θ L − (ρ(VO , VL )σVO σV L )∥2 .            (11)
+                                                ϕ
+
+Alg. 2 details the EM parameter estimation algorithm. In Sec. 6.3, we demonstrate the robustness and
+recovery capability of the proposed parameter estimation algorithm.
+
+
+                                                                                    9
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+                 20
+
+
+
+
+                                                                                                           1
+← Modified SHD
+
+
+
+
+                                                                                                           0.8
+                 15
+
+
+
+
+                                                                                              F1-Score →
+                                                               40
+
+
+
+
+                                                                                                           0.6
+                                                       ← SID
+                 10
+
+
+
+
+                                                                                                           0.4
+                                                                                                                               LLM-first
+                 5
+
+
+
+
+                                                               20
+
+
+
+
+                                                                                                           0.2
+                                                                                                                               ILS-CSL
+                                                                                                                               NLPSCM (Ours)
+                 0
+
+
+
+
+                                                                                                           0
+                      0          2             4   6                0   2             4   6                      0   2             4           6
+
+                                     Batches                                Batches                                      Batches
+Figure 3: User Level Data - I: Performance evolution across batches for Data-LM methods. Left:
+Modified Structural Hamming Distance (↓), Middle: Structural Intervention Distance (↓), and Right:
+F1-Score (↑). NLPSCM consistently outperforms other approaches as data accumulation progresses.
+
+6                     Experiments
+
+To provide a robust empirical examination, we conduct experiments on four language models: GPT-3.5turbo ,
+GPT4.1nano , Llama3.18B-instruct , Qwen34B-instruct and six datasets: Earthquake from Korb & Nicholson
+(2010), Asia from Lauritzen & Spiegelhalter (1988), User Level Data - I, User Level Data - II from
+Google & Kaggle (2018), Child from Spiegelhalter et al. (1993), and Alarm from Beinlich et al. (1989). They
+range in number of observed variables (nodes) from small (5) to medium (19) to large (37). Earthquake,
+Asia, Child, and Alarm datasets are standard benchmarks, providing observational data and ground-truth
+causal structures. To simulate a streaming batch setting, each dataset is split into batches. For the two User
+Level Data, which contain only observational data, the underlying DAG is inferred using DirectLiNGAM,
+an algorithm proposed by Shimizu et al. (2011). We treat the DAG inferred from DirectLiNGAM as the
+ground truth for evaluation. Further details on the data sets and simulation process are provided in Sec. A.
+Our evaluation metrics include a modified Structural Hamming Distance (Mod. SHD), which extends SHD
+to account for uncertain edges in PAG; Structural Intervention Distance (SID); and precision, recall, and
+F1-score for causal relations that are certain. Together, these metrics assess structural accuracy, interventional
+soundness, and edge-wise discovery performance (details in Sec. C).
+
+6.1                       Structure Learning
+
+We evaluate NLPSCM against Only-Data and Data-LM baselines in Table 4. As shown in Table 1, Only-
+LM methods exhibit overly optimistic behavior, producing globally plausible but locally unreliable causal
+structures. This highlights the need for data-grounded post-processing. Table 4 compares NLPSCM with
+several baselines, including multiple FCI variants (cumulative, vanilla, iterative, heuristics), as well as
+Data-LM approaches (LM-first, and ILS-CSL proposed by Ban et al. (2023a)). Across all evaluation metrics,
+NLPSCM consistently outperforms baselines, which also holds for different LM temperatures (Table A3).
+While Table 4 reports metrics for the final batch, we also show performance evolution across batches, a crucial
+step in sequential settings (cf. Fig. 3). We justify the use of FCI over other causal discovery algorithms in
+Sec. B. We provide more experiment details in Sec. F.
+Finally, going beyond GPT-3.5turbo (Table 4), results with recent LMs, GPT-4o and GPT-5 (Table A2) show
+good performance gains for NLPSCM across LMs. The much higher inference cost of GPT-4o and GPT-5,
+over GPT-3.5turbo constrain their use for large set of experiments.
+Structure learning ablations We ablate two key components of NLPSCM: (i) selection score for sequential
+optimization, and (ii) dynamic background threshold. Results of ablations performed on User Level Data
+- I are shown in Fig. 4.
+Effectiveness of proposed selection score (Eq. (9)) in guiding edge selection under a fixed budget of LM
+queries, is compared against a random-selection baseline. Fig. 4 (Left, Middle) shows that NLPSCM achieves
+significantly better Mod. SHD and F1-score across batches, demonstrating the benefit of a principled edge
+selection policy in sequential structure learning.
+
+
+                                                                            10
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+                 20
+
+
+
+
+                                                                                                                                           20
+                                               NLPSCM-Score                                                                                                 NLPSCM-threshold
+
+
+
+
+                                                                               0.8
+                                               Random                                                                                                       Fixed threshold
+← Modified SHD
+
+
+
+
+                                                                                                                          ← Modified SHD
+                                                                  F1-Score →
+                 15
+
+
+
+
+                                                                                                                                           15
+                                                                               0.6
+                 10
+
+
+
+
+                                                                                                                                           10
+                                                                               0.4
+                                                                               0.2
+                                                                                                       NLPSCM-Score
+                 5
+
+
+
+
+                                                                                                                                           5
+                                                                                                       Random
+
+                      0          2              4             6                      0   2              4             6                         0   2             4            6
+
+                                     Batches                                                 Batches                                                    Batches
+Figure 4: Structure learning ablation: The impact of two key components: selection score and dynamic
+background threshold. (Left, Middle) Modified SHD (↓) and F1-score (↑) on the User Level Data - I
+dataset, comparing NLPSCM—selection score against random selection. (Right) Modified SHD(↓) comparing
+NLPSCM— dynamic threshold with a conventional fixed threshold.
+
+We also assess the impact of dynamic background threshold (Eq. (5)) used to promote edges from the
+histogram HE into the background knowledge B. Fig. 4 (Right) reports Mod. SHD over batches, highlighting
+the advantages of a dynamic threshold over a conventional fixed one. The adaptive mechanism yields more
+stable and accurate graph recovery throughout the learning process.
+
+6.2                       Other LM Families and Memorization in LMs
+
+We evaluate NLPSCM using three recent LMs across different families: Llama3.18B-instruct , Qwen34B-instruct ,
+and GPT4.1nano . The first two are open models. We evaluate on two datasets: Child and the real-world
+User Level Data - I from Google & Kaggle (2018). Measuring performance on the 5 metrics over
+5 runs, the results in Table 5 are consistent with those of the previously presented GPT3.5Turbo model,
+demonstrating robustness across LMs with different training data, and architectures.
+We introduce an additional baseline which does causal discovery using LM and Pearson correlation in the
+prompt, namely BFS, as proposed by Jiralerspong et al. (2024). A comparison of NLPSCM with BFS also
+serves an important purpose by throwing light on the issue of potential memorization of datasets seen in
+training by LMs. As noted by Jiralerspong et al. (2024), their method relies on the LM’s training knowledge
+(Sec. 5 of their paper), thereby recognizing the dependence on memorization. To make a fair comparison, we
+use a recent model GPT4.1nano . Results reported in the bottom panel of Table 5 show that for both Child
+and User Level Data - I, NLPSCM beats BFS handily. To elucidate about memorization, we compare
+the difference-of-differences in metric-values between BFS and NLPSCM. The difference is smaller for Child
+dataset, a standard causal discovery benchmark that is likely to be a part of the LM training data. In contrast,
+the difference is much larger for the User Level Data-I dataset. The latter dataset or its causal graph is
+unlikely to have been seen by any LM due to the processing and construction of attributes we performed in this
+dataset, from the publicly available large data at Google & Kaggle (2018). That BFS performs worse highlights
+its reliance on memorized knowledge, whereas NLPSCM demonstrates greater robustness across datasets.
+
+6.3                       Parameter Estimation
+
+The datasets used in Sec. 6.1 do not contain latent confounders in their causal structures. Consequently,
+parameter estimation reduces to standard maximum likelihood estimation, which NLPSCM (Sec. 5) replicates
+by design. To meaningfully evaluate NLPSCM in the presence of latent confounders, we consider a real-world
+dataset: the red-wine quality from Cortez et al. (2009) (details in Sec. A).
+For the red-wine quality, NLPSCM’s structure learning algorithm predicts a latent confounder between
+variables quality and density. Applying DirectLiNGAM on the full dataset indicates that the true confounder
+is alcohol content, aligning with domain knowledge. Following Sec. 4.2, we query an LM to identify potential
+latent confounders using world knowledge. Fig. 6 shows a histogram of LM predictions, with alcohol_content
+emerging as the top candidate. We incorporate this LM-provided confounder into NLPSCM’s parameter
+estimation pipeline and query the LM for its marginal distribution. Table 6 presents the LM-provided
+
+
+                                                                                             11
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table 5: NLPSCM improves causal discovery across language model families: We showcase
+results on the Child and User level data-I datasets using three language models: Llama3.18B-instruct ,
+Qwen34B-instruct and a GPT-4.1nano . We report 5 metrics: Modified SHD, SID, Precision, Recall, F1, with
+mean and standard deviation over 5 runs and perform significance test with α = 0.05.
+
+ Dataset                Model                 Method      Mod. SHD ↓                 SID ↓                              Precision ↑   Recall ↑     F1 Score ↑
+                                              LLM-first    45.80±1.94    (211.20, 211.20)±(15.25, 15.25)                 0.13±0.01     0.19±0.02   0.16±0.01
+                        Llama3.18B-instruct   ILS-CSL      27.60±2.24    (146.40, 146.40)±(15.93, 15.93)                 0.37±0.05     0.38±0.07   0.38±0.06
+                                               NLPSCM      24.60±0.80    (101.80, 101.80)±(8.11, 8.11)                   0.44±0.01     0.45±0.02   0.44±0.01
+                                              LLM-first    35.80±2.04    (173.80, 173.80)±(14.13, 14.13)                 0.27±0.02    0.42±0.02    0.34±0.01
+                        Qwen34B-instruct      ILS-CSL      30.60±2.42    (196.80, 196.80)±(14.13, 14.13)                 0.30±0.06     0.28±0.05   0.29±0.05
+    Child
+
+
+
+
+                                               NLPSCM      21.20±0.75   (107.80, 107.80)±(13.42, 13.42)                  0.51±0.01     0.32±0.03   0.39±0.02
+                                              LLM-first    31.83±2.61     (203.50, 203.50)±(23.06, 23.06)                0.16±0.01     0.14±0.03   0.15±0.02
+                                              ILS-CSL      31.60±2.06   (147.40, 147.40)±(11.25, 11.25)                  0.29±0.05     0.19±0.04   0.23±0.03
+                        GPT4.1nano            BFS          34.75±7.80     (252.50, 252.50)±(23.36, 23.36)                0.18±0.08     0.12±0.04   0.14±0.03
+                                              BFScorr      32.30±4.16      (301.10, 301.10±(14.42, 14.42)                0.21±0.03     0.15±0.01   0.18±0.01
+                                               NLPSCM     27.90±1.61    (143.50, 165.50)±(12.23, 35.97)                 0.42±0.06     0.23±0.04    0.30±0.03
+                                              LLM-first    11.50±0.50      (42.50, 42.50)±(1.50, 1.50)                   0.74±0.01     0.61±0.03   0.67±0.02
+                        Llama3.18B-instruct   ILS-CSL      9.75±1.64       (32.25, 32.25)±(3.56, 3.56)                   0.78±0.05     0.66±0.03   0.72±0.04
+                                              NLPSCM       7.50±0.45      (25.80, 25.40)±(2.32, 4.22)                   0.92±0.07     0.69±0.01    0.79±0.01
+    User Level Data-I
+
+
+
+
+                                              LLM-first    23.67±1.11      (64.33, 64.33)±(0.94, 0.94)                   0.35±0.04     0.28±0.04   0.31±0.04
+                        Qwen34B-instruct      ILS-CSL      20.60±4.18      (56.80, 56.80)±(7.36, 7.36)                   0.45±0.13     0.36±0.10   0.40±0.12
+                                               NLPSCM      9.80±2.04      (26.60, 26.60)±(6.83, 6.83)                    0.91±0.08     0.54±0.08   0.67±0.07
+                                              LLM-first    19.42±1.14      (72.10, 72.10)±(5.36, 5.36)                   0.76±0.07     0.32±0.03   0.45±0.03
+                                              ILS-CSL      18.00±1.41      (54.00, 54.00)±(2.53, 2.53)                   0.53±0.05    0.42±0.03    0.47±0.04
+                        GPT4.1nano            BFS          36.60±8.96      (65.80, 65.80)±(2.17, 2.17)                   0.13±0.06     0.29±0.14   0.18±0.06
+                                              BFScorr      24.00±6.24      (42.20, 42.20)±(6.53, 6.53)                   0.17±0.12     0.28±0.11   0.21±0.11
+                                               NLPSCM     10.60±2.13      (34.80, 35.20)±(5.56, 5.84)                   0.97±0.04     0.43±0.06    0.60±0.06
+
+
+
+
+Gaussian distributions. Notably, when queried with obscure variables (e.g., (cat, mouse)), LM often defaults
+to unit Gaussian N (0, 1).
+To assess parameter recovery, we track evolution of θ over sequential batches. As a performance metric,
+we compute the ℓ2 -norm error ∥θ ⋆ − θ∥2 , where θ ⋆ denotes the parameters obtained via MLE assuming
+the confounder (alcohol_content) is observed. Fig. 5 visualizes this convergence behavior.
+Parameter estimation: robustness and recovery We demon-
+strate robustness of the proposed parameter estimation algorithm                                                                                    N (0, 1)
+under misspecified or ill-informed priors. Based on domain knowl-                                                                                   N (12.5, 2.5)
+                                                                                                                4
+
+
+
+
+edge and observational data, we estimate latent confounder alco-
+                                                                                                                                                    N (50, 1.5)
+
+
+hol_content to follow distribution N (11, 1.0). To stress-test NLP-
+                                                                                                   ∥θ ⋆ − θ∥2
+
+
+
+
+SCM, we experiment with three alternative priors: N (12.5, 2.5) (sug-
+gested by GPT-3.5turbo ), N (0, 1), and a severely misspecified prior
+                                                                                                                2
+
+
+
+
+N (50, 1.5). Fig. 5 illustrates the evolution of the learned parameters
+θ across training batches for each prior. As expected and aligned with
+the Bayesian principle, convergence is slower when initialized with
+                                                                                                                0
+
+
+
+
+an inaccurate prior. Nevertheless, the model progressively refines its                                              0          1          2          3              4
+
+estimates as more data is processed, ultimately converging towards                                                                     Batches
+θ ⋆ . This demonstrates both the robustness and recovery capabilities                              Figure 5: Parameter Estimation:
+of NLPSCM’s Bayesian parameter estimation algorithm—even under                                     Convergence of parameters and robust-
+poor initialization. Additionally, we incorporate LM-suggested Pear-                               ness to prior misspecification as more
+son correlation coefficients in the M-step objective to further guide                              batches are processed.
+estimation, Eq. (11) (see discussion and results in Sec. E.).
+
+7   Discussion and Conclusion
+
+We present NLPSCM (Noisy Language Prior in Sequential Causal Modeling)—a Bayesian-inspired framework
+for causal structure discovery and parameter (edge weights) estimation in sequential, batch-wise data settings.
+By treating language models (LMs) as noisy surrogate experts, NLPSCM addresses the dual LM-induced and
+data-induced biases. A key contribution is the representation shift from DAGs to PAGs, allowing uncertainty
+and confounders to be modeled explicitly. Through LM interactions modeled in sequential optimization
+
+
+                                                                            12
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table 6: LM-predicted priors for confounding variable:                             30   27
+LM suggest relevant Gaussian priors when the confounder is                                   22
+meaningful and default to N (0, 1) when uncertain.
+
+
+
+
+                                                                          Count
+                                                                                   20
+
+
+
+                                                                                   10             8                           9
+Variables                              GPT-3.5turbo      GPT-4o                                       6
+                                                                                                          4   5   4   4   4
+
+density← alcohol → quality              N (12.5, 2.5)   N (10.5, 1.2)               0
+
+density ← alcohol → volatile-acidity    N (12.5, 2.5)   N (10.5, 1.2)
+
+
+
+
+                                                                                                        e
+
+
+
+                                                                                                        t
+                                                                                                      ty
+
+                                                                                               e _ ss
+
+
+
+
+                                                                                                on e
+                                                                                               at ty
+
+
+
+
+                                                                                                 ey l
+                                                                                                       d
+                                                                                                        t
+
+
+
+
+                                                                                                      er
+                                                                                            v eve
+                                                                                            it ten
+                                                                                     ap _q en
+
+
+
+
+                                                                                                      g
+                                                                                                      p
+
+
+
+
+                                                                                                    ar
+                                                                                           ap ne
+                                                                                                    ri
+                                                                                   gr _m ali
+
+
+
+
+                                                                                                   th
+                                                                                          r_ _a
+                                                                                                   ty
+                                                                                                   t
+
+
+
+                                                                                         e_ u
+
+
+
+
+                                                                                                  l
+                                                                                       ap on
+
+
+
+
+                                                                                        gr pe
+
+
+
+
+                                                                                                O
+                                                                                                 u
+
+
+
+
+                                                                                                _
+cat ← alcohol → mouse                     N (0, 1)        N (0, 1)
+
+
+
+
+                                                                                       ga ne
+
+
+
+
+                                                                                              in
+                                                                                              y
+                                                                                              c
+                                                                                    gr _c
+
+
+
+
+                                                                                             ri
+
+
+
+                                                                                    su w i
+                                                                                          e
+
+
+
+
+                                                                                         id
+                                                                                         ol
+bed ← alcohol → shopping                  N (0, 1)        N (0, 1)
+
+
+
+
+                                                                                        e
+                                                                                      ap
+
+
+
+
+                                                                                      ac
+                                                                             h
+                                                                           co
+
+
+
+                                                                                  gr
+                                                                         al
+                                                                        Figure 6: LM predicted confounders.
+
+framework and EM style iterative parameter estimation algorithm, NLPSCM improves both structural
+accuracy and parameter recovery in hybrid data-LM pipelines. NLPSCM leverages global LM knowledge
+while staying grounded in local data, and offers a robust foundation for hybrid causal discovery in the presence
+of sequential, batched data.
+Limitations and Future Work In the Bayesian formulation in NLPSCM, incorporating Dirichlet or
+hierarchical Bayesian priors over LM judgments could provide another way to capture LM uncertainty.
+Extending to fully probabilistic inference over graph structures, rather than edge-level belief tracking, is
+another promising direction. Future work may also explore adaptive calibration of LM responses or memory-
+based accumulation of observational data across batches, following Chang et al. (2023). We employ FCI for
+causal discovery due to its compatibility with our setup (Section 3). The current framework assumes that each
+latent confounder may affect two observed variables; extending to multi-variable confounding is a direction
+for future work. Systematically evaluating the robustness of NLPSCM for other causal discovery algorithms
+remains important future work. Additionally, extending our approach to incorporate interventional data and
+active learning strategies could improve sample efficiency and the quality of discovered causal structures.
+Systematic evaluation of LM accuracy in confounder identification across diverse domains also remains a
+useful future effort. Finally, a theoretical analysis of sequential optimization and a bandit-style framework
+remains an open problem, discussed preliminarily in Sec. D.
+Broader Impact NLPSCM combines observational data with LM-derived knowledge to discover causal
+structures, which may inform downstream decisions in domains such as healthcare, policy, and business.
+As with any causal discovery method, the learned structures reflect the assumptions and limitations of
+the underlying algorithms, data quality, and in our case, the reliability of LM priors. We recommend
+that practitioners treat discovered structures as hypotheses to be validated through domain expertise or
+interventional studies before acting on them.
+
+
+Acknowledgments
+
+This work was primarily conducted while PV was an intern at Adobe Research, Bangalore. PV and AS
+acknowledge funding from the Research Council of Finland (grants 362408, 339730). We acknowledge CSC-IT
+Center for Science, Finland, and the Aalto Science-IT project for the computational resources.
+
+
+References
+Philippe Andrade and Marios Zachariadis. Global versus local shocks in micro price dynamics. Journal of
+ International Economics, 98:78–92, 2016.
+
+Pierre Baldi and Babak Shahbaba. Bayesian causality. The American Statistician, 74(3):249–257, 2020.
+
+Taiyu Ban, Lyuzhou Chen, Derui Lyu, Xiangyu Wang, and Huanhuan Chen. Causal structure learning
+  supervised by large language model. arXiv preprint arXiv:2311.11689, 2023a.
+
+
+                                                        13
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Taiyu Ban, Lyvzhou Chen, Xiangyu Wang, and Huanhuan Chen. From query tools to causal architects:
+  Harnessing large language models for advanced causal discovery from data. arXiv preprint arXiv:2306.16902,
+  2023b.
+
+Ingo A Beinlich, Henri Jacques Suermondt, R Martin Chavez, and Gregory F Cooper. The ALARM monitoring
+  system: A case study with two probabilistic inference techniques for belief networks. In AIME 89: Second
+  European Conference on Artificial Intelligence in Medicine, London, August 29th–31st 1989. Proceedings.
+  Springer, 1989.
+
+Kevin Bello, Bryon Aragam, and Pradeep Ravikumar. DAGMA: Learning DAGs via M-matrices and a log-
+  determinant acyclicity characterization. In Advances in Neural Information Processing Systems, volume 35.
+  Curran Associates, Inc., 2022.
+
+Adrien Bilal and Diego R Känzig. The macroeconomic impact of climate change: Global vs. local temperature.
+ Technical report, National Bureau of Economic Research, 2024.
+
+Kenneth A Bollen. Structural Equations with Latent Variables. John Wiley & Sons, 1989.
+
+Eric W Bridgeford, Michael Powell, Gregory Kiar, Ross Lawrence, Brian Caffo, Michael Milham, and Joshua T
+  Vogelstein. Batch effects are causal effects: applications in human connectomics. bioRxiv, 3, 2021.
+
+Philippe Brouillard, Sébastien Lachapelle, Alexandre Lacoste, Simon Lacoste-Julien, and Alexandre Drouin.
+  Differentiable causal discovery from interventional data. In Advances in Neural Information Processing
+ Systems, volume 33, 2020.
+
+Paul Edmund Chang, Prakhar Verma, S. T. John, Arno Solin, and Mohammad Emtiyaz Khan. Memory-based
+  dual Gaussian processes for sequential learning. In Proceedings of the 40th International Conference on
+  Machine Learning, Proceedings of Machine Learning Research. PMLR, 2023.
+
+David Maxwell Chickering. Optimal structure identification with greedy search. Journal of Machine Learning
+ Research, 2002.
+
+Davin Choo and Kirankumar Shiragur. Subset verification and search algorithms for causal DAGs. In
+ Proceedings of The Twenty Sixth International Conference on Artificial Intelligence and Statistics. PMLR,
+ 2023.
+
+Diego Colombo, Marloes H Maathuis, Markus Kalisch, and Thomas S Richardson. Learning high-dimensional
+  directed acyclic graphs with latent and selection variables. The Annals of Statistics, 2012.
+
+Anthony C Constantinou, Zhigao Guo, and Neville K Kitson. The impact of prior knowledge on causal
+ structure learning. Knowledge and Information Systems, 65(8), 2023.
+
+Paulo Cortez, António Cerdeira, Fernando Almeida, Telmo Matos, and José Reis. Modeling wine preferences
+  by data mining from physicochemical properties. Decision Support Systems, 2009.
+
+Tiago da Silva, Bruna Bazaluk, Eliezer de Souza da Silva, António Góis, Salem Lahlou, Dominik Heider,
+  Samuel Kaski, Diego Mesquita, and Adèle Helena Ribeiro. Expert-aided causal discovery of ancestral
+  graphs. arXiv preprint arXiv:2309.12032, 2025.
+
+Bita Darvish Rouhani, Mohammad Ghasemzadeh, and Farinaz Koushanfar. Causalearn: Automated
+  framework for scalable streaming-based causal Bayesian learning using FPGAs. In Proceedings of the 2018
+  ACM/SIGDA International Symposium on Field-Programmable Gate Arrays, pp. 1–10, 2018.
+
+Imme Ebert-Uphoff and Yi Deng. Causal discovery for climate research using graphical models. Journal of
+  Climate, 25(17), 2012.
+
+Sebastian Farquhar, Jannik Kossen, Lorenz Kuhn, and Yarin Gal. Detecting hallucinations in large language
+  models using semantic entropy. Nature, 630, 2024.
+
+
+                                                    14
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Helmut J Geist and Eric F Lambin. Proximate causes and underlying driving forces of tropical deforestation:
+  Tropical forests are disappearing as the result of many pressures, both local and regional, acting in various
+  combinations in different geographical locations. BioScience, 52(2):143–150, 2002.
+Clark Glymour, Kun Zhang, and Peter Spirtes. Review of causal discovery methods based on graphical
+  models. Frontiers in Genetics, 10, 2019.
+Google and Kaggle. Google analytics sample dataset, 2018. URL https://www.kaggle.com/datasets/
+ bigquery/google-analytics-sample/data.
+Yang-Bo He and Zhi Geng. Active learning of causal networks with intervention experiments and optimal
+  designs. The Journal of Machine Learning Research, 9(Nov), 2008.
+David Heckerman, Dan Geiger, and David M Chickering. Learning Bayesian networks: The combination of
+  knowledge and statistical data. Machine Learning, 20, 1995.
+Ziwei Ji, Nayeon Lee, Rita Frieske, Tiezheng Yu, Dan Su, Yan Xu, Etsuko Ishii, Ye Jin Bang, Andrea
+  Madotto, and Pascale Fung. Survey of hallucination in natural language generation. ACM Computing
+  Surveys, 55, 2023.
+Zhijing Jin, Jiarui Liu, Zhiheng Lyu, Spencer Poff, Mrinmaya Sachan, Rada Mihalcea, Mona T Diab, and
+  Bernhard Schölkopf. Can large language models infer causation from correlation? In International
+ Conference on Learning Representations, 2024.
+Thomas Jiralerspong, Xiaoyin Chen, Yash More, Vedant Shah, and Yoshua Bengio. Efficient causal graph
+ discovery using large language models. arXiv preprint arXiv:2402.01207, 2024.
+Ryan P Kelly, MM Foley, WS Fisher, RA Feely, BS Halpern, GG Waldbusser, and MR Caldwell. Mitigating
+  local causes of ocean acidification with existing laws. Science, 332(6033):1036–1037, 2011.
+Emre Kiciman, Robert Ness, Amit Sharma, and Chenhao Tan. Causal reasoning and large language models:
+ Opening a new frontier for causality. Transactions on Machine Learning Research, 2024.
+Kevin B Korb and Ann E Nicholson. Bayesian Artificial Intelligence. CRC press, 2010.
+Lorenz Kuhn, Yarin Gal, and Sebastian Farquhar. Semantic uncertainty: Linguistic invariances for uncertainty
+  estimation in natural language generation. In International Conference on Learning Representations, 2023.
+Sébastien Lachapelle, Philippe Brouillard, Tristan Deleu, and Simon Lacoste-Julien. Gradient-based neural
+  DAG learning. In International Conference on Learning Representations, 2020.
+Steffen L Lauritzen and David J Spiegelhalter. Local computations with probabilities on graphical structures
+  and their application to expert systems. Journal of the Royal Statistical Society: Series B (Methodological),
+  50, 1988.
+Longzhu Li, Yaojin Lin, Hong Zhao, Jinkun Chen, and Shaozi Li. Causality-based online streaming feature
+  selection. Concurrency and Computation: Practice and Experience, 33(20):e6347, 2021.
+Stephanie Long, Tibor Schuster, and Alexandre Piché. Can large language models build causal graphs? In
+  NeurIPS 2022 Workshop on Causality for Real-World Impact, 2022.
+Stephanie Long, Alexandre Piché, Valentina Zantedeschi, Tibor Schuster, and Alexandre Drouin. Causal
+  discovery with language models as imperfect experts. In ICML 2023 Workshop on Structured Probabilistic
+  Inference and Generative Modeling, 2023.
+Takashi Nicholas Maeda and Shohei Shimizu. RCD: Repetitive causal discovery of linear non-Gaussian acyclic
+  models with latent confounders. In Proceedings of the Twenty Third International Conference on Artificial
+  Intelligence and Statistics, Proceedings of Machine Learning Research. PMLR, 2020.
+Colin D Mathers, Ties Boerma, and Doris Ma Fat. Global and regional causes of death. British Medical
+ Bulletin, 92(1):7–32, 2009.
+
+
+                                                      15
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Melissa A McKinney, Kylie Dean, Nigel E Hussey, Geremy Cliff, Sabine P Wintner, Sheldon FJ Dudley,
+ M Philip Zungu, and Aaron T Fisk. Global versus local causes and health implications of high mercury
+ concentrations in sharks from the east coast of South Africa. Science of the Total Environment, 541:
+ 176–183, 2016.
+
+Christopher Meek. Strong completeness and faithfulness in Bayesian networks. In Proceedings of the Eleventh
+ Conference on Uncertainty in Artificial Intelligence, 1995.
+
+Christopher Meek. Causal inference and causal explanation with background knowledge. arXiv preprint
+ arXiv:1302.4972, 2013.
+
+Ricardo Pio Monti, Kun Zhang, and Aapo Hyvärinen. Causal discovery with general non-linear relationships
+  using non-linear ICA. In Proceedings of The Thirty-Fifth Uncertainty in Artificial Intelligence. PMLR,
+  2020.
+
+Joris M Mooij, Jonas Peters, Dominik Janzing, Jakob Zscheischler, and Bernhard Schölkopf. Distinguishing
+  cause from effect using observational data: methods and benchmarks. The Journal of Machine Learning
+  Research, 17, 2016.
+
+Richard E Neapolitan et al. Learning Bayesian Networks, volume 38. Pearson Prentice Hall Upper Saddle
+  River, 2004.
+
+Alexander V. Nikitin, Jannik Kossen, Yarin Gal, and Pekka Marttinen. Kernel language entropy: Fine-
+  grained uncertainty quantification for LLMs from semantic similarities. In Advances in Neural Information
+  Processing Systems, volume 37, 2024.
+
+Juan Miguel Ogarrio, Peter Spirtes, and Joe Ramsey. A hybrid causal search algorithm for latent variable
+  models. In Proceedings of the Eighth International Conference on Probabilistic Graphical Models. PMLR,
+  2016.
+
+Judea Pearl. Causality. Cambridge University Press, 2009.
+
+Jonas Peters, Joris M Mooij, Dominik Janzing, and Bernhard Schölkopf. Causal discovery with continuous
+  additive noise models. The Journal of Machine Learning Research, 15, 2014.
+
+Jonas Peters, Dominik Janzing, and Bernhard Schölkopf. Elements of Causal Inference: Foundations and
+  Learning Algorithms. The MIT Press, 2017.
+
+Agathe Sadeghi, Achintya Gopal, and Mohammad Fesanghary. Causal discovery in financial markets: A
+ framework for nonstationary time-series data. arXiv preprint arXiv:2312.17375, 2023.
+
+Pedro Sanchez, Jeremy P Voisey, Tian Xia, Hannah I Watson, Alison Q O’Neil, and Sotirios A Tsaftaris.
+  Causal machine learning for healthcare and precision medicine. Royal Society Open Science, 9, 2022.
+
+Bernhard Schölkopf, Francesco Locatello, Stefan Bauer, Nan Rosemary Ke, Nal Kalchbrenner, Anirudh Goyal,
+  and Yoshua Bengio. Toward causal representation learning. Proceedings of the IEEE, 109(5), 2021.
+
+Rajen D Shah and Jonas Peters. The hardness of conditional independence testing and the generalised
+ covariance measure. The Annals of Statistics, 48, 2020.
+
+Shohei Shimizu. LiNGAM: Non–Gaussian methods for estimating causal structures. Behaviormetrika, 41,
+  2014.
+
+Shohei Shimizu, Patrik O Hoyer, Aapo Hyvärinen, Antti Kerminen, and Michael Jordan. A linear non-Gaussian
+  acyclic model for causal discovery. The Journal of Machine Learning Research, 7, 2006.
+
+Shohei Shimizu, Takanori Inazumi, Yasuhiro Sogawa, Aapo Hyvärinen, Yoshinobu Kawahara, Takashi Washio,
+  Patrik O Hoyer, and Kenneth Bollen. DirectLiNGAM: A direct method for learning a linear non-Gaussian
+  structural equation model. The Journal of Machine Learning Research, 12, 2011.
+
+
+                                                    16
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+David J Spiegelhalter, A Philip Dawid, Steffen L Lauritzen, and Robert G Cowell. Bayesian analysis in
+ expert systems. Statistical Science, 1993.
+
+Peter Spirtes and Kun Zhang. Causal discovery and inference: concepts and recent methodological advances.
+  In Applied Informatics. Springer, 2016.
+
+Peter Spirtes, Christopher Meek, and Thomas Richardson. Causal inference in the presence of latent variables
+  and selection bias. In Proceedings of the Eleventh Conference on Uncertainty in Artificial Intelligence, 1995.
+
+Peter Spirtes, Clark Glymour, and Richard Scheines. Causation, Prediction, and Search. The MIT Press,
+  2000.
+
+Yuni Susanti and Michael Färber. Can LLMs leverage observational data? Towards data-driven causal
+  discovery with LLMs. arXiv preprint arXiv:2504.10936, 2025.
+
+Masayuki Takayama, Tadahisa Okuda, Thong Pham, Tatsuyoshi Ikenoue, Shingo Fukuma, Shohei Shimizu,
+ and Akiyoshi Sannai. Integrating large language models in causal discovery: A statistical causal approach.
+ Transactions on Machine Learning Research, 2025.
+
+Ruibo Tu, Kun Zhang, Bo Bertilson, Hedvig Kjellstrom, and Cheng Zhang. Neuropathic pain diagnosis
+ simulator for causal discovery algorithm evaluation. In Advances in Neural Information Processing Systems,
+ volume 32, 2019.
+
+Aniket Vashishtha, Abbavaram Gowtham Reddy, Abhinav Kumar, Saketh Bachu, Vineeth N. Balasubrama-
+ nian, and Amit Sharma. Causal order: The key to leveraging imperfect experts in causal inference. In
+ International Conference on Learning Representations, 2025.
+
+Chris Wallace, Kevin B Korb, and Honghua Dai. Causal discovery via MML. In Proceedings of the 13th
+ International Conference on Machine Learning, pp. 516–524, 1996.
+
+Yuhao Wang, Liam Solus, Karren Yang, and Caroline Uhler. Permutation-based causal inference algorithms
+  with interventions. In Advances in Neural Information Processing Systems, volume 30, 2017.
+
+Moritz Willig, Matej Zečević, Devendra Singh Dhami, and Kristian Kersting. Can foundation models talk
+ causality? In UAI 2022 Workshop on Causal Representation Learning, 2022.
+
+Dianlong You, Ruiqi Li, Shunpan Liang, Miaomiao Sun, Xinju Ou, Fuyong Yuan, Limin Shen, and Xindong
+  Wu. Online causal feature selection for streaming features. IEEE Transactions on Neural Networks and
+  Learning Systems, 34(3):1563–1577, 2021.
+
+Dianlong You, Siqi Dong, Shina Niu, Huigui Yan, Zhen Chen, Shunfu Jin, Di Wu, and Xindong Wu. Local
+  causal structure learning for streaming features. Information Sciences, 647:119502, 2023.
+
+Kui Yu, Xindong Wu, Hao Wang, and Wei Ding. Causal discovery from streaming features. In 2010 IEEE
+ International Conference on Data Mining, pp. 1163–1168. IEEE, 2010.
+
+Yue Yu, Tian Gao, Naiyu Yin, and Qiang Ji. DAGs with no curl: An efficient DAG structure learning
+  approach. In Proceedings of the 38th International Conference on Machine Learning, Proceedings of
+  Machine Learning Research. PMLR, 2021.
+
+Jiji Zhang. On the completeness of orientation rules for causal discovery in the presence of latent confounders
+   and selection bias. Artificial Intelligence, 172, 2008.
+
+Jiji Zhang and Peter L Spirtes. Strong faithfulness and uniform consistency in causal inference. arXiv preprint
+  arXiv:1212.2506, 2012.
+
+Kun Zhang, Jonas Peters, Dominik Janzing, and Bernhard Schölkopf. Kernel-based conditional independence
+ test and application in causal discovery. In Proceedings of the Twenty-Seventh Conference on Uncertainty
+ in Artificial Intelligence, 2011.
+
+
+                                                      17
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Zezhong Zhang and Ted Yuan. Practical batch Bayesian sampling algorithms for online adaptive traffic
+  experimentation. In Companion Proceedings of the ACM Web Conference 2024, pp. 471–480, 2024.
+Xun Zheng, Bryon Aragam, Pradeep K Ravikumar, and Eric P Xing. DAGs with NO TEARS: Continuous
+ optimization for structure learning. In Advances in Neural Information Processing Systems, volume 31.
+ Curran Associates, Inc., 2018.
+Xun Zheng, Chen Dan, Bryon Aragam, Pradeep Ravikumar, and Eric Xing. Learning sparse nonparametric
+ DAGs. In Proceedings of the Twenty Third International Conference on Artificial Intelligence and Statistics.
+ PMLR, 2020.
+
+
+
+
+                                                     18
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Appendix
+
+We organize the appendix as follows: Sec. A provides detailed descriptions of all datasets used and simulation
+details; Sec. B discusses the choice of FCI over other causal discovery algorithms; Sec. C outlines the
+evaluation metrics employed to assess method performance; Sec. D discusses the connection between the
+proposed sequential optimization approach and the multi-armed bandit framework; Sec. E describes the
+parameter estimation algorithm and its robustness to LM-derived information; and Sec. F presents the
+experimental setup along with additional implementation and hyperparameter details.
+
+A    Dataset and Simulation Details
+
+Earthquake The Earthquake dataset is a widely used synthetic benchmark in causal discovery.
+It comprises a small, acyclic, and semantically meaningful graph over five binary variables: Burglary,
+Earthquake, Alarm, JohnCalls, and MaryCalls. In this structure, an earthquake or burglary can trigger the
+alarm, which in turn influences whether John or Mary calls. The ground-truth causal graph is depicted in
+Fig. A1a. For our experiments, we aggregate data from six CSV files (earthquake_250_1–6.csv) available
+at https://github.com/andrewli77/MINOBS-anc/, resulting in a combined dataset of 1500 samples. As
+the dataset contains Boolean values (Yes/No) we convert them to a numerical format (1/0) producing the
+full dataset R(1500,5) .
+Asia The Asia dataset is another canonical benchmark in causal discovery and probabilistic inference.
+It consists of eight binary variables (e.g., VisitToAsia, Tuberculosis, Smoking, LungCancer) structured in
+a directed acyclic graph (DAG) with known semantics, as shown in Fig. A1b. We construct the dataset
+by merging all samples from the six CSV files (asia_250_1–6.csv) provided at https://github.com/
+andrewli77/MINOBS-anc/, yielding a total of 1500 samples. As with the Earthquake dataset, all boolean
+values are converted to numerical format producing the full dataset R(1500,8) .
+user level data - I The User Level Data - I dataset is derived from the publicly available Google
+Analytics Sample Dataset, accessible via Google BigQuery (detailed in (Google & Kaggle, 2018)). It captures
+real-world e-commerce interactions from the Google Merchandise Store. We focus on a curated subset of
+user-level features that reflect engagement, browsing behavior, and purchase intent. The selected variables
+include Proximity to Transaction, Number of Add To Cart, Number of Product Clicks, Number of Sessions on
+iOS, Number of Promo Hits (Android), Number of Cheap Products Viewed, Number of Page Hits, Time Spent
+per Session, and Number of Promo Hits (Others). Since the true causal structure is not available, we estimate
+it using the DirectLiNGAM algorithm applied to the observational data, which also provides edge weights
+representing causal strengths. We then simulate data from this estimated DAG using a structural equation
+model (SEM) with linear relationships and additive Gaussian noise. Fig. A2 shows the causal structure with
+strengths estimated by DirectLiNGAM which acts as a ground truth for us.
+user level data - II The User-Level Data II dataset is constructed from the same Google Analytics
+Sample corpus as User-Level Data I, but emphasizes a distinct set of behavioral features associated with
+user engagement. The selected variables include: Number of Hits, Number of Unique URLs, Time Spent,
+Total Active Days Last Month, Number of Sessions Last Month, Number of Hits Last Month, Number of Page
+Hits Last Month, and Number of Hits on Social Network. These features capture both cumulative and recent
+patterns of user interaction, providing a rich view of user behavior. Since the true causal structure is not
+available, as with User-Level Data I, we estimate the underlying causal structure using DirectLiNGAM
+and simulate data from the resulting DAG using a linear SEM with additive Gaussian noise. This serves as
+the true causal structure for subsequent evaluation and experimentation. Fig. A3 shows causal structure with
+strengths estimated by DirectLiNGAM which acts as a ground truth for us.
+Child The Child dataset is a widely used synthetic benchmark in causal discovery. It comprises a acyclic,
+and semantically meaningful graph over 20 variables: Age, Birth Asphyxia, Disease Type, Sickness, Hypoxia
+in O2 , Grunting, Lung Parenchyma, Lower Body O2 , CO2 , Chest X-Ray, LVH, Cardiac Mixing, Birth Defect,
+Pulmonary Stenosis, Duct flow, Cyanosis, Heart Disorder, Temperature, Heart-Rate, and PV SAT. The ground-
+truth causal graph is shown in Spiegelhalter et al. (1993, Figure 2). For our experiments, we aggregate data
+from six CSV files (child_2000_1–6.csv) available at https://github.com/andrewli77/MINOBS-anc/,
+
+
+                                                     19
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table A1: Glossary of notations used throughout the paper, categorized by their role in datasets, causal
+structures, parameters, expert interactions, and other components.
+
+Symbol     Description                          Symbol    Description                                  Symbol      Description
+Dataset and Observations
+D         True data distribution                D         Full observed dataset                        Di          Observed data at batch i
+ni        Number of data points in batch i      VO        Set of observed variables                    d           Cardinality of VO
+VL        Unobserved (latent) variables         k         Look-back batch window size                  Bi          Background knowledge till batch i
+Causal Graphs and Structures
+G        True underlying causal graph           V, E      Nodes and edges in G                         G Di        Causal graph after batch i
+VO , EDi Nodes/edges in G Di                    G Xi      Expert-provided graph till batch i           VXi , EXi   Nodes and edges in G Xi
+A, B     Arbitrary variables in graph           L         Latent confounder in causal structure
+Parameters and Models
+θ        Edge weights of the causal DAG         θO , θL   Edge weights for observed, latent variable   ϕ           SEM parameters {θ, σ 2 }
+θA       Edge weights associated with A         ϕA        Parameters for A variable (θA , σ 2 )        ϵ           SEM noise
+σ2       SEM noise variance                     ρ(A, B)   Correlation value between A, B
+Expert Interaction and Histograms
+α         Expert noise level                    H Ei      Edge histogram till batch i                  HLi         Latent variable histogram till batch i
+IE, IL    Instructions for edge/latent expert   IP, Iρ    Instructions for prior/correlation expert.   mE , mL     Maximum expert calls for edge/latent
+Others
+R          Set of real numbers                  N         Gaussian distribution                        η           Learning rate
+λ          Regularizer parameter                mp        Prior mean                                   Sp          Prior covariance
+
+
+
+resulting in a combined dataset of 12000 samples. We convert all the variables to a categorical format
+producing the full dataset R(12000,20) .
+Alarm The Alarm dataset is a widely used synthetic benchmark in causal discovery. It comprises a acyclic,
+and semantically meaningful graph over 37 variables. For our experiments, we aggregate data from the CSV
+files (alarm_1000_1–6.csv) available at https://github.com/andrewli77/MINOBS-anc/. All the variables
+are converted to categorical format and the details about it can be found in Beinlich et al. (1989).
+Red Wine Quality The Red Wine Quality dataset is a real-world dataset from the UCI Ma-
+chine Learning Repository, comprising 11 physicochemical attributes of red wine samples—such as density,
+alcohol, and residual sugar—along with a quality rating. We utilize this dataset for parameter estima-
+tion experiments with linear SEMs i.e. of the form A = θ1 B + ϵi where ϵi ∼ N (0, σ 2 ). As shown in
+Fig. A5, the variable alcohol acts as a confounder between density and quality, making it suitable for
+parameter estimation evaluation. The dataset used in our experiments is sourced from the CMU Exam-
+ple Causal Datasets repository: https://github.com/cmu-phil/example-causal-datasets/blob/main/
+real/wine-quality/data/winequality-red.continuous.txt. It contains a total of 1599 samples.
+
+B     Comparisons with Other Causal Discovery Algorithms
+
+In this paper, we focus on a setting where both selection bias and latent confounding are present. To
+accommodate both aspects in this general setting, it is necessary to shift from DAGs to Partial Ancestral
+Graphs (PAGs), since this explicitly captures uncertainty due to latent confounders and selection bias. The
+Fast Causal Inference (FCI) algorithm naturally aligns with these assumptions, making it a principled choice
+for the proposed framework, NLPSCM.
+Moreover, the primary aim of this paper is not to benchmark causal structure discovery algorithms, but rather
+to demonstrate how NLPSCM can refine causal structure over time by integrating noisy expert knowledge
+(from LMs) with observational data. Notably, NLPSCM is designed to be algorithm-agnostic, and can be
+used in a plug-and-play manner with any PAG-generating causal discovery method. Below, we briefly discuss
+why several modern algorithms are not directly applicable:
+
+      1. Greedy Equivalence Search (GES): GES proposed by Chickering (2002) assumes both causal
+         sufficiency and the absence of selection bias. These assumptions do not hold in our sequential setting,
+         where both latent confounders and selection bias may be present.
+
+      2. DAG-NoCURL and DAG-NoTEARS: DAG-NOCURL by Yu et al. (2021) and DAG-NoTEARS
+         by Zheng et al. (2018) are continuous optimization-based methods that output DAGs under the
+
+
+                                                                         20
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+        assumption of causal sufficiency, without accounting for latent confounders. Thus, they do not apply
+        to our setting, which requires a PAG-based representation to model uncertainty.
+
+      3. DAGMA: Bello et al. (2022) proposed DAGMA: a score-based causal discovery method that also
+         formulates the problem as a continuous optimization task. Like DAG-NoCURL and DAG-NoTEARS,
+         it outputs deterministic DAGs and assumes no latent confounding, making it incompatible with the
+         sequential setting.
+
+      4. LiNGAM: LiNGAM (Linear Non-Gaussian Acyclic Model, Shimizu, 2014) assumes that all relevant
+         variables are observed, i.e. there are no hidden confounders. This causal sufficiency assumption
+         renders it unsuitable for the sequential setting.
+
+      5. Recursive Causal Discovery (RCD): Unlike FCI, RCD proposed by Maeda & Shimizu (2020)
+         produces a DAG rather than a PAG, focusing on efficient DAG learning. Hence, when dealing with
+         latent confounders and selection bias requiring PAG representation, RCD can not be employed.
+
+We note that enhanced variants of FCI such as RFCI, GFCI, and FCI+ are fully compatible with NLPSCM
+and can be seamlessly integrated bringing their advantage to NLPSCM as well. We keep the research to
+study convergence impact of different algorithms for future work.
+
+C     Evaluation Metrics
+
+We describe the evaluation metrics used to assess the performance of the causal discovery method.
+
+C.1   Modified Structural Hamming Distance (Mod. SHD)
+
+To evaluate the structural accuracy of methods, we use a modified version of the Structural Hamming Distance
+(SHD) tailored for Partial Ancestral Graphs (PAGs). Unlike standard causal graphs, PAGs include multiple
+edge types that reflect varying degrees of causal certainty. This necessitates a more nuanced treatment of
+structural differences.
+For example, consider the true edge A → B. If one predicted PAG contains A ↔ B (a definite bidirected
+edge) and another contains A◦→B (an edge with uncertainty at one endpoint), the former should incur a
+higher penalty since it reflects stronger, incorrect causal commitment. That is,
+
+                         Mod. SHD(A → B, A ↔ B) > Mod. SHD(A → B, A◦→B) .                                  (A1)
+
+Standard SHD counts the total number of missing edges, extra edges, and orientation mismatches. Our
+modified SHD refines the orientation mismatch term by assessing the endpoints of each edge separately. We
+assign a penalty of 1.0 for definite orientation errors (e.g., → vs. ←) and 0.5 for uncertain mismatches (e.g.,
+→ vs. ◦→). This weighting scheme better reflects the confidence associated with different edge types and
+penalizes definitive errors more heavily than uncertainty.
+
+C.2   Structural Intervention Distance (SID)
+
+The Structural Intervention Distance (SID) measures the robustness of a learned causal graph in supporting
+correct interventional reasoning. Unlike purely structural metrics such as SHD, SID evaluates whether the
+predicted graph implies the correct set of causal effects under interventions.
+Formally, SID counts the number of intervention targets for which the predicted graph induces an incorrect
+adjustment set relative to the true graph. An SID of zero indicates that the learned structure supports
+identically correct interventional distributions as the ground truth, even if some edge directions are incorrect
+but do not affect adjustment validity.
+SID is particularly useful in settings where downstream causal queries, rather than exact graph recovery, are
+the primary concern. It captures whether the learned structure preserves the correct set of (in)dependencies
+
+
+                                                      21
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+      Burglary                       Earthquake
+                                                        Visit to Asia                  Smoking
+
+
+
+
+                     Alarm                              Tuberculosis        Lung Cancer          Bronchitis
+
+
+
+
+                                                                         Either Tuberculosis
+                                                        Positive XRay                             Dyspnea
+                                                                           or Lung Cancer
+      JohnCalls                      MaryCalls
+
+                       (a)                                                      (b)
+
+Figure A1: Causal Structure Learning Datasets (a) Ground-truth causal graph for the Earthquake
+dataset, where an earthquake or burglary can trigger an alarm, which in turn causes calls from John and
+Mary; (b) Ground-truth structure for the Asia dataset, a classic dataset illustrating causal relations between
+variables such as smoking, lung disease, and visits to Asia.
+
+
+required for estimating interventional effects, making it a practical and task-aligned evaluation metric for
+causal discovery.
+Since SID is not directly defined for PAGs, we compute it by mapping the learned PAG into a CPDAG-
+compatible adjacency representation. Directed edges are preserved, while partially oriented or bidirected
+edges are encoded as undirected or partially specified edges. We then use the SID_CPDAG function from
+the R SID package, which computes (lower, upper) bounds on SID between a true DAG and an equivalence
+class. When the bounds coincide, the learned structure fully determines interventional distances. We note
+that this mapping is an approximation, as PAGs represent equivalence classes under latent confounding that
+are more general than CPDAGs, and the reported SID values should be interpreted as approximate bounds.
+
+
+
+C.3    Precision, Recall, F1-Score
+
+In addition to structural metrics, we report standard classification metrics—Precision, Recall, and F1-Score—
+computed over predicted directed causal relationships of the form A → B.
+A predicted edge A → B is considered a true positive if it matches a directed edge in the ground-truth causal
+graph. Precision measures the fraction of predicted directed edges that are correct, while Recall quantifies
+the fraction of ground-truth directed edges that are successfully recovered. F1-Score is the harmonic mean
+of Precision and Recall, providing a balanced summary of accuracy and completeness:
+
+
+                                        |Correctly predicted directed edges A → B|
+                         Precision =                                               ,                        (A2)
+                                              |Predicted directed edges A → B|
+                                        |Correctly predicted directed edges A → B|
+                               Recall =                                            ,                        (A3)
+                                            |Ground-truth directed edges A → B|
+                                             Precision · Recall
+                             F1 Score = 2 ·                     .                                           (A4)
+                                            Precision + Recall
+
+
+These metrics focus exclusively on directed edges and ignore uncertain or undirected edge types. As such,
+they offer a more task-specific evaluation of causal directionality recovery, which is critical in downstream
+applications that rely on explicit causal mechanisms.
+
+
+                                                       22
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+                 Proximity to          0.12
+                                                Number of
+                 Transaction                   Add to Cart               0.18
+                                                                                   Number of
+                                                                                 Sessions on iOS
+                                                                      0.38
+
+
+                                        0.24                                    Number of
+                                                        0.23                    Promo Hits
+                                                                                (Android)
+                                                                       0.40
+                                                      0.15                                     0.17
+                                               0.52
+                    Number of                                                                             Time Spent
+                  Product Clicks                                                                          per Session
+                                                                                    0.32
+                                                                                                   0.63
+                                                               0.13
+                                                      0.15                                    0.65
+                                                                                                               -0.09
+                                0.32
+                                                                                Number of
+                                                                                Page Hits          0.11      Number of
+                                                               0.25                                          Promo Hits
+                                   Number of                                     0.29                         (Others)
+                                 Cheap Products
+                                    Viewed
+
+
+Figure A2: Ground truth causal structure for the user level data - I illustrating the causal relationships
+between user behavioral metrics. The edge weights represent estimated causal strengths derived from
+observational data.
+
+D     Sequential Optimization as Multi-Armed Bandit
+
+The LM interaction in NLPSCM proposed as sequential optimization (cf. Sec. 4.3), can presumably be
+interpreted as a stochastic multi-armed bandit (MAB) problem, providing a useful lens for understanding the
+design of the proposed score selection strategy (Eq. (9)).
+From Edge Querying to Bandits In MAB problems, a learner chooses among K-arms, each associated
+with an unknown reward distribution, and aims to maximize cumulative reward over T pulls by balancing
+exploration (learning about uncertain arms) and exploitation (favoring known high-reward arms).
+In our setting (as discussed in Eq. (6)):
+
+      • Each candidate edge e is treated as an arm.
+      • Pulling arm e means querying the LM about edge e’s causal type.
+      • Reward is the information gain from that query—specifically, the reduction in uncertainty over
+        edge e’s type.
+      • Total LM query budget mL acts as the T horizon.
+
+This framing is motivated by the need to adaptively allocate a limited number of LM queries to edges that are
+either currently uncertain (exploration) or close to being included in background knowledge (exploitation).
+As in bandits, where arms may yield noisy feedback, LM responses are noisy, that is, stochastic and depend
+on context and prompt. Hence, each edge must be queried multiple times to obtain a reliable posterior.
+
+D.1   UCB-Inspired Selection Score
+
+The selection score proposed in Eq. (9) resembles a classic Upper Confidence Bound (UCB) strategy,
+                                                  s
+                                       1            log Ti
+                                          
+                 Sie = w1 Eie + w2       e   + w3          , s.t. T Die = τi − max(HEi (e)) .      (A5)
+                                     T Di             Tie
+
+This selection score balances three factors:
+
+      • Uncertainty (Exploration): Eie is the entropy of the edge’s histogram—capturing how uncertain
+        the current belief over e is. High entropy indicates high uncertainty, encouraging exploration.
+
+
+                                                                        23
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+                                                                                                       Number of
+                                                                                                         Hits on
+                                                                                                     Social Network
+                                                                                       1.0
+
+                         Number of                             Number of
+                                                  0.87                               0.61        Time Spent
+                        Unique URLs                              Hits
+
+                                          -0.11                               0.94
+                                                                                             -0.71
+
+                                                  Number of
+                                                   Sessions
+                         0.19                                          1.11    Total Ac-
+                                                  Last Month
+                                                                               tive Days
+                                                                              Last Month
+                                       0.90
+                                                     -0.62
+
+                  Number of
+                   Page Hits                                    0.46
+                  Last Month
+                                1.06
+
+                                         Number of
+                                         Hits Last
+                                          Month
+
+
+Figure A3: Ground truth causal structure for the user level data - II illustrating the causal relationships
+between user activity metrics such as hits, time spent, session history, and social network interactions. The
+edge weights represent estimated causal strengths derived from observational data.
+
+      • Threshold Proximity (Exploitation): 1/T Dei quantifies how close edge e is to being included in
+        background knowledge. A small T Dei yields a large score, encouraging exploitation of promising
+        edges.
+
+      • Exploration Bonus: The term log Ti /Tie mirrors the optimism term in UCB1. It grows slowly
+                                          p
+
+        with total queries and shrinks with more queries to edge e, thus favoring edges that have not been
+        sampled much.
+
+Together, this scoring function implements a principled query policy that prioritizes under-explored, infor-
+mative, and nearly-threshold edges. Each LM query corresponds to a pull of the edge with the highest Sie ,
+analogous to greedy selection in UCB-based bandits.
+
+D.2   Regret Interpretation
+
+Under idealized assumptions of i.i.d. edge-level information gains, bounded support, and stationary LM
+behavior, the expected cumulative regret after T queries is:
+
+                                                               T
+                                                               X
+                                                   R(T ) =       (µ∗ − µai ) ,                                        (A6)
+                                                               i=1
+
+where µ∗ is the maximum expected gain over all edges, and ai is the edge queried at step i. Classical UCB
+algorithms ensures that
+                                                 
+                                       X log T
+                         R(T ) = O                , where ∆e = µ∗ − µe .                            (A7)
+                                              ∆e
+                                                  e:∆e >0
+
+This sublinear growth implies that the average regret R(T )/T → 0 as T → ∞, i.e. the learner asymptotically
+focuses on optimal arms.
+Applied to NLPSCM, this suggests that if LM responses were non-stochastic, the selection score strategy
+concentrates LM calls on most informative edges, making increasingly efficient use of limited expert budget.
+However, we caution against this linkage to regret bounds. The above analysis rests on assumptions that do
+not strictly hold in the proposed NLPSCM setting due to:
+
+
+                                                                 24
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+      • Stochasticity: The LM’s behavior is batch-context dependent and evolves as context accumulates.
+        Reward distributions (information gains) are not fixed.
+
+      • Dependent arms: Updates to the posterior of one edge can influence others due to graph constraints,
+        violating arm independence.
+
+      • Implicit priors: LM outputs are influenced by prompts, prior batches, and temperature, introducing
+        structured, non-i.i.d. noise.
+
+These violations of MAB assumptions mean that classical regret bounds cannot be directly applied. Still, the
+MAB abstraction provides valuable intuition for designing and analyzing selection policies under uncertainty.
+
+D.3    Future Work
+
+A full theoretical analysis of regret in this setting would require modeling non-stationary, dependent reward
+structures. Promising directions include contextual and Bayesian bandits that incorporate evolving priors,
+combinatorial bandits for structured edge dependencies, and information-theoretic regret bounds based on
+entropy reduction. We leave these extensions for future work.
+
+E     Parameter Estimation
+
+As outlined in Sec. 5, we propose a Bayesian parameter estimation
+                                                                                                    Informative correlation
+
+
+
+
+                                                                                      3
+                                                                                                    No correlation
+framework designed to estimate structural parameters in the presence                                Misspecified correlation
+
+of latent confounders. This approach incorporates language model
+                                                                         ∥θ ⋆ − θ∥2
+                                                                                      2
+(LM)-suggested prior knowledge into an Expectation-Maximization
+(EM) algorithm. The EM-step are defined in Eq. (10) and Eq. (11).
+In the experiment on the Red Wine Quality dataset (cf. Sec. 6.3),
+                                                                                      1
+
+
+
+
+we evaluate the impact of incorporating LM-suggested priors over the
+latent confounder. Fig. 5 illustrates how different priors affects es-
+                                                                                      0
+
+
+
+
+timation performance, demonstrating the robustness of the proposed                        0   1      2           3             4
+
+
+Bayesian method.                                                                                  Batches
+
+                                                                        Figure A4: Parameter Estimation:
+Additionally, we analyze the effect of LM-suggested correlation values
+                                                                        Convergence of parameters with LM-
+ρ(A, B) and investigate the robustness of the proposed parameter
+                                                                        suggested correlation as more batches
+estimation algorithm. From the observational data we know that the
+                                                                        are processed.
+confounder alcohol has a correlation of ρ(alcohol, density) = −0.50
+and ρ(alcohol, quality) = 0.48. We set the correlation regularizer as λ = 5.
+For parameter estimation algorithm, we use stochastic gradient descent with 0.001 learning rate and run the
+algorithm for maximum for maximum of 20 E-steps and 50 M-steps with an early stop criteria based on the
+expected log-likelihood value.
+
+F     Experiment Details
+
+This section provides detailed descriptions of the experimental setup, including sequential data setup and
+batching strategies, LM prompts used in the experiments, details about the FCI variants, LLM-first, ILS-CSL,
+and NLPSCM framework.
+
+F.1   Sequential Data Setup
+
+We describe the setup for each dataset category based on the availability of ground-truth causal structure
+and the strategy used for batch construction.
+Earthquake, Asia These datasets provide both the true causal structure and observational data. We use
+the ground-truth graphs shown in Fig. A1a and Fig. A1b as the true causal structures. The observational
+
+
+                                                      25
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+                              Residual Sugar          Density
+
+
+
+                                                      Quality              Alcohol
+
+
+                              Volatile Acidity
+
+
+                                                    Total Sulfur
+                                                      Dioxide
+
+
+Figure A5: Ground truth causal structure for the Red Wine Quality dataset illustrating the directional
+dependencies among key physicochemical attributes affecting wine quality. The graph highlights how alcohol,
+volatile acidity, total sulfur dioxide, and density (influenced by residual sugar) contribute directly or indirectly
+to the perceived quality of red wine.
+
+data are randomly partitioned into 6 batches of 250 samples each, without replacement. This results in data
+of shape (6, 250, 5) for Earthquake and (6, 250, 8) for Asia. Since all variables are binary (Yes/No), we
+preprocess the data by mapping Yes to 1 and No to 0.
+User-Level Data I, User-Level Data II For these datasets, ground-truth causal structures are unavailable.
+We apply DirectLiNGAM to the full observational dataset to estimate a causal graph, which we then treat as
+the true causal structure for generating synthetic data. The resulting graphs are visualized in Fig. A2 and
+Fig. A3. Using the estimated structure, we simulate data via a linear SEM with additive Gaussian noise,
+sampled from N (0, 0.05). We construct 7 sequential batches with varying sizes. For user level data I,
+the batchsize is [3000, 1000, 2000, 4000, 3000, 2000, 5000] while for user level data II we set the batch size
+as [2000, 1000, 2000, 1000, 1000, 3000, 1000]. To simulate realistic distributions, in User-Level Data I, the
+parent node Proximity To Transaction is sampled from N (10, 1) while in User-Level Data II, the parent
+node Number Of Page Hits Last Month is sampled from N (27, 10.5).
+Child, Alarm These datasets provide both the true causal structure and observational data. We use the
+ground-truth graphs from Beinlich et al. (1989) and Spiegelhalter et al. (1993) respectively as the true causal
+structures. For Child dataset, the observational data are randomly partitioned into 6 batches of 2000 samples
+each, without replacement. This results in data of shape (6, 2000, 20). For Alarm dataset, we split the
+observational data randomly, without replacement, into six batches with 50 data points per batch. This is
+done with the aim to mimic the data-scarce scenario and showcase the robustness of NLPSCM.
+Red Wine Quality This dataset provides observational data, which we use primarily to evaluate the
+proposed parameter estimation framework. We estimate the causal structure using DirectLiNGAM on the
+full dataset, as shown in Fig. A5. Existence of a latent confounder, alcohol, between density and quality
+makes this dataset suitable for testing latent-aware estimation. The full dataset consists of 1599 samples
+across 6 variables, which we partition into 5 batches of sizes [319, 319, 319, 319, 323] on which we perform
+parameter estimation.
+
+F.2   LM Prompts
+
+In this section, we provide the prompts used in the experiments.
+The pairwise prompt is:
+
+                System message :
+
+                You are an expert in Causal discovery and are studying { experiment_name
+                }. You are using your knowledge to help build a causal model that
+                contains all the assumptions about { experiment_name } , where a causal
+                model is a conceptual model that describes the causal mechanisms of a
+                system . You will do this by by answering questions about cause and
+                effect and using your domain knowledge as an expert in Causal discovery
+
+
+                                                        26
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+               . We are considering the following variables : { variables }. The
+               description of the variables is as follows :{ variable_description }.
+
+               User message :
+
+               From your perspective as an expert in Causal discovery , which of the
+               following is most likely true ?
+               ( A ) { var1 } affects / causes { var2 }; { var1 } has a high likelihood of
+               directly influencing { var2 };
+               ( B ) { var2 } affects / causes { var1 }; { var2 } has a high likelihood of
+               directly influencing { var1 };
+               ( C ) Neither A nor B ; There is no causal relationship between { var1 } and
+                 { var2 }.
+               ( D ) Do not know about the causal relationship between { var1 } and { var2
+               }.
+               Select the answer . Think step by step and provide your thoughts with
+               the " thoughts " key and the answer with the " answer " key .
+               Return a JSON with the following format :
+               {
+                           " answer ": " A / B / C / D " ,
+                           " thoughts ": " step - by - step thought "
+               }
+               NOTE : Only return the JSON and nothing else .
+
+
+The triplet prompt is:
+
+               System message :
+
+               You are an expert in Causal discovery and are studying { experiment_name
+               }. You are using your knowledge to help build a causal model that
+               contains all the assumptions about { experiment_name } , where a causal
+               model is a conceptual model that describes the causal mechanisms of a
+               system . We are considering the following variables : { variables }. The
+               description of the variables is as follows :{ variable_description }.
+
+               User message :
+
+               As an expert in Causal discovery , consider the following variables and
+               output a causal DAG , { var1 } , { var2 } , { var3 }. Only consider direct
+               causal effects . If a variable has no causal relationship with any other
+               , include it as an isolated node .
+               For example , if Z is independent , and X causes / affects Y , the output
+               DAG should be : [[" X " , " Y "] , [" Z "]]. Think step by step and provide your
+                 thoughts with the " thoughts " key .
+               Return a JSON in the following format :
+               {
+                        " dag ": [[" source_node " , " target_node "] , ... , [" isloated_node
+                        "]] ,
+                        " thoughts ": " step - by - step thought "
+               }
+               NOTE : Only return the JSON object and nothing else .
+
+
+The PAG-Pairwise prompt is:
+
+               System message :
+
+               You are an expert in Causal discovery and are studying { experiment_name
+               }. You are using your knowledge to help build a causal model that
+
+
+                                                 27
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+              contains all the assumptions about { experiment_name } , where a causal
+              model is a conceptual model that describes the causal mechanisms of a
+              system . You will do this by by answering questions about cause and
+              effect and using your domain knowledge as an expert in Causal discovery
+              . We are considering the following variables : { variables }. The
+              description of the variables is as follows :{ variable_description }.
+
+              User message :
+
+              From your perspective as an expert in Causal discovery , which of the
+              following is most likely true ?
+              A : { var1 } affects / causes { var2 }; { var1 } has a high likelihood of
+              directly influencing { var2 };
+              B : { var2 } affects / causes { var1 }; { var2 } has a high likelihood of
+              directly influencing { var1 };
+              C : Neither A nor B ; There is no causal relationship between { var1 } and
+              { var2 }.
+              D : Do not know about the causal relationship between { var1 } and { var2 }.
+              E : There is a possible latent confounder between { var1 } and { var2 } i . e .
+                { var1 } <-> { var2 }
+              F : Can not be sure about the causal relationship however { var1 } is not
+              an ancestor of { var2 } i . e . { var1 } o - > { var2 }
+              G : Can not be sure about the causal relationship i . e . { var1 } o - o { var2 }
+              Select the answer . Think step by step and provide your thoughts with
+              the " thoughts " key and the answer with the " causal_option " key .
+              Return a JSON with the following format :
+              {{
+                                  " causal_option ": " A / B / C / D / E / F / G " ,
+                                  " thoughts ": step - by - step thought
+              }}
+              NOTE : Only return the JSON and nothing else .
+
+
+The LM-expert prompt to get prior over the latent confounder
+              System message :
+
+              You are an expert in Causal discovery and are studying { experiment_name
+              }. You are using your knowledge to help information about the latent
+              confounder variable in the causal structure . You will do this by giving
+               a marginal Gaussian distribution over the detected confounder variable
+               along with its correlation with the connected variables . We are
+              considering the following variables : { variables }. The description of
+              the variables is as follows :{ variable_description }.
+
+              User message :
+
+              We know that there is a confounder { confounder } between { variable_1 }
+              and { variable_2 }. Provide an informative marginal Gaussian on the {
+              confounder } between { variable_1 } and { variable_2 } using historical data
+               and world knowledge .
+              Think step - by - step .
+              Return a JSON with the following format .
+              {{
+                                  " mean ": " numerical mean value of prior N ({ latent }) " ,
+                                  " variance ": " numerical variance value of prior N ({
+                                  latent }) " ,
+                                  " correlation ": " dictionary of correlation numerical
+                                  values " ,
+              }}
+
+
+                                                  28
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+              NOTE : Only return the JSON and nothing else .
+
+
+The LM-expert prompt:
+
+              System message :
+
+              You are an expert in Causal discovery and are studying { experiment_name
+              }. You are using your knowledge to help build a causal model that
+              contains all the assumptions about { experiment_name } , where a causal
+              model is a conceptual model that describes the causal mechanisms of a
+              system . You will do this by by answering questions about cause and
+              effect and using your domain knowledge as an expert in Causal discovery
+              . We are considering the following variables : { variables }. The
+              description of the variables is as follows :{ variable_description }.
+
+              User message :
+
+              You are asked to determine the causal relationship between { A } and { B }.
+               Only consider direct relationships and not indirect ones . The options
+              available are limited to FCI output i . e . PAG edges ( Use 0 ,2 ,3 ,4 ,6
+              options carefully and think more about 1 ,2 ,5 as we need more of these
+              options ) :
+              0: There is no causal relationship between { A } and { B }.
+              1: Changing the state of node { A } causally affects a change in another
+              node { B } i . e . A - > B
+              2: There is a possible latent confounder between { A } and { B }
+              3: Can not be sure about the causal relationship however { A } is not an
+              ancestor of { B } i . e . { A } o - > { B }
+              4. Can not be sure about the causal relationship , i . e . , { A } o - o { B } or
+              {B} o-o {A}
+              5. Changing the state of node which says { B } causally affects a change
+              in another node which says { A } , i . e . B - > A
+              6. Can not be sure about the causal relationship however { B } is not an
+              ancestor of { A } , { B } o - > { A }
+
+              Response format :
+              {
+                       " option ": option_tag ,
+                       " thoughts ": " step - by - step thought "
+              }
+              We know the following causal relationships : { known_relationship }
+              Be extra thoughtful and careful about the relationships you are
+              describing by considering both ({ A } , { B }) and ({ B } , { A }) before
+              answering .
+              NOTE : Only return the JSON object and nothing else .
+
+
+The LM-confounder prompt:
+
+              System message :
+
+              Consider you are a causal discovery expert . We are creating a causal
+              structure of { experiment_name } by refining the PAG obtained from fast
+              causal inference ( FCI ) algorithm , where we are observing the following
+              variables : { variables }. The description of the variables is as follows
+              :{ variable_description }.
+              Your goal is to output a possible confounder variable name with MAXIMUM
+               3 words . Be specific when providing the confounder variable and DO NOT
+               provide a generic one like user behavior , etc . In rare situations ,
+
+
+                                                 29
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+               when you are not sure about the confounder , return ’ undefined ’ as the
+               latent confounder name . Also , confounder should be outside the observed
+                variables .
+               NOTE : Be precise , and ONLY return confounder variable names with no
+               explanation .
+
+               User message :
+
+               We know that there is a latent confounder between { latent_0 } and {
+               latent_1 }. Can you identify the latent confounder variable name ?
+
+
+
+F.3   Fast Causal Inference (FCI) Variants
+
+In the interested setting where data arrive sequentially in batches, running standard causal discovery
+algorithms like FCI on the entire dataset is infeasible. To address this, we adapt the Fast Causal Inference
+(FCI) algorithm to sequential processing by designing multiple baselines that reflect different trade-offs. Each
+variant operates under a restricted lookback window size, and adapts the FCI procedure accordingly.
+For all FCI-based methods, we set the significance level to α = 0.3 for the User Level Data II dataset,
+and α = 0.1 for all other datasets. We use the chisq test for conditional independence on the Asia and
+Earthquake datasets (due to their binary variables), and the fisherz test for all remaining experiments
+involving continuous data.
+FCI-Cumulative This variant applies the FCI algorithm to the cumulative data up to batch i, i.e.
+G Di = FCI(D1:i ). It serves as an upper bound on performance, assuming full access to all prior data.
+FCI-Vanilla This variant applies FCI independently to each incoming batch, G Di = FCI(Di). Here,
+the algorithm forgets all previous knowledge, mimicking a naive local learner. This variant tests whether
+single-batch inference is sufficient and highlights the limitations of ignoring data bias.
+FCI-Iterative This variant introduces background knowledge by passing the output of the previous
+batch’s FCI run as input to the next, G Di = FCI(Di, Bi = G D(i-1) ). Here, the background knowledge includes
+previously inferred causal structure. This allows FCI to refine its structure incrementally.
+FCI-Heuristics In this variant, an edge from previous iterations is included in the background knowledge
+only if a heuristic threshold is met. Specifically, an edge is included in the background knowledge if it has
+appeared in the FCI outputs of at least h of all the past batches (we set h=2 in our experiments). This
+strategy balances between overfitting to noise (as in FCI-Iterative) and excessive forgetting (as in FCI-Vanilla).
+
+F.4   LLM-first
+
+In the LLM-first method, we reverse the standard causal discovery pipeline by first using a language model
+(LM) to propose an initial causal graph, which is then incrementally refined using sequential batches of
+observational data. To obtain the initial causal structure, we use a pairwise prompting strategy where the
+LM is queried on each variable pair. This results in a causal structure G X , where each edge A → B indicates
+a predicted causal relation. While this initial graph often captures plausible structural patterns, it suffers
+from overly-optimistic behavior (cf. Table 1) and lacks data grounding. We then sequentially refine G X using
+batches of observed data. At each step i, we update the causal graph G X(i-1) using the FCI produced causal
+structure conditioned on the batch i. This adds, removes, or reorients edges based on statistical tests applied
+to the current data batch Di , thus improving the reliability of the structure over time.
+
+F.5   Iterative LLM-Supervised Causal Structure Learning (ILS-CSL)
+
+Ban et al. (2023a) proposed Iterative LLM-Supervised Causal Structure Learning (ILS-CSL) algorithm that
+integrates natural language causal knowledge into the structure learning process by iteratively refining a
+causal graph using response of a large language model (LLM). Originally designed as a score-based method,
+ILS-CSL supervises structure learning by posing pairwise causal queries to the LLM and using its responses as
+
+
+                                                       30
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table A2: Causal Discovery, Impact of LM: We experiment with GPT-4o and GPT-5 on the Earthquake
+and Asia dataset and report Modified SHD ↓ with temperature 1. We report mean and standard deviation
+over 5 showcasing the LM-agnostic nature of NLPSCM and superior performance across models. The inference
+cost of recent models, GPT-4o and GPT-5, are quite a bit more than GPT-3.5turbo , constraining use of them
+for all large set of experiments.
+
+       Dataset       Method     Mod. SHD (GPT-3.5turbo )    Mod. SHD (GPT-4o)      Mod. SHD (GPT-5)
+       Earthquake   LLM-First           6.00 ± 0.82              5.80 ± 0.75            5.50 ± 0.50
+                     ILS-CSL            2.38 ± 0.96              1.50 ± 1.12            1.40 ± 1.02
+                    NLPSCM              1.00 ± 0.63              0.90 ± 0.51            0.80 ± 0.74
+       Asia         LLM-First           7.33 ± 0.94              7.90 ± 0.40            7.00 ± 1.00
+                     ILS-CSL            6.50 ± 0.50              5.00 ± 1.00            5.00 ± 0.89
+                    NLPSCM              4.60 ± 1.02              3.60 ± 1.01            3.20 ± 0.98
+
+
+soft constraints during graph optimization. For consistency and a fair comparison with our method, we adapt
+ILS-CSL to work with the FCI framework. Specifically, we treat the causal constraints inferred from the LLM
+as background knowledge and inject them into the FCI algorithm. This hybrid adaptation retains the core
+iterative supervision strategy of ILS-CSL while operating within a constraint-based causal discovery framework.
+
+F.6   NLPSCM
+
+NLPSCM relies on a set of hyperparameters that guide expert interaction and edge selection throughout
+sequential batches. The selection score used for deciding which edge to query is computed using Eq. (9) with
+weights w1 , w2 , and w3 . Additionally, for background threshold Eq. (5), α and a maximum expert budget
+mE per batch are used to regulate expert calls.
+For the Asia, Earthquake, and User-Level Data I datasets, for selection score we set
+(w1 , w2 , w3 ) = (0.1, 0.6, 0.3), with and background knowledge threshold with α = 0.3 and maximum ex-
+pert call budgets mE = 20, mE = 50, and mE = 70 respectively. A minimum threshold of 10 is also
+imposed to ensure reliability. For the User-Level Data II dataset, we use (w1 , w2 , w3 ) = (0.3, 0.4, 0.3),
+with α = 0.5, maximum expert call budget mE = 20, and a minimum threshold of 5. Table A3 showcases the
+NLPSCM—structure learning algorithm across LM temperatures.
+GPT-4o and GPT-5 In Table 1, we illustrate the issue of LLM over-optimism using both GPT-3.5turbo
+and GPT-4o. We find that GPT-4o does not always outperform GPT-3.5turbo . We further demonstrate how
+an LM can be viewed as a noisy expert; yet can be integrated into a Bayesian causal structure discovery
+framework. The inference cost of recent models, GPT-4o and GPT-5, are quite a bit more than GPT-3.5turbo ,
+constraining use of them for all large set of experiments. That said, NLPSCM is fully model-agnostic, and
+stronger LMs are expected to further improve NLPSCM’s performance by providing more accurate priors.
+As an evidence, we experiment with GPT-4o and GPT-5 model on Earthquake and Asia dataset and
+showcase the superior performance (Modified SHD) in Table A2.
+
+G     Author Contributions
+
+The core research idea was conceived by Prakhar Verma and modified in discussion with other authors during
+an internship with Adobe Research. Prakhar Verma was responsible for modeling the scoring rule, parameter
+estimation, implementing the framework and conducting the experiments. Other authors pitched in with
+suggestions, some of which were incorporated in the final version. The first draft was written by Prakhar
+Verma and Atanu R. Sinha. All authors contributed to finalizing the manuscript.
+
+
+
+
+                                                      31
+Published in Transactions on Machine Learning Research (04/2026)
+
+
+
+
+Table A3: Causal Discovery, Impact of LM Temperature: Table 4 shows evaluation metrics only for
+temperature=1 ; here we show for other two temperatures={0.0,0.5}. The conclusions are remarkably similar
+and favor NLPSCM. We show results for all six datasets using the two paradigms: Only-Data and Data-LM.
+We evaluate with the following metrics: Modified SHD, SID, Precision, Recall, F1. All the methods use
+GPT-3.5turbo as an LM-expert and we report mean and standard deviation over 5 runs.
+
+ Dataset                             Approach       Method           Mod. SHD ↓               SID ↓                  Precision ↑   Recall ↑    F1 Score ↑
+                                                    FCI-Cumulative    2.00±0.00       (0.00, 5.00)±(0.00, 0.00)       1.00±0.00    0.50±0.00    0.67±0.00
+                                                    FCI-Vanilla       3.60±0.80       (8.20, 9.20)±(3.60, 1.60)       0.20±0.40    0.05±0.10    0.08±0.16
+                                     Only-Data
+                                                    FCI-Iterative     5.00±1.67      (12.20, 12.20)±(4.66, 4.66)      0.30±0.27    0.20±0.19    0.24±0.22
+   Earthquake
+
+
+
+
+                                                    FCI-Heuristics    3.60±0.80       (8.20, 9.20)±(3.60, 1.60)       0.20±0.40    0.05±0.10    0.08±0.16
+     (d = 5)
+
+
+
+
+                                                    LLM-first         6.00±0.82      (15.00, 15.00)±(0.82, 0.82)      0.11±0.16    0.08±0.12    0.09±0.13
+                                   Data-LM(t=0)     ILS-CSL           2.00±0.89       (5.00, 5.00)±(0.89, 0.89)       0.93±0.13    0.55±0.19    0.67±0.17
+                                                     NLPSCM           1.00±0.63        (2.20, 2.20)±(1.60, 1.60)      1.00±0.00    0.75±0.16    0.85±0.11
+                                                    LLM-first         6.00±0.82      (15.00, 15.00)±(0.82, 0.82)      0.11±0.16    0.08±0.12    0.09±0.13
+                                   Data-LM(t=0.5)   ILS-CSL           2.00±0.89       (5.00, 5.00)±(2.61, 2.61)       0.93±0.13    0.55±0.19    0.67±0.17
+                                                    NLPSCM            1.00±0.63       (2.20, 2.20)±(1.60, 1.60)       1.00±0.00    0.75±0.16    0.85±0.11
+                                                    FCI-Cumulative    7.00±0.00      (23.00, 49.00)±(0.00, 0.00)      0.00±0.00    0.00±0.00    0.00±0.00
+                                                    FCI-Vanilla       7.80±0.75      (30.00, 35.00)±(5.90, 2.45)      0.00±0.00    0.00±0.00    0.00±0.00
+                                     Only-Data
+                                                    FCI-Iterative     8.00±1.26      (33.00, 33.00)±(7.46, 7.46)      0.45±0.24    0.23±0.15    0.29±0.18
+                                                    FCI-Heuristics    7.80±0.75      (30.00, 35.00)±(5.90, 2.45)      0.00±0.00    0.00±0.00    0.00±0.00
+   (d = 8)
+    Asia
+
+
+
+
+                                                    LLM-first         7.33±0.94      (27.67, 27.67)±(2.49, 2.49)      0.58±0.12    0.29±0.06    0.39±0.08
+                                   Data-LM(t=0)     ILS-CSL           5.20±0.75      (21.80, 21.80)±(1.94, 1.94)      0.90±0.10    0.38±0.08    0.53±0.09
+                                                     NLPSCM           4.60±1.02      (13.60, 13.60)±(3.83, 3.83)      0.80±0.12    0.60±0.12    0.67±0.08
+                                                    LLM-first         7.33±0.94      (27.67, 27.67)±(2.49, 2.49)      0.58±0.12    0.29±0.06    0.39±0.08
+                                   Data-LM(t=0.5)   ILS-CSL           5.60±1.36      (22.80, 22.80)±(3.19, 3.19)      0.85±0.15    0.35±0.09    0.49±0.12
+                                                     NLPSCM           4.60±1.02      (13.60, 13.60)±(3.83, 3.83)      0.80±0.12    0.60±0.12    0.67±0.08
+                                                    FCI-Cumulative    15.00±2.77     (47.80, 47.80)±(4.62, 4.62)      0.72±0.18    0.37±0.09    0.47±0.09
+                                                    FCI-Vanilla       21.30±3.50     (61.60, 61.60)±(5.54, 5.54)      0.41±0.18    0.22±0.10    0.29±0.13
+                                     Only-Data
+    User Level Data-I
+
+
+
+
+                                                    FCI-Iterative      5.60±1.20     (23.40, 23.40)±(7.94, 7.94)      0.93±0.04    0.77±0.02    0.84±0.03
+                                                    FCI-Heuristics    21.30±3.50     (61.60, 61.60)±(5.54, 5.54)      0.41±0.18    0.22±0.10    0.29±0.13
+                         (d = 9)
+
+
+
+
+                                                    LLM-first          8.40±1.20     (35.20, 35.20)±(2.92, 2.92)      0.83±0.05    0.69±0.02    0.76±0.03
+                                   Data-LM(t=0)     ILS-CSL            8.50±2.60     (30.25, 30.25)±(9.09, 9.09)      0.83±0.08    0.69±0.08    0.75±0.07
+                                                     NLPSCM            5.40±0.49     (13.20, 13.20)±(2.40, 2.40)      0.88±0.02    0.83±0.02    0.85±0.01
+                                                    LLM-first          9.60±1.69     (38.70, 38.70)±(4.94, 4.94)      0.80±0.06    0.67±0.03    0.73±0.05
+                                   Data-LM(t=0.5)   ILS-CSL            7.67±1.70     (26.33, 26.33)±(3.68, 3.68)      0.84±0.05    0.74±0.04    0.79±0.05
+                                                     NLPSCM            4.60±0.49     (12.00, 12.00)±(0.00, 0.00)      0.91±0.03    0.84±0.00    0.87±0.01
+                                                    FCI-Cumulative    19.80±2.04     (40.00, 40.00)±(3.03, 3.03)      0.15±0.07    0.10±0.04    0.12±0.05
+                                                    FCI-Vanilla       17.40±1.83     (36.80, 39.40)±(2.04, 3.38)      0.07±0.13    0.02±0.03    0.03±0.05
+                                     Only-Data
+    User Level Data-II
+
+
+
+
+                                                    FCI-Iterative     20.60±1.77     (42.80, 43.40)±(4.07, 4.22)      0.06±0.08    0.05±0.07    0.05±0.07
+                                                    FCI-Heuristics    17.40±1.83     (36.80, 39.40)±(2.04, 3.38)      0.07±0.13    0.02±0.03    0.03±0.05
+                         (d = 8)
+
+
+
+
+                                                    LLM-first         18.33±0.94     (42.67, 42.67)±(0.47, 0.47)      0.21±0.04    0.19±0.04    0.20±0.04
+                                   Data-LM(t=0)     ILS-CSL           19.00±1.22     (46.75, 46.75)±(4.87, 4.87)      0.14±0.06    0.13±0.07    0.13±0.07
+                                                     NLPSCM           18.67±1.70     (41.00, 41.00)±(1.63, 1.63)      0.22±0.02    0.22±0.04    0.22±0.02
+                                                    LLM-first         18.33±0.94     (42.67, 42.67)±(0.47, 0.47)      0.21±0.04    0.19±0.04    0.20±0.04
+                                   Data-LM(t=0.5)   ILS-CSL           17.60±2.33     (41.20, 41.20)±(4.12, 4.12)      0.21±0.11    0.18±0.12    0.19±0.12
+                                                     NLPSCM           18.67±2.05     (41.00, 41.00)±(1.63, 1.63)      0.23±0.02    0.22±0.04    0.22±0.02
+                                                    FCI-Cumulative    27.50±0.00   (111.00, 131.00)±( 0.00, 0.00)     0.38±0.00    0.36±0.00    0.37±0.00
+                                                    FCI-Vanilla       28.00±1.48   (129.20, 133.20)±(10.46, 10.76)    0.38±0.04    0.26±0.05    0.31±0.04
+                                     Only-Data
+                                                    FCI-Iterative     32.10±1.16   (149.00, 164.40)±( 7.16, 10.33)    0.27±0.03    0.26±0.04    0.26±0.03
+                                                    FCI-Heuristics    28.00±1.48   (129.20, 133.20)±(10.46, 10.76)    0.38±0.04    0.26±0.05    0.31±0.04
+   (d = 19)
+    Child
+
+
+
+
+                                                    LLM-first         29.67±0.47   (154.83, 154.83)±( 9.75, 9.75)     0.33±0.01    0.35±0.02    0.34±0.01
+                                   Data-LM(t=0)     ILS-CSL           29.80±2.48   (160.00, 160.00)±(21.25, 21.25)    0.33±0.05    0.35±0.04    0.34±0.04
+                                                     NLPSCM           27.80±0.75   (114.80, 114.80)±( 7.76, 7.76)     0.39±0.01    0.45±0.03    0.42±0.02
+                                                    LLM-first         30.67±1.11   (146.83, 146.83)±( 4.81, 4.81)     0.31±0.03    0.32±0.03    0.32±0.03
+                                   Data-LM(t=0.5)   ILS-CSL           32.00±2.28   (152.80, 152.80)±(12.95, 12.95)    0.28±0.05    0.29±0.06    0.28±0.06
+                                                    NLPSCM            28.10±0.86   (100.60, 112.00)±( 9.31, 0.00)     0.40±0.01    0.45±0.00    0.42±0.01
+                                                    FCI-Cumulative    45.00±0.00   (626.00, 626.00)±( 0.00, 0.00)     0.25±0.00    0.02±0.00    0.04±0.00
+                                                    FCI-Vanilla       49.50±1.61   (617.80, 699.20)±(29.23, 68.43)    0.00±0.00    0.00±0.00    0.00±0.00
+                                     Only-Data
+                                                    FCI-Iterative     52.40±6.21   (612.20, 636.80)±(49.87, 43.83)    0.33±0.14    0.12±0.05    0.17±0.07
+                                                    FCI-Heuristics    49.50±1.61   (617.80, 699.20)±(29.23, 68.43)    0.00±0.00    0.00±0.00    0.00±0.00
+   (d = 37)
+    Alarm
+
+
+
+
+                                                    LLM-first         57.33±1.89   (695.33, 695.33)±(21.91, 21.91)    0.22±0.03    0.10±0.01    0.13±0.01
+                                   Data-LM(t=0)     ILS-CSL           49.50±1.50   (647.50, 647.50)±(18.94, 18.94)    0.39±0.05    0.10±0.02    0.17±0.03
+                                                     NLPSCM           51.60±1.77   (595.00, 595.80)±(16.63, 16.94)    0.40±0.04    0.22±0.01    0.28±0.01
+                                                    LLM-first         56.67±2.49   (684.67, 684.67)±(16.34, 16.34)    0.23±0.05    0.10±0.02    0.14±0.03
+                                   Data-LM(t=0.5)   ILS-CSL           49.75±1.48   (633.25, 633.25)±(13.05, 13.05)    0.41±0.02    0.12±0.01    0.19±0.01
+                                                     NLPSCM           51.70±1.29   (594.00, 595.20)±(38.75, 38.75)    0.41±0.03    0.22±0.02    0.29±0.02
+
+
+
+
+                                                                                    32
+

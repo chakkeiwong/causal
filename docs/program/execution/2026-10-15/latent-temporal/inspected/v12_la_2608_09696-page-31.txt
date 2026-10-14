@@ -1,0 +1,63 @@
+Algorithm 10 ADAPT- AND - PRUNE: optional score-ranked pool shrinkage. The fit statistic and
+thresholds are domain-specific; ChemBench uses maximum weight > 0.9 and median relative fit
+residual ≤ 0.05 to select caps 6 versus 24 (Section B.2). This does not merge predictively similar
+models or restore previously discarded models.
+    def ADAPT- AND - PRUNE(M, p, D) → (M, p, Nm )
+ 1: if adaptation disabled then return (M, p, Nm )
+ 2: m∗ ← arg maxm p(m)
+ 3: c ← Nmax
+ 4: if p(m∗ ) > τc and fit error of m∗ on D is ≤ τfit then c ← Nmin
+ 5: if |M| > c then
+ 6:     retain the c models with largest p(m) in M
+ 7:     invalidate inference caches if a full refit is required by the backend
+ 8:     p ← MODEL - POSTERIOR(D, M; c, LOGLIK, MARGLIK)
+ 9: end if
+10: return (M, p, c)
+
+
+M-open extension. When the current best (MAP) model’s residual (error) e∗ exceeds a threshold
+τe (Algorithm 13), we invoke EXPAND - HYP - SPACE (Algorithm 12): the LLM proposes a batch
+of Nnew new structures from the observations and available fit diagnostics. ChemBench provides
+residuals for the current pool, inspired by the pool-conditioned proposals of SMC-S (Piriyakulkij
+et al., 2024); glucose supplies observed trajectories and candidate fit diagnostics. The new structures
+are scored by evidence and the pool is evidence-pruned in the following MODEL - POSTERIOR call. If
+e∗ ≤ τe the pool is left unchanged and MODEL - POSTERIOR merely re-scores the existing structures
+on the new datum — no LLM call.
+
+The predictive check. The predictive check measures how well the current model explains obser-
+vations; a large discrepancy triggers M-open expansion. Algorithm 13 gives a prequential variant:
+score the new observation before fitting it, optionally combining this with residuals on stored data.
+The executed ChemBench and DP agents instead gate their first expansion on residuals cached from
+the preceding fit. They then refit on all available data and, if expanding again, recheck that fit. A
+newly surprising observation can therefore affect expansion one update later. Neither version retains
+a running archive of historical forecasts. Relative residuals balance component scales, and taking
+their median limits the influence of outliers, but can also delay expansion after a single informative
+failure. More precisely, let the relative error on experiment j be the median relative error over target
+components i:
+                                              |Fi (yj ) − E[Fi (Y ) | χj , m, θ]|
+                         rj (m, θ) = median                                                        (47)
+                                         i            max(|Fi (yj )| , ci )
+Then the estimated error at step k is
+                                       ∗                  ∗
+                                                                              
+               e∗ = median {rk (m∗ , θ̂m )} ∪ {rj (m∗ , θ̂m ) : j < k}backtest ,                   (48)
+
+where the first set is the prequential error on the new observation and the optional second set contains
+                                         ∗
+the back-test errors. Here m∗ and θ̂m are fixed at their pre-observation values when the new datum
+is scored. Expansion is triggered when e∗ > τe .
+
+Finite-pool interpretation and limitations.      The outer (model inference) loop, at step k, is ap-
+proximating the following target distribution
+                                                       (k)
+                                        pk (m) ∝ p(m) Zm                                           (49)
+On a deduplicated finite pool M, exact evidences would give the restricted posterior wi ∝
+          (k)
+p(mi )Zmi . In practice the evidences, or their BIC substitutes, are approximate. When enabled,
+residual-conditioned LLM proposals enlarge this support (Piriyakulkij et al., 2024); top-Nm prun-
+ing is deterministic hypothesis search, not a posterior-invariant resampling kernel. Normalizing over
+enumerated unique candidates does not require treating them as importance samples from the LLM,
+but it also does not account for unproposed model mass.
+
+
+                                                  31
