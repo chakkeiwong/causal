@@ -4,16 +4,16 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Refresh on 14 October 2026
+## Refresh on 15 October 2026
 
-Recovery and continuation recorded 100 of 376 proposal operations, with no
-global research blocker. Q2–Q4 pass for the exact 780-page working reader;
+Recovery and continuation recorded 101 of 376 proposal operations, with no
+global research blocker. Q2–Q4 pass for the exact 785-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
-The current reader is [780 pages](../../causal_proposal_banking_economics_v3_2026-10-14.pdf),
-SHA-256 `dec023dc91c90dd1c4e09320011baac5b9c6dd350c7ac2b8f09cd8e73a8b12d3`.
-Its 603 citation records include 172 scholarly records linked to genuine PDFs.
+The current reader is [785 pages](../../causal_proposal_commercial_survival_v3_2026-10-15.pdf),
+SHA-256 `7a8b67932df513a53513923bb81918099a0390dd43d87bfcdaed00672e3375dd`.
+Its 614 citation records include 172 scholarly records linked to genuine PDFs.
 The economics chapter is integrated and reviewed: 6.5 nonduplicate substantive
 pages meet its six-page minimum; the seven-page planning target is not claimed.
 Exact project scenarios connect consequential losses, selective routing, review
@@ -33,7 +33,18 @@ acceptance cases and later owner inputs are recorded in the
 [requirement review](../comprehensive-v14/work/IN.REQ.four_banking_journeys/requirement-review.json).
 The Python temporal/interventional census remains inconclusive on breadth despite
 bounded static evidence passing; runtime and broader census closure are unclaimed.
-Continue the next eligible operation: commercial longitudinal/survival coverage.
+Commercial longitudinal/survival coverage is now recorded as inconclusive.
+Fourteen original technical documents support eight of nine scoped commercial
+families. Five exact banking constructions distinguish competing-event risk
+from value, future exposure from baseline assignment, sequential regimes from
+regression coefficients, informative observation and failed resampling. The
+fixed-collector domain failure is preserved; an existing approved public GET
+route recovered the originals without changing permission settings. MATLAB
+originals, some exact edition/cutoff identities, broader families and licensed
+runtime/rights remain unresolved. The integrated discussion is section24.15,
+printed310-316; all603 earlier records and1728 citation uses remain unchanged.
+No empirical bank value or vendor performance is inferred.
+Continue the next eligible operation: d3rlpy reuse decision.
 Historical reader figures below describe preserved earlier releases.
 
 The scope document's references to the earlier controller, all five reviews
