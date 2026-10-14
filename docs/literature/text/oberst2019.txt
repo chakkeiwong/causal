@@ -1,0 +1,957 @@
+                                                                       Counterfactual Off-Policy Evaluation with
+                                                                        Gumbel-Max Structural Causal Models
+
+
+                                                                                      Michael Oberst 1 David Sontag 1
+
+
+                                                                  Abstract                              optimistically, are there lives which could have been saved?
+                                                We introduce an off-policy evaluation procedure         This question becomes increasingly relevant, with growing
+                                                                                                        interest in applying RL to everything from HIV therapy
+arXiv:1905.05824v3 [cs.LG] 6 Jun 2019
+
+
+
+
+                                                for highlighting episodes where applying a rein-
+                                                forcement learned (RL) policy is likely to have         (Parbhoo et al., 2017) to epilepsy (Guez et al., 2008) and
+                                                produced a substantially different outcome than         sepsis (Komorowski et al., 2018).
+                                                the observed policy. In particular, we introduce        However, evaluation of RL policies with observational data
+                                                a class of structural causal models (SCMs) for          remains a challenge, albeit a necessary one due to the safety
+                                                generating counterfactual trajectories in finite        risk of training an RL agent on real patients. Off-policy eval-
+                                                partially observable Markov Decision Processes          uation in this context is prone to issues such as confounding,
+                                                (POMDPs). We see this as a useful procedure             small effective sample sizes, and lack of introspection as
+                                                for off-policy “debugging” in high-risk settings        discussed in Gottesman et al. (2019). Lacking a surefire
+                                                (e.g., healthcare); by decomposing the expected         solution, a physician might review patient trajectories along-
+                                                difference in reward between the RL and observed        side the suggested actions from an RL policy, and ask: Does
+                                                policy into specific episodes, we can identify          this seem reasonable? What do I think would have happened
+                                                episodes where the counterfactual difference in         if this policy had been followed? Yet, manual inspection of
+                                                reward is most dramatic. This in turn can be used       trajectories is not only inefficient, but difficult to interpret
+                                                to facilitate review of specific episodes by do-        without more information: If we are to discover new insights
+                                                main experts. We demonstrate the utility of this        about treatment, shouldn’t there be some disagreement?
+                                                procedure with a synthetic environment of sepsis
+                                                management.                                             This motivates our main conceptual contribution: By flip-
+                                                                                                        ping the counterfactual question around, and “asking the
+                                                                                                        algorithm” what would have happened, we aim to high-
+                                        1. Introduction                                                 light the most interesting cases of disagreement, while also
+                                                                                                        demonstrating implicitly why the learned policy is preferred,
+                                        When a patient dies in the hospital, we might ask: Could        based on the projected differences in trajectories.
+                                        it have been avoided, if the clinicians acted differently?
+                                                                                                        More specifically, in the context of model-based RL with
+                                        This is impossible to know, because we cannot go back in
+                                                                                                        discrete states, we give a post-hoc method to elicit the an-
+                                        time. Nonetheless, there is precedent for trying to answer
+                                                                                                        swers to these questions based on a learned dynamics model.
+                                        these counterfactual questions: In medical malpractice, for
+                                                                                                        Our goal is to pair counterfactual trajectories with observed
+                                        instance, establishing fault requires showing that the injury
+                                                                                                        trajectories, so that domain experts can “sanity-check” a pro-
+                                        would not have occurred “but for” the breach in the standard
+                                                                                                        posed policy, potentially with additional side-information
+                                        of care (Bal, 2009; Encyclopedia, 2008).
+                                                                                                        (e.g., chart review in the case of a patient). In Section 5
+                                        When considering the deployment of new technologies in          we use a synthetic environment of sepsis management to
+                                        high-risk environments, such as RL policies in healthcare,      demonstrate how this type of introspection can highlight
+                                        we might worry about a similar counterfactual: If we had        dangerous implicit assumptions of the learned policy, even
+                                        deployed an RL policy, would it have caused the death           when off-policy evaluation is overly optimistic.
+                                        of patients who lived under a physician policy? Or more
+                                                                                                        Towards generating these counterfactual trajectories, we
+                                            1
+                                             CSAIL, Massachusetts Institute of Technology, Cam-         have to deal with a fundamental issue of non-identifiability
+                                        bridge, MA, USA. Correspondence to: Michael Oberst              in the absence of deterministic dynamics. As we show in this
+                                        <moberst@mit.edu>.                                              paper, even with a fully-specified finite Markov Decision
+                                        Proceedings of the 36 th International Conference on Machine
+                                                                                                        Process (MDP), there are multiple parameterizations of a
+                                        Learning, Long Beach, California, PMLR 97, 2019. Copyright      structural causal model (SCM) which are equally compatible
+                                        2019 by the author(s).                                          with the transition and reward distributions, but which sug-
+                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+gest different counterfactual outcomes. For binary treatment                                                        Uy
+                                                                             X                 Ux         X
+and outcomes, the monotonicity condition is sufficient to
+identify the counterfactual distribution (Pearl, 2000) and has
+been previously used in epidemiology applications (Cuellar
+& Kennedy, 2018). However, to our knowledge, there is no                     T          Y      Ut         T          Y
+analogous condition for the categorical case.
+This motivates our main theoretical contribution, which is        Figure 1. Example translation of a Bayesian Network into the cor-
+two-fold. First, we introduce a general condition of counter-     responding Structural Causal Model. Left: Causal DAG on an
+factual stability for SCMs with categorical variables (e.g.,      outcome Y , covariates X, and treatment T . Given this graph, we
+                                                                  can perform do-calculus (Pearl, 2009) to estimate the impact of
+state transitions) and prove that this condition implies the
+                                                                  interventions such as E[Y |X, do(T = 1)] − E[Y |X, do(T = 0)],
+monotonicity condition in the case of binary categories.
+                                                                  known as the Conditional Average Treatment Effect (CATE).
+Second, we introduce the Gumbel-Max SCM, based on the             Right: All observed random variable are assumed to be gener-
+Gumbel-Max trick for sampling from discrete distributions,        ated via structural mechanisms fx , ft , fy via independent latent
+and (a) demonstrate that it satisfies the counterfactual sta-     factors U which cannot be impacted via interventions. Following
+bility condition, and (b) give a Monte Carlo procedure for        convention of Buesing et al. (2019), calculated values are given
+drawing counterfactual trajectories under this model. We          by black boxes (and in this case, are observed), observed latent
+note that any discrete probability distribution can be sampled    variables are given in grey, and unobserved variables in white.
+using a Gumbel-Max SCM; As a result, drawing counter-
+factual trajectories can be done in a post-hoc fashion, given
+                                                                  As a motivating example to simplify exposition, we will
+any probabilistic model of dynamics with discrete states.
+                                                                  assume the pair of causal graphs given in Figure 1. This
+The paper proceeds as follows: In Section 2, we review the        causal graph corresponds to a single-action setting which
+formulation of structural causal models and counterfactual        is often assumed in the literature of Conditional Average
+estimation, as given by Pearl (2009) and Peters et al. (2017).    Treatment Effect (CATE) estimation (see, e.g., Johansson
+In Section 3, we introduce the assumption of counterfactual       et al., 2016). It can be used to represent, for instance, the
+stability, propose a SCM which satisfies it, and show how         effect of a medical treatment T on an outcome Y in the
+it can be used to estimate counterfactual trajectories in a       presence of confounding variables X.
+Partially Observed Markov Decision Process (POMDP). In
+                                                                  The SCM M defines a complete data-generating processes,
+Section 4, we discuss related work, and in Section 5 we give
+                                                                  which entails the observational distribution P (X, Y, T ). It
+an illustrative application using a synthetic example.
+                                                                  also defines interventional distributions. For example, the
+                                                                  estimate of CATE is given by τx = E[Y |X, do(T = 1)] −
+2. Preliminaries                                                  E[Y |X, do(T = 0)], where the do-operator (Pearl, 2009) is
+                                                                  used to signify an intervention.
+2.1. Structural Causal Models
+                                                                  Definition 2 (Interventional Distribution).
+                                                                                                              Given an
+                                                                                                                      SCM
+First, we briefly review the concept of structural causal                                                 ˜   ˜
+                                                                  M, an intervention I = do Xi := f (PAi , Ũi ) corre-
+models, and encourage the reader to refer to Pearl (2009)
+                                                                  sponds to replacing the structural mechanism fi (PAi , Ui )
+(Section 7.1) and Peters et al. (2017) for more details.
+                                                                  with f˜i (PA
+                                                                             ˜ i , Ui ). This includes the concept of atomic in-
+Notation: As a general rule throughout, we refer to a ran-        terventions, where we may write more simply do(Xi = x).
+dom variable with a capital letter (e.g., X), the value it ob-    The resulting SCM is denoted MI , and the resulting inter-
+tains as a lowercase letter (e.g., X = x), and a set of random    ventional distribution is denoted P M;I .
+variables with boldface font (e.g., X = {X1 , . . . , Xn }).
+Consistent with Peters et al. (2017) and Buesing et al. (2019),   For instance, suppose that Y corresponds to a favorable
+we write PX for the distribution of a variable X, and px for      binary outcome, such as 5-year survival, and T corresponds
+the density function.                                             to a treatment. Then several quantities of interest in causal
+                                                                  effect estimation, such as pT =1 := E[Y |X, do(T = 1)],
+                                                                  pT =0 := E[Y |X, do(T = 0)], and τx = pT =1 − pT =0 ,
+Definition 1 (Structural Causal Model (SCM)). A struc-
+                                                                  are all defined by the interventional distribution, which is
+tural causal model M consists of a set of independent ran-
+                                                                  forward-looking, telling us what might be expected to occur
+dom variables U = {U1 , . . . , Un } with distribution P (U),
+                                                                  if we applied an intervention.
+a set of functions F = {f1 , . . . , fn }, and a set of vari-
+ables X = {X1 , . . . , Xn } such that Xi = fi (PAi , Ui ), ∀i,   However, we can also define the counterfactual distribution
+where PAi ⊆ X \ Xi is the subset of X which are parents           which is retrospective, telling us what might have happened
+of Xi in the causal DAG G. As a result, the prior distribution    had we acted differently. For instance, we might ask: Hav-
+P (U) and functions F determine the distribution P M .            ing given the drug and observed that Y = 1 (survival), what
+                                   Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+would have happened if we had instead withheld the drug?
+Definition 3 (Counterfactual Distribution). Given an SCM
+M and an observed assignment X = x over any set of ob-
+served variables, the counterfactual distribution P M|X=x;I
+corresponds to the distribution entailed by the SCM MI
+using the posterior distribution P (U|X = x).
+
+Explicitly, given an SCM M, the counterfactual distribution
+can be estimated by first inferring the posterior over latent
+                                                                        Figure 2. SCM for a POMDP as taken from Buesing et al. (2019),
+variables, e.g., P (U|X = x, T = 1, Y = 1) in our running
+                                                                        with initial state Us1 = S1 , states St , and histories Ht , where the
+example, and then passing that distribution through the struc-          action is generated via the mechanism π(Ua , Ht ).
+tural mechanisms in a modified MI (e.g., I = do(T = 0))
+to obtain a counterfactual distribution over any variable1 .
+                                                                        write equivalently that the following event never occurs,
+2.2. (Non)-Identifiability of Counterfactuals                           in the case where E[Y |do(T = 1)] ≥ E[Y |do(T = 0)]:
+                                                                        Ydo(T =1) = 0∧Ydo(T =0) = 1. Conversely for E[Y |do(T =
+Given an SCM M, we can compute an answer to our coun-                   1)] ≤ E[Y |do(T = 0)], the following event never occurs:
+terfactual question: Having given the drug and observed                 Ydo(T =1) = 1 ∧ Ydo(T =0) = 0.
+that Y = 1 (survival), what would have happened if we had
+instead withheld the drug? In the binary case, this corre-              This assumption restricts the class of possible SCMs to those
+sponds to the Probability of Necessity (PN) (Pearl, 2009;               which all yield equivalent counterfactual distributions over
+Dawid et al., 2015), because it represents the probability              Y . For instance, the following SCM exhibits the monotonic-
+that the exposure T = 1 was necessary for the outcome.                  ity property, and replicates any interventional distribution
+                                                                        where g(x, t) = E[Y |X = x, do(T = t)]:
+However, the answer to this question is not identifiable with-
+out further assumptions: That is, there are multiple SCMs                         Y = 1 [Uy ≤ g(x, t)] ,        U ∼ Unif(0, 1)
+which are all consistent with the interventional distribu-
+tion, but which produce different counterfactual estimates              More importantly, the monotonicity assumption identifies
+of quantities like the Probability of Necessity (Pearl, 2009).          several counterfactual quantities, such as the Probability of
+                                                                        Necessity mentioned earlier.
+2.3. Monotonicity Assumption to Identify Binary
+     Counterfactuals                                                    2.4. Relationship to POMDPs
+Nonetheless, there are plausible (though untestable) assump-            As noted in Buesing et al. (2019), we can view an episodic
+tions we can make that identify counterfactual distributions.           Partially Observable Markov Decision Process (POMDP)
+In particular, the monotonicity assumption (Pearl, 2000;                as an SCM, as shown in Figure 2, where St corresponds
+Tian & Pearl, 2000) is sufficient to identify the Probability           to states, At corresponds to actions, Ot corresponds to ob-
+of Necessity and related quantities used in epidemiology                servable quantities (including reward Rt ), Ht contains his-
+(Cuellar & Kennedy, 2018; Yamada & Kuroki, 2017) to                     tory up to time t, i.e., Ht = {O1 , A1 , . . . At−1 , Ot }, and
+answer counterfactual queries with respect to a binary treat-           stochastic policies are given by π(at |ht ).
+ment and outcome.
+                                                                        Buesing et al. (2019) investigate a grid-world setting where
+Definition 4 (Monotonicity). An SCM of a binary variable                the transition distribution P (St+1 |St , At ) is deterministic.
+Y is monotonic relative to a binary variable T if and only              To extend this counterfactual reasoning to stochastic transi-
+if it has the following property2,3 : E[Y |do(T = t)] ≥                 tions, we need to make further assumptions on the functional
+E[Y |do(T = t0 )] =⇒ fy (t, u) ≥ fy (t0 , u), ∀u. We can                relationships themselves. However, to the best of our knowl-
+   1                                                                    edge, there is no investigation of plausible assumptions
+      Called abduction, action, and prediction in Pearl (2009)
+   2                                                                    in the literature to identify the answers to counterfactual
+      We could also write this property as conditional on X
+    3
+      This definition differs slightly from the presentation of mono-   queries in the case of categorical distributions.
+tonicity in Pearl (2009), where fy (t, u) being monotonically in-
+creasing in t is given as the property, with the testable implication
+that E[Y |do(T = t)] ≥ E[Y |do(T = t0 )] for t ≥ t0 . Because
+                                                                        3. Gumbel-Max SCMs
+the direction of monotonicity is only compatible with the corre-        In the context of reinforcement learning with POMDPs,
+sponding direction of the expected interventional outcomes, we
+fold this into the definition of monotonicity directly, to align with   we are typically concerned with estimating the expected
+our later definition of counterfactual stability. Also note that we     reward of a proposed policy π̂. To formalize notation,
+use the notation Ydo(T =t) := fy (t, u) here                            a given policy π implies a density over trajectories τ ∈
+                                 Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+T = (S1 , O1 , A1 , . . . , AT −1 , ST , OT ), which we denote     The proofs of Lemma 1 and Corollary 1 are very similar
+as pπ (τ ), and we let R(τ ) be the total reward of a trajectory   to (and are essentially implied by) Lemma 1 from Buesing
+τ . For ease of notation, we sometimes write Eπ̂ and Eobs          et al. (2019), but are given in self-contained form in the
+to indicate an expectation taken with respect to τ ∼ pπ̂ and       supplement. Corollary 1 implies that we can decompose
+τ ∼ pπobs respectively, where π̂ refers to the proposed (‘tar-     the expected difference in reward between the policies into
+get’) policy, and πobs to the observed (‘behavior’) policy.        differences on observed episodes over counterfactual trajec-
+                                                                   tories. However, we face a non-identifiability issue when
+If we wish to compare the performance of a proposed pol-
+                                                                   transitions are not deterministic: Multiple SCMs can all
+icy π̂ and the observed policy πobs , we might compare the
+                                                                   entail the same interventional distribution, but a different
+difference in expected reward. The expected reward under
+                                                                   set of counterfactual trajectories, and therefore a different
+πobs can be estimated in this case using observed trajecto-
+                                                                   decomposition under Lemma 1.
+ries, without a model of the environment. The difference in
+expected reward is conceptually similar to the average treat-      This motivates the theoretical work of this section: We
+ment effect (ATE) of applying the proposed vs. observed            must make our assumptions carefully, as they cannot be
+policy, and we denote it as δ:                                     tested by data, so it is worth investigating which assump-
+                                                                   tions are consistent with our causal intuition. We illustrate
+                δ := Eπ̂ [R(τ )] − Eobs [R(τ )]             (1)    this non-identifiability (with respect to categorical distri-
+                                                                   butions) in Section 3.1. Then we introduce the condition
+However, it may be useful to drill down into specific cases:       of counterfactual stability (in Section 3.2) for a discrete
+Perhaps there are certain environments, for instance, in           distribution on k categories, and show that it is compatible
+which the proposed policy would perform better or worse            with the monotonicity condition of Pearl (2000) in that it
+than the observed policy. One natural decomposition is to          implies the monotonicity assumption when k = 2. Then
+condition on the first observed state to estimate a conditional    we introduce the Gumbel-Max SCM for discrete variables
+expected reward, e.g.,                                             in Section 3.3, and prove that it satisfies the counterfactual
+                                                                   stability condition. Finally, in Section 3.4 we describe how
+      δo := Eπ̂ [R(τ )|O1 = o] − Eobs [R(τ )|O1 = o]        (2)
+                                                                   the Gumbel-Max SCM assumption can be used to generate
+Equation 2 corresponds conceptually to CATE estimation,            a posterior over the counterfactual distribution, under the
+where we condition only on pre-treatment information (in           condition that the data comes from this SCM.
+this case, O1 , which occurs before the first action). We
+can use post-treatment information to decompose this fur-          3.1. Non-Identifiability of Categorical Counterfactuals
+ther, over actual trajectories that we have observed, to high-     We will first illustrate that the non-identifiability of coun-
+light differences between the observed and proposed policy.        terfactual distributions applies to categorical distributions
+Given a causal model of the environment (in the form of            as well. Consider the categorical distribution over k
+an SCM as described in Section 2.4), we can decompose              categories, e.g., the transition kernel P (S 0 |S = s, A = a)
+Equation 2 further as follows:                                     over discrete states. Let pi := P (S 0 = i|S = s, A = a).
+Lemma 1 (Counterfactual Decomposition of Expected Re-              There are multiple ways that we could sample from this
+ward). Let trajectories τ be drawn from pπobs . Let τπ̂ be a       distribution with a structural mechanism f and latent
+counterfactual trajectory, drawn from our posterior distri-        variables U . For instance, we could define an ordering
+bution over the exogenous U variables under the new policy         ord on the categories, and define k intervals of [0, 1] as
+                                                                                            P2                       Pk−1
+π̂. Note that under the SCM, τπ̂ is a deterministic function       [0, pord(1) ), [pord(1) , i=1 pord(i) ), . . . , [ i=1 pord(i) , 1].
+of the exogenous U variables, so we can write τπ̂ (u) to be        Then we could draw U ∼ U nif (0, 1), and return the
+explicit:                                                          interval that u falls into.
+
+   Eπ̂ [R(τ )|O1 = o]                                          However, different permutations ord will yield equiva-
+       Z                                                       lent interventional distributions but can imply different
+   = pπobs (τ |O1 = o1 )Eu∼pπobs (u|τ ) [R(τπ̂ (u))]dτ         counterfactual distributions. For instance, let k = 4 and
+         τ                                                     p1 = p2 = 0.25, p3 = 0.3, p4 = 0.2 and consider an in-
+                                                               tervention A = a0 which defines a different distribution
+Corollary 1 (Counterfactual Decomposition of δo ).             p01 = 0, p02 = 0.25, p03 = 0.25, p04 = 0.5. Now consider
+                                                               two permutations, ord = [1,2,3,4] and ord0 = [1,2,4,3],
+δo := Eπ̂ [R(τ )|O1 = o] − Eobs [R(τ )|O1 = o]                 and the counterfactual distribution under a0 given that
+     Z                                                         S 0 = 2, A = a. In each case, posterior inference over U im-
+   = pπobs (τ |O1 = o1 )Eu∼pπobs (u|τ ) [R(τπ̂ (u)) − R(τ )]dτ plies that P (U |S 0 = 2, S = s, A = a) ∼ U nif [0.25, 0.5).
+       τ
+                                                               However, under ord this implies the counterfactual S 0 = 3,
+                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+while under ord0 it implies S 0 = 4. A visual depiction of        about counterfactuals: If we had taken an alternative action
+this can be found in the supplement.                              that would have only increased the probability of Y = i,
+                                                                  without increasing the likelihood of other outcomes, then
+Note that in this example, the mechanism ford implied a
+                                                                  the same outcome would have occurred in the counterfactual
+non-intuitive counterfactual outcome: Even though the inter-
+                                                                  case. Moreover, in order for the outcome to be different
+vention A = a0 lowered the probability of S 0 = 3 (relative
+                                                                  under the counterfactual distribution, the relative likelihood
+to the probability under A = a) without modifying the
+                                                                  of an alternative outcome must have increased relative to that
+probability of S 0 = 2, it led to a counterfactual outcome of
+                                                                  of the observed outcome. The connection to monotonicity
+S 0 = 3. Since all choices for ord imply the same interven-
+                                                                  is given in Theorem 1. The proof is straightforward, and
+tional distribution, there is no way to distinguish between
+                                                                  found in the supplement.
+these mechanisms with data.
+                                                                  Theorem 1. Let Y = fy (t, u) be the SCM for a binary
+This motivates the following sections, where we posit a de-       variable Y , where T is also a binary variable. If this SCM
+sirable property for categorical SCMs which rules out this        satisfies the counterfactual stability property, then it also
+result (among others) and is compatible with the notion of        satisfies the monotonicity property with respect to T .
+monotonicity introduced by Pearl (2000). We then demon-
+strate that a mechanism based on sampling independent             3.3. Gumbel-Max SCM
+Gumbel variables satisfies this property, which motivates
+the use of the Gumbel-Max SCM for performing counter-             Unlike monotonicity with binary outcomes and treatments,
+factual inference in this setting.                                the condition of counterfactual stability does not obviously
+                                                                  imply any closed-form solution for the counterfactual poste-
+3.2. Counterfactual Stability                                     rior. Thus, we introduce a specific SCM which satisfies this
+                                                                  property, and discuss in Section 3.4 how to sample from the
+We now introduce our first contribution, the desired property     posterior distribution in a straightforward fashion.
+of counterfactual stability for categorical SCMs with k cate-
+gories, laid out in in Definition 5. This property would rule     We recall the following fact, known as the Gumbel-Max
+out the non-intuitive counterfactual implications of ford in      trick (Luce, 1959; Yellott, 1977; Yuille. & L, 2011; Hazan
+Section 3.1. We then demonstrate that this condition implies      & Jaakkola, 2012; Maddison et al., 2014; Hazan et al., 2016;
+the monotonicity condition when k = 2.                            Maddison et al., 2017):
+                                                                  Definition 6 (Gumbel-Max Trick). We can sample from a
+Notation: Denote the interventional probability distribution
+                                                                  categorical distribution with k categories as follows, where
+of a categorical variable Y with k categories as P M;I (Y ) =
+                                                                  p̃i is the unnormalized probability P (Y = i): First, draw
+p under intervention I, and p0 under intervention I 0 , where
+                                                                  g1 , . . . , gk from a standard Gumbel, which can be achieved
+p, p0 are vectors in the probability simplex over k categories.
+                                                                  by drawing u1 , . . . , uk iid from a Unif(0, 1), and assigning
+To simplify notation for interventional outcomes, we will
+                                                                  gi = − log(− log ui ). Then, set the outcome j by taking
+sometimes denote by YI the observed outcome Y under
+                                                                  arg maxj log p̃j + gj .
+intervention I, and denote by YI 0 the counterfactual out-
+come under intervention I 0 , such that pi and P (YI = i) are     Clearly, we can perform this for any categorical distribution,
+both equivalent to P M;I (Y = i), and similarly for I 0 . For     e.g., the transition distribution pi = P (S 0 = i|S, A); In
+                                                      0
+counterfactual outcomes, we will write P M|YI =i;I (Y ) for       particular, for any discrete variable Y whose parents in a
+the counterfactual distribution of Y under intervention I 0       causal DAG are denoted X, a Gumbel-Max SCM assumes
+given that we observed Y = i under the intervention I.            the following causal mechanism, where g = (g1 , . . . , gk )
+Definition 5 (Counterfactual Stability). An SCM of a cate-        are independent Gumbel variables:
+gorical variable Y satisfies counterfactual stability if it has
+the following property: If we observe YI = i, then for all         Y = fy (x, g) := arg max{log P (Y = j|X = x) + gj }
+                                                                                          j
+                      p0    p0                          0
+j 6= i, the condition pii ≥ pjj implies that P M|YI =i;I (Y=
+                                                                  Like any mechanism which replicates the conditional distri-
+j) = 0. That is, if we observed Y = i under intervention I,
+                                                                  bution under intervention, this mechanism is indistinguish-
+then the counterfactual outcome under I 0 cannot be equal to
+                                                                  able from any other causal mechanism based on data alone.
+Y = j unless the multiplicative change in pi is less than the
+                                                                  That said, it does satisfy the property given in Definition 5.
+multiplicative change in pj .
+                                                                  Theorem 2. The Gumbel-Max SCM satisfies the counter-
+Corollary 2. If M is a SCM which satisfies counterfactual
+                                          p0    p0                factual stability condition.
+stability, then if we observe YI = i, and pii ≥ pjj holds for
+                           0
+all j 6= i, then P M|YI =i;I (Y = i) = 1.                         The proof is straightforward, and given in the supplement.
+                                                                  The intuition is that, when we consider the counterfactual
+This definition and corollary encode the following intuition      distribution, the Gumbel variables are fixed. Thus, in order
+                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+for the argmax (our observed outcome) to change in the            ative risk ratio’ (Miettinen, 1974), which are often imbued
+counterfactual, the log-likelihood of an alternative outcome      with causal interpretations (Pearl, 2009; Yamada & Kuroki,
+must have increased relative to our observed outcome.             2017). Formalizing the assumption of monotonicity, re-
+                                                                  quired to correctly impute causal meaning to these quanti-
+3.4. Posterior Inference in the Gumbel-Max SCM                    ties, is covered in Balke & Pearl (1994); Pearl (2000); Tian
+                                                                  & Pearl (2000). More recent work in epidemiology uses the
+Given a Gumbel-Max SCM as defined above, where Y =                assumption of monotonicity explicitly, e.g., to estimate the
+arg maxj log pj + gj and pj := P (YI = j), we can draw            counterfactual effect of water sanitation in Kenya (Cuellar
+Monte Carlo samples from the posterior P (g|YI = i) using         & Kennedy, 2018), and there has been ample discussion
+one of two approaches: First, we can use rejection sampling,      and debate regarding how this reasoning could apply (in
+drawing samples from the prior P (g) and rejecting those          principle) to legal cases, such as litigation around the toxic
+where i 6= arg maxj log pj + gj . Alternatively, it is known      effects of drugs (Dawid et al., 2016).
+(Maddison et al., 2014; Maddison & Tarlow, 2017) that in
+the posterior, the maximum value and the argmax of the            The use of Gumbel variables to sample from a categori-
+shifted Gumbel variables log pj + gj are independent, and         cal distribution (the Gumbel-Max Trick) is well known (see
+the maximum value is distributed as a standard Gumbel (in         Definition 6) but in recent work in the machine learning com-
+the case of normalized probabilities). Thus, we can sample        munity (Maddison et al., 2017; Hazan et al., 2016) it is not
+the maximum value first, and then sample the remaining            imbued with the same causal / counterfactual interpretation
+values from shifted Gumbel distributions that are truncated       that we propose here. The Gumbel-Max mechanism was
+at this maximum value. Then, for each index j, subtracting        initially introduced in the discrete-choice literature (Luce,
+off the location parameter log pj will give us a sample of gj .   1959), where it is used as a generative model for decision-
+We can then add this sample g to the log-probabilities under      making under utility maximization (Train, 2002; Aguirre-
+I 0 (i.e., log p0 ) and take the new argmax to get a sample of    gabiria & Mira, 2010), where the log probabilities may be
+the counterfactual outcome Y under intervention I 0 .             assumed to follow some functional form, such as being
+                                                                  linear in features. This is motivated by understanding the
+                                                                  impact of different characteristics on consumer choices, see
+4. Related Work                                                   (Aguirregabiria & Mira, 2010, Example 1). In contrast, we
+In the machine learning community, there has been recent          decouple this structural mechanism (for estimation of coun-
+interest in applying insights from causal inference to aug-       terfactuals) from the statistical model used to estimate the
+ment the training of RL models, such as in bandit settings        conditional probability distributions under interventions.
+(Lee & Bareinboim, 2018) and in model-based RL (Buesing
+et al., 2019). The most similar work to our own is Buesing        5. Experiments
+et al. (2019), but while they use counterfactuals to approxi-
+mate draws from the interventional distribution, we treat the     As discussed in Section 1, our hope is to provide a method
+counterfactual distribution as the primary object of interest.    for qualitative introspection and ‘debugging’ of RL models,
+                                                                  in settings where a domain expert could plausibly examine
+The term ‘counterfactuals’ is often used more broadly in          individual trajectories. We give an illustrative example of
+causal inference and machine learning, e.g., in the estima-       this use case here, motivated by recent work examining the
+tion of potential outcomes (Imbens & Rubin, 2015), which          use of RL algorithms for treating sepsis among intensive-
+are also counterfactual outcomes at an individual level. How-     care unit (ICU) patients (Komorowski et al., 2018). In
+ever, this is often used (e.g., Schulam & Saria, 2017; Jo-        particular, we use a simple simulator of sepsis and “debug”
+hansson et al., 2016) primarily towards predicting quantities     an RL policy that is learned on observed trajectories.
+related to the interventional distribution, such as CATE.
+                                                                  An analysis like this requires three ingredients: First, we
+Assumptions on structural mechanisms are also used in             are given observed trajectories, but cannot directly interact
+structure learning to identify the direction of causation         with the environment4 . Second, we have access to a struc-
+X → Y or X ← Y from the observational distribution                tural causal model of the environment. In this case, that
+alone, with both continuous (Peters & Schölkopf, 2014;            model is a finite MDP, learned based on observed samples,
+Mooij et al., 2016) and discrete (Kocaoglu et al., 2017) vari-    combined with the assumption of a Gumbel-Max SCM for
+ables. However, these assumptions imply differences in the        transition distributions. Finally, we need a target policy to
+observational distribution (by design), whereas our assump-       evaluate. We refer to the policy which generated the data as
+tions distinguish between counterfactual distributions which      the behavior policy, to distinguish it from the target policy.
+are both observationally and interventionally equivalent.
+                                                                     4
+                                                                       We do not assume access to a simulator; In this example, it is
+The assumption of monotonicity implicitly appears in early        used only for obtaining the initial observed trajectories.
+work in epidemiology on estimating quantities like the ‘rel-
+                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+In Sections 5.1-5.2 we describe our illustrative scenario,
+in which a target RL policy appears to perform well using                           1.0
+
+off-policy evaluation methods such as weighted importance
+
+
+
+
+                                                                  Average Reward
+sampling, when it is actually much worse than the behav-                            0.5
+ior policy. In Sections 5.3-5.4 we then demonstrate how
+our method could be used to identify a promising subset                             0.0
+of trajectories for further introspection, and uncover the
+flaws in the target policy using side information (e.g., chart                     −0.5
+review of individual patients). All the code required to repro-                           Obs   WIS   MB       CF        True
+duce our experiments is available online at https://www.
+github.com/clinicalml/gumbel-max-scm                              Figure 3. Estimated reward under the target (RL) policy, with 95%
+                                                                  uncertainty intervals generated through 100 bootstrapped samples
+                                                                  (with replacement) of the same 1000 observed trajectories (for
+5.1. Illustrative Analysis: Sepsis
+                                                                  1,2,4) and of 1000 new trajectories under the target policy (for 3,5).
+Environment: Our simulator includes four vital signs              (1) Obs: Observed reward under the behavior policy. (2) WIS: Es-
+(heart rate, blood pressure, oxygen concentration, and glu-       timated reward under the target policy using weighted importance
+cose levels) with discrete states (e.g., low, normal, high),      sampling. (3) MB: Estimated reward using the learned MDP as a
+                                                                  generative model. (4) CF: Estimated reward over counterfactual
+along with three treatment options (antibiotics, vasopressors,
+                                                                  trajectories (5 per observed trajectory). (5) True: Observed reward
+and mechanical ventilation), all of which can be applied at       under the target policy, over 1000 newly simulated trajectories.
+each time step. Reward is +1 for discharge of a patient,
+and -1 for death. Discharge occurs only when all patient
+vitals are within normal ranges, and all treatments have been
+stopped. Death occurs if at least three of the vital signs are    5.2. Off-Policy Evaluation Can Be Misleading
+simultaneously out of the normal range. In addition, a bi-
+                                                                  First, we demonstrate what might be done to evaluate this
+nary variable for diabetes is present with 20% probability,
+                                                                  target policy without the use of counterfactual tools. In
+which increases the likelihood of fluctuating glucose levels.
+                                                                  Figure 3, we compare the observed reward of the actual
+Observed Trajectories: For the purposes of this illustra-         trajectories against the estimated reward of the target policy.
+tion, the behaviour policy was constructed using Policy           Using weighted importance sampling on the given trajec-
+Iteration (Sutton & Barto, 2017) with full access to the pa-      tories, the target policy appears superior to the behavior
+rameters of the underlying MDP (including diabetes state).        policy. We also use the parameters of the learned MDP to
+This was done deliberately to set up a situation in which the     perform model-based off-policy evaluation (MB-PE), using
+observed policy performs well. To introduce variation, the        the MDP as a generative model to simulate trajectories and
+policy takes a random alternative action w.p. 0.05. Using         their expected reward. Both of these suggest that the target
+this policy, we draw 1000 patient trajectories from the simu-     policy is superior to the behavior policy. In reality, the target
+lator, with a maximum of 20 time steps. If neither death nor      policy is inferior (as expected by construction), as verified
+discharge is observed, the observed reward is zero.               by drawing new samples from the simulator under the tar-
+                                                                  get policy. This corresponds conceptually to what would
+Structural Causal Model: For this illustration, we ‘hide’
+                                                                  happen if the target policy were deployed “in the wild”.
+glucose and diabetes state in the observed trajectories; Given
+this reduced state-space, we learn the parameters of the          With this in mind, we demonstrate how examining individ-
+finite MDP by using empirical counts of transitions and           ual counterfactual trajectories gives insight into the target
+rewards from the 1000 observed trajectories, with death and       policy. The first step is to apply counterfactual off-policy
+discharge treated as absorbing states. For state / action pairs   evaluation (CF-PE) using the same MDP and the Gumbel-
+that are not observed, we assume that any action leads to         Max SCM. This yields similarly optimistic results as MB-
+death, and confirm that this results in a target policy which     PE. However, by pairing counterfactual outcomes with
+never takes an action that has never been observed. For           observed outcomes of individual patients, we can investi-
+counterfactual evaluation, we make the assumption that the        gate why the learned MDP concludes (wrongly) that the
+transitions are generated by a Gumbel-Max SCM.                    target policy would be so successful.
+Target Policy: The target policy is learned using Policy
+Iteration on the parameters of the learned MDP. Because the       5.3. Identification of Informative Trajectories
+target policy is learned using a limited number of samples,       To debug this model (without access to a simulator), we
+as well as an incomplete set of variables, it should perform      can start by drawing counterfactual trajectories for each
+poorly relative to the behavior policy.                           individual patient under the target policy. With these in
+                                                                  hand, we can assign each individual patient to one of nine
+                                                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+                                                                                                               High
+
+
+
+
+                                   Disch. No Chg. Died
+                Observed Outcome
+                                                         1% 0% 10%
+
+
+
+
+                                                                                                HR
+                                                                                                          Normal
+                                                                                                                 Low
+
+
+                                                         0% 1% 43%                                             High
+
+
+
+
+                                                                                                SysBP
+                                                                                                          Normal
+                                                                                                                 Low
+
+                                                         0% 0% 44%                                        Normal
+
+
+
+
+                                                                                                Pct O2
+                                                         Died No Chg. Disch.                                     Low
+
+
+                                                  Counterfactual Outcome                                  V. High
+
+
+
+
+                                                                                                Glucose
+                                                                                                             High
+                                                                                                          Normal
+                                                                                                             Low
+Figure 4. Decomposition of 1000 observed patient trajectories                                             V. Low
+based on observed outcome (Died, no change, and discharged)
+
+
+
+
+                                                                                                           Tx: Abx
+                                                                                                                      On
+vs counterfactual outcome under the target policy, using the most
+common outcome over 5 draws from the counterfactual posterior.                                                        Off
+
+
+
+
+                                                                                                           Tx: Vaso
+                                                                                                                      On
+
+                                                                                                                      Off
+categories, based on the most frequently occurring counter-
+
+
+
+
+                                                                                                           Tx: Vent
+factual outcome (death, no change, or discharge) in Figure 4.                                                         On
+
+This highlights individual trajectories for further analysis,                                                         Off
+as discussed in the next section5 .                                                                                         0   2   4   6   8   10   12   14   16   18   20
+
+
+
+5.4. Insights from Examining Individual Trajectories                                          Figure 5. Observed and counterfactual trajectories of a patient. The
+                                                                                              first four plots show the progression of vital signs, and the last
+Using this decomposition, we can focus on the 10% of                                          three show the treatment applied. For vital signs, the normal range
+observed trajectories where the model concludes that “if the                                  is indicated by red dotted lines. The black lines show the observed
+physician had applied the target policy, these patients who                                   trajectory, which ends in death (signified by the red cross), and
+died would have most likely lived”.                                                           the blue lines show five counterfactual trajectories all of which
+                                                                                              end in discharge, signified by green diamonds. The glucose vital
+This is a bold statement, but also one that is plausible for
+                                                                                              sign was not included in the model, and hence does not have
+domain experts to investigate (e.g., through chart review                                     a counterfactual trajectory. Note how this differs from a newly
+of these specific patients), to try and understand the ratio-                                 simulated trajectory of a patient with the same initial state, e.g.,
+nale. We illustrate this type of analysis in Figure 5, which                                  all the counterfactual trajectories are identical to the observed
+shows both the observed trajectory and the counterfactual                                     trajectory up to a divergence in actions (t = 2).
+trajectories for a simulated patient.
+This example illustrates a dangerous failure mode, where
+                                                                                              techniques to introspect these models and the policies they
+the target policy would have halted treatment despite the
+                                                                                              learn. Our proposed technique can be used to flag individual
+glucose vital being dangerously low (e.g., at t = 5, 7, 8, 11).
+                                                                                              trajectories for review by a domain expert, based on the
+Under the learned MDP, the counterfactual optimistically
+                                                                                              fact that they have divergent counterfactual and observed
+shows a speedy discharge as a result of halting treatment. To
+                                                                                              outcomes. Specifically, we gave an example of how this
+understand why, recall that discharge occurs when all four
+                                                                                              could help to identify sub-optimal (and perhaps dangerous)
+vitals are normal and treatment is stopped. Because diabetes
+                                                                                              behavior in a proposed policy.
+and glucose fluctuations are relatively rare, and because the
+MDP does not observe either, the model learns that there is                                   Applying this approach requires knowing the structural
+a high probability of discharge when the first three vitals are                               causal model: simply knowing the MDP is insufficient, as
+normal, and the action of ‘stop all treatments’ is applied.                                   demonstrated by our unidentifiability results. The Gumbel-
+                                                                                              Max SCM is an example of an SCM that may be realistic
+                                                                                              in some settings. As followup, it would be interesting to
+6. Conclusion
+                                                                                              understand the sensitivity of counterfactual trajectories to
+Given the desire to deploy RL policies in high-risk settings                                  the specific choice of SCM. For instance, while we are not
+(e.g., healthcare), it is important to develop more tools and                                 aware of another SCM that both satisfies the counterfactual
+   5
+                                                                                              stability condition and can model any discrete conditional
+     We only draw 5 counterfactuals per observed trajectory for                               probability distribution, it would be interesting to charac-
+illustrative purposes here, but note that standard concentration ar-
+guments could be used to quantify how many of these independent                               terize the space of such alternative SCMs, or prove that
+draws are required to achieve a desired precision on counterfactual                           no other such SCM exists for k > 2 which satisfies these
+quantities of interest, e.g., the probability of death                                        conditions.
+                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+Acknowledgments                                                  Appendix
+We thank Christina X. Ji and Fredrik D. Johansson for their      A. Omitted Proofs
+work on developing an earlier version of the sepsis simulator.
+We also thank Fredrik D. Johansson for insightful comments       Lemma 1 (Counterfactual Decomposition of Expected Re-
+and feedback, as well as Alex D’Amour, Uri Shalit, and           ward). Let trajectories τ be drawn from pπobs . Let τπ̂ be a
+David Blei for helpful discussions. This work was supported      counterfactual trajectory, drawn from our posterior distri-
+in part by Office of Naval Research Award No. N00014-17-         bution over the exogenous U variables under the new policy
+1-2791, and Michael was supported in part by the Analog          π̂. Note that under the SCM, τπ̂ is a deterministic function
+Devices Graduate Fellowship.                                     of the exogenous U variables, so we can write τπ̂ (u) to be
+                                                                 explicit:
+                                                                    Eπ̂ [R(τ )|O1 = o1 ]
+                                                                        Z
+                                                                    = pπobs (τ |O1 = o1 )Eu∼pπobs (u|τ ) [R(τπ̂ (u))]dτ
+                                                                          τ
+
+
+
+                                                                 Proof. This proof is similar to the proof of Lemma 1 from
+                                                                 (Buesing et al., 2019), but is spelled out here for the sake of
+                                                                 clarity. Recall that the distribution of noise variables U is
+                                                                 the same for every intervention / policy. Thus, pπobs (u) =
+                                                                 pπ̂ (u) = p(u). We will write p0 and p̂ for pπobs and pπ̂
+                                                                 respectively to simplify notation.
+                                                                 Furthermore, recall that all variables are a deterministic
+                                                                 function of their parents in the causal DAG implied by the
+                                                                 SCM. Most importantly, this means that the trajectory τ is
+                                                                 a deterministic function of the policy π and the exogenous
+                                                                 variables U . With that in mind, let τπ̂ (u) indicate the tra-
+                                                                 jectory τ as a deterministic function of π̂ and u. We will
+                                                                 occasionally use indicator functions to indicate whether or
+                                                                 not a deterministic value is compatible with the variables
+                                                                 that determine it, e.g., 1 [τ |u, π] is equivalent to the indi-
+                                                                 cator for 1 [τ = τπ (u)]. Note that the first observation is
+                                                                 independent of the policy, and is just a function of the exoge-
+                                                                 nous U , so we will write 1 [o1 |u] in that case. For simplicity,
+                                                                 we will remove the conditioning on O1 to start with:
+                                                                              Ep̂ [R(τ )]
+                                                                                   Z
+                                                                              = R(τπ̂ (u)) · p̂(u)du                            (3)
+                                                                                   Z
+                                                                              = R(τπ̂ (u)) · p0 (u)du                           (4)
+                                                                                   Z              Z                  
+                                                                              = R(τπ̂ (u)) ·            p0 (τ, u)dτ du          (5)
+                                                                                   Z Z
+                                                                              =          R(τπ̂ (u)) · p0 (u|τ ) · p0 (τ )dudτ   (6)
+                                                                                          Z                              
+                                                                                                             0
+                                                                              = Eτ ∼p0        R(τπ̂ (u)) · p (u|τ )du           (7)
+
+                                                                              = Eτ ∼p0 Eu∼p0 (u|τ ) [R(τπ̂ (u))]                (8)
+                                                                                Z
+                                                                              = pπobs (τ )Eu∼p0 (u|τ ) [R(τπ̂ (u))] dτ          (9)
+                                                                                   τ
+                                                                 In step (3) we are just using the definition of the expectation
+                                                                 under p̂, along with the notation τπ̂ (u) to indicate that the
+                                 Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+trajectory is a deterministic function of the exogenous u         Theorem 1. Let Y = fy (t, u) be the SCM for a binary
+and the policy π̂. In step (4) we replace p̂(u) with p0 (u)       variable Y , where T is also a binary variable. If this SCM
+because they are equivalent, as noted earlier. In step (5) we     satisfies the counterfactual stability property, then it also
+expand p0 (u) over possible trajectories τ arising from the       satisfies the monotonicity property with respect to T .
+observed policy. In step (6) we rearrange terms and swap
+the order of the integral, and in step (7) we rewrite the outer   Proof. We collect Definitions (4) and (5) here for ease of
+integral as an expectation. In step (8) we further condense       reference
+notation, and then expand in step (9) to match the notation
+                                                                  Monotonicity: An SCM of a binary variable Y is mono-
+in the Lemma. If we introduce the conditioning on O1 , we
+                                                                  tonic relative to a binary variable T if and only if it has
+see that it is substantively the same.
+                                                                  the following property: E[Y |do(T = t)] ≥ E[Y |do(T =
+    Ep̂ [R(τ )|o1 ]                                               t0 )] =⇒ fy (t, u) ≥ fy (t0 , u), ∀u. We can write
+         Z                                                        equivalently that the following event never occurs, in
+    = R(τπ̂ (u)) · 1 [o1 |u] · p̂(u)du                    (10)    the case where E[Y |do(T = 1)] ≥ E[Y |do(T = 0)]:
+         Z                                                        Ydo(T =1) = 0∧Ydo(T =0) = 1. Conversely for E[Y |do(T =
+    = R(τπ̂ (u)) · 1 [o1 |u] · p0 (u)du                   (11)    1)] ≤ E[Y |do(T = 0)], the following event never occurs:
+         Z                                                        Ydo(T =1) = 1 ∧ Ydo(T =0) = 0
+    = R(τπ̂ (u)) · p0 (u|o1 )du                           (12)    Counterfactual Stability: An SCM of a categorical vari-
+         Z              Z                                       able Y satisfies counterfactual stability if it has the follow-
+                                0
+    = R(τπ̂ (u)) ·            p (τ, u|o1 )dτ du           (13)    ing property: If we observe YI = i, then for all j 6= i, the
+                                                                             p0     p0                          0
+         Z Z                                                      condition pii ≥ pjj implies that P M|YI =i;I (Y = j) = 0.
+    =          R(τπ̂ (u)) · p0 (u|τ ) · p0 (τ |o1 )dudτ   (14)    That is, if we observed Y = i under intervention I, then
+         Z           Z                                          the counterfactual outcome under I 0 cannot be equal to
+    = p0 (τ |o1 )         R(τπ̂ (u)) · p0 (u|τ )du dτ     (15)    Y = j unless the multiplicative change in pi is less than the
+         Z                                                        multiplicative change in pj
+    = p0 (τ |o1 )Eu∼p0 (u|τ ) [R(τπ̂ (u))]dτ              (16)    To simplify notation further, let pt=1 := P (Y = 1|do(T =
+          τ
+                                                                  1)), pt=0 := P (Y = 1|do(T = 0)), and let Yt := Ydo(T =t) .
+The main difference in this case is that is just that we carry    Without loss of generality, assume that pt=1 ≥ pt=0 .
+the indicator into the prior on U at step (12), which we
+                                                                  To show that counterfactual stability implies monotonicity,
+can do because O1 does not depend on the policy that is
+                                                                  we want to show that the probability of the event (Y1 =
+applied. Note that Equation (16) matches the statement of
+                                                                  0 ∧ Y0 = 1) is equal to zero. We will do so by proving both
+the Lemma.
+                                                                  cases: First that P M|Y0 =1;do(T =1) (Y = 0) = 0 and second
+Corollary 1 (Counterfactual Decomposition of δo ).                that P M|Y1 =0;do(T =0) (Y = 1) = 0. We can start with the
+                                                                  assumption that pt=1 ≥ pt=0 and write:
+δo := Eπ̂ [R(τ )|O1 = o1 ] − Eobs [R(τ )|O1 = o1 ]
+    Z                                                                                         pt=1 ≥ pt=0
+ = pπobs (τ |O1 = o1 )Eu∼pπobs (u|τ ) [R(τπ̂ (u)) − R(τ )]dτ                =⇒ pt=1 (1 − pt=0 ) ≥ pt=0 (1 − pt=1 )
+     τ
+                                                                                              pt=1   (1 − pt=1 )
+                                                                                         =⇒        ≥
+                                                                                              pt=0   (1 − pt=0 )
+Proof. By Lemma 1, we have it that
+                                                                  Using the counterfactual stability condition, the last inequal-
+δo := Eπ̂ [R(τ )|O1 = o] − Eobs [R(τ )|O1 = o]                    ity implies that if we observe Y0 = 1, then the counterfactual
+    Z
+                                                                  probability of Y1 = 0 is equal to P M|Y0 =1;do(T =1) (Y =
+ = p0 (τ |o1 )Eu∼p0 (u|τ ) [R(τπ̂ (u))]dτ
+                                                                  0) = 0, as desired. For the second case, where we observe
+     Zτ
+                                                                  Y1 = 0, we can simply manipulate the inequality to see that
+  − p0 (τ |o1 )Eu∼p0 (u|τ ) [R(τπobs (u))]dτ
+    Zτ                                                                                   (1 − pt=0 )  pt=0
+                                                                                               t=1
+                                                                                                     ≥ t=1
+ = pπobs (τ |O1 = o1 )Eu∼pπobs (u|τ ) [R(τπ̂ (u)) − R(τ )]dτ                             (1 − p )     p
+     τ
+                                                                  Which yields the conclusion that P M|Y1 =0;do(T =0) (Y =
+Note that in the last step, we recognize that                     1) = 0, as desired, completing the proof.
+Pu∼p0 (u|τ ) [τπobs (u) = τ ] = 1, because the posterior
+density over u is zero for all u such that τπobs (u) 6= τ .       Theorem 2. The Gumbel-Max SCM satisfies the counter-
+                                                                  factual stability condition.
+                                     Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+Proof. Recall that we write the shorthand pi := P M;I (Y =                                                                           ᇱ
+
+                    0
+i), and p0i := P M;I (Y = i). Suppose that Y is generated
+from a Gumbel-Max SCM M under intervention I, and we                    ord     S’ = 1   2       3       4      S’ = 2   3       4
+observe that YI = i. The Gumbel-Max SCM implies that
+almost surely:
+
+            log pi + g (i) > log pj + g (j) ∀j 6= i            (17)
+
+To demonstrate that the Gumbel-Max SCM satisfies the                    ord’    S’ = 1   2   4       3          S’ = 2       4           3
+
+counterfactual stability condition, we need to demonstrate
+     p0    p0                       0
+that pii ≥ pjj =⇒ P M|YI =i;I (Y = j) = 0 for all j 6= i.
+                                                                      Figure 6. Example of non-identifiability of categorical counter-
+We will proceed by proving the contrapositive, that for all
+                    0                          p0i  p0j               factual outcomes. The orderings ord and ord’ both define a
+j 6= i, P M|YI =i;I (Y = j) 6= 0 =⇒            pi < pj .              causal mechanism S 0 = f (S, A, U ) with U ∼ U nif (0, 1) that
+                                                           0          replicates the interventional probability distribution P (S 0 |S, A).
+Fix some index j 6= i. The condition P M|YI =i;I (Y =                 On the left-hand side, the red shading represents the posterior
+j) 6= 0 implies that there exist values g (i) , g (j) such that       P (U |S 0 = 2, A = a, S = s), and when this posterior is used on
+                                                                      the right-hand side to sample from the counterfactual distribution,
+                  log p0i + g (i) < log p0j + g (j)            (18)   these ordering produce different counterfactual outcomes (S 0 = 3
+                                                                      in the case of ord and S 0 = 4 in the case of ord’)
+Because the Gumbel variables g (i) , g (j) are fixed across
+interventions, this implies there exist values for these vari-
+ables which satisfy both inequalities (17) and (18). Thus, we         RL policy. In this section we explore the impact of that
+proceed by subtracting inequality (17) from inequality (18),          choice on the off-policy evaluations used in the paper, as
+maintaining the direction of the inequality and cancelling            well as on the quality of the RL policy.
+out the Gumbel terms. The rest is straightforward manipula-
+tion using the monotonicity of the logarithm.                         To demonstrate, in Figure 7, we replicate Figure 3 from
+                                                                      the main paper, but with some important differences. First,
+                log p0i − log pi < log p0j − log pj                   instead of using 100 bootstrapped samples of the original
+                                                                      1000 trajectories, we instead repeat the entire process 100
+                    log(p0i /pi ) < log(p0j /pj )
+                                                                      times, with an independent set of trajectories drawn from the
+                        (p0i /pi ) < (p0j /pj )                       simulator in each case. These uncertainty intervals are wider,
+                                           0                          reflecting the variation which is not captured by bootstrap-
+This demonstrates that P M|YI =i;I (Y = j) 6= 0 =⇒                    ping alone. Second, we compare the use of a WIS estimator
+(p0i /pi ) < (p0j /pj ) as desired, and taking the contrapositive     used on the training data (i.e., the original 1000 episodes
+completes the proof.                                                  used to learn the model of dynamics), with a WIS estimator
+                                                                      used on a held-out set of 1000 independent episodes. While
+B. Non-Identifiability Example                                        the example given in the paper is meant to conceptually cap-
+                                                                      ture what might happen in a single analysis (where only a
+Figure 6 gives a visual depiction of the unidentifiability            single set of trajectories is available), Figure 7 demonstrates
+example given in Section 3.1.                                         the variability across analyses, including those with access
+                                                                      to a large held-out set of trajectories.
+C. Experimental Details                                               Towards understanding the impact of hiding variables from
+C.1. Sepsis Simulator                                                 the RL policy, we performed the same experiment again,
+                                                                      but giving the RL policy access to the entire state space.
+All the code required to reproduce our experiments (in-               The results are shown in Figure 8, and the results from both
+cluding the figures in this appendix) is available on-                figures are shown in Table 1
+line at https://www.github.com/clinicalml/
+gumbel-max-scm, and we refer to that for more in-depth                There are several reasons why weighted importance sam-
+information about our simulator setup.                                pling, and other off-policy evaluation methods, could fail
+                                                                      to capture the true performance of a target policy. These
+                                                                      include issues like confounding and small sample sizes, as
+C.2. Impact of hidden state
+                                                                      discussed in (Gottesman et al., 2019). In this particular syn-
+In the experiments given in the paper, we hide the glucose            thetic example, all of the following factors may play a role
+and diabetes state from the model of dynamics used for the            in the above results, but it is difficult to say conclusively how
+                                                Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+                    1.0
+                                                                              Table 1. Performance given as Mean (95% CI) from Figures 7- 8
+                    0.5
+                                                                                                     Hidden state          No hidden state
+  Average Reward
+
+
+
+
+                                                                                Observed Reward      0.31 (0.27, 0.35)     0.31 (0.27, 0.35)
+                    0.0                                                         WIS (train)          0.61 (-0.42, 0.99)    0.58 (-0.23, 0.92)
+                                                                                WIS (heldout)        0.32 (-0.92, 0.99)    -0.04 (-0.94, 0.80)
+                   −0.5
+                                                                                MB Estimate          0.81 (0.57, 0.96)     0.58 (0.37, 0.73)
+                                                                                True RL Reward       -0.27 (-0.59, 0.05)   -0.19 (-0.41, 0.00)
+                   −1.0
+                          Obs   WIS (train) WIS (heldout)   MB    True
+
+
+
+Figure 7. Boxplots show the median and intervals which capture                References
+95% of the 100 evaluations, each time with a newly simulated
+                                                                              Aguirregabiria, V. and Mira, P. Dynamic discrete choice
+set of 1000 episodes used for training and 1000 episodes used for
+the held-out WIS estimator; WIS (train) is used on the training                 structural models: A survey. Journal of Econometrics,
+episodes, as in the main paper, and WIS (held-out) is performed                156(1):38–67, 2010. ISSN 03044076. doi: 10.1016/j.
+on the held-out set of 1000 episodes                                            jeconom.2009.09.007. URL http://dx.doi.org/
+                                                                               10.1016/j.jeconom.2009.09.007.
+                    1.0
+                                                                              Bal, B. S. An introduction to medical malpractice in the
+                    0.5                                                         United States. Clinical Orthopaedics and Related Re-
+  Average Reward
+
+
+
+
+                                                                                search, 467(2):339–347, 2009. ISSN 0009921X. doi:
+                    0.0                                                         10.1007/s11999-008-0636-2.
+
+                   −0.5                                                       Balke, A. and Pearl, J. Counterfactual Probabilities: Compu-
+                                                                                tational Methods, Bounds and Applications. Proceedings
+                   −1.0
+                          Obs   WIS (train) WIS (heldout)   MB    True
+                                                                                of the Tenth Conference Annual Conference on Uncer-
+                                                                                tainty in Artificial Intelligence (UAI-94), pp. 46–54, 1994.
+                                                                                doi: 10.2202/1557-4679.1322.
+Figure 8. Same setup as Figure 7, but allowing the model of dy-
+namics used by the MDP to see the full state
+                                                                              Buesing, L., Weber, T., Zwols, Y., Heess, N., Racaniere,
+                                                                                S., Guez, A., and Lespiau, J.-B. Woulda, Coulda,
+strong each factor is, and how they interact to produce the re-                 Shoulda: Counterfactually-Guided Policy Search. In
+sults: (i) Confounding due to unobserved states, (ii) sample                    International Conference on Learning Representations,
+complexity of learning the MDP, which is more pronounced                        2019. URL https://openreview.net/forum?
+when all state information is observed (144 states vs 1440                      id=BJG0voC9YQ.
+states), and (iii) small sample sizes in both the training and
+held-out datasets.                                                            Cuellar, M. and Kennedy, E. H. A nonparametric projection-
+                                                                                based estimator for the probability of causation, with
+With that in mind, we believe that building a more com-                         application to water sanitation in Kenya. Journal of
+prehensive simulated environment, in which these various                        the Royal Statistical Society: Series A (Special Issue
+factors can be disentangled more precisely, would be a valu-                    on Causal Inference), pp. 1–24, 2018.
+able direction for future work. In addition, we believe such
+an environment would be useful for evaluation of a variety                    Dawid, P., Faigman, D. L., and Fienberg, S. E. On the
+of off-policy techniques beyond the limited set discussed                       Causes of Effects: Response to Pearl. Sociological Meth-
+in the paper e.g., more recently developed methods such                         ods and Research, 44(1):165–174, 2015. ISSN 15528294.
+as (Thomas & Brunskill, 2016; Liu et al., 2018).                                doi: 10.1177/0049124114562613.
+
+                                                                              Dawid, P., Musio, M., and Fienberg, S. E. From statistical
+                                                                                evidence to evidence of causality. Bayesian Analysis,
+                                                                               11(3):725–752, 2016. ISSN 19316690. doi: 10.1214/
+                                                                               15-BA968.
+
+                                                                              Encyclopedia, W.    West’s Encyclopedia of Amer-
+                                                                                ican Law.      The Gale Group, 2nd edition,
+                                                                                2008.      URL https://legal-dictionary.
+                                                                                thefreedictionary.com/proximate+cause.
+                               Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+Gottesman, O., Johansson, F., Komorowski, M., Faisal, A.,       Maddison, C. J. and Tarlow, D. Gumbel Machin-
+  Sontag, D., Doshi-Velez, F., and Celi, L. A. Guidelines for    ery, 2017. URL https://cmaddis.github.io/
+  reinforcement learning in healthcare. Nature Medicine,         gumbel-machinery.
+  25(1):16–18, 2019. ISSN 1078-8956. doi: 10.1038/
+  s41591-018-0310-5. URL http://www.nature.                     Maddison, C. J., Tarlow, D., and Minka, T. A* Sam-
+  com/articles/s41591-018-0310-5.                                pling. Advances in Neural Information Processing
+                                                                 Systems, 2014. ISSN 02767783. doi: 10.1016/
+Guez, A., Vincent, R. D., Avoli, M., and Pineau,                 B978-0-12-803459-0.00005-4. URL http://arxiv.
+ J.    Adaptive Treatment of Epilepsy via Batch-                 org/abs/1411.0030.
+  mode Reinforcement Learning. AAAI, 2008. URL
+  http://www.cs.mcgill.ca/~jpineau/                             Maddison, C. J., Mnih, A., and Teh, Y. W. The Concrete
+  files/guez-iaai08.pdf.                                         Distribution: A Continuous Relaxation of Discrete Ran-
+                                                                 dom Variables. In International Conference on Learning
+Hazan, T. and Jaakkola, T. On the partition function and         Representations (ICLR), 2017. ISBN 0780365402. URL
+  random maximum a-posteriori perturbations. In ICML,            http://arxiv.org/abs/1611.00712.
+  2012.
+                                                                Miettinen, O. S. Proportion of disease caused or prevented
+Hazan, T., Papandreou, G., and Tarlow, D. Perturbation,          by a given exposure, trait or intervention. American
+  Optimization, and Statistics. MIT Press, 2016.                 Journal of Epidemiology, 99(5):325–332, 1974. ISSN
+                                                                 00029262. doi: 10.1093/oxfordjournals.aje.a121617.
+Imbens, G. W. and Rubin, D. B. Causal Inference for
+  Statistics, Social, and Biomedical Sciences. Cambridge        Mooij, J. M., Peters, J., Janzing, D., Zscheischler, J.,
+  University Press, 2015. ISBN 978-0-521-88588-1.                and Schölkopf, B. Distinguishing Cause from Ef-
+Johansson, F. D., Shalit, U., and Sontag, D. Learning Repre-     fect Using Observational Data: Methods and Bench-
+  sentations for Counterfactual Inference. In ICML, 2016.        marks. Journal of Machine Learning Research, 17:
+  URL http://arxiv.org/abs/1605.03661.                           1–102, 2016. URL http://jmlr.org/papers/
+                                                                 volume17/14-518/14-518.pdf.
+Kocaoglu, M., Dimakis, A. G., Vishwanath, S., and Has-
+  sibi, B. Entropic Causal Inference. In AAAI, pp.              Parbhoo, S., Bogojeska, J., Zazzi, M., Roth, V., and
+ 1156–1162, 2017. URL https://arxiv.org/pdf/                      Doshi-Velez, F. Combining Kernel and Model Based
+  1611.04035.pdf.                                                 Learning for HIV Therapy Selection. AMIA Joint Sum-
+                                                                  mits on Translational Science Proc, 2017:239–248, 2017.
+Komorowski, M., Celi, L. A., Badawi, O., Gordon,                  ISSN 2153-4063. URL http://www.ncbi.nlm.
+  A. C., and Faisal, A. A.        The Artificial Intelli-         nih.gov/pubmed/28815137%0Ahttp://www.
+  gence Clinician learns optimal treatment strategies for         pubmedcentral.nih.gov/articlerender.
+  sepsis in intensive care. Nature Medicine, 24(11):              fcgi?artid=PMC5543338.
+ 1716–1720, 2018. ISSN 1546170X. doi: 10.1038/
+  s41591-018-0213-5. URL http://dx.doi.org/                     Pearl, J. Probabilities of causation: three counterfactual
+  10.1038/s41591-018-0213-5.                                      interpretations and their identification. Synthese, 121
+                                                                  (1):93–149, 2000. ISSN 00397857. doi: 10.1023/A:
+Lee, S. and Bareinboim, E. Structural Causal Bandits:             1005233831499.
+  Where to Intervene?        In Bengio, S., Wallach, H.,
+  Larochelle, H., Grauman, K., Cesa-Bianchi, N., and Gar-       Pearl, J. Causality: Models, Reasoning, and Infer-
+  nett, R. (eds.), Advances in Neural Information Process-        ence. Cambridge University Press, 2nd edition, 2009.
+  ing Systems 31, pp. 2572–2582. Curran Associates, Inc.,         ISBN 052189560X. URL https://dl.acm.org/
+  2018.                                                           citation.cfm?id=1642718.
+
+Liu, Y., Gottesman, O., Raghu, A., Komorowski, M., Faisal,      Peters, J. and Schölkopf, B.     Causal Discovery
+  A. A., Doshi-Velez, F., and Brunskill, E. Representation        with Continuous Additive Noise Models.      Jour-
+  Balancing MDPs for Off-policy Policy Evaluation. In             nal of Machine Learning Research, 15(June):2009–
+  Bengio, S., Wallach, H., Larochelle, H., Grauman, K.,           2053, 2014.    ISSN 15337928.      doi: 10.1.1.
+  Cesa-Bianchi, N., and Garnett, R. (eds.), Advances in           144.4921.    URL http://jmlr.org/papers/
+  Neural Information Processing Systems 31, pp. 2644–             volume15/peters14a/peters14a.pdf.
+  2653. Curran Associates, Inc., 2018.
+                                                                Peters, J., Janzing, D., and Schölkopf, B. Elements of Causal
+Luce, R. D. Individual Choice Behavior: A Theoretical             Inference: Foundations and Learning Algorithms. MIT
+  Analysis. Wiley, New York, 1959.                                Press, Cambridge, MA, 2017. ISBN 9780262037310.
+                               Counterfactual Off-Policy Evaluation with Gumbel-Max SCMs
+
+Schulam, P. and Saria, S. Reliable Decision Support using
+  Counterfactual Models. In 31st Conference on Neural
+  Information Processing Systems, 2017.
+Sutton, R. S. and Barto, A. G. Reinforcement Learning: An
+  Introduction. MIT Press, 2nd edition, 2017.
+Thomas, P. S. and Brunskill, E. Data-Efficient Off-Policy
+  Policy Evaluation for Reinforcement Learning. In 33rd
+  International Confernece on Machine Learning (ICML),
+  volume 48, 2016. URL http://arxiv.org/abs/
+  1604.00923.
+Tian, J. and Pearl, J. Probabilities of causation : Bounds
+  and identification. Annals of Mathematics and Artificial
+  Intelligence, 28(1-4):287–313, 2000. ISSN 1012-2443.
+  doi: 10.1023/A:1018912507879.
+Train, K. Discrete choice methods with simulation. Cam-
+  bridge University Press, 2002.
+
+Yamada, K. and Kuroki, M. Counterfactual-Based Pre-
+  vented and Preventable Proportions. Journal of Causal
+  Inference, 5(2), 2017. ISSN 2193-3677. doi: 10.1515/
+  jci-2016-0020.
+Yellott, J. I. The relationship between Luce’s choice axiom,
+  Thurstone’s theory of comparative judgment, and the
+  double exponential distribution. Journal of Mathematical
+  Psychology, 15(2):109–144, 1977.
+Yuille., G. P. and L, A. Perturb-and-map random fields:
+  Using discrete optimization to learn and sample from
+  energy models. In ICCV, 2011.
+

@@ -1,0 +1,2788 @@
+                                          Submitted to the Annals of Statistics
+                                          arXiv: 1610.01271
+
+
+
+
+                                                                      GENERALIZED RANDOM FORESTS
+
+                                                         By Susan Athey Julie Tibshirani and Stefan Wager
+                                                                          Stanford University and Elasticsearch BV
+                                                                   We propose generalized random forests, a method for non-
+                                                             parametric statistical estimation based on random forests (Breiman,
+arXiv:1610.01271v4 [stat.ME] 5 Apr 2018
+
+
+
+
+                                                             2001) that can be used to fit any quantity of interest identified as
+                                                             the solution to a set of local moment equations. Following the litera-
+                                                             ture on local maximum likelihood estimation, our method considers
+                                                             a weighted set of nearby training examples; however, instead of us-
+                                                             ing classical kernel weighting functions that are prone to a strong
+                                                             curse of dimensionality, we use an adaptive weighting function de-
+                                                             rived from a forest designed to express heterogeneity in the specified
+                                                             quantity of interest. We propose a flexible, computationally efficient
+                                                             algorithm for growing generalized random forests, develop a large
+                                                             sample theory for our method showing that our estimates are con-
+                                                             sistent and asymptotically Gaussian, and provide an estimator for
+                                                             their asymptotic variance that enables valid confidence intervals. We
+                                                             use our approach to develop new methods for three statistical tasks:
+                                                             non-parametric quantile regression, conditional average partial effect
+                                                             estimation, and heterogeneous treatment effect estimation via instru-
+                                                             mental variables. A software implementation, grf for R and C++, is
+                                                             available from CRAN.
+
+
+                                             1. Introduction. Random forests, introduced by Breiman (2001), are a widely
+                                          used algorithm for statistical learning. Statisticians usually study random forests as
+                                          a practical method for non-parametric conditional mean estimation: Given a data-
+                                          generating
+                                                      distribution
+                                                                   for (Xi , Yi ) ∈ X × R, forests are used to estimate µ(x) =
+                                          E Yi Xi = x . Several theoretical results are available on the asymptotic behavior
+                                          of such forest-based estimates µ̂(x), including consistency (Arlot and Genuer, 2014;
+                                          Biau, Devroye and Lugosi, 2008; Biau, 2012; Denil, Matheson and De Freitas, 2014;
+                                          Lin and Jeon, 2006; Scornet, Biau and Vert, 2015; Wager and Walther, 2015), second-
+                                          order asymptotics (Mentch and Hooker, 2016), and confidence intervals (Wager and
+                                          Athey, 2018).
+                                             This paper extends Breiman’s random forests into a flexible method for estimating
+                                          any quantity θ(x) identified via local moment conditions. Specifically, given data
+                                          (Xi , Oi ) ∈ X ×O, we seek forest-based estimates of θ(x) defined by a local estimating
+                                          equation of the form
+                                                                                        
+                                          (1)                 E ψθ(x), ν(x) (Oi ) Xi = x = 0 for all x ∈ X ,
+
+                                          where ψ(·) is some scoring function and ν(x) is an optional nuisance param-
+                                          eter. This setup encompasses several key statistical problems. For example,
+                                          if we model the distribution of Oi conditionally on Xi as having a density
+                                                                                               1
+                                                                           imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+2                          ATHEY, TIBSHIRANI AND WAGER
+
+fθ(x), ν(x) (·) then, under standard regularity
+                                               conditions, the moment condition (1)
+with ψθ(x), ν(x) (O) = ∇ log fθ(x), ν(x) (Oi ) identifies the local maximum likelihood
+parameters (θ(x), ν(x)). More generally, we can use moment conditions of the form
+(1) to identify conditional means, quantiles, average partial effects, etc., and to de-
+velop robust regression procedures via Huberization. Our main substantive applica-
+tion of generalized random forests involves heterogeneous treatment effect estimation
+with instrumental variables.
+   Our aim is to build a family of non-parametric estimators that inherit the de-
+sirable empirical properties of regression forests—such as stability, ease of use, and
+flexible adaptation to different functional forms as in, e.g., Biau and Scornet (2016)
+or Varian (2014)—but can be used in the wide range of statistical settings char-
+acterized by (1) in addition to standard conditional mean estimation. This paper
+addresses the resulting conceptual and methodological challenges and establishes
+formal asymptotic results.
+   Regression forests are typically understood as ensemble methods, i.e., forest pre-
+dictions µ̂(x)  Pare written as the average of B noisy tree-based predictors µ̂b (x),
+µ̂(x) = B −1 B    b=1 µ̂b (x); and, because individual trees µ̂b (x) have low bias but high
+variance, such averaging meaningfully stabilizes predictions (Bühlmann and Yu,
+2002; Scornet, Biau and Vert, 2015). However, noisy solutions to moment equations
+as in (1) are generally biased, and averaging would do nothing to alleviate the bias.
+   To avoid this issue, we cast forests as a type of adaptive locally weighted esti-
+mators that first use a forest to calculate a weighted set of neighbors for each test
+point x, and then solve a plug-in version of the estimating equation (1) using these
+neighbors. Section 2.1 gives a detailed treatment of this perspective. This locally
+weighting view of random forests was previously advocated by Hothorn et al. (2004)
+in the context of survival analysis and by Meinshausen (2006) for quantile regres-
+sion, and also underlies theoretical analyses of regression forests (e.g., Lin and Jeon,
+2006). For conditional mean estimation, the averaging and weighting views of forests
+are equivalent; however, once we move to more general settings, the weighting-based
+perspective proves substantially more effective, and also brings forests closer to the
+literature on local maximum likelihood estimation (Fan and Gijbels, 1996; Loader,
+1999; Newey, 1994a; Stone, 1977; Tibshirani and Hastie, 1987).
+   A second challenge in generalizing forest-based methods is that their success
+hinges on whether the adaptive neighborhood function obtained via partitioning
+adequately captures the heterogeneity in the underlying function θ(x) we want to
+estimate. Even within the same class of statistical tasks, different types of questions
+can require different neighborhood functions. For example, suppose that two scien-
+tists are studying the effects of a new medical treatment: One is looking at how the
+treatment affects long-term survival, and the other at its effect on the length of hos-
+pital stays. It is plausible that the treatment heterogeneity in each setting would be
+based on disparate covariates, e.g., a patient’s smoking habits for long-term survival,
+and the location and size of the hospital for the length of stay.
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                  3
+
+   Thus, each time we apply random forests to a new scientific task, it is important to
+use rules for recursive partitioning that are able to detect and highlight heterogene-
+ity in the signal the researcher is interested in. In prior work, such problem-specific
+rules have largely been designed on a case by case basis. Although the CART rules of
+Breiman et al. (1984) have long been popular for classification and regression tasks,
+there has been a steady stream of papers proposing new splitting rules for other
+problems, including Athey and Imbens (2016) and Su et al. (2009) for treatment
+effect estimation, Beygelzimer and Langford (2009) and Kallus (2016) for personal-
+ized policy allocation, and Gordon and Olshen (1985), LeBlanc and Crowley (1992),
+Molinaro, Dudoit and Van der Laan (2004) as well as several others for survival
+analysis. Zeileis, Hothorn and Hornik (2008) propose a method for constructing a
+single tree for general maximum likelihood problems, where splitting is based on
+hypothesis tests for improvements in goodness of fit.
+   In contrast, we seek a unified, general framework for computationally efficient
+problem-specific splitting rules, optimized for the primary objective of capturing
+heterogeneity in a key parameter of interest. In the spirit of gradient boosting
+(Friedman, 2001), our recursive partitioning method begins by computing a linear,
+gradient-based approximation to the non-linear estimating equation we are trying
+to solve, and then uses this approximation to specify the tree-split point. Algo-
+rithmically, our procedure reduces to iteratively applying a labeling step where we
+generate pseudo-outcomes by computing gradients using parameters estimated in
+the parent node, and a regression step where we pass this labeled data to a stan-
+dard CART regression routine. Thus, we can make use of pre-existing, optimized
+tree software to execute the regression step, and obtain high quality neighborhood
+functions while only using computational resources comparable to those required
+by standard CART algorithms. In line with this approach, our generalized random
+forest software package builds on the carefully optimized ranger implementation of
+regression forest splitting rules (Wright and Ziegler, 2017).
+   Moment conditions of the form (1) typically arise in scientific applications where
+rigorous statistical inference is required. The bulk of this paper is devoted to a theo-
+retical analysis of generalized random forests, and to establishing asymptotic consis-
+tency and Gaussianity of the resulting estimates θ̂(x). We also develop methodology
+for asymptotic confidence intervals. Our analysis is motivated by classical results for
+local estimating equations, in particular Newey (1994a), paired with machinery from
+Wager and Athey (2018) to address the adaptivity of the random forest weighting
+function.
+   The resulting framework presents a flexible method for non-parametric statisti-
+cal estimation and inference with formal asymptotic guarantees. In this paper, we
+develop applications to quantile regression, conditional average partial effect esti-
+mation and heterogeneous treatment effect estimation with instrumental variables;
+however, there are many other popular statistical models that fit directly into our
+framework, including panel regression, Huberized robust regression, models of con-
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+4                         ATHEY, TIBSHIRANI AND WAGER
+
+sumer choice, etc. In order to fit any of these models with generalized random forests,
+the analyst simply needs to provide the problem-specific routines to calculate gra-
+dients of the moment conditions evaluated at different observations in the dataset
+for the “label” step of our algorithm. Moreover, we emphasize that our method is in
+fact a proper generalization of regression forests: If we apply our framework to build
+a forest-based method for local least-squares regression, we exactly recover a re-
+gression forest. A high-performance software implementation of generalized random
+forests, grf for R and C++, is available from CRAN.
+
+   1.1. Related Work. The idea of local maximum likelihood (and local general-
+ized method of moments) estimation has a long history, including Fan, Farmen and
+Gijbels (1998), Newey (1994a), Staniswalis (1989), Stone (1977), Tibshirani and
+Hastie (1987) and Lewbel (2007). In economics, popular applications of these tech-
+niques include multinomial choice modeling in a panel data setting (e.g., Honoré and
+Kyriazidou, 2000) and instrumental variables regression (e.g., Su, Murtazashvili and
+Ullah, 2013). The core idea is that when estimating parameters at a particular value
+of covariates, a kernel weighting function is used to place more weight on nearby
+observations in the covariate space. A challenge facing this approach is that if the
+covariate space has more than two or three dimensions, performance can suffer due
+to the “curse of dimensionality” (e.g., Robins and Ritov, 1997).
+   Our paper replaces the kernel weighting with forest-based weights, that is, weights
+derived from the fraction of trees in which an observation appears in the same leaf
+as the target value of the covariate vector. The original random forest algorithm
+for non-parametric classification and regression was proposed by Breiman (2001),
+building on insights from the ensemble learning literature (Amit and Geman, 1997;
+Breiman, 1996; Dietterich, 2000; Ho, 1998). The perspective we take on random
+forests as a form of adaptive nearest neighbor estimation, however, most closely
+builds on the proposals of Hothorn et al. (2004) and Meinshausen (2006) for forest-
+based survival analysis and quantile regression. This adaptive nearest neighbors
+perspective also underlies several statistical analyses of random forests, including
+Arlot and Genuer (2014), Biau and Devroye (2010), and Lin and Jeon (2006).
+   Our gradient-based splitting scheme draws heavily from a long tradition in the
+statistics and econometrics literatures of using gradient-based test statistics to de-
+tect change points in likelihood models (Andrews, 1993; Hansen, 1992; Hjort and
+Koning, 2002; Nyblom, 1989; Ploberger and Krämer, 1992; Zeileis, 2005; Zeileis and
+Hornik, 2007). In particular, Zeileis, Hothorn and Hornik (2008) consider the use
+of such methods for model-based recursive partitioning. Our problem setting differs
+from the above in that we are not focused on running a hypothesis test, but rather
+seek an adaptive nearest neighbor weighting that is as sensitive as possible to hetero-
+geneity in our parameter of interest; we then rely on the random forest resampling
+mechanism to achieve statistical stability (Mentch and Hooker, 2016; Scornet, Biau
+and Vert, 2015; Wager and Athey, 2018). In this sense, our approach is related to
+gradient boosting (Friedman, 2001), which uses gradient-based approximations to
+
+                      imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                  5
+
+guide a greedy, non-parametric regression procedure.
+   Our asymptotic theory relates to an extensive recent literature on the statis-
+tics of random forests, most of which focuses on the regression case (Arlot and
+Genuer, 2014; Biau, 2012; Biau, Devroye and Lugosi, 2008; Biau and Scornet, 2016;
+Bühlmann and Yu, 2002; Denil, Matheson and De Freitas, 2014; Geurts, Ernst and
+Wehenkel, 2006; Ishwaran and Kogalur, 2010; Lin and Jeon, 2006; Meinshausen,
+2006; Mentch and Hooker, 2016; Scornet, Biau and Vert, 2015; Sexton and Laake,
+2009; Wager and Athey, 2018; Wager and Walther, 2015; Zhu, Zeng and Kosorok,
+2015). Our present paper complements this body of work by showing how meth-
+ods developed to study regression forests can also be used understand estimated
+solutions to local moment equations obtained via generalized random forests.
+
+   2. Generalized Random Forests. In standard classification or regression
+forests as proposed by Breiman (2001), the prediction for a particular test point
+x is determined by averaging predictions across an ensemble of different trees (Amit
+and Geman, 1997; Breiman, 1996; Dietterich, 2000; Ho, 1998). Individual trees are
+grown by greedy recursive partitioning, i.e., we recursively add axis-aligned splits
+to the tree, where each split it chosen to maximize the improvement to model fit
+(Breiman et al., 1984); see Figure 4 in the Appendix for an example of a tree. The
+trees are randomized using bootstrap (or subsample) aggregation, whereby each
+tree is grown on a different random subset of the training data, and random split
+selection that restricts the variables available at each step of the algorithm. For
+an introductory overview of random forests, we recommend the chapter of Hastie,
+Tibshirani and Friedman (2009) dedicated to the method. As discussed below, in
+generalizing random forests, we preserve several core elements of Breiman’s forests—
+including recursive partitioning, subsampling, and random split selection—but we
+abandon the idea that our final estimate is obtained by averaging estimates from
+each member of an ensemble. Treating forests as a type of adaptive nearest neighbor
+estimator is much more amenable to statistical extensions.
+
+   2.1. Forest-Based Local Estimation. Suppose that we have n independent and
+identically distributed samples, indexed i = 1, ..., n. For each sample, we have access
+to an observable quantity Oi that encodes information relevant to estimating θ(·),
+along with a set of auxiliary covariates Xi . In the case of non-parametric regression,
+this observable just consists of an outcome Oi = {Yi } with Yi ∈ R; in general, it may
+contain richer information. In the case of treatment effect estimation with exogenous
+treatment assignment, Oi = {Yi , Wi } also includes the treatment assignment Wi .
+Given this type of data, our goal is to estimate solutions to local estimation equations
+of the form E[ψθ(x), ν(x) (Oi ) Xi = x] = 0 for all ∈ X , where θ(x) is the parameter
+we care about and ν(x) is an optional nuisance parameter.
+   One approach to estimating such functions θ(x) is to first define some kind of
+similarity weights αi (x) that measure the relevance of the i-th training example to
+fitting θ(·) at x, and then fit the target of interest via an empirical version of the
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+6                         ATHEY, TIBSHIRANI AND WAGER
+
+
+
+
+                                                                                ···
+
+
+
+
+                             =⇒
+
+
+
+
+Fig 1: Illustration of the random forest weighting function. The rectangles depticted
+above correspond to terminal nodes in the dendogram representation of Figure 4.
+Each tree starts by giving equal (positive) weight to the training examples in the
+same leaf as our test point x of interest, and zero weight to all the other training
+examples. Then, the forest averages all these tree-based weightings, and effectively
+measures how often each training example falls into the same leaf as x.
+
+estimating equation (Fan, Farmen and Gijbels, 1998; Newey, 1994a; Staniswalis,
+1989; Stone, 1977; Tibshirani and Hastie, 1987):
+                                           ( n                     )
+                                           X
+(2)              θ̂(x), ν̂(x) ∈ argminθ, ν      αi (x) ψθ, ν (Oi )   .
+                                               i=1                  2
+
+When thePn above expression has a unique root, we can simply say that (θ̂(x), ν̂(x))
+solves i=1 αi (x) ψθ̂(x), ν̂(x) (Oi ) = 0. The weights αi (x) used to specify the above
+solution to the heterogeneous estimating equation are traditionally obtained via a
+deterministic kernel function, perhaps with an adaptively chosen bandwidth param-
+eter (Hastie, Tibshirani and Friedman, 2009). Although methods of the above kind
+often work well in low dimensions, they are sensitive to the curse of dimensionality.
+   Here, we seek to use forest-based algorithms to adaptively learn better, problem-
+specific, weights αi (x) that can be used in conjunction with (2). As in Hothorn et al.
+(2004) and Meinshausen (2006), our generalized random forests obtain such weights
+by averaging neighborhoods implicitly produced by different trees. First, we grow a
+set of B trees indexed by b = 1, ..., B and, for each such tree, define Lb (x) as the set
+of training examples falling in the same “leaf” as x. The weights αi (x) then capture
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                   7
+
+the frequency with which the i-th training example falls into the same leaf as x:
+                                                               B
+                             1 ({Xi ∈ Lb (x)})            1 X
+(3)              αbi (x) =                     , αi (x) =     αbi (x).
+                                  |Lb (x)|                B
+                                                               b=1
+
+These weights sum to 1, and define the forest-based adaptive neighborhood of x; see
+Figure 1 for an illustration of this weighting function.
+    There are some subtleties in how the sets Lb (x) are defined—in particular, as
+discussed in Section 2.4, our construction will rely on both subsampling and a specific
+form of sample-splitting to achieve consistency—but at a high level the estimates
+θ̂(x) produced by a generalized random forests are simply obtained by solving (2)
+with weights (3).
+    Finally, for the special case of regression trees, our weighting-based defini-
+tion of a random forest is equivalent to the standard “average of trees” per-
+spective taken
+                in Breiman
+                             (2001): If we estimate the conditional mean function
+µ(x) P = E Yi P Xi = x , as identified in (1) using ψµ(x) (Yi ) = Yi −P
+                                                                      µ(x), then we see
+         n   1   B                                                  1  B
+that i=1  P B b=1 αbi (x)(Yi − µ̂(x)) = 0 if and only if µ̂(x) = B b=1 µ̂b (x), where
+µ̂b (x) = {i:Xi ∈Lb (x)} Yi |Lb (x)| is the prediction made by a single CART regres-
+sion tree.
+
+   2.2. Splitting to Maximize Heterogeneity. We seek trees that, when combined
+into a forest, induce weights αi (x) that lead to good estimates of θ(x). The main
+difference between random forests relative to other non-parametric regression tech-
+niques is their use of recursive partitioning on subsamples to generate these weights
+αi (x). Motivated by the empirical success of regression forests across several appli-
+cation areas, our approach mimics the algorithm of Breiman (2001) as closely as
+possible, while tailoring our splitting scheme to focus on heterogeneity in the target
+functional θ(x).
+   Just like in Breiman’s forests, our search for good splits proceeds greedily, i.e., we
+seek splits that immediately improve the quality of the tree fit as much as possible.
+Every split starts with a parent node P ⊆ X ; given a sample of data J , we define
+(θ̂P , ν̂P )(J ) as the solution to the estimating equation, as follows (we suppress
+dependence on J when unambiguous):
+                                                                     
+                                                X                  
+(4)                 θ̂P , ν̂P (J ) ∈ argminθ, ν           ψθ, ν (Oi )   .
+                                                                     
+                                               {i∈J :Xi ∈P }         2
+
+We would like to divide P into two children C1 , C2 ⊆ X using
+an axis-aligned cut such as to improve the accuracy of our θ-estimates
+as much as possible;         formally, we seek to minimize err (C1 , C2 ) defined
+as err (C1 , C2 ) = j=1, 2 P[X ∈ Cj X ∈ P ] E[(θ̂Cj (J ) − θ(X))2 X ∈ Cj ], where
+                      P
+θ̂Cj (J ) are fit over children Cj in analogy to (4), and expectations are taken over
+both the randomness in θ̂Cj (J ) and a new test point X.
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+8                         ATHEY, TIBSHIRANI AND WAGER
+
+   Many standard regression tree implementations, such as CART (Breiman et al.,
+1984), choose their splits by simply minimizing the in-sample prediction error of the
+node, which corresponds to err (C1 , C2 ) with plug-in estimators from the training
+sample. In the case of estimating the effect of a binary treatment, Athey and Imbens
+(2016) study sample-splitting trees, and propose an unbiased, model-free estimate
+of err (C1 , C2 ) using an overfitting penalty in the spirit of Mallows (1973). In our
+setting, however, this kind of direct loss minimization is not an option: If θ(x) is
+only identified through a moment condition, then we do not in general have access
+to unbiased, model-free estimates of the criterion err (C1 , C2 ). To address this issue,
+we rely on the following more abstract characterization of our target criterion.
+
+   Proposition 1. Suppose that basic assumptions detailed in Section 3 hold, and
+that the parent node P has a radius smaller than r for some value r > 0. We write
+nP = |{i ∈ J : Xi ∈ P }| for the number of observations in the parent and nCj for
+the number of observations in each child, and define
+                                                                   2
+(5)               ∆(C1 , C2 ) := nC1 nC2 / n2P θ̂C1 (J ) − θ̂C2 (J ) ,
+
+where θ̂C1 and θ̂C2 are solutions to the estimating equation computed in the chil-
+dren, following (4). Then, treating the child nodes C1 and C2 as well as the corre-
+sponding counts nC1 and nC2 as fixed, and assuming    that nC1 , nC2  r−2 , we have
+                                              2
+                                                
+err (C1 , C2 ) = K(P ) − E [∆(C1 , C2 )] + o r where K(P ) is a deterministic term
+that measures the purity of the parent node that does not depend on how the parent
+is split, and the o-term incorporates terms that depend on sampling variance.
+
+   Motivated by this observation, we consider splits that make the above ∆-criterion
+(5) large. A special case of the above idea also underlies the splitting rule for treat-
+ment effect estimation proposed by Athey and Imbens (2016). At a high level, we
+can think of this ∆-criterion as favoring splits that increase the heterogeneity of the
+in-sample θ-estimates as fast as possible. The dominant bias term in err (C1 , C2 ) is
+due to the sampling variance of regression trees, and is the same term that appears
+in the analysis of Athey and Imbens (2016). Including this error term in the splitting
+criterion may stabilize the construction of the tree, and further it can prevent the
+splitting criterion from favoring splits that make the model difficult to estimate.
+
+   2.3. The Gradient Tree Algorithm. The above discussion provides conceptual
+guidance on how to pick good splits. But actually optimizing the criterion ∆(C1 , C2 )
+over all possible axis-aligned splits while explicitly solving for θ̂C1 and θ̂C2 in each
+candidate child using an analogue to (4) may be quite expensive computationally. To
+avoid this issue, we instead optimize an approximate criterion ∆(Ce 1 , C2 ) built using
+gradient-based approximations for θ̂C1 and θ̂C2 . For each child C, we use θ̃C ≈ θ̂C
+as follows: We first compute AP as any consistent estimate for the gradient of the
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                    9
+
+expectation of the ψ-function, i.e., ∇E[ψθ̂P , ν̂P (Oi ) Xi ∈ P ], and then set
+
+                                     1            X
+(6)             θ̃C = θ̂P −                                 ξ > A−1
+                                                                 P ψθ̂P , ν̂P (Oi ) ,
+                              |{i : Xi ∈ C}|
+                                                {i:Xi ∈C}
+
+
+where θ̂P and ν̂P are obtained by solving (4) once in the parent node, and ξ is a
+vector that picks out the θ-coordinate from the (θ, ν) vector. When the ψ-function
+itself is continuously differentiable, we use
+                                     1             X
+(7)                  AP =                                    ∇ψθ̂P , ν̂P (Oi ) ,
+                              |{i : Xi ∈ P }|
+                                                {i:Xi ∈P }
+
+and the quantity ξ > A−1
+                       P ψθ̂P , ν̂p (Oi ) corresponds to the influence function of the i-
+th observation for computing θ̂P in the parent. Cases where ψ is non-differentiable,
+e.g., with quantile regression, require more care.
+   Algorithmically, our recursive partitioning scheme now reduces to alternatively
+applying the following two steps. First, in a labeling step, we compute θ̂P , ν̂P ,
+and the derivative matrix A−1 P on the parent data as in (4), and use them to get
+pseudo-outcomes
+
+(8)                           ρi = −ξ > A−1
+                                         P ψθ̂P , ν̂P (Oi ) ∈ R.
+
+Next, in a regression step, we run a standard CART regression split on the pseudo-
+outcomes ρi . Specifically, we split P into two axis-aligned children C1 and C2 such
+as to maximize the criterion
+                                                                2
+                                  2
+                                X           1            X
+(9)              ∆(C
+                 e 1 , C2 ) =                                ρi  .
+                                     |{i : Xi ∈ Cj }|
+                                  j=1                           {i:Xi ∈Cj }
+
+Once we have executed the regression step, we relabel observations in each child by
+solving the estimating equation, and continue on recursively.
+   For intuition, it is helpful to examine the simplest case of least-squares regression,
+i.e., with ψθ(x) (Y ) = Y − θ(x). Here, the labeling step (8) doesn’t change anything—
+we get ρi = Yi − Y p , where Y p is the mean outcome in the parent—while the second
+step maximizing (9) corresponds to the usual way of making splits as in Breiman
+(2001). Thus, the special structure of the type of problem we are trying to solve is
+encoded in (8), while the second scanning step is a universal step shared across all
+different types of forests.
+   We expect this approach to provide more consistent computational performance
+than optimizing (5) at each split directly. When growing a tree, the computation is
+typically dominated by the split-selection step, and so it is critical for this step to
+be implemented as efficiently as possible (conversely, the labeling step (8) is only
+solved once per node, and so is less performance sensitive). From this perspective,
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+10                            ATHEY, TIBSHIRANI AND WAGER
+
+Algorithm 1 Generalized random forest with honesty and subsampling
+All tuning parameters are pre-specified, including the number of trees B and the sub-sampling s
+rate used in Subsample. This function is implemented in the package grf for R and C++.
+ 1: procedure GeneralizedRandomForest(set of examples S, test point x)
+ 2:    weight vector α ← Zeros(|S|)
+ 3:    for b = 1 to total number of trees B do
+ 4:        set of examples I ← Subsample(S, s)
+ 5:        sets of examples J1 , J2 ← SplitSample(I)
+ 6:        tree T ← GradientTree(J1 , X )               . See Algorithm 2.
+ 7:        N ←Neighbors(x, T , J2 )                     . Returns those elements of J2 that fall into
+                                                          the same leaf as x in the tree T .
+ 8:        for all example e ∈ N do
+ 9:            α[e] += 1/ |N |
+10:     output θ̂(x), the solution to (2) with weights α/B
+
+The function Zeros creates a vector of zeros of length |S|; Subsample draws a subsample of size s
+from S without replacement; and SplitSample randomly divides a set into two evenly-sized, non-
+overlapping halves. The step (2) can be solved using any numerical estimator. Our implementation
+grf provides an explicit plug-in point where a user can write a solver for (2) appropriate for their
+ψ-function. X is the domain of the Xi . In our analysis, we consider a restricted class of generalized
+random forests satisfying Specification 1.
+
+
+using a regression splitting criterion as in (9) is very desirable, as it is possible to
+evaluate all possible split points along a given feature with only a single pass over
+the data in the parent node (by representing the criterion in terms of cumulative
+sums). In contrast, directly optimizing the original criterion (5) may require solving
+intricate optimization problems for each possible candidate split.
+   This type of gradient-based approximation also underlies other popular statistical
+algorithms, including gradient boosting (Friedman, 2001) and the model-based re-
+cursive partitioning algorithm of Zeileis, Hothorn and Hornik (2008). Conceptually,
+tree splitting bears some connection to change-point detection if we imagine tree
+splits as occurring at detected change-points in θ(x); and, from this perspective, our
+approach is closely related to standard techniques for moment-based change-point
+detection (Andrews, 1993; Hansen, 1992; Hjort and Koning, 2002; Nyblom, 1989;
+Ploberger and Krämer, 1992; Zeileis, 2005; Zeileis and Hornik, 2007).
+   In our context, we can verify that the error from using the approximate criterion
+(9) instead of the exact ∆-criterion (5) is within the tolerance used to motivate the
+∆-criterion in Proposition 1, thus suggesting that our use of (6) to guide splitting
+may not result in too much inefficiency. Note that consistent estimates of AP can
+in general be derived directly via, e.g., (7), without relying on Proposition 2.
+
+   Proposition       2. Under      the     conditions      of   Proposition 1,  if
+|AP − ∇E[ψθ̂P , ν̂P (Oi ) Xi     ∈    P ]|    →P        0, i.e., AP is consistent,
+then ∆(C1 , C2 ) and ∆(C    e 1 , C2 ) are approximately equivalent, in that
+∆(C1 , C2 ) = ∆(C1 , C2 ) + oP (max r2 , 1 / nC1 , 1 / nC2 ).
+                                   
+ e
+
+
+                          imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                            GENERALIZED RANDOM FORESTS                                         11
+
+Algorithm 2 Gradient tree
+Gradient trees are grown as subroutines of a generalized random forest.
+ 1: procedure GradientTree(set of examples J , domain X )
+ 2:    node P0 ← CreateNode(J , X )
+ 3:    queue Q ← InitializeQueue(P0 )
+ 4:    while NotNull(node P ← Pop(Q)) do
+ 5:       (θ̂P , ν̂P , AP ) ← SolveEstimatingEquation(P )            . Computes (4) and (7).
+ 6:       vector RP ← GetPseudoOutcomes(θ̂P , ν̂P , AP )             . Applies (8) over P .
+ 7:       split Σ ← MakeCartSplit(P , RP )                           . Optimizes (9).
+ 8:       if SplitSucceeded(Σ) then
+ 9:            SetChildren(P , GetLeftChild(Σ), GetRightChild(Σ))
+10:            AddToQueue(Q, GetLeftChild(Σ))
+11:            AddToQueue(Q, GetRightChild(Σ))
+12:    output tree with root node P0
+
+The function call InitializeQueue initializes a queue with a single element; Pop returns and
+removes the oldest element of a queue Q, unless Q is empty in which case it returns null. Make-
+CartSplit runs a CART split on the pseudo-outcomes, and either returns two child nodes or a
+failure message that no legal split is possible.
+
+
+   2.4. Building a Forest with Theoretical Guarantees. Now, given a practical split-
+ting scheme for growing individual trees, we want to grow a forest that allows for
+consistent estimation of θ(x) using (2) paired with the forest weights (3). We expect
+each tree to provide small, relevant neighborhoods for x that give us noisy estimates
+of θ(x); then, we may hope that forest-based aggregation will provide a single larger
+but still relevant neighborhood for x that yields stable estimates θ̂(x).
+   To ensure good statistical behavior, we rely on two conceptual ideas that have
+proven to be successful in the literature on forest-based least-squares regression:
+Training trees on subsamples of the training data (Mentch and Hooker, 2016; Scor-
+net, Biau and Vert, 2015; Wager and Athey, 2018), and a sub-sample splitting
+technique that we call honesty (Biau, 2012; Denil, Matheson and De Freitas, 2014;
+Wager and Athey, 2018). Our final algorithm for forest-based solutions to heteroge-
+neous estimating equations is given as Algorithm 1; we refer to Section 2.4 of Wager
+and Athey (2018) for a more in-depth discussion of honesty in the context of forests.
+As shown in Section 3, assuming regularity conditions, the estimates θ̂(x) obtained
+using a generalized random forest as described in Algorithm 1 are consistent for θ(x).
+Moreover, given appropriate subsampling rates, we establish asymptotic normality
+of the resulting forest estimates θ̂(x).
+
+   3. Asymptotic Analysis. We now turn to a formal characterization of gen-
+eralized random forests, with the aim of establishing asymptotic Gaussianity of the
+θ̂(x), and of providing tools for statistical inference about θ(x). We first list as-
+sumptions underlying our theoretical results. Throughout, the covariate space and
+the parameter space are both subsets of Euclidean space; specifically, X = [0, 1]p
+and (θ, ν) ∈ B ⊂ Rk for some p, k > 0, where B is a compact subset of Rk . Moreover,
+
+                         imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+12                         ATHEY, TIBSHIRANI AND WAGER
+
+we assume that the features X have a density that is bounded away from 0 and ∞;
+as argued in, e.g., Wager and Walther (2015), this is equivalent to imposing a weak
+dependence condition on the individual features (Xi )j because trees and forests are
+invariant to monotone rescaling of the features. All proofs are in the appendix.
+   Some practically interesting cases, such as quantile regression, involve discontin-
+uous score functions ψ, which makes the analysis more intricate. Here, we follow
+standard practice, and assume that the expected score function,
+                                                         
+(10)                      Mθ, ν (x) := E ψθ, ν (O) X = x ,
+
+varies smoothly in the parameters, even though ψ itself may be discontinuous. For
+example, with quantile
+                      regression ψθ (Y ) = 1 ({Y > θ}) − (1 − q) is discontinuous in
+q, but Mθ (x) = P Y > θ X = x − (1 − q) will be smooth whenever Y X = x has
+a smooth density.
+
+ Assumption 1 (Lipschitz x-signal). For fixed values of (θ, ν), we assume that
+Mθ, ν (x) as defined in (10) is Lipschitz continuous in x.
+
+   Assumption 2 (Smooth identification). When x is fixed, we assume that the
+M -function is twice continuously differentiable in (θ, ν) with a uniformly bounded
+second derivative, and that V (x) := Vθ(x), ν(x) (x) is invertible for all x ∈ X , with
+Vθ, ν (x) := ∂/∂(θ, ν) Mθ, ν (x) θ(x), ν(x) .
+
+  Our next two assumptions control regularity properties of the ψ-function itself.
+Assumption 3 holds trivially when ψ itself is Lipschitz in (θ, ν) (in fact, having ψ
+be 0.5-Hölder would be enough), while Assumption 4 is used to show that a certain
+empirical process is Donsker. Examples are given at the end of this section.
+
+   Assumption 3 (Lipschitz (θ, ν)-variogram). The score functions ψθ, ν (Oi ) have
+a continuous covariance structure. Writing γ for the worst-case variogram and k·kF
+for the Frobenius norm, then for some L > 0,
+               0             0
+              θ     θ             θ       θ
+          γ       ,        ≤L        −           for all (θ, ν), (θ0 , ν 0 ),
+              ν     ν0            ν       ν0 2
+(11)           0 
+              θ     θ                                                       
+          γ       ,   0    := sup Var ψθ, ν (Oi ) − ψθ0 , ν 0 (Oi ) Xi = x F .
+              ν     ν         x∈X
+
+   Assumption 4 (Regularity of ψ). The ψ-functions can be written as
+ψθ, ν (O) = λ (θ, ν; Oi ) + ζθ, ν (g(Oi )), such that λ is Lipschitz-continuous in (θ, ν),
+g : {Oi } → R is a univariate summary of Oi , and ζθ, ν : R → R is any family of
+monotone and bounded functions.
+
+  Assumption
+     P          5 (Existence of solutions). We assume that, for any weights αi
+with   αi = 1, the estimating equation (2) returns a minimizer (θ̂, ν̂) that at least
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                    13
+                                                    Pn
+approximately solves the estimating equation: k       i=1 αi ψθ̂, ν̂ (Oi )k2 ≤ C max {αi },
+for some constant C ≥ 0.
+
+   All the previous assumptions only deal with local properties of the estimating
+equation, and can be used to control the behavior of (θ̂(x), ν̂(x)) in a small neigh-
+borhood of the population parameter value (θ(x), ν(x)). Now, to make any use of
+these assumptions, we first need to verify that (θ̂(x), ν̂(x)) be consistent. Here, we
+use the following assumption to guarantee consistency; this setup is general enough
+to cover both instrumental variables regression and quantile regression.
+
+  Assumption 6 (Convexity). The score function ψθ, ν (Oi ) is a negative sub-
+gradient of a convex function, and the expected score Mθ, ν (Xi ) is the negative
+gradient of a strongly convex function.
+
+   Finally, our consistency and Gaussianty results require using some specific set-
+tings for the trees from Algorithm 1. In particular, we require that all trees be
+honest and regular in the sense of Wager and Athey (2018), as follows. In order to
+satisfy the minimum split probability condition below, our implementation relies on
+the device of Denil, Matheson and De Freitas (2014), whereby the number split-
+ting variables considered at each step of the algorithm is random; specifically, we
+try min {max {Poisson(m), 1} , p} variables at each step, where m > 0 is a tuning
+parameter.
+
+   Specification 1. All trees are symmetric, in that their output is invariant to
+permuting the indices of training examples; make balanced splits, in the sense that
+every split puts at least a fraction ω of the observations in the parent node into
+each child, for some ω > 0; and are randomized in such a way that, at every split,
+the probability that the tree splits on the j-th feature is bounded from below by
+some π > 0. The forest is honest and built via subsampling with subsample size s
+satisfying s/n → 0 and s → ∞, as described in Section 2.4.
+
+   For generality, we set up Assumptions 1–6 in an abstract way. We end this sec-
+tion by showing that, in the context of our main problems of interest requiring
+Assumptions 1–6 is not particularly stringent. Further examples that satisfy the
+above assumptions will be discussed in Sections 6 and 7.
+
+   Example 1 (Least squares regression). In the case of least-squares regression,
+i.e., ψθ (Yi ) = Yi − θ, Assumptions 2–6 hold immediately from the definition of ψ.
+In particular, V = 1 in Assumption 2, γ(θ, θ0 ) = 0 in Assumption 3, ψ itself is Lip-
+                                           d
+schitz for Assumption 4, and ψθ (y) = − dθ   (y − θ)2 /2 for Assumption
+                                                                      6. Meanwhile,
+                                                                                  
+Assumption 1 simply means that the conditional mean function E Yi Xi = x must
+be Lipschitz in x; this is a standard assumption in the literature on regression forests.
+
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+14                         ATHEY, TIBSHIRANI AND WAGER
+
+   Example 2 (Quantile regression). For quantile regression, we have
+ψθ (Yi ) = q − 1 ({Yi ≤ θ}) and Mθ (x) = q − Fx (θ), where Fx (·) denotes the cu-
+mulative distribution function of Yi given Xi = x. Assumption        1 is equivalent
+                                                                                
+to assuming that the conditional exceedance probabilities P Yi > y Xi = x be
+Lipschitz-continuous in x for all y ∈ R, while Assumption 2 holds if the conditional
+density fx (y) has a continuous uniformly bounded first derivative, and is bounded
+away from 0 at the quantile of interest y = Fx−1 (q). Assumption 3 holds if fx (y)
+is uniformly bounded from above (specifically, γ(θ, θ0 ) ≤ maxx {fx (y)} |θ − θ0 |),
+Assumption 4 holds because ψ is monotone and Oi = Yi is univariate, Assumption
+                                                    d
+5 is immediate, and Assumption 6 holds because − dθ   Mθ (x) = fx (θ) > 0 and ψθ (Yi )
+is the negative sub-gradient of a V-shaped function with elbow at Yi .
+
+   3.1. A Central Limit Theorem for Generalized Random Forests. Given these as-
+sumptions, we are now ready to provide an asymptotic characterization of generalzed
+random forests. In doing so, we note that existing asymptotic analyses of regression
+forests, including Mentch and Hooker (2016), Scornet, Biau and Vert (2015) and Wa-
+ger and Athey (2018), were built around the fact that regression forests are averages
+of regression trees grown over sub-samples, and can thus be analyzed as U -statistics
+(Hoeffding, 1948). Unlike regression forest predictions, however, the parameter esti-
+mates θ̂(x) from generalized random forests are not averages of estimates made by
+different trees; instead, we obtain θ̂(x) by solving a single weighted moment equation
+as in (2). Thus, existing proof strategies do not apply in our setting.
+   We tackle this problem using the method of influence functions as described by
+Hampel (1974); in particular, we are motivated by the analysis of Newey (1994a).
+The core idea of these methods is to first derive a sharp, linearized approximation
+to the local estimator θ̂(x), and then to analyze the linear approximation instead. In
+our setup, the influence function heuristic motivates a natural approximation θ̃∗ (x)
+to θ̂(x) as follows. Let ρ∗i (x) denote the influence function of the i-th observation with
+respect to the true parameter value θ(x), ρ∗i (x) := −ξ > V (x)−1 ψθ(x), ν(x) (Oi ). These
+quantities are closely related to the pseudo-outcomes (8) used in our gradient tree
+splitting rule; the main difference is that, here, the ρ∗i (x) depend on the unknown true
+parameter values at x and are thus inaccessible in practice. We use the ∗-superscript
+to remind ourselves of this fact.
+   Then, given any set of forest weights αi (x) used to define the generalized random
+forest estimate θ̂(x) by solving (2), we can also define a pseudo-forest
+                                                n
+                                                X
+(12)                        θ̃∗ (x) := θ(x) +         αi (x)ρ∗i (x),
+                                                i=1
+which we will use as an approximation for θ̂(x). We note that, formally, this pseudo-
+forest estimate θ̃∗ (x) is equivalent to the output of an (infeasible) regression forest
+with weights αi (x) and outcomes θ(x) + ρ∗i (x).
+   The upshot of this approximation is that, unlike θ̂(x), the pseudo-forest θ̃∗ (x)
+is a U -statistic. Because θ̃∗ (x) is a linear function of the pseudo-outcomes ρ∗i (x),
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                           GENERALIZED RANDOM FORESTS                                   15
+
+                                                                ∗ (x) = 1
+                                                                          PB ∗
+we can write
+          Pn    it as an average  of pseudo-tree predictions θ̃         B  b=1 θ̃b (x) with
+  ∗                               ∗
+θ̃b (x) = i=1 αib (x) (θ(x) + ρi (x)). Then, because each individual pseudo-tree pre-
+diction θ̃b∗ (x) is trained on a size-s subsample of the training data drawn without
+replacement (see Section 2.4), θ̃∗ (x) is an infinite-order U -statistic whose order cor-
+responds to the subsample size, and so the arguments of Mentch and Hooker (2016)
+or Wager and Athey (2018) can be used to study the averaged estimator θ̃∗ (x) using
+results about U -statistics (Hoeffding, 1948; Efron and Stein, 1981).
+    Following this proof strategy, the key difficulty is in showing that our influence-
+based statistic θ̃∗ (x) is in fact a good approximation for θ̂(x). To do so, we start by
+establishing consistency of θ̂(x) for θ(x) given our assumptions; we note that this is
+the only point in the paper where we use the fact that ψ is the negative gradient of
+a convex loss as in Assumption 6.
+
+   Theorem 3. Given Assumptions 1–6, estimates (θ̂(x), ν̂(x)) from a forest sat-
+isfying Specification 1 converge in probability to (θ(x), ν(x)).
+
+   Building on this consistency result, we obtain a coupling of the desired type in
+Lemma 4, the main technical contribution of this paper. We note that separating the
+analysis of moment estimators into a local approximation argument that hinges on
+consistency and a separate result that establishes consistency is standard; see, e.g.,
+Chapter 5.3 of Van der Vaart (2000). The remainder of our analysis assumes that
+trees are grown on subsamples of size s scaling as s = nβ for some βmin < β < 1,
+with
+                                         .               −1
+(13)       βmin := 1 − 1 + π −1 log ω −1        log (1 − ω)−1         < β < 1,
+
+where π and ω are as in Specification 1. This scaling guarantees that the errors of
+forests are variance-dominated.
+
+   Lemma 4. Given Assumptions 1–5, and a forest trained according to Specifi-
+cation 1 with (13), suppose that the generalized random forest estimator θ̂(x) is
+consistent for θ(x). Then θ̂(x) and θ̃∗ (x) are coupled at the following rate, where s,
+π and ω are as in Specification 1:
+                                                                        
+           r 
+              n ∗                             − π log((1−ω)−1 )  s  1 
+                                                                        6
+(14)             θ̃ (x) − θ̂(x) = OP max s 2 log(ω−1 ) ,                  .
+              s                                                    n 
+
+   Given this coupling result, it now remains to study the asymptotics of θ̃∗ (x). In
+doing so, we re-iterate that θ̃∗ (x) is exactly the output of an infeasible regression
+forest trained on outcomes θ(x) + ρ∗i (x). Thus, the results of Wager and Athey
+(2018) apply directly to this object, and can be used to establish its Gaussianity.
+That we cannot actually compute θ̃∗ (x) does not hinder an application of their
+results. Pursuing this approach, we find that given (13), θ̃∗ (x) and θ̂(x) are both
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+16                         ATHEY, TIBSHIRANI AND WAGER
+
+asymptotically normal. By extending the same argument, we could also show that
+the nuisance parameter estimates ν̂(x) are consistent and asymptotically normal;
+however, we caution that the tree splits are not necessarily targeted to expressing
+heterogeneity in ν(x), and so the resulting ν̂(x) may not be particularly accurate in
+finite samples.
+
+    Theorem 5. Suppose Assumptions 1–6 and a forest trained according to Spec-
+ification 1 with trees are grown on subsamples of size s = nβ satisfying (13).
+Finally, suppose that Var[ρ∗i (x) Xi = x] > 0. Then, there is a sequence σn (x)
+for which (θ̂n (x) − θ(x)) / σn (x) ⇒ N (0, 1) and σn2 (x) = polylog(n/s)−1 s/n, where
+polylog(n/s) is a function that is bounded away from 0 and increases at most poly-
+nomially with the log-inverse sampling ratio log (n/s).
+
+    4. Confidence Intervals via the Delta Method. Theorem 5 can also
+be used for statistical inference about θ(x). Given any consistent estimator
+σ̂n (x)/σn (x) →p 1 of the noise scale of θ̂n (x), Theorem 5 can be paired with Slutsky’s
+lemma to verify that limn→∞ E[θ(x) ∈ (θ̂n (x) ± Φ−1 (1 − α/2)σ̂n (x))] = α. Thus, in
+order to build asymptotically valid confidence intervals for θ(x) centered on θ̂(x), it
+suffices to derive an estimator for σn (x).
+    In order to do so, we again leverage coupling with our approximating pseudo-forest
+θ̃∗ (x). In particular, the proof of Theorem 5 implies that Var[θ̃∗ (x)]/σn2 (x) →p 1,
+and so it again suffices to study θ̃∗ (x). Moreover, from the definition of θ̃∗ (x), we
+directly see that
+                     h      i
+(15)             Var θ̃∗ (x) = ξ > V (x)−1 Hn (x; θ(x), ν(x))(V (x)−1 )> ξ,
+                             Pn
+where Hn (x; θ, ν) = Var [    i=1 αi (x)ψθ, ν (Oi )]. Thus, we propose building Gaussian
+confidence intervals using
+
+(16)                                             b n (x)(Vbn (x)−1 )> ξ,
+                       σ̂n2 (x) := ξ > Vbn (x)−1 H
+
+where Vbn (x) and H b n (x) are consistent estimators for the quantities in (15).
+   The first quanitity V (x) is a problem specific curvature parameter, and is not
+directly linked to forest-based methods. It is the same quantity that is needed to
+estimate variance of classical local maximum likelihood methods following Newey
+(1994a); e.g., for the instrumental variables problem described in Section 7,
+                                                             
+                                E Z  i Wi Xi = x    E Zi Xi = x
+(17)                V (x) =                                        ,
+                                 E Wi Xi = x               1
+
+while for quantile regression, V (x) = fx (θ(x)). In both cases, several different strate-
+gies are available for estimating this term. In the case of instrumental variables
+forests, we suggest estimating the entries of (17) using (honest and regular) regres-
+sion forests.
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                  17
+
+   The more interesting term is the inner variance term Hn (x; Pnθ(x), ν(x)). To study
+this quantity, we note that the forest score Ψ(θ(x), ν(x)) = i=1 αi (x)ψθ(x), ν(x) (Oi )
+is again formally equivalent to the output of a regression forest with weights αi (x),
+this time with effective outcomes ψθ(x), ν(x) (Oi ). A number of proposals have emerged
+for estimating the variance of a regression forest, including work by Sexton and
+Laake (2009), Mentch and Hooker (2016) and Wager, Hastie and Efron (2014); and,
+in principle, any of these methods could be adapted to estimate the variance of Ψ.
+The only difficulty is that Ψ depends on the true parameter values (θ(x), ν(x)),
+and so cannot directly be accessed in practice. Here, we present results based on
+a variant of the bootstrap of little bags algorithm (or noisy bootstrap) proposed
+by Sexton and Laake (2009). As a side benefit, we also obtain the first consistency
+guarantees for this method for any type of forest, including regression forests.
+
+   4.1. Consistency of the Bootstrap of Little Bags. To motivate the bootstrap
+of little bags, we first note that building confidence intervals via half-sampling—
+whereby we evaluate an estimator on random halves of the training data to estimate
+its sampling error—is closely related to the bootstrap (Efron, 1982) (throughout this
+section, we assume that s ≤ bn/2c). In our context, the ideal half-sampling estimator
+would be H b nHS (x) defined as
+                   −1 X
+                n                                                      2
+(18)                                       ΨH θ̂(x), ν̂(x) − Ψ θ̂(x), ν̂(x)    ,
+              bn/2c
+                       { H : |H|= b 2 c}
+                                    n
+
+
+
+where ΨH denotes a version of Ψ computed only using all the possible trees that
+only rely on data from the half sample H ⊂ {1, ..., n} (specifically, in terms of
+Algorithm 1, we only use trees whose full I-subsample is contained in H). If we
+could evaluate H  b HS (x), results from Efron (1982) suggest that it would be a good
+                   n
+variance estimator for Ψ, but doing so is effectively impossible computationally as
+it would require growing very many forests.
+   Following Sexton and Laake (2009), however, we can efficiently approximate
+   HS
+Hn (x) at almost no computational cost if we are willing to slightly modify our
+ b
+subsampling scheme. To do so, let ` ≥ 2 denote a little bag size and assume, for
+simplicity, that B is an integer multiple of it. Then, we grow our forest as follows:
+First draw g = 1, ..., B/` random half-samples Hg ⊂ {1, ..., n} of size bn/2c, and
+then generate the subsamples Ib used to build the forest in Algorithm 1 such that
+Ib ⊆ Hdb/`e for each b = 1, ..., B. In other words, we now generate our forest using
+little bags of ` trees, where all the trees in a given bag only use data from the same
+half-sample. Sexton and Laake (2009) discuss optimal choices of ` for minimizing
+Monte Carlo error, and show that they depend on the ratio of the sampling variance
+of a single tree to that of the full forest.
+   The upshot of this construction is that we can now identify H  b HS (x) using a simple
+                                                                   n
+variance decomposition. Writing Ψb for a version of Ψ computed only using the b-th
+tree, we can verify that H  b HS (x) can be expressed in terms of the “between groups”
+                             n
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+18                         ATHEY, TIBSHIRANI AND WAGER
+
+and “within group” variance terms,
+       
+             `
+                      !2                          
+                                                       `        `
+                                                                    !2 
+          1 X
+                               b nHS (x) +  1        1 X      1 X
+   Ess         Ψb − Ψ  = H                   Ess      Ψb −     Ψb  ,
+          `                                `−1       `        `
+              b=1                                          b=1            b=1
+
+where Ess denotes expectations over the subsampling mechanism while holding the
+data fixed. We define our feasible boostrap of little bags variance estimator H b BLB (x)
+                                                                                  n
+via a version of the above ANOVA decomposition that uses empirical moments and
+note that, given a large enough number of trees B, this converges to the ideal half-
+sampling estimator.
+   The result below verifies that, under the conditions of Theorem 5, the optimal
+half-sampling estimator H b HS (x) with plug-in values for (θ̂(x), ν̂(x)) as in (18) con-
+                           n
+sistently estimates the sampling variance of Ψ(θ(x), ν(x)). We have already seen
+above that the computationally feasible estimator H      b nBLB (x) will match H  b nHS (x)
+whenever B is large enough and so, given any consistent estimator Vbn (x) for V (x),
+we find that the confidence intervals built using (16) will be asymptotically valid.
+
+   Theorem 6. Given the conditions           of Therorem 5, H    b HS (x) is consistent,
+                                                                  n
+    HS
+                                   
+kHb (x) − Hn (x; θ(x), ν(x))kF kHn (x; θ(x), ν(x))kF →p 0. Moreover, given any
+    n
+consistent Vbn (x) estimator for V (x) such that kVb (x) − V (x)kF →p 0, Gaussian con-
+fidence intervals built using (16) will asymptotically have nominal coverage.
+
+   One challenge with the empirical moment estimator based on the above is that,
+                                      b nBLB (x) may be negative. In our software, we
+if B is small, the variance estimates H
+avoid this problem by using a Bayesian analysis of variance following, e.g., Gelman
+et al. (2014), with an improper uniform prior for H b HS (x) over [0, ∞). When B is
+                                                      n
+large enough, this distinction washes out.
+
+   5. Application: Quantile Regression Forests. Our first application of gen-
+eralized random forests is to the classical problem of non-parametric quantile re-
+gression. This problem has also been considered in detail by Meinshausen (2006),
+who proposed a consistent forest-based quantile regression algorithm; his method
+also fits into the paradigm of solving estimating equations (2) using random forest
+weights (3). However, unlike us, Meinshausen (2006) does not propose a splitting
+rule that is tailored to the quantile regression context, and instead builds his forests
+using plain CART regression splits. Thus, a comparison of our method with that of
+Meinshausen (2006) provides a perfect opportunity for evaluating the value of our
+proposed method for constructing forest-based weights αi (x) that are specifically
+designed to express heterogeneity in conditional quantiles.
+   Recall that, in the language of estimating equations, the q-th quantile θq (x) of
+the distribution of Y conditionally on X = x is identified via (1), using the moment
+function ψθ (Yi ) = q1 ({Yi > θ}) − (1 − q)1 ({Yi ≤ θ}). Plugging this moment func-
+tion into our splitting scheme (8) gives us pseudo-outcomes ρi = 1({Yi > θ̂q,P (Xi ) }),
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                                           GENERALIZED RANDOM FORESTS                                           19
+
+
+
+                    truth                                                    truth
+      2.0
+
+                    quantregForest                                           quantregForest
+
+
+
+
+                                                                 2
+                    GRF                                                      GRF
+      1.5
+
+
+
+
+                                                                 1
+      1.0
+      0.5
+
+
+
+
+                                                                 0
+  Y
+
+
+
+
+                                                             Y
+      0.0
+
+
+
+
+                                                                 −1
+                                                                 −2
+      −1.0
+
+
+
+
+                                                                 −3
+             −1.0     −0.5           0.0     0.5   1.0                −1.0     −0.5           0.0   0.5   1.0
+                                     X                                                        X
+
+
+                             mean shift                                               scale shift
+
+Fig 2: Comparison of quantile regression using generalized random forests and the
+quantregForest package of Meinshausen (2006). In both cases, we have n = 2, 000
+independent and identically distributed examples where Xi is uniformly distributed
+over [−1, 1]p with p = 40, and Yi is Gaussian conditionally on (Xi )1 : In the left panel,
+Yi Xi ∼ N (0.8 · 1 ({(Xi )1 > 0}) , 1), while in the right panel Yi Xi ∼ N (0, (1 +
+1 ({(Xi )1 > 0}))2 ). The other 39 covariates are noise. We estimate the quantiles at
+q = 0.1, 0.5, 0.9.
+
+where θ̂q,P (Xi ) is the q-th quantile of the parent node P (Xi ) containing Xi , up to a
+scaling and re-centering that do not affect the subsequent regression split on these
+pseudo-outcomes. In other words, gradient-based quantile regression trees try to sep-
+arate observations that fall above the q-th quantile of the parent from those below
+it.
+    We compare our method to that of Meinshausen (2006) in Figure 2. In the left
+panel, we have a mean shift in the distribution of Yi conditional on Xi at (Xi )1 = 0,
+and both methods are able to pick it up as expected. However, in the right panel,
+the mean of Y given X is constant, but there is a scale shift at (Xi )1 = 0. Here,
+our method still performs well, as our splitting rule targets changes in the quantiles
+of the Y -distribution. However, the method of Meinshausen (2006) breaks down
+completely, as it relies on CART regression splits that are only sensitive to changes
+in the conditional mean of Y given X. We also note that generalized random forests
+produce somewhat smoother sample paths than the method of Meinshausen (2006);
+this is due to our use of honesty as described in Section 2.4. If we run generalized
+random forests without honesty, then our method still correctly identifies the jumps
+at x = 0, but has sample paths that oscillate locally just as much as the baseline
+method. The purpose of this example is not to claim that our variant of quantile
+regression forests built using gradient trees is always superior to the method of
+Meinshausen (2006) that uses regression-based splitting to obtain the weights αi (x);
+
+                                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+20                                ATHEY, TIBSHIRANI AND WAGER
+
+rather, we found that, our splitting rule is specifically sensitive to quantile shifts in
+a way that regression splits are not—and, moreover, deriving our splitting rule was
+fully automatic given the generalized random forest formalism.
+    In several applications, we want to estimate multiple quantiles at the same time.
+For example, in Figure 2, we estimate at q = 0.1, 0.5, 0.9. Estimating different
+forests for each quantile separately would be undesirable for many reasons: It would
+be computationally expensive, and there is a risk that quantile estimates might
+cross in finite samples due to statistical noise. Thus, we need to build a forest using
+a splitting scheme that is sensitive to changes at any of our quantiles of interests.
+Here, we use a simple heuristic inspired by our relabeling transformation. Given
+a set of quantiles of interest q1 < ... < qk , we first evaluate all these quantiles
+θ̂q1 ,P (Xi ) ≤ ... ≤ θ̂qk ,P (Xi ) in the parent node, and label i-th point by the interval
+[θ̂qj−1 ,P (Xi ) , θ̂qj ,P (Xi ) ) it falls into. Then, we choose the split point using a multiclass
+classification rule that classifies each observation into one of the intervals.
+
+   6. Application: Estimating Conditional Average Partial Effects. Next,
+we consider conditional average partial effect estimation under exogeneity; procedu-
+rally, the statistical task is equivalent to solving linear regression problems condi-
+tionally on features. Suppose that we observe samples (Xi , Yi , Wi ) ∈ X× R × Rq ,
+and posit a random effects model Yi = Wi · bi + εi , β(x) = E bi Xi = x . Our goal
+is to estimate θ(x) = ξ · β(x) for some contrast ξ ∈ Rp . If Wi ∈ {0, 1} is a treatment
+assignment, then β(x) corresponds to the conditional average treatment effect.
+   In order for the average effect β(x) to be identified, we need to make certain
+distributional assumptions. Here, we assume that the Wi are exogenous, i.e., in-
+dependent of the unobservables conditionally on Xi : {bi , εi } ⊥ ⊥ Wi Xi . If Wi is a
+binary treatment, this condition is equivalent to the unconfoundedness assumption
+used to motivate propensity score methods (Rosenbaum and Rubin, 1983). When
+exogeneity does not hold, more sophisticated identification strategies are needed (see
+following section).
+
+   6.1. Growing a Forest. Our parameter of interest θ(x) = ξ · β(x) is
+identified by (1) with ψβ(x), c(x) (Yi , Wi ) = (Yi − β(x) · Wi − c(x))(1 Wi> )> where
+c(x) is an intercept     term;
+                           −1 this   can also be written more explicitly as
+θ(x) = ξ > Var Wi Xi = x
+               
+                               Cov Wi , Yi Xi = x . Given forest weights αi (x) as
+in (2), the induced estimator θ̂(x) for θ(x) is
+
+                           n
+                                                         !−1 n
+                       >
+                           X                       ⊗2     X                          
+(19)       θ̂(x) = ξ             αi (x) Wi − W α               αi (x) Wi − W α Yi − Y α ,
+                           i=1                              i=1
+
+where W α = αi (x)Wi and Y α = αi (x)Yi , and we write v ⊗2 = vv > .
+                P                           P
+   Generalized random forests provide us with a quasi-automatic framework for get-
+ting the weights αi (x) needed in (19); all that needs to be done is to compute the
+
+
+                            imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                   21
+
+pseudo-outcomes ρi from (8) used for recursive partitioning. We use (7) and, for
+every parent P and each observation i with Xi ∈ P set
+                                                               
+              ρi = ξ > A−1
+                        P   W  i − W P    Y i − Y P − W i − W P  β̂P ,
+(20)                        1          X               ⊗2
+              AP =                             W − WP      ,
+                     |{i : Xi ∈ P }|
+                                      {i:Xi ∈P }
+
+where now W P and Y P stand for averages taken over the parent P , and β̂P is the
+least-squares regression solution of Yi on Wi in the parent. Note that the matrix
+inverse A−1
+         P only needs to be evaluated once per parent node.
+   Checking the conditions required in Section
+                                                  3, note that Assumption 1 holds
+whenever
+         the  functions
+                        E  Yi  Xi = x  , E   W i X i = x  , Cov Yi , Wi Xi = x and
+Var Wi Xi = x are all Lipschitz in x, Assumption 2 holds provided that
+Var Wi Xi = x in invertible, while Assumptions 3–6 hold by construction. Thus,
+Theorem 5 in fact applies in this setting.
+
+   6.1.1. Local Centering. The above construction allows for asymptotically valid
+inference for θ(x), but the performance of the forests can in practice be improved
+by first regressing out the effect of the features Xi on all the outcomes separately.
+Writing y(x) = E[Yi X = x] and w(x) = E[Wi X = x] for the conditional marginal
+expectations of Yi and Wi respectively, define centered outcomes Yei = Yi − ŷ (−i) (Xi )
+and Wfi = Wi − ŵ(−i) (Xi ), where ŷ (−1) (Xi ), etc., are leave-one-out estimates of the
+marginal expectations, computed without using the i-th observation. We then run
+a forest using centered outcomes {Yei , Wfi }n instead of the original {Yi , Wi }n .
+                                             i=1                                    i=1
+   In order to justify this transformation, we note if there is any set S ⊆ X over
+which β(x) is constant (and so θ(x) is also constant), the following expression also
+identifies θ(x) for any x ∈ S:
+                                                           −1
+           θ(x) = ξ > Var Wi − E Wi Xi
+                                           
+                                                   Xi ∈ S
+(21)                                                                      
+                         Cov Wi − E Wi Xi , Yi − E Yi Xi                   Xi ∈ S .
+
+Thus, if we locally center the Yi and the Wi before running our forest, the estimator
+(19) has the potential to be robust to confounding effects even when the weights
+αi (x) are not sharply concentrated around x. Similar orthogonalization ideas have
+proven to be useful in many statistical contexts (e.g., Chernozhukov et al., 2016;
+Newey, 1994b; Neyman, 1979); in particular, Robinson (1988) showed that if we
+have access to a neighborhood S over which β(x) = βS is constant, then the moment
+condition (21) induces a semiparametrically efficient estimator for θS = ξ · βS .
+   We note that if we ran a forest with any deterministic centering scheme, i.e.,
+we used Yei = Yi − ŷ(Xi ) for any Lipschitz function ŷ(Xi ) that does not depend
+on the data, etc., then the theory developed in Section 3 would allow for valid
+inference about θ(x) (in particular, we do not need to assume consistency of ŷ(Xi )).
+Moreover, we could also emulate this result by using a form of k-fold cross-fitting
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+22                        ATHEY, TIBSHIRANI AND WAGER
+
+(Chernozhukov et al., 2016; Schick, 1986). In the context of forests, it is much more
+practical to carry out residualization via leave-one-out prediction than via k-fold
+cross-fitting, because leave-one-out prediction in forests is computationally cheap
+(Breiman, 2001); however, a practitioner wanting to use results that are precisely
+covered by theory may prefer to use cross-fitting for centering.
+
+   6.2. Example: Causal Forests. When Wi ∈ {0, 1} is a binary treatment assign-
+ment, the present setup is equivalent to the standard problem of heterogeneous
+treatment effect estimation under unconfoundedness. Heterogeneous treatment ef-
+fect estimation via tree-based methods has received considerable attention in the
+recent literature: Athey and Imbens (2016) and Su et al. (2009) develop tree-based
+methods for subgroup analysis, Hill (2011) studies treatment effect estimation via
+Bayesian additive regression trees (Chipman, George and McCulloch, 2010), and
+Wager and Athey (2018) propose a causal forest procedure that is very nearly a
+special case of our generalized random forests. The main interest of our method
+is in how it can handle situations for which no comparable methods exist, such as
+instrumental variables regression as discussed below. Here, however, we briefly dis-
+cuss how some concepts developed as a part of our more general approach directly
+improve the performance of causal forests.
+   The closest method to ours is Procedure 1 of Wager and Athey (2018), which is
+almost equivalent to a generalized random forest without centering, the only sub-
+stantive differences being that they split using the exact loss criterion (5) rather
+than our gradient-based loss criterion (9), and let each tree compute its own treat-
+ment effect estimate rather than using the weighting scheme from Section 2.1 (these
+methods are exactly equivalent for regression forests, but not for causal forests).
+Wager and Athey (2018) also consider a second approach, Procedure 2, that obtains
+its neighborhood function via a classification forest on the treatment assignments
+Wi .
+   A weakness of the methods in Wager and Athey (2018), as they note in their
+discussion, is that these two procedures have different strengths—Procedure 1 is
+more sensitive to changes in the treatment effect function, while Procedure 2 is more
+robust to confounding—but the hard coded nature of these methods made it difficult
+to reconcile their relative advantages. Conversely, given the framing of generalized
+random forests via estimating equations, it is “obvious” that we can leverage best
+practices from the literature on estimating equations and orthogonalize our moment
+conditions by regressing out the main effect of Xi on Wi and Yi as in Robinson
+(1988).
+   To illustrate the value of orthogonalization, we revisit a simulation of Wa-
+ger and Athey (2018) where Xi ∼ U ([0, 1]p ), Wi Xi ∼ Bernoulli(e(Xi )), and
+Yi Xi , Wi ∼ N (m(Xi ) + (Wi − 0.5)τ (Xi ), 1). The authors consider two differ-
+ent simulation settings: One with no confounding, m(x) = 0 and e(x) = 0.5, but
+with treatment heterogeneity τ (x) = ς (x1 ) ς (x2 ), ς (u) = 1 + 1 / (1 + e−20(u−1/3) ),
+and second with no treatment effect, τ (x) = 0, but with confounding,
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                           GENERALIZED RANDOM FORESTS                                       23
+
+               conf.   heterog.   p        n     WA-1 WA-2 GRF C. GRF
+                no       yes      10      800     1.37     6.48    0.85    0.87
+                no       yes      10     1600     0.63     6.23    0.58    0.59
+                no       yes      20      800     2.05     8.02    0.92    0.93
+                no       yes      20     1600     0.71     7.61    0.52    0.52
+                yes       no      10      800     0.81     0.16    1.12    0.27
+                yes       no      10     1600     0.68     0.10    0.80    0.20
+                yes       no      20      800     0.90     0.13    1.17    0.17
+                yes       no      20     1600     0.77     0.09    0.95    0.11
+                yes      yes      10      800     4.51     7.67    1.92    0.91
+                yes      yes      10     1600     2.45     7.94    1.51    0.62
+                yes      yes      20      800     5.93     8.68    1.92    0.93
+                yes      yes      20     1600     3.54     8.61    1.55    0.57
+                                              Table 1
+ Mean squared error of various “causal forest” methods, that estimate heterogeneous treatment
+ effects under unconfoundedness using forests. We compare our generalized random forests with
+   and without local centering (C. GRF and GRF) to Procedures 1 and 2 of Wager and Athey
+ (2018), WA-1 and WA-2. All forests have B = 2, 000 trees, and results are aggregated over 60
+    simulation replications with 1,000 test points each. The mean-squared errors numbers are
+                                  multiplied by 10 for readbility.
+
+e(x) = 41 (1 + β2, 4 (x3 )) , m(x) = 2x3 − 1, where βa, b is the β-density with shape
+parameters a and b. We also consider a third setting with both heterogeneity and
+confounding, that combines τ (·) from the first setting with m(·) and e(·) from the sec-
+ond. For the first setting, Wager and Athey (2018) used their Procedure 1, whereas
+for the second they used Procedure 2, while noting that it is unfortunate that the
+practitioner is forced to choose one procedure or the other.
+   Results presented in Table 1 are reassuring, suggesting that generalized random
+forests with centering do well under both settings, and can better handle the case
+with both confounding and treatment heterogeneity than either of the other two
+procedures. In contrast, Procedure 1 of Wager and Athey does poorly with pure
+confounding, whereas Procedure 2 of Wager and Athey is good in the pure con-
+founding setting, but does poorly with strong heterogeneity; this is as expected,
+noting the design of both methods.
+
+   7. Application: Instrumental Variables Regression. In many applica-
+tions, we want to measure the causal effect of an intervention on an outcome, all while
+recognizing that the intervention and the outcome may also be tied together through
+non-causal pathways, thus ruling out the exogeneity assumption made above. One
+approach in this situation is to rely on instrumental variables (IV) regression, where
+we find an auxiliary source of randomness that can be used to identify causal effects.
+   For example, suppose we want to measure the causal effect of child rearing on
+a mother’s labor-force participation. It is well known that, in the United States,
+mothers with more children are less likely to work. But how much of this link is
+causal, i.e., some mothers work less because they are busy raising children, and how
+much of it is merely due to confounding factors, e.g., some mothers have preferences
+that both lead them to raise more children and be less likely to participate in the
+
+                        imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+24                        ATHEY, TIBSHIRANI AND WAGER
+
+labor force? Understanding these effects may be helpful in predicting the value of
+programs like subsidized daycare that assist mothers’ labor force participation while
+they have young children.
+   To study this question, Angrist and Evans (1998) found a source of auxiliary
+randomness that can be used to distinguish causal versus correlational effects: They
+found that, in the United States, parents who already have two children of mixed
+sexes, i.e., one boy and one girl, will have fewer kids in the future than parents
+whose first two children were of the same sex. Assuming that the sexes of the first
+two children in a family are effectively random, this observed preference for having
+children of both sexes provides an exogenous source of variation in family size that
+can be used to identify causal effects: If the mixed sex indicator is unrelated to
+the mother’s propensity to work for a fixed number of children, then the effect of
+the mixed sex indicator on the observed propensity to work can be attributed to
+its effect on family size. The instrumental variable estimator normalizes this effect
+by the effect of mixed sex on family size, so that the normalized estimate is a
+consistent estimate of the treatment effect of family size on work. Other classical
+uses of instrumental variables regression include measuring the impact of military
+service on lifetime income by using the Vietnam draft lottery as an instrument
+(Angrist, 1990), and measuring the extent to which 401(k) savings programs crowd
+out other savings, using eligibility for 401(k) savings programs as an instrument
+(Abadie, 2003; Poterba, Venti and Wise, 1996).
+
+    7.1. A Forest for Instrumental Variables Regression. Classical instrumental vari-
+ables regression seeks a global understanding of the treatment effect, e.g., on average
+over the whole U.S. population, does having more children reduce the labor force
+participation of women? Here, we use forests to estimate heterogeneous treatment
+effects: We might ask how the causal effect of child rearing varies with a mother’s
+age and socioeconomic status.
+    We observe i = 1, ..., n independent and identically distributed subjects, each of
+whom has features Xi ∈ X , an outcome Yi ∈ R, a received treatment Wi ∈ {0, 1},
+and an instrument Zi ∈ {0, 1}. We believe that the outcomes Yi and received treat-
+ment Wi are related via a structural model Yi = µ (Xi ) + τ (Xi ) Wi + εi , where τ (Xi )
+is understood to be the causal effect of Wi on Yi , and εi is a noise term that may
+be positively correlated with Wi . Because εi is correlated with Wi , standard re-
+gression analyses will not in general be consistent for τ (Xi ), and we need to use
+the instrument Zi . If Zi is independent of εi conditionally on Xi then, provided
+that Zi has an influence on the received treatment Wi , i.e., that the covariance
+of Zi and Wi conditionally   on Xi = x is non-zero,
+                                                        the treatment
+                                                                        effect τ (x) is
+identified via τ (x) = Cov Yi , Zi Xi = x     Cov Wi , Zi Xi = x . We can then es-
+timate
+        τ (x) by via moment functions
+                                       E Zi (Yi − Wi τ (x) − µ(x)) Xi = x = 0 and
+E Yi − Wi τ (x) − µ(x) Xi = x = 0, where the intercept µ(x) is a nuisance param-
+eter. If we are not willing to assume that every individual i with features Xi = x has
+the same treatment effect τ (x), then heterogeneous instrumental variables regression
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                           GENERALIZED RANDOM FORESTS                                     25
+
+allows us to estimate a (conditional) local average treatment effect (Abadie, 2003;
+Imbens and Angrist, 1994).
+   We then use our formalism to derive a forest that is targeted towards estimat-
+ing causal effects identified via conditional two-stage least squares. Gradient-based
+labeling (8) yields pseudo-outcomes       for every
+                                                  parent node P and each observation
+i with Xi ∈ P , ρi = Zi − Z P           Yi − Y P − Wi − W P τ̂P , where Y P , W P , Z P
+are moments in the parent node, and τ̂P is a solution to the estimating equation in
+the parent. Given these pseudo-outcomes, the tree executes a CART regression split
+on the ρi as usual. Finally, we obtain personalized treatment effect estimates τ̂ (x)
+by solving (2) with forest weights (3).
+   To verify that Theorem 5 holds in this setting, we note that        Assumption
+                                                                                          1
+holds
+       whenever
+                the  conditional   moment
+                                              functions E W
+                                                             i Xi = x  , E   Yi  X  i = x  ,
+E Zi Xi = x , E Wi Zi Xi = x and E Yi Zi Xi = x are all Lipschitz continuous
+in x, while Assumption 2 holds whenever the instrument is correlated with received
+treatment (i.e., the instrument is valid). Assumptions 3–6 hold thanks to the defi-
+nition of ψ.
+   As in Section 6.1.1, we center our procedure using the transformation of Robinson
+(1988), and regress out the marginal effects of Xi first. Writing y(x) = E[Yi X = x],
+w(x) = E[Wi X = x], and z(x) = E[Zi X = x], we compute conditionally centered
+outcomes by leave-one-out estimation Yei = Yi − ŷ (−i) (Xi ), W   fi = Wi − ŵ(−i) (Xi )
+and Zi = Zi − ẑ
+      e          (−i) (Xi ), and then run the full instrumental variables forest using
+centered outcomes {Yei , Wfi , Zei }n . We recommend working with centered outcomes
+                                    i=1
+by default, and we do so in our simulations. Our package grf provides the option of
+making this transformation automatically, where ŷ (−i) (Xi ), ŵ(−i) (Xi ) and ẑ (−i) (Xi )
+are first estimated using 3 separate regression forests.
+   There is a rich literature on non-parametric instrumental variables regression.
+The above approach generalizes classical approaches based on kernels or series es-
+timation (Abadie, 2003; Su, Murtazashvili and Ullah, 2013; Wooldridge, 2010). In
+other threads, Darolles et al. (2011) and Newey and Powell (2003) study instru-
+mental variables models that generalize the conditionally linear treatment model
+and allowing for non-linear effects, and Hartford et al. (2017) develop deep learning
+tools. Belloni et al. (2012) consider working with high-dimensional instruments Zi .
+   Appendix C has a simulation study for IV forests, comparing them to nearest-
+neighbor and series regression. We find our method to perform well relative to these
+baselines, and centering to be helpful. We also evaluate coverage of the bootstrap
+of little bag confidence intervals.
+
+  7.2. The Effect of Child Rearing on Labor-Force Participation. We now revisit
+our motivating example discussed at the beginning of Section 7. We follow Angrist
+and Evans (1998) in constructing our dataset, and study a sample of n = 334, 535
+married mothers with at least 2 children (1980 census data), based on the following
+quantities: The outcome Yi is whether the mother did not work in the year preceding
+the census, the received treatment Wi is whether the mother had 3 or more chil-
+
+                        imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+26                                          ATHEY, TIBSHIRANI AND WAGER
+
+
+
+          0.4
+
+
+
+
+                                                                         0.4
+          0.3
+
+
+
+
+                                                                         0.3
+          0.2
+
+
+
+
+                                                                         0.2
+  CLATE
+
+
+
+
+                                                                 CLATE
+          0.1
+
+
+
+
+                                                                         0.1
+          0.0
+
+
+
+
+                                                                         0.0
+          −0.1
+
+
+
+
+                                                                         −0.1
+                  0     20      40        60          80   100                   0     20      40        60          80   100
+                         Father's Income [$1k/year]                                     Father's Income [$1k/year]
+
+
+                 Mother 18 years old at first birth                             Mother 22 years old at first birth
+
+Fig 3: Generalized random forest estimates (along with pointwise 95% confidence
+intervals) for the causal effect of having a third child on the probability that a mother
+works for pay. as identified by the same sex instrument of Angrist and Evans (1998);
+a positive treatment effect means that the treatment reduces the probability that
+the mother works. We vary the mother’s age at first birth and the father’s income;
+other covariates are set to their median values in the above plots. The forest was
+grown with a sub-sample fraction s/n = 0.05, a minimum leaf size k = 800, and
+consists of B = 100, 000 trees.
+
+dren at census time, and the instrument Zi measures whether or not the mother’s
+first two children were of different sexes. Based on this data, Angrist and Evans
+(1998) estimated the local average treatment effect of having a third child among
+mothers with at least two children. In our sample, Cov   d [W, Z] = 1.6 · 10−2 , while
+                     −3
+ d [Y, Z] = 2.1 · 10 , leading to a 95% confidence interval for the local average
+Cov
+treatment effect τ ∈ (0.14 ± 0.054) using the R function ivreg (Kleiber and Zeileis,
+2008). Thus, it appears that having a third child reduces women’s labor force partic-
+ipation on average in the US. Angrist and Evans (1998) conduct extensive sensitivity
+analysis to corroborate the plausibility of this identification strategy.
+   We seek to extend this analysis by fitting heterogeneity on several covariates,
+including the mother’s age at the birth of her first child, her age at census time,
+her years of education and her race (black, hispanic, other), as well as the father’s
+income. Formally, our analysis identifies a conditional local average treatment effect
+τ (x) (Abadie, 2003; Imbens and Angrist, 1994).
+   Results from a generalized random forest analysis are presented in Figure 3. These
+results suggest that the observed treatment effect is driven by mothers whose hus-
+bands have a lower income. Such an effect would be intuitively easy to justify: it
+seems plausible that mothers with wealthier husbands can afford to hire help in
+raising their children, and so can choose whether or not to work based on other
+
+                                      imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                  27
+
+considerations. That being said, we caution that the father’s income was measured
+in the census, so there is potentially an endogeneity problem: perhaps a mother’s
+choice not to work after having a third child enables the husband to earn more.
+Ideally, we would have wanted to measure the husband’s income at the time of the
+second child’s birth, but we do not have access to this measurement in the present
+data. Moreover, the confidence intervals in Figure 3 are rather wide, attesting to
+the importance of formal asymptotic theory when using forest-based methods for
+instrumental variables regression.
+
+   8. Discussion. We introduced generalized random forests as a versatile method
+for adaptive, local estimation in a wide variety of statistical models. We discussed
+our method in the contexts of quantile regression and heterogeneous treatment effect
+estimation, and our approach also applies to a wide variety of other settings, such
+as demand estimation or panel data analysis. Our software, grf, is implemented in
+a modular way that should enable users to implement splitting rules motivated by
+new statistical questions.
+   Many of the remaining challenges with generalized random forests are closely
+related to those with standard nonparametric methods for local likelihood estima-
+tion. In particular, as discussed above, our confidence interval construction relies
+on undersmoothing to get valid asymptotic coverage (without undersmoothing, the
+confidence intervals account for sampling variability of the forest, but do not capture
+bias). Developing a principled way to bias-correct our confidence intervals, and thus
+avoid the need for undersmoothing, would be of considerable interest both concep-
+tually and in practice. Moreover, again like standard methods, forests can exhibit
+edge effects whereby the slope of our estimates θ̂(x) may taper off as we approach
+the edge of X -space, even when the true function θ(x) keeps changing. Finding an
+elegant way to deal with such edge effects could improve the quality of the confidence
+intervals provided by generalized random forests.
+
+   Acknowledgment. We are grateful to Jerry Friedman for first recommending
+we take a closer look at splitting rules for quantile regression forests, to Will Fithian
+for drawing our attention to connections between our early ideas and gradient boost-
+ing, to Guido Imbens for suggesting the local centering scheme in Section 6.1.1, to
+the associate editor and three anonymous referees for helpful suggestions, and to
+seminar participants at the Atlantic Causal Inference Conference, the BIRS Work-
+shop on the Interface of Machine Learning and Statistical Inference, the California
+Econometrics Conference, Ca’Voscari University of Venice, Columbia, Cornell, the
+Econometric Society Winter Meetings, EPFL, the European University Institute,
+INFORMS, Kellogg, the Microsoft Conference on Digital Economics, the MIT Con-
+ference on Digital Experimentation, Northwestern, Toulouse, Triangle Computer
+Science Distinguished Lecture Series, University of Chicago, University of Illinois
+Urbana–Champaign, University of Lausanne, and the USC Dornsife Conference on
+Big Data in Economics.
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+28                           ATHEY, TIBSHIRANI AND WAGER
+
+References.
+Abadie, A. (2003). Semiparametric instrumental variable estimation of treatment response models.
+  Journal of Econometrics 113 231–263.
+Amit, Y. and Geman, D. (1997). Shape quantization and recognition with randomized trees.
+  Neural Computation 9 1545–1588.
+Andrews, D. W. (1993). Tests for parameter instability and structural change with unknown
+  change point. Econometrica 821–856.
+Angrist, J. D. (1990). Lifetime earnings and the Vietnam era draft lottery: Evidence from social
+  security administrative records. AER 313–336.
+Angrist, J. D. and Evans, W. N. (1998). Children and Their Parents’ Labor Supply: Evidence
+  from Exogenous Variation in Family Size. AER 450–477.
+Arlot, S. and Genuer, R. (2014). Analysis of purely random forests bias. arXiv preprint
+  arXiv:1407.3939.
+Athey, S. and Imbens, G. (2016). Recursive partitioning for heterogeneous causal effects. Proceed-
+  ings of the National Academy of Sciences 113 7353–7360.
+Belloni, A., Chen, D., Chernozhukov, V. and Hansen, C. (2012). Sparse models and methods
+  for optimal instruments with an application to eminent domain. Econometrica 80 2369–2429.
+Beygelzimer, A. and Langford, J. (2009). The offset tree for learning with partial labels. In
+  Proceedings of KDD 129–138. ACM.
+Beygelzimer, A., Kakadet, S., Langford, J., Arya, S., Mount, D. and Li, S. (2013). FNN:
+  Fast Nearest Neighbor Search Algorithms and Applications.
+Biau, G. (2012). Analysis of a random forests model. JMLR 13 1063–1095.
+Biau, G., Devroye, L. and Lugosi, G. (2008). Consistency of random forests and other averaging
+  classifiers. JMLR 9 2015–2033.
+Biau, G. and Devroye, L. (2010). On the layered nearest neighbour estimate, the bagged nearest
+  neighbour estimate and the random forest method in regression and classification. JMVA 101
+  2499–2518.
+Biau, G. and Scornet, E. (2016). A random forest guided tour. Test 25 197–227.
+Breiman, L. (1996). Bagging predictors. Machine Learning 24 123–140.
+Breiman, L. (2001). Random forests. Machine Learning 45 5–32.
+Breiman, L., Friedman, J., Stone, C. J. and Olshen, R. A. (1984). Classification and Regression
+  Trees. CRC press.
+Bühlmann, P. and Yu, B. (2002). Analyzing bagging. Ann. Statist. 30 927–961.
+Chernozhukov, V., Chetverikov, D., Demirer, M., Duflo, E., Hansen, C. and Newey, W.
+  (2016). Double Machine Learning for Treatment and Causal Parameters. arXiv preprint
+  arXiv:1608.00060.
+Chipman, H. A., George, E. I. and McCulloch, R. E. (2010). BART: Bayesian additive re-
+  gression trees. The Annals of Applied Statistics 4 266–298.
+Darolles, S., Fan, Y., Florens, J.-P. and Renault, E. (2011). Nonparametric instrumental
+  regression. Econometrica 79 1541–1565.
+Denil, M., Matheson, D. and De Freitas, N. (2014). Narrowing the Gap: Random Forests In
+  Theory and In Practice. In Proceedings of ICML 665–673.
+Dietterich, T. G. (2000). An experimental comparison of three methods for constructing ensem-
+  bles of decision trees: Bagging, boosting, and randomization. Machine Learning 40 139–157.
+Efron, B. (1982). The jackknife, the bootstrap and other resampling plans. SIAM.
+Efron, B. and Stein, C. (1981). The jackknife estimate of variance. Ann. Statist. 9 586–596.
+Fan, J., Farmen, M. and Gijbels, I. (1998). Local maximum likelihood estimation and inference.
+  JRSS-b 60 591–608.
+Fan, J. and Gijbels, I. (1996). Local Polynomial Modelling and its Applications 66. CRC Press.
+Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine.
+  Ann. Statist. 1189–1232.
+Gelman, A., Carlin, J. B., Stern, H. S. and Rubin, D. B. (2014). Bayesian Data Analysis 2.
+
+
+                         imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                             GENERALIZED RANDOM FORESTS                                          29
+
+   Chapman & Hall/CRC Boca Raton, FL, USA.
+Geurts, P., Ernst, D. and Wehenkel, L. (2006). Extremely randomized trees. Machine Learning
+   63 3–42.
+Gordon, L. and Olshen, R. A. (1985). Tree-structured survival analysis. Cancer Treatment Re-
+   ports 69 1065–1069.
+Hampel, F. R. (1974). The influence curve and its role in robust estimation. JASA 69 383–393.
+Hansen, B. E. (1992). Testing for parameter instability in linear models. Journal of Policy Modeling
+   14 517–533.
+Hartford, J., Lewis, G., Leyton-Brown, K. and Taddy, M. (2017). Deep IV: A Flexible
+   Approach for Counterfactual Prediction. In Proceedings of ICML 1414–1423.
+Hastie, T., Tibshirani, R. and Friedman, J. (2009). The Elements of Statistical Learning. New
+   York: Springer.
+Hill, J. L. (2011). Bayesian nonparametric modeling for causal inference. Journal of Computational
+   and Graphical Statistics 20.
+Hjort, N. L. and Koning, A. (2002). Tests for constancy of model parameters over time. Journal
+   of Nonparametric Statistics 14 113–132.
+Ho, T. K. (1998). The random subspace method for constructing decision forests. IEEE transac-
+   tions on pattern analysis and machine intelligence 20 832–844.
+Hoeffding, W. (1948). A class of statistics with asymptotically normal distribution. The Annals
+   of Mathematical Statistics 19 293–325.
+Hoeffding, W. (1963). Probability inequalities for sums of bounded random variables. JASA 58
+   13–30.
+Honoré, B. E. and Kyriazidou, E. (2000). Panel data discrete choice models with lagged depen-
+   dent variables. Econometrica 68 839–874.
+Hothorn, T., Lausen, B., Benner, A. and Radespiel-Tröger, M. (2004). Bagging survival
+   trees. Statistics in Medicine 23 77–91.
+Imbens, G. W. and Angrist, J. D. (1994). Identification and estimation of local average treatment
+   effects. Econometrica 62 467–475.
+Ishwaran, H. and Kogalur, U. B. (2010). Consistency of random survival forests. Statistics &
+   Probability Letters 80 1056–1064.
+Kallus, N. (2016). Learning to Personalize from Observational Data. arXiv preprint
+   arXiv:1608.08925.
+Kleiber, C. and Zeileis, A. (2008). Applied econometrics with R. Springer Science & Business
+   Media.
+LeBlanc, M. and Crowley, J. (1992). Relative risk trees for censored survival data. Biometrics
+   411–425.
+Lewbel, A. (2007). A local generalized method of moments estimator. Economics Letters 94 124–
+   128.
+Lin, Y. and Jeon, Y. (2006). Random forests and adaptive nearest neighbors. JASA 101 578–590.
+Loader, C. (1999). Local Regression and Likelihood. Springer.
+Mallows, C. L. (1973). Some comments on Cp. Technometrics 15 661–675.
+Meinshausen, N. (2006). Quantile regression forests. JMLR 7 983–999.
+Mentch, L. and Hooker, G. (2016). Quantifying uncertainty in random forests via confidence
+   intervals and hypothesis tests. JMLR 17 1–41.
+Molinaro, A. M., Dudoit, S. and Van der Laan, M. J. (2004). Tree-based multivariate regres-
+   sion and density estimation with right-censored data. JMVA 90 154–177.
+Newey, W. K. (1994a). Kernel estimation of partial means and a general variance estimator.
+   Econometric Theory 10 1–21.
+Newey, W. K. (1994b). The asymptotic variance of semiparametric estimators. Econometrica 62
+   1349–1382.
+Newey, W. K. and Powell, J. L. (2003). Instrumental variable estimation of nonparametric
+   models. Econometrica 71 1565–1578.
+
+
+                          imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+30                           ATHEY, TIBSHIRANI AND WAGER
+
+Neyman, J. (1979). C(α) tests and their use. Sankhyā, Series A 1–21.
+Nyblom, J. (1989). Testing for the constancy of parameters over time. JASA 84 223–230.
+Ploberger, W. and Krämer, W. (1992). The CUSUM test with OLS residuals. Econometrica
+  271–285.
+Poterba, J. M., Venti, S. F. and Wise, D. A. (1996). How retirement saving programs increase
+  saving. JEP 10 91–112.
+Robins, J. M. and Ritov, Y. (1997). Toward a curse of dimensionality appropriate (CODA)
+  asymptotic theory for semi-parametric models. Statistics in Medicine 16.
+Robinson, P. M. (1988). Root-N-consistent semiparametric regression. Econometrica 931–954.
+Rosenbaum, P. R. and Rubin, D. B. (1983). The central role of the propensity score in observa-
+  tional studies for causal effects. Biometrika 70 41–55.
+Schick, A. (1986). On asymptotically efficient estimation in semiparametric models. Ann. Statist.
+  1139–1151.
+Scornet, E., Biau, G. and Vert, J.-P. (2015). Consistency of random forests. Ann. Statist. 43
+  1716–1741.
+Sexton, J. and Laake, P. (2009). Standard errors for bagged and random forest estimators.
+  Computational Statistics & Data Analysis 53 801–811.
+Staniswalis, J. G. (1989). The kernel estimate of a regression function in likelihood-based models.
+  JASA 84 276–283.
+Stone, C. J. (1977). Consistent nonparametric regression. Ann. Statist. 595–620.
+Su, L., Murtazashvili, I. and Ullah, A. (2013). Local linear GMM estimation of functional
+  coefficient IV models with an application to estimating the rate of return to schooling. Journal
+  of Business & Economic Statistics 31 184–207.
+Su, X., Tsai, C.-L., Wang, H., Nickerson, D. M. and Li, B. (2009). Subgroup analysis via
+  recursive partitioning. JMLR 10 141–158.
+Tibshirani, R. and Hastie, T. (1987). Local likelihood estimation. JASA 82 559–567.
+Van der Vaart, A. W. (2000). Asymptotic Statistics. Cambridge University Press.
+van der Vaart, A. W. and Wellner, J. A. (1996). Weak Convergence and Empirical Processes.
+  Springer.
+Varian, H. R. (2014). Big data: New tricks for econometrics. JEP 28 3–27.
+Wager, S. and Athey, S. (2018). Estimation and inference of heterogeneous treatment effects
+  using random forests. JASA just-accepted.
+Wager, S., Hastie, T. and Efron, B. (2014). Confidence Intervals for Random Forests: The
+  Jackknife and the Infinitesimal Jackknife. JMLR 15.
+Wager, S. and Walther, G. (2015). Adaptive Concentration of Regression Trees, with Application
+  to Random Forests. arXiv preprint arXiv:1503.06388.
+Wooldridge, J. M. (2010). Econometric analysis of cross section and panel data. MIT press.
+Wright, M. N. and Ziegler, A. (2017). ranger: A fast implementation of random forests for high
+  dimensional data in C++ and R. Journal of Statistical Software 77 1–17.
+Zeileis, A. (2005). A unified approach to structural change tests based on ML scores, F statistics,
+  and OLS residuals. Econometric Reviews 24 445–466.
+Zeileis, A. and Hornik, K. (2007). Generalized M-fluctuation tests for parameter instability.
+  Statistica Neerlandica 61 488–508.
+Zeileis, A., Hothorn, T. and Hornik, K. (2008). Model-based recursive partitioning. Journal of
+  Computational and Graphical Statistics 17 492–514.
+Zhu, R., Zeng, D. and Kosorok, M. R. (2015). Reinforcement learning trees. JASA 110 1770–
+  1784.
+
+
+
+
+                          imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                                GENERALIZED RANDOM FORESTS                                              31
+
+                                                          n = 2, Y = 0.2
+                                                          data: {(0.9, 0.4), −0.1}, {(1.0, 0.2), 0.3}
+                                                   0.8
+                                            X1 >
+                                n=3
+
+                                           X1 ≤           n = 1, Y = −0.7
+                     .3                           0.8
+                   >0                                     data: {(0.5, 0.4), −0.7}
+              X1
+   n=7
+                                                          n = 2, Y = −0.1
+            X1                                            data: {(0.1, 0.9), 0.1}, {(0.2, 0.8), −0.3}
+                 ≤0
+                   .3                              0.7
+                                            X2 >
+                                n=4
+
+                                           X2 ≤           n = 2, Y = 1.1
+                                                  0.7
+                                                          data: {(0.1, 0.3), 0.9}, {(0.2, 0.5), 1.3}
+
+Fig 4: Example of a small regression tree on a sample of size n = 7. The examples
+used to build this tree are of the form {Xi , Yi } ∈ R2 ×R, and axis-aligned splits based
+on the Xi determine the leaf membership of each training example. In “standard”
+regression trees as discussed in, e.g., Breiman et al. (1984) or Hastie, Tibshirani and
+Friedman (2009), the tree predicts by averaging the outcomes Yi within the relevant
+leaf; thus, in the example of Figure 1, any test point x with (x1 ≤ 0.3) ∧ (x2 ≤ 0.7)
+would be assigned a prediction µ̂(x) = 1.1. In our method, we do not consider tree
+predictions directly, but instead use trees to construct a neighborhood weighting as
+in Figure 1. Our approach also relies on a form of subsample splitting where different
+subsets of the data are used to grow the tree and make within-leaf predictions; see
+Section 2.4 for details.
+
+
+                    APPENDIX A: PROOF OF MAIN RESULTS
+   Here, we present arguments leading up to our main result, namely the central
+limit theorem presented in Theorem 5, starting with some technical lemmas. The
+proofs of Propositions 1 and 2, as well as the technical results stated below are given
+in Appendix B. Throughout our theoretical analysis, we use the following notation:
+Given our forest weights αi (x) (3), let
+                          n
+                          X                                         n
+                                                                    X
+(22)     Ψ (θ, ν) :=            αi (x)ψθ, ν (Oi ) and Ψ (θ, ν) :=         αi (x)Mθ, ν (Xi ).
+                          i=1                                       i=1
+
+We will frequently use the following bounds on the moments of Ψ at the true pa-
+rameter value (θ(x), ν(x)).
+
+  Lemma 7. Let αi (x) be weights from a forest obtained as in Specification 1,
+and suppose that the M -function is Lipschitz in x as in Assumption 1. Then,
+
+                          imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+32                        ATHEY, TIBSHIRANI AND WAGER
+
+Ψ (θ(x), ν(x)) satisfies the following moment bounds:
+                                                                             
+                                                          log (1−ω)−1
+                                                            (             )
+                                                   − π2
+                                                             log(ω −1 )
+(23)                kE [Ψ (θ(x), ν(x))]k2 = O s                              
+
+(24)                kVar [Ψ (θ(x), ν(x))]kF = O (s/n) ,
+
+where s is the subsampling rate used when building our forest.
+
+     Proof. To establish these bounds, we start by expanding Ψ as
+                                        B   n
+                                     1 XX
+(25)                    Ψ (θ, ν) =        αbi (x)ψθ, ν (Oi ) ,
+                                     B
+                                       b=1 i=1
+
+where the αbi are the individual tree weights used to build the forest weights in
+(3). Now, Ψ (θ, ν) is nothing but the output of a regression forest with response
+ψθ, ν (Oi ). Thus, given our assumptions about the moments of ψθ, ν (Oi ) and the fact
+that our trees are built via honest subsampling, these bounds follow directly from
+arguments made in Wager and Athey (2018). First, the proof of Theorem 3 of Wager
+and Athey (2018) shows that the weights αi (x) are localized:
+                                                                        
+                                                           log((1−ω)−1 )
+                                                         π
+                                                       −
+(26)            E [sup {kXi − xk2 : αi (x) > 0}] = O s 2 log(ω−1 )  ,
+
+
+thus directly implying (23) thanks to Assumption 1. Meanwhile, because individual
+trees are grown on subsamples, we can verify that
+                                          " n                   #
+             n                             X
+(27)           Var [Ψ (θ(x), ν(x))]  Var     αbi (x)ψθ, ν (Oi ) = O (1) .
+             s
+                                            i=1
+
+The first inequality results from classical results about U -statistics going back to
+Hoeffding (1948), and simply states that the variance of the forest score is at most
+s/n times the variance of a tree score; see Appendix C3 of Wager and Athey (2018)
+for a discussion in the context of regression forests. The second inequality follows
+from second-moment bounds on ψ along with the fact that our trees are grown on
+honest subsamples.
+
+  A.1. Local Regularity of Forests. Before proving any of our main results,
+we need establish a result that gives us some control over the “sample paths” of Ψ.
+To do so, define the local discrepancy measure
+
+        δ (θ, ν) , θ0 , ν 0 = Ψ (θ, ν) − Ψ (θ, ν) − Ψ θ0 , ν 0 − Ψ θ0 , ν 0 ,
+                                                                        
+(28)
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                         GENERALIZED RANDOM FORESTS                                 33
+
+which describes how tightly the stochastic fluctuations of Ψ − Ψ are coupled for
+nearby parameter values (θ, ν) and (θ0 , ν 0 ). The following lemmas establish uniform
+local concentration of δ: First, in Lemma 8, we control the variogram of the forest,
+and then Lemma 9 establishes concentration of δ over small balls. Both proofs are
+given in Appendix B.
+
+   Lemma 8. Let (θ, ν) and (θ0 , ν 0 ) be fixed pairs of parameters, and let αi (x) be
+forest weights generated according to Specification 1. Then, provided that Assump-
+tions 1–3 hold,
+
+                 E δ (θ, ν) , θ0 , ν 0
+                                      
+                                            = 0,
+                                                         0
+(29)               h
+                                  0     0
+                                           2 i    s  θ     θ
+                 E δ (θ, ν) , θ , ν              ≤L       −        ,
+                                             2      n  ν     ν0 2
+
+where L is the Lipschitz parameter from (11).
+
+  Next, to generalize this concentration bound from a single point into a uniform
+bound, we will need some standard formalism from empirical process theory as
+presented in, e.g., van der Vaart and Wellner (1996). To do so, we start by defining
+a bracketing, as follows. For any pair of parameters (θ− , ν− ), (θ+ , ν+ ), define the
+bracket
+                                                                        
+           θ−       θ+          θ
+      β         ,         :=        ∈ B : Ψ (θ− , ν− ) ≤ Ψ (θ, ν) ≤ Ψ (θ+ , ν+ )
+           ν−       ν+          ν
+
+for all realizations of Ψ, where the inequality is understood coordinate-wise; and
+define the radius r of the bracket in terms of the L2 -distance of the individual
+“ψ-trees” that comprise Ψ:
+                  
+                     θ−    θ
+            2
+           r β           , +
+                     ν−    ν+
+(30)
+                                                                            2
+                           X                                               
+                  := E         αi (x; J2 ) ψθ+ , ν+ (Oi ) − ψθ− , ν− (Oi )  ,
+                         {i:i∈J1 }                                       2
+
+where J1 and J2 are two disjoint half-subsamples as in Algorithm 1. For any ε > 0,
+the ε-bracketing number N[] (ε, Ψ, L2 ) is the minimum number of brackets of radius
+at most ε required to cover B.
+   Given this notation, our concentration bound for δ will depend on controlling this
+covering number. Specifically, we assume that there is a constant κ for which the
+bracketing entropy log N[] is bounded by
+                                         κ
+(31)                 log N[] (ε, Ψ, L2 ) ≤   for all 0 < ε ≤ 1.
+                                           ε
+
+                      imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+34                                       ATHEY, TIBSHIRANI AND WAGER
+
+We use Assumption 4 to give us bounds of this type; and, in fact, this is the only
+place we use Assumption 4. Replacing Assumption 4 with (31) would be enough
+to prove our results, which will only depend on this assumption through Lemma 9
+below.
+   To see how Assumption 4 leads to (31), we first write
+
+                                         Ψ (θ, ν) = Ψλ (θ, ν) + Ψζ (θ, ν) ,
+
+where Ψλ is Lipschitz and Ψζ is a monotone function of a univariate representa-
+tion of Oi . Writing analogously N[] (ε, Ψλ , L2 ) and N[] (ε, Ψζ , L2 ) for the bracketing
+numbers of these two additive components on their own, we can verify that
+                                                                               
+       log N[] (ε, Ψ, L2 ) ≤ log N[] (ε/2, Ψλ , L2 ) + log N[] (ε/2, Ψζ , L2 ) .
+                          
+
+
+Because Ψζ is a bounded, monotone, univariate family, Theorem 2.7.5 of van der
+Vaart and Wellner (1996) implies that log N[] (ε, Ψλ , L2 ) = O (1/ε). Meanwhile,
+because Ψλ is Lipschitz and our parameter space B is compact, Lemma 2.7.11 of
+van der Vaart and Wellner (1996) implies that log N[] (ε, Ψλ , L2 ) = O log ε−1 .
+                                                                               
+
+Thus, both terms are controlled at the desired order, and so (31) holds.
+
+  Lemma 9.      Under the conditions of Lemma 8, suppose moreover that (31) holds.
+Then,
+                   "                                                                               #
+                                                                             θ − θ0
+                                                                                    
+                                                      0     0
+                                                                
+               E        sup              δ (θ, ν) , θ , ν                :                    ≤η
+                       (θ0 , ν 0 )
+                                                                     2       ν − ν0       2
+(32)                                      s                          !
+                                              κLη     8κG
+                             =O                   +                      ,
+                                              n/s   (n/s)Lη
+
+for any η > 0 and 1 ≤ s ≤ n, where G is an upper bound for
+ ψθ, ν (Oi ) − ψθ0 , ν 0 (Oi ) ∞ ≤ G; note that Assumption 4 guarantees that a finite
+bound G exists.
+
+     Proof of Theorem 3. First, thanks to Lemma 7, we know that
+
+(33)                                          kΨ (θ(x), ν(x))k2 →p 0.
+
+Thus, thanks to Assumption 5, we know there must exist a sequence εn > 0 with
+limn→∞ εn = 0 such that
+                                                     
+                   kΨ (θ(x), ν(x))k2 , Ψ θ̂(x), ν̂(x)   < εn
+                                                                                  2
+
+with probability tending to 1; and so Lemma 10 below implies the desired result.
+
+
+                               imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                           GENERALIZED RANDOM FORESTS                                       35
+
+  Lemma 10. Suppose that Assumptions 1–6 hold, and that the forest is trained
+according to Specification 1. Then, all approximate solutions to (2) are close to each
+other, in the following sense: for any sequence εn > 0 with limn→∞ εn = 0,
+
+                      θ − θ0
+                                                              
+                                                    0   0
+                                                          
+(34)        sup                 : kΨ (θ, ν)k2 , Ψ θ , ν 2 < εn →p 0.
+                     ν − ν0 2
+
+  Proof. Starting with some notation, let
+
+                    Ψ(θ, ν) ∈ −∂F (θ, ν), Ψ(θ, ν) = −∇F (θ, ν),
+
+where F and F are the respectively convex and σ 2 -strongly convex functions
+implicitly defined in the hypothesis statement. Recall that (θ̂, ν̂) is assumed to
+satisfy Assumptionp5, and let ηn > 0 be any sequence with limn→∞ ηn = 0,
+ηn > max{4εn /σ 2 , 4 s/n} for all n = 1, 2, ..., and ηn−1 kΨ(θ̂, ν̂)k2 →p 0.   p
+   Now, thanks to Assumptions 1–4, we can apply Lemma 9. Because ηn ≥ 4 s/n,
+we can pair (32) with the fundamental theorem of calculus for line integrals to check
+that
+                                                          
+                                                    θ − θ̂
+              F (θ, ν) − F (θ̂, ν̂) + Ψ(θ̂, ν̂) ·
+                                                    ν − ν̂
+                                                                  
+                                                            θ − θ̂
+                                                                     + oP ηn2 ,
+                                                                             
+                  = F (θ, ν) − F (θ̂, ν̂) + Ψ(θ̂, ν̂) ·
+                                                           ν − ν̂
+
+for points (θ, ν) within L2 -distance ηn of (θ̂, ν̂). By strong convexity of F , this
+implies that
+                                                                          2
+                                                           σ2
+                                                              
+                                            θ − θ̂              θ − θ̂
+                                                                               + oP ηn2 ,
+                                                                                       
+        F (θ, ν) ≥ F (θ̂, ν̂) − Ψ(θ̂, ν̂) ·              +
+                                            ν − ν̂         2    ν − ν̂     2
+
+again for (θ, ν) within ηn of (θ̂, ν̂). Thus, with probability tending to 1,
+
+                                                                  σ2 2
+                                                          
+                                              θ − θ̂
+                inf F (θ, ν) − F (θ̂, ν̂) :            = ηn ≥        η ;
+                                              ν − ν̂ 2            4 n
+
+note that, here, we also used the fact that ηn−1 kΨ(θ̂, ν̂)k2 →p 0. Finally, by convexity
+of F , this last fact implies that, with probability tending to 1,
+
+                                    σ2
+                                                            
+                                                      θ − θ̂
+                    kΨ (θ, ν)k2 ≥      ηn for all               ≥ ηn .
+                                    4                 ν − ν̂ 2
+
+Recall that, by construction, εn < σ 2 ηn /4, and so (34) must hold.
+
+
+
+
+                        imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+36                       ATHEY, TIBSHIRANI AND WAGER
+
+   Proof of Lemma 4. If ψθ, ν (Oi ) were twice differentiable in (θ, ν), then we
+could verify (14) fairly directly via Taylor expansion of ψ. Now, of course, ψ is not
+twice differentiable, and so we cannot apply this argument directly. Rather, we need
+to first apply a Taylor expansion on the expected ψ function, Mθ, ν (Xi ), which is
+twice differentiable; we then use the regularity properties established in Section A.1
+to extend this result to ψ.
+   Given consistency of (θ̂(x), ν̂(x)), there is a sequence εn → 0 such that
+                                            
+                                θ̂(x) − θ(x)
+(35)                                              = OP (εn ) .
+                                ν̂(x) − ν(x) 2
+
+Using notation established in (22) and (28), we then write
+                                                     
+        Ψ θ̂(x), ν̂(x) − Ψ (θ(x), ν(x)) = Ψ θ̂(x), ν̂(x) − Ψ (θ(x), ν(x))
+(36)                                        
+               + δ (θ(x), ν(x)) , θ̂(x), ν̂(x) .
+
+By the assumed smoothness of the moment functions, we know that Ψ is twice
+differentiable in (θ, ν) with a bound on the second derivative that holds uniformly
+over all realizations of αi (x) and Xi , and so we can take a Taylor expansion:
+                            
+              Ψ θ̂(x), ν̂(x) − Ψ (θ(x), ν(x))
+                            n
+                                                       !              
+                          X                               θ̂(x) − θ(x)
+                      =        αi (x)∇Mθ(x), ν(x) (Xi )                  +H
+                                                         ν̂(x) − ν(x)
+                        i=1
+
+with kHk ≤ c ε2n /2, where c is the uniform bound on the curvature of M required
+in Assumption 2. Moreover, because the weights αi (x) are localized as in (26),
+                                                                        
+           n                                               log((1−ω)−1 )
+                                                         π
+          X                                            −
+(37)          αi (x)∇Mθ(x), ν(x) (Xi ) − V (x) = OP s 2 log(ω−1 )  ,
+            i=1                                F
+
+where s → ∞ is the sub-sample size used to grow trees in the forest. This expansion
+suggests that (36) should be helpful in relating our quantities of interest.
+  It now remains to bound the extraneous terms. By Assumption 5, we know that
+                                                         s
+                       Ψ θ̂(x), ν̂(x) ≤ C max {αi } ≤ C .
+                                            1≤i≤n          n
+                                                                                   2/3
+Next, by the consistency of (θ̂(x), ν̂(x)), we can apply Lemma 9 with “η” set to εn
+to verify that
+                                                         (     r           )!
+                                     
+                                                           1/3   s   s
+         δ (θ(x), ν(x)) , θ̂(x), ν̂(x)       = OP max εn           ,          .
+                                           2                     n n εn2/3
+
+                      imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                37
+
+Thus, thanks to Assumption 2 which lets us invert V (x), we conclude that
+                        
+            θ̂(x) − θ(x)
+                           + V (x)−1 Ψ (θ(x), ν(x))
+            ν̂(x) − ν(x)                            2
+(38)
+                                                                  
+                                             −1
+                              −π  log ((1−ω)   )        r
+                                                           s    s 
+                = OP max s 2 log(ω−1 ) εn , ε2n , εn1/3     ,         .
+                                                          n n ε2/3
+                                                                 n
+                                                                    
+
+Finally, recall that kΨ (θ(x), ν(x))k22 = OP (s/n) by Lemma 7 and (13). Thus, we
+can use the bound (38) to get strongerp     consistency guarantees, and in fact verify
+that (θ̂(x), ν̂(x)) must have been
+                                p        s/n-consistent;  and so, in particular, we can
+take (35) to hold with εn = s/n. The desired result then follows directly from
+(38), noting that θ̃∗ (x) = θ(x) + ξ > V (x)−1 Ψ (θ(x), ν(x)).
+
+  Proof of Theorem 5. As argued in Section 3.1, θ̃∗ (x) is formally equivalent to
+the output of a regression forest, and so we can directly apply Theorem 1 of Wager
+and Athey (2018). Given the assumptions made here, their result shows that
+                                 
+(39)               θ̃∗ (x) − θ(x)    σn (x) ⇒ N (0, 1) , σn2 (x) →p 0.
+
+Moreover, from Theorem 5 and Lemma 7 of Wager and Athey (2018), we see that
+σn2 scales as discussed in the hypothesis statement. Given this central limit theorem,
+it only remains to show that the discrepancy between θ̂(x) and θ̃∗ (x) established
+in Lemma 4, decays faster than σn (x). But, thanks to the consistency result from
+Theorem 3, the coupling result in Lemma 4 implies that
+                                                                     
+                                                    log((1−ω)−1 )   r 
+              n                   2           −π                   s 
+                   θ̃∗ (x) − θ̂(x) = OP max s         log(ω −1 )
+                                                                  , 3     ,
+              s                                                      n
+
+and so (θ̃∗ (x) − θ̂(x))/σn →p 0.
+
+  Proof of Theorem 6. Following our discussion in Section 4.1, we here only
+consider the ideal “B → ∞” half-sampling estimator. We start by considering its
+expectation,
+              h       i                                ⊗2 
+                  HS
+           E Hn (x) = E ΨH θ̂(x), ν̂(x) − Ψ θ̂(x), ν̂(x)
+                b                                                  ,
+
+for H = {1, ..., bn/2c}. By the proof of Theorem 5, we know that
+k(θ̂(x), ν̂(x)) − (θ(x), ν(x))k22 = OP (s/n), and so we can use Lemma 9 with η =
+
+
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+38                         ATHEY, TIBSHIRANI AND WAGER
+
+(s/n)1/3 to verify that
+                                                           
+                                                       s 2/3
+         ΨH θ̂(x), ν̂(x) − Ψ θ̂(x), ν̂(x) = QH + RH + OP         ,
+                                                           n
+         QH := ΨH (θ(x), ν(x)) − Ψ (θ(x), ν(x)) ,
+                              
+         RH := ΨH θ̂(x), ν̂(x) − ΨH (θ(x), ν(x))
+                                               
+                − Ψ θ̂(x), ν̂(x) − Ψ (θ(x), ν(x)) ,
+
+where ΨH is defined analogously to Ψ in (22).
+   The first term above, QH , is the type of term used by an oracle half-sampling
+estimator that gets to use the true parameter values (θ(x), ν(x)) rather than their
+plug-in analogues. Given our assumptions and because (θ(x), ν(x)) is non-random,
+we can use results from Wager and Athey (2018) to directly verify that (see their
+Lemma 7 and Theorem 8)
+        (1 + oP (1)) (Ψ (θ(x), ν(x)) − E [Ψ (θ(x), ν(x))])
+              X n
+                                                                  
+            =       E Ψ (θ(x), ν(x)) (Xi , Oi ) − E [Ψ (θ(x), ν(x))] ,
+(40)           i=1
+        (1 + oP (1)) (ΨH (θ(x), ν(x)) − E [Ψ (θ(x), ν(x))])
+                n X                                                   
+            =           E Ψ (θ(x), ν(x)) (Xi , Oi ) − E [Ψ (θ(x), ν(x))] .
+               |H|
+                     i∈H
+
+This holds because, as discussed in Wager and Athey (2018), forests
+have regularity properties by which the scaled first-order effects
+n(E Ψ (θ(x), ν(x)) (Xi , Oi ) − E [Ψ (θ(x), ν(x))]) depend only on the type
+of tree being grown; and here of course Ψ and ΨH are built using exactly the same
+type of trees (ΨH just averages over fewer of them). Given tail bounds to control
+moments, it follows immediately that
+     E Q⊗2
+           
+          H
+                       h                                               ⊗2 i
+       = n (1 + o(1)) E E Ψ (θ(x), ν(x)) (X1 , O1 ) − E [Ψ (θ(x), ν(x))]
+       = (1 + o(1)) Hn (x; θ(x), ν(x)),
+where the latter is again immediate by the proof of Theorem 8 in Wager and Athey
+(2018). Thus, taking second moments term QH gives us the limiting expectation we
+want.
+   It remains to show that the residual term RH , used to account for the plug-in
+effects, is negligible. Recall that Ψ is twice differentiable with a uniform second
+derivative, so we can take a Taylor expansion as in the proof of Lemma 4:
+                                                                      s
+                                                    θ̂(x)      θ(x)
+   RH = (∇ΨH (θ(x), ν(x)) − ∇Ψ (θ(x), ν(x)))               −           + OP      ,
+                                                    ν̂(x)      ν(x)          n
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                         GENERALIZED RANDOM FORESTS                                 39
+
+where the s/n error term is a bound on the squared error of (θ̂(x), ν̂(x)). Now, by the
+same argument as in (37), we see that k∇ΨH (θ(x), ν(x)) − ∇Ψ (θ(x), ν(x))k →P 0,
+whereas the squared distance between (θ̂(x), ν̂(x)) and (θ(x), ν(x)) is of the same
+order as Hn (x; θ(x), ν(x)); and so in fact
+                           ⊗2 
+                        E RH      = oP (kHn (x; θ(x), ν(x))k) ,
+
+implying that
+            h         i
+          E H b HS (x) − Hn (x; θ(x), ν(x)) = oP (kHn (x; θ(x), ν(x))k) .
+               n
+
+To establish consistency, it remains to verify concentration of Hb HS (x); which, given
+                                                                  n
+that the contribution of RH is negligible, also follows immediately from (40). Finally,
+given consistency of H b nHS (x) and Theorem 5, the validity of the delta method con-
+fidence intervals is immediate by Slutsky’s theorem whenever kVb (x) − V (x)k →p 0;
+in particular, recall that V (x) is invertible by Assumption 2.
+
+                     APPENDIX B: TECHNICAL RESULTS
+  The proofs presented here depend on arguments and notation established in Ap-
+pendix A. From now on, we also use shorthand
+
+(41)                       O (a, b, c) = O (max {a, b, c}) ,
+
+etc. The proof of Proposition 1 builds on that of Proposition 2, so we present the
+latter first.
+
+   Proof of Proposition 2. Our goal is to couple the actual solution θ̂Cj of the
+estimating equation over the leaf Cj with the gradient-based approximation θ̃Cj
+obtained by taking a single gradient step from the parent. Here, instead of directly
+establishing a relationship between these two quantities, we couple the both to the
+average of the influence functions ρ∗i (xP ) averaged over Cj , namely
+
+                          ∗                       1 X ∗
+(42)                    θ̃C   (xP ) = θ(xP ) +         ρi (xP ),
+                            j
+                                                 |Cj |
+                                                     i∈Cj
+
+where xP is the center of mass of the parent node P .
+   Because the leaf Cj is considered fixed,
+                                         we can use second-moment bounds on ψ
+                     ∗
+to verify that Var[θ̃Cj (xP )] = O 1/nCj ; meanwhile, by Lipschitz-continuity of the
+                                  ∗ (x ) − θ(x )] = O (r), where r is the radius of
+M -function (10), we see that E[θ̃Cj   P        P
+the leaf. Finally, given assumptions made so far about the estimating equation, it
+is straight-forward to show that θ̂Cj is consistent for θ(xP ) in a limit where r → 0
+and nCj → ∞. Thus, a direct analogue to our result, Lemma 4, implies that
+                            ∗                          √   
+(43)                      θ̃C j
+                                (xP ) − θ̂Cj = oP r, 1/ nCj .
+
+                      imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+40                          ATHEY, TIBSHIRANI AND WAGER
+
+                                    ∗ (x ), we note that
+Next, in order to couple θ̃Cj and θ̃Cj  P
+
+                    ∗
+           θ̃Cj − θ̃C j
+                        (xP ) = θ̂P − θ(xP )
+                         1 >             X                                           
+                   −        ξ V (xP )−1      ψθ̂P , ν̂P (Oi ) − ψθ(xP ), ν(xP ) (Oi )
+(44)                    nCj
+                                         i∈Cj
+                        1 > −1              X
+                   −       ξ AP − V (xP )−1    ψθ̂P , ν̂P (Oi ) ;
+                       nCj
+                                                     i∈Cj
+
+our goal is then to bound the terms on the first and second lines at the desired
+rate. The first line term is bounded by oP (r) by smoothness of the M -function as
+we change θ and ν, as well as an analogue to Lemma 9; while the second line term
+                                            −1
+can
+P be bounded by recalling                  P − V (xP )−1 k = oP (1), and verifying that
+                                    that kA
+                                  √
+                              
+  i∈Cj ψθ̂P , ν̂P (Oi ) = OP 1/ nCj , r . Everything we have showed so far implies
+that
+                                               √    
+(45)                     θ̃Cj − θ̂Cj = oP r, 1/ nCj , for j = 1, 2.
+
+Finally, it is straight-forward to check that
+                                               √        √   
+(46)                     θ̃C2 − θ̃C1 = OP r, 1/ nC1 , 1/ nC2 ,
+
+which implies the desired for the coupling of ∆(C1 , C2 ) and ∆(C
+                                                              e 1 , C2 ).
+
+   Proof of Proposition 1. First, we show that we can replace θ̂Cj (J ) with the
+influence-based approximation θ̃C      ∗ (x ; J ) (where we make explicit the dependence
+                                        j   P
+     ∗
+of θ̃Cj on the sample J for clarity) when computing the error function err(Cj ). To
+simplify notation without changing the essence of the argument, we restrict attention
+to samples J where the number of observations in C1 and C2 are held fixed at nC1
+and nC2 , respectively (and recall from the main text that P , C1 , and C2 , subsets of
+X , are also held fixed). To start, let xP ∈ P be the center of mass of the parent leaf,
+and observe that
+                                             2 
+      err(Cj ) = EX∈Cj θ̂Cj (J ) − θ(X)
+                                                  2                                 2 
+                            ∗                                                   ∗
+               = EX∈Cj θ̃C    j
+                                (x P ; J  ) − θ(X)       + E    θ̂ Cj (J ) − θ̃   (x
+                                                                                Cj P ; J )
+                                                           |            
+                                                                            {z     
+                                                                                             }
+                                                                      o r2 , 1/nCj
+                   h                            i h                 i                
+                                  ∗                       ∗
+             + 2 E θ̂Cj (J ) − θ̃C  j
+                                      (x P ; J )     E θ̃   (x
+                                                          Cj P ; J )   −  EX∈Cj [θ(X)]  ,
+                 |             {z                } |                 {z                }
+                               √ 
+                         o r, 1/ n                                 O(r2 )
+                                    Cj
+
+
+
+
+                         imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                                GENERALIZED RANDOM FORESTS                                                      41
+
+where the first two bounds given in underbraces follow from the proof of Proposition
+2, while the last one is a direct consequence of Assumption 2, by noting that
+                        h                i
+                           ∗
+    EX∈Cj [θ(X)] − E θ̃C     j
+                               (x P ; J )
+                 h                                        −1                    i
+       = EX∈Cj θ(X) − θ(xP ) − ξ > ∇Mθ(xP ), ν(xP ) (xP )     Mθ(xP ), ν(xP ) (X) ,
+
+and so this term is just the average error from Taylor expanding Mθ(xP ), ν(xP ) (·) over
+Cj . Now, using the above expansion, we find that
+                        2
+                          n Cj
+                                                                                    2                  
+                        X
+                                                       ∗                                         2   1   1
+    err (C1 , C2 ) =                EX∈Cj            θ̃C j
+                                                           (xP ; J ) − θ(X)                  +o r ,    ,
+                              nP                                                                    nC1 nC2
+                        j=1
+
+Following arguments of Athey and Imbens (2016), we see that
+                                2                        h                 i
+                ∗                                               ∗
+      EX∈Cj θ̃Cj (xP ; J ) − θ(X)      = VarX∈Cj [θ(X)] + Var θ̃C j
+                                                                    (x P ; J )
+                   h                 i               2
+                       ∗
+                 + E θ̃C j
+                           (x P ; J )   − EX∈Cj [θ(X)]   ,
+
+and the last term is bounded by O r4 as argued above. Thus,
+                                    
+
+
+     err (C1 , C2 )
+             2
+               n Cj 
+                                                                                                         
+             X                                                  h
+                                                                      ∗
+                                                                                      i
+                                                                                               2   1   1
+         =               VarX∈Cj [θ(X)] + Var                       θ̃C j
+                                                                          (xP ; J )        +o r ,    ,
+                   nP                                                                             nC1 nC2
+             j=1
+                             n C1 n C2
+         = VarX∈P [θ(X)] −             (EX∈C2 [θ(X)] − EX∈C1 [θ(X)])2
+                                 n2P
+              2
+                  nCj
+                                                                
+             X            h
+                             ∗
+                                         i
+                                                   2    1     1
+           +          Var θ̃Cj (xP ; J ) + o r ,          ,
+                  n                                   nC1 nC2
+             j=1 P
+                                                                      2 
+                             n C1 n C2       ∗                ∗
+         = VarX∈P [θ(X)] −             E θ̃C2 (xP ; J ) − θ̃C1 (xP ; J )
+                                 n2P
+                                                          2 
+             nC1 nC2           ∗               ∗
+           +            E θ̃C2 (xP ; J ) − θ̃C1 (xP ; J )
+                n2P
+                                                        !
+                      h                              i2
+                        ∗                ∗
+                  − E θ̃C2 (xP ; J ) − θ̃C1 (xP ; J )
+
+                 2
+                   nCj
+                                                                            
+                 X                  h
+                                          ∗
+                                                          i
+                                                                  2   1   1
+             +                Var       θ̃C j
+                                              (xP ; J )       +o r ,    ,      .
+                        nP                                           nC1 nC2
+                 j=1
+
+
+
+
+                              imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+42                          ATHEY, TIBSHIRANI AND WAGER
+
+Now, to parse this expression, note that, by the proof of Proposition 2,
+                                                                      2 
+                              nC1 nC2      ∗               ∗
+           E [∆ (C1 , C2 )] =         E θ̃C2 (xP ; J ) − θ̃C1 (xP ; J )
+                                n2P
+                                     
+                              1     1
+                   + o r2 ,     ,       .
+                             nC1 nC2
+
+Thus, writing K(P ) := VarX∈P [θ(X)] as the split-independent error term, all that
+remains is the sampling variance of ∆ (C1 , C2 ) due to noise in the training sample
+J (which becomes negligible as n gets large), and a term
+                               2
+                                          nCj
+                                             
+                         1 X                       h
+                                                      ∗
+                                                                    i
+                   E :=      nCj       2−       Var θ̃C j
+                                                          (x P ; J )
+                        nP                nP
+                              j=1
+
+that captures the effect of overfitting to random noise when estimating θ̃C     ∗ (x ).
+                                                                                 j   P
+This last term scales as E = OP (1/nC1 , 1/nC2 ), and so can be ignored since we
+assume that nP  r−2 . Note that if we attempt to correct for a plug-in version of
+E, we recover exactly the variance correction of Athey and Imbens (2016), up to an
+additive term that is the same for all splits and so doesn’t affect split selection.
+
+  Proof of Lemma 8. We first note that, because we grew our forest honestly
+(Specification 1) and so αi is independent of Oi conditionally on Xi , we can use the
+chain rule to verify that
+                               
+         E Ψ (θ, ν) − Ψ (θ, ν)
+                   Xn
+                                                                 
+                =      E E αi (x) Xi E ψθ, ν (Oi ) Xi − Mθ, ν (Xi ) = 0,
+                   i=1
+
+and so δ must be mean-zero.
+   Next, to establish bounds on the second moments, we start by considering indi-
+vidual trees. To do so, define
+
+                          Eθ, ν (Oi , Xi ) = ψθ, ν (Oi ) − Mθ, ν (Xi ).
+                                         
+Because E Eθ, ν (Oi , Xi ) Mθ, ν (Xi ) = 0 and Mθ, ν (Xi ) is locally (θ, ν)-Lipschitz
+continuous by Assumption 2, we can verify that the worst-case variogram of the
+Eθ, ν (Oi , Xi ) must also satisfy (11). Now, as in our Algorithm 1 let J1 , J2 be
+any non-overlapping subset of points of size bs/2c and ds/2e respectively. Let
+αi ≥ 0 be weights summing to 1 such that {αi : i ∈ J } depends only on J2 and
+on {Xi : i ∈ J1 }, and write
+                                              X
+                          Tθ, ν (J1 , J2 ) =         αi Eθ, ν (Oi , Xi ).
+                                          {i∈J1 }
+
+
+                         imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                          GENERALIZED RANDOM FORESTS                                   43
+
+By the previous argument, we already know that E [Tθ, ν (J1 , J2 )] = 0; meanwhile,
+thanks to the variogram bound, for any pair of points (θ, ν) and (θ0 , ν 0 ),
+           h                                         i
+                                                   2
+         E Tθ, ν (J1 , J2 ) − Tθ0 , ν 0 (J1 , J2 ) 2
+                                                                                
+                                     h                                          i
+                                                                            2
+                        X
+(47)             ≤ E         αi2 E Eθ, ν (Oi , Xi ) − Eθ0 , ν 0 (Oi , Xi ) 2 Xi 
+                        {i∈J1 }
+                       0
+                     θ   θ
+                 ≤L    −      .
+                     ν   ν0 2
+As in arguments used by Wager and Athey (2018), we see that our quantity of
+interest U -statistic over T , and in particular
+      δ (θ, ν) , θ0 , ν 0
+                          
+                               −1
+                          n               X
+              =                                  Tθ, ν (J1 , J2 ) − Tθ0 , ν 0 (J1 , J2 ).
+                   bs/2c, ds/2e
+                                   {S1 , S2 ∈{1, ..., n}}
+
+Thus, combing our above variogram bound for T with results on U -statistics going
+back to Hoeffding (1948), we see that (29) holds.
+
+   Proof of Lemma 9. We start by establishing a concentration bound for δ at
+a single point. Given Assumption 4, we know that kδk∞ is bounded by 2G, where
+G is as defined in the problem statement. Thus, recalling that δ is a U -statistic and
+using (47) to bound the variance of a single tree, we can use the Bernstein bound
+for U -statistics established by Hoeffding (1963) to verify that, for any η > 0,
+              P δ (θ, ν) , θ0 , ν 0
+                                                    
+                                                ∞
+                                                   >η
+(48)                                                            θ − θ0
+                                                                                 
+                                                   2
+                                                                              4G
+                      ≤ 2k exp −bn/scη                   2L                 +     η     .
+                                                                ν − ν0 2        3
+                                                                               p
+In other words, as expected, the forest concentrates at a rate s/n.
+   Now, the kernel of δ, i.e., the function evaluated on subsamples, is a sum of 4
+components that can all be bracketed into a number of brackets bounded as in (31),
+using the radius (30). Thus, the kernel of δ can be bracketed with respect to L2 -
+measure with a bracketing entropy of at most 16κ/η. Given these preliminaries, we
+proceed by replicating the argument from Lemma 3.4.2 of van der Vaart and Wellner
+(1996) and, in particular, replacing all applications of Bernstein’s inequality with
+Bernstein’s inequality for U -statistics as in (48), we find that for any set S with
+                                         2
+ Tθ, ν (J1 , J2 ) − Tθ0 , ν 0 (J1 , J2 ) 2 ≤ r2 for all ((θ, ν), (θ0 , ν 0 )) ∈ S, we have
+                    E sup δ (θ, ν) , θ0 , ν 0 : ((θ, ν), (θ0 , ν 0 )) ∈ S
+                                                                               
+
+                                                            2
+                                                                            !
+                                        J[] (r, δ, L2 ) J[] (r, δ, L2 )
+                               =O                       +               2G ,
+                                                              r2 n/s
+                                            p
+                                               n/s
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+44                                          ATHEY, TIBSHIRANI AND WAGER
+
+
+
+
+                                                                 1.5
+           4          True Treat. Effect                                      True Treatment Effect
+                      Raw Correlation                                         IV Forest with Causal Split
+                      Causal Forest                                           IV Forest with IV Split
+                      IV Forest
+           3
+
+
+
+
+                                                                 1.0
+     tau
+
+
+
+
+                                                           tau
+           2
+
+
+
+
+                                                                 0.5
+           1
+
+
+
+
+                                                                 0.0
+           0
+
+
+
+
+               −1.0      −0.5         0.0     0.5   1.0                −1.0      −0.5        0.0            0.5   1.0
+                                       X                                                      X
+
+
+
+Fig 5: In both panels, we generate data as Xi ∼ [−1, 1]p , with n = 10, 000 and
+p = 20.
+
+
+where J[] is the bracketing entropy integral
+                                      Z rq
+                                                                 
+                   J[] (r, δ, L2 ) :=     1 + log N[] (η, δ, L2 ) dη,
+                                                    0
+and we omitted the b·c notation since (n/s)/bn/sc ≤ 2. From our bounds on the
+                                            √       √
+bracketing number we get J[] (r, δ, L2 ) ≤ 4 κr + o( r). Thus, thanks to Lemma 8,
+we conclude by applying the above result with r = Lη.
+
+     APPENDIX C: SIMULATING INSTRUMENTAL VARIABLES FORESTS
+   C.1. Evaluating the Instrumental Variables Splitting Rule. We start
+our simulation analysis with a simple diagnostic of IV splitting rules, and illustrate
+the behavior of IV forests in Figure 5 using two simple simulation designs. In both
+examples, X is uniformly spread over a cube, Xi ∼ [−1, 1]p , but the causal effect
+τ (Xi ) only depends on the first coordinate (Xi )1 . In both panels of Figure 5, we
+show estimates of τ (x) produced by different methods, where we vary x1 and set all
+other coordinates to 0.
+   In the first panel, we illustrate the importance of using an IV forests when the
+received treatment may be endogenous. We consider a case where the true causal
+effect of has a single jump, τ (Xi ) = 2 × 1 ({(Xi )1 > −1/3}). Meanwhile, at (Xi )1 =
++1/3, there is a change in the correlation structure between Wi and εi that leads
+to a spurious (i.e., non-causal) jump in the correlation between Wi and Yi . As
+expected, our IV forest correctly picks out the first jump while ignoring the second
+one. Conversely, a plain causal forest as in Section 6.2 that assumes that the received
+treatment Wi is exogenous will mistakenly also pick out the second spurious jump
+in the correlation structure of Wi and Yi .
+
+                                      imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                            GENERALIZED RANDOM FORESTS                                        45
+
+   The second panel tests our splitting rule. We have a simulation design where there
+is a jump in the true causal effect, τ (Xi ) = 1 ({(Xi )1 > 0}). However this causal
+effect is masked by a change in the correlation of Wi and εi , such that the joint
+distribution of Wi and Yi does not depend on Xi . The IV forest described above
+again performs well; however, the simpler causal tree splitting from Section 6 that
+was not designed for IV regression fails to accurately detect the jump.
+
+   C.2. Numerical Comparisons. We now examine the value of adaptivity in lo-
+cal instrumental variables regression using generalized random forests across several
+simulation designs. We compare the following four methods: nearest neighbors
+instrumental variables regression, which sets αi (x) = 1/k in (2) for the k nearest
+neighbors of x in Euclidean distance, series instrumental variables regression, plain
+generalized random forests as described above, and finally centered general-
+ized random forests, using residualization via marginal regressions as in Robinson
+(1988).
+   Due to computational constraints, we used a fairly limited amount of tuning for
+each method. For the nearest neighbors method, we tried k = 10, 30, 100, 300, and
+report results for the best resulting choice of k in each setting. For series estimation,
+we expanded out each feature into a natural spline basis with 3 degrees of freedom,
+using the R function ns. We also considered adding interactions of these spline terms
+to the series basis; however, this led to poor estimates in all of our experiments
+and so we do not detail these results. Thus, our series method effectively amounts
+to additive modeling. We made no effort to tune generalized random forests, and
+simply ran them with the default tuning parameters in our grf software, including
+a subsample size s = n/2. We implemented the nearest neighbors method with the
+R package FNN (Beygelzimer et al., 2013), and used the function ivreg from the R
+package AER (Kleiber and Zeileis, 2008) for series regression.
+   In all of our simulations, we drew our data from the following generative model,
+motivated by an intention to treat design:1
+
+                 Xi ∼ N (0, Ip×p ) , εi ∼ N (0, 1) , Zi ∼ Binom (1/3) ,
+                 Qi ∼ Binom 1/ 1 + e−ωεi , Wi = Zi ∧ Qi ,
+                                            
+(49)
+                 Yi = µ (Xi ) + (Wi − 1/2) τ (Xi ) + εi .
+
+In other words, we exogenously draw features Xi , a noise term εi and a binary in-
+strument Zi . Then, the treatment Wi itself depends on both Zi and Qi , where Qi
+is a random noise term that is correlated with the noise εi when ω > 0. We var-
+ied the following problem parameters. Confounding: We toggled the confounding
+parameter ω in (49) between ω = 0 (no confounding) and ω = 1 (confounding).
+Sparsity of signal: The signal τ (x) depended on κτ features; we used κτ ∈ {2, 4}.
+  1
+    Intuitively, we could think of Zi as a random intention to treat and of Qi as a compliance
+variable; then, if ω > 0, subjects with better outcomes εi are more likely to comply, and we need
+to use the instrument Zi to deal with this non-compliance effect.
+
+                         imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+46                             ATHEY, TIBSHIRANI AND WAGER
+                                                     Pκτ
+Additivity of signal: Pκτ When  true, we set τ (x) =   j=1 max{0, xj }; when false, we
+set τ (x) = max{0, j=1 xj }. Presence of nuisance terms: When true, we set
+µ(x) = 3 max{0, x5 } + 3 max{0, x6 } or µ(x) = 3 max{0, x5 + x6 } depending on the
+additive signal condition; when false we set µ(x) = 0. We also varied the ambient
+dimension p and sample size n.2
+   Results from the simulation study are presented in Table 2. We see that the
+forest-based methods achieve consistently good performance across a wide variety
+of simulation designs, and do not appear to be too sensitive to non-additive signals
+or the presence of fairly strong confounding in the received treatment. Moreover, we
+see that the centering behaves as we might have hoped. When there is no nuisance
+from µ(·), the centered and uncentered forests perform comparably, while when we
+add in the nuisance term, the centering substantially improves performance.
+   It is also interesting to examine the few situations where the series method sub-
+stantially improves over generalized random forests. This only happens in situations
+where the true signal is additive (as expected), and, moreover, the ambient dimen-
+sion is small (p = 10) while the signal dimension is relatively high (κτ = 4). In other
+words, these are the simulation designs where the potential upside from adaptively
+learning a sparse neighborhood function are the smallest. These results corroborate
+the intuition that forests provide a form of variable selection for nearest-neighbor
+estimation.3
+
+   C.3. Evaluating Confidence Intervals. We also examine the quality of the
+delta method confidence intervals discussed in Section 4, built using the bootstrap
+of little bags (Sexton and Laake, 2009). In Table 3, we report coverage results
+in a subset of the simulation settings from the previous section. We always have
+confounding (ω = 1) and nuisance terms (µ(x) = max{0, x5 } + max{0, x6 } or
+µ(x) = max{0, x5 + x6 }); we also only consider centered forests. As discussed in
+Wager, Hastie and Efron (2014), forests typically require more trees to provide ac-
+curate confidence intervals; thus, we use B = 4, 000 trees per forest, rather than the
+default B = 2, 000 used in Table 2. Figure 6 gives an illustration of our confidence
+intervals by superimposing the output from 4 different simulation runs from a single
+data-generating distribution.
+   As expected, coverage results are better when n is larger, the ambient dimension
+p is smaller, the true signal is sparser, and the true signal is additive. Of these
+   2
+     Note that these simulation setups do not perfectly match the assumptions made in Section 3,
+because if we map the features into the unit cube via a monotone transformation, then the signals
+are no longer Lipschitz. Reassuringly, this does not appear to hurt performance of our method.
+   3
+     In this simulation design, sparse variants of the series regression based on the lasso might be
+expected to perform well. Here, however, we only examine the ability of generalized random forests
+to improve over non-adaptive baselines; a thorough comparison of when lasso- versus forest-based
+methods perform better is a question that falls beyond the scope of this paper, and hinges on the
+experience of practitioners in different application areas. In the traditional regression context, both
+lasso- and forest-based methods have been found to work best in different application areas, and
+can be considered complementary methods in an applied statistician’s toolbox.
+
+
+                           imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                             GENERALIZED RANDOM FORESTS                                          47
+
+
+
+
+                                           No nuisance from µ(·)          Presence of main effect µ(·)
+ add.   conf.   κτ    p       n     kNN      series GRF C. GRF          kNN series GRF C. GRF
+  yes    no      2    10     1000   0.50      0.87   0.33      0.33     0.77    1.08   0.74      0.40
+  yes    no      2    10     2000   0.42      0.36   0.23      0.23     0.64    0.43   0.56      0.27
+  yes    no      2    20     1000   0.56      2.18   0.41     0.40      0.82    2.67   0.76      0.48
+  yes    no      2    20     2000   0.51      0.75   0.31     0.31      0.78    0.89   0.64      0.34
+  yes    no      4    10     1000   0.87      0.86   0.65     0.64      1.23    1.01   1.11      0.71
+  yes    no      4    10     2000   0.79     0.37    0.49      0.48     1.03   0.43    0.86       0.51
+  yes    no      4    20     1000   1.09      2.06   0.85     0.83      1.35    2.52   1.33      0.94
+  yes    no      4    20     2000   0.96      0.80   0.64     0.62      1.23    0.94   1.07      0.70
+  yes    yes     2    10     1000   0.51      0.89   0.35      0.36     0.72    1.01   0.69      0.38
+  yes    yes     2    10     2000   0.43      0.37   0.23      0.24     0.66    0.42   0.57      0.26
+  yes    yes     2    20     1000   0.57      2.25   0.40     0.39      0.86    2.47   0.79      0.47
+  yes    yes     2    20     2000   0.51      0.79   0.28     0.28      0.79    0.94   0.65      0.34
+  yes    yes     4    10     1000   0.87      0.88   0.63     0.62      1.21    0.99   1.12      0.69
+  yes    yes     4    10     2000   0.78     0.37    0.47      0.46     1.02   0.44    0.87       0.51
+  yes    yes     4    20     1000   1.05      2.41   0.80     0.78      1.33    2.52   1.28      0.91
+  yes    yes     4    20     2000   0.97      0.78   0.64     0.62      1.22    0.93   1.07      0.67
+  no     no      2    10     1000   0.49      0.94   0.38      0.39     0.76    1.86   0.85      0.47
+  no     no      2    10     2000   0.41      0.44   0.29     0.29      0.61    0.77   0.63      0.32
+  no     no      2    20     1000   0.57      2.34   0.47     0.47      0.88    4.47   0.89      0.57
+  no     no      2    20     2000   0.50      0.89   0.35     0.35      0.80    1.59   0.71      0.43
+  no     no      4    10     1000   0.83      1.17   0.77     0.74      1.18    2.09   1.31      0.87
+  no     no      4    10     2000   0.74      0.66   0.64     0.61      1.00    1.02   1.05      0.66
+  no     no      4    20     1000   1.04      2.43   0.98     0.95      1.32    4.57   1.35      1.04
+  no     no      4    20     2000   0.93      1.10   0.80     0.77      1.18    1.85   1.18      0.87
+  no     yes     2    10     1000   0.49      0.96   0.37      0.37     0.73    1.86   0.88      0.48
+  no     yes     2    10     2000   0.41      0.44   0.28      0.28     0.62    0.85   0.65      0.34
+  no     yes     2    20     1000   0.55      2.42   0.44     0.43      0.85    4.16   0.89      0.57
+  no     yes     2    20     2000   0.49      0.88   0.34     0.33      0.75    1.59   0.70      0.41
+  no     yes     4    10     1000   0.83      1.15   0.77     0.74      1.19    2.00   1.23      0.84
+  no     yes     4    10     2000   0.73      0.64   0.62     0.60      1.01    1.04   1.05      0.66
+  no     yes     4    20     1000   1.04      2.70   0.96     0.94      1.36    4.67   1.37      1.05
+  no     yes     4    20     2000   0.94      1.08   0.81     0.78      1.22    1.86   1.17      0.84
+                                                    Table 2
+    Results from simulation study described in Appendix C.2, in terms of mean-squared error for the
+ treatment effect on a test set, i.e., E[(τ̂ (X) − τ (X))2 ], where X is a test example. The methods under
+comparison are centered generalized random forests (C. GRF), plain generalized random forests (GRF),
+    series instrumental variables regression, and the nearest neighbors method (kNN). The simulation
+   specification varies by whether or not the function µ(·) in (49) is 0, whether all signals are additive
+(add.), whether the received treatment W is confounded (conf.), the signal dimension (κτ ), the ambient
+ dimension (p), and the sample size (n). All errors are aggregated over 100 runs of the simulation with
+                        1,000 test points each, and all forests have B = 2, 000 trees.
+
+
+
+
+                           imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+48                             ATHEY, TIBSHIRANI AND WAGER
+
+                          additive    yes     no                 additive   yes      no
+                κτ      p      n       coverage         κτ    p       n      coverage
+                 2      6     2000    0.87 0.82          2     6    2000    0.96 0.95
+                 2      6     4000    0.91 0.87          2     6    4000    0.96 0.96
+                 2      6     8000    0.91 0.89          2     6    8000    0.94 0.95
+                 2      6    16000 0.93 0.92             2     6   16000 0.95 0.95
+                 2     12     2000    0.75 0.77          2    12    2000    0.96 0.97
+                 2     12     4000    0.82 0.77          2    12    4000    0.97 0.95
+                 2     12     8000    0.89 0.86          2    12    8000    0.96 0.97
+                 2     12 16000 0.93 0.90                2    12 16000 0.97 0.98
+                 2     18     2000    0.73 0.73          2    18    2000    0.98 0.96
+                 2     18     4000    0.82 0.79          2    18    4000    0.97 0.97
+                 2     18     8000    0.89 0.80          2    18    8000    0.97 0.96
+                 2     18 16000 0.91 0.87                2    18 16000 0.97 0.98
+                 4      6     2000    0.78 0.75          4     6    2000    0.96 0.96
+                 4      6     4000    0.82 0.76          4     6    4000    0.95 0.94
+                 4      6     8000    0.87 0.77          4     6    8000    0.95 0.95
+                 4      6    16000 0.88 0.81             4     6   16000 0.95 0.95
+                 4     12     2000    0.64 0.59          4    12    2000    0.96 0.95
+                 4     12     4000    0.73 0.63          4    12    4000    0.97 0.96
+                 4     12     8000    0.78 0.66          4    12    8000    0.97 0.97
+                 4     12 16000 0.82 0.70                4    12 16000 0.96 0.97
+                 4     18     2000    0.59 0.53          4    18    2000    0.96 0.97
+                 4     18     4000    0.63 0.54          4    18    4000    0.97 0.97
+                 4     18     8000    0.70 0.60          4    18    8000    0.96 0.96
+                 4     18 16000 0.78 0.60                4    18 16000 0.96 0.97
+                     target: population τ (x)                target: expected τ̂ (x)
+                                                Table 3
+Empirical coverage of 95% confidence intervals for instrumental variables forests, averaged over 20
+replications with 1,000 test points each. The left panel reports coverage of the true effects τ (Xi ) on
+   the test set, while the right
+                             panel measures
+                                                the fraction of times the expected forest prediction
+                          E τ̂ (Xi ) Xi falls within the confidence intervals.
+
+effects, the most important one in Table 3 is the sparsity of τ . When κτ = 2, i.e.,
+the true signal can be expressed as a bivariate function, our confidence intervals
+achieve closer to nominal coverage; however, when κτ = 4, performance declines
+considerably at the sample sizes n under investigation.
+   To gain more intuition about this result, the right panel of Table 3 reports the
+fraction of confidence intervals that cover the expected prediction made by the forest;
+in other words, it measures the accuracy with which our confidence intervals quantify
+the sampling uncertainty of the forest. If instrumental forests were unbiased, the left
+and right panels would be the same. These results suggest that low coverage numbers
+in the left panel are mostly due to our forests having non-negligible bias, rather than
+to failures of Gaussianity or of the variance estimates underlying our confidence
+intervals. It would be of considerable interest to develop confidence intervals for
+random forests that allow for asymptotically non-vanishing bias.
+
+
+
+
+                           imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+                              GENERALIZED RANDOM FORESTS                                                49
+
+
+
+                                           True Effect
+                                           Point Estimate
+
+
+
+
+                              1.0
+                                           Confidence Int.
+
+
+
+
+                              0.5
+                        tau
+                              0.0
+
+
+
+
+                                    −1.0      −0.5           0.0   0.5       1.0
+                                                             X
+
+
+
+Fig 6: Illustration of 95% confidence intervals for instrumental variables forests
+across 4 simulation replications. We use the same simulation setting as in the right
+panel of Figure 5, except now with n = 4, 000, p = 20, and B = 10, 000 trees.
+
+Stanford Graduate School of Business                                     Elasticsearch BV
+655 Knight Way                                                           800 West El Camino Real, Suite 350
+Stanford, CA-94305, USA                                                  Mountain View, CA-94040
+E-mail: athey@stanford.edu                                               E-mail: julietibs@gmail.com
+                              Stanford Graduate School of Business
+                              655 Knight Way
+                              Stanford, CA-94305, USA
+                              E-mail: swager@stanford.edu
+
+
+
+
+                       imsart-aos ver. 2014/10/16 file: paper.tex date: April 6, 2018
+

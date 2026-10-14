@@ -1,0 +1,461 @@
+//! DirectLiNGAM algorithm for causal discovery
+//!
+//! Implements the Direct-LiNGAM algorithm that discovers causal ordering
+//! and adjacency matrix from observational data.
+//!
+//! ## Algorithm Overview
+//! 1. Find the variable with minimum dependence on others (root cause)
+//! 2. Regress it out from remaining variables
+//! 3. Repeat until all variables are ordered
+//!
+//! ## References
+//! Shimizu et al. (2011). DirectLiNGAM: A direct method for learning
+//! a linear non-Gaussian structural equation model.
+
+use super::utils::{adaptive_lasso, center, ols, pwling_entropy, pwling_residual, standardize_vec};
+use nalgebra::{DMatrix, DVector};
+use rayon::prelude::*;
+
+/// Pre-computed entropies for optimized DirectLiNGAM (arXiv:2409.05500)
+/// Reduces complexity from O(m³·n) to O(m³ + m²·n)
+struct PrecomputedEntropies {
+    /// Standardized columns
+    x_std: Vec<DVector<f64>>,
+    /// Entropy of each standardized column: H(xi)
+    entropies: Vec<f64>,
+    /// Entropy of residuals: H(ri_j) where ri_j = xi - reg(xi|xj)
+    /// Indexed as [i * n_features + j]
+    residual_entropies: Vec<f64>,
+    n_features: usize,
+}
+
+/// Maximum number of features to avoid capacity overflow in O(n²) allocations
+/// With 10000 features, residual_entropies needs 100M elements (~800MB)
+const MAX_FEATURES_FOR_PRECOMPUTE: usize = 10_000;
+
+impl PrecomputedEntropies {
+    fn new(data: &DMatrix<f64>) -> Self {
+        let n_features = data.ncols();
+
+        // Guard against capacity overflow: n_features² must fit in memory
+        // Check for overflow before allocation to avoid panic
+        if n_features > MAX_FEATURES_FOR_PRECOMPUTE {
+            panic!(
+                "Too many features for DirectLiNGAM precomputation: {} > {}. \
+                 Use ScalableLiNGAM for large datasets.",
+                n_features, MAX_FEATURES_FOR_PRECOMPUTE
+            );
+        }
+
+        // Safe multiplication check (defense in depth)
+        let required_size = n_features
+            .checked_mul(n_features)
+            .expect("capacity overflow: n_features² exceeds usize::MAX");
+
+        // Standardize all columns
+        let x_std: Vec<DVector<f64>> = (0..n_features)
+            .map(|j| standardize_vec(&data.column(j).into_owned()))
+            .collect();
+
+        // Pre-compute entropies of standardized columns (parallel)
+        let entropies: Vec<f64> = x_std.par_iter().map(pwling_entropy).collect();
+
+        // Pre-compute residual entropies for all pairs (parallel)
+        // Pre-allocate with checked size to avoid panic during collection
+        let x_std_ref = &x_std;
+        let mut residual_entropies: Vec<f64> = Vec::with_capacity(required_size);
+
+        // Compute in chunks to avoid rayon flat_map allocation issues
+        for i in 0..n_features {
+            for j in 0..n_features {
+                if i == j {
+                    residual_entropies.push(0.0);
+                } else {
+                    let ri_j = pwling_residual(&x_std_ref[i], &x_std_ref[j]);
+                    let ri_j_std = standardize_vec(&ri_j);
+                    residual_entropies.push(pwling_entropy(&ri_j_std));
+                }
+            }
+        }
+
+        PrecomputedEntropies {
+            x_std,
+            entropies,
+            residual_entropies,
+            n_features,
+        }
+    }
+
+    /// Get entropy H(xi)
+    #[inline]
+    fn entropy(&self, i: usize) -> f64 {
+        self.entropies[i]
+    }
+
+    /// Get residual entropy H(ri_j) where ri_j = residual of xi on xj
+    #[inline]
+    fn residual_entropy(&self, i: usize, j: usize) -> f64 {
+        self.residual_entropies[i * self.n_features + j]
+    }
+
+    /// Compute diff mutual info using pre-computed values
+    /// diff = (H(xj) + H(ri_j)) - (H(xi) + H(rj_i))
+    #[inline]
+    fn diff_mutual_info(&self, i: usize, j: usize) -> f64 {
+        (self.entropy(j) + self.residual_entropy(i, j))
+            - (self.entropy(i) + self.residual_entropy(j, i))
+    }
+}
+
+/// DirectLiNGAM result
+#[derive(Clone, Debug)]
+pub struct DirectLiNGAMResult {
+    /// Causal ordering (indices of variables from root cause to effect)
+    pub causal_order: Vec<usize>,
+    /// Adjacency matrix B where X = B*X + E
+    /// B[i,j] = effect of j on i (j → i)
+    pub adjacency_matrix: DMatrix<f64>,
+    /// Residuals from regression
+    pub residuals: DMatrix<f64>,
+}
+
+/// Configuration for DirectLiNGAM
+pub struct DirectLiNGAMConfig {
+    /// Independence measure: "mi" (mutual information) or "kernel"
+    pub measure: String,
+    /// Number of bins for MI estimation
+    pub mi_bins: usize,
+    /// Threshold for pruning small coefficients
+    pub threshold: f64,
+}
+
+impl Default for DirectLiNGAMConfig {
+    fn default() -> Self {
+        DirectLiNGAMConfig {
+            measure: "mi".to_string(),
+            mi_bins: 20,
+            threshold: 0.0,
+        }
+    }
+}
+
+/// Run DirectLiNGAM algorithm
+///
+/// # Arguments
+/// * `data` - Input data (n_samples x n_features)
+/// * `config` - Algorithm configuration
+///
+/// # Returns
+/// * DirectLiNGAMResult with causal order and adjacency matrix
+pub fn direct_lingam(data: &DMatrix<f64>, config: DirectLiNGAMConfig) -> DirectLiNGAMResult {
+    let n_features = data.ncols();
+    let n_samples = data.nrows();
+
+    // Phase 1: Find causal order using OPTIMIZED residual-based search
+    // Optimization: Pre-compute all entropies and residual entropies (arXiv:2409.05500)
+    let x = center(data);
+
+    // Pre-compute: standardized columns and their entropies
+    let precomputed = PrecomputedEntropies::new(&x);
+
+    let mut remaining: Vec<usize> = (0..n_features).collect();
+    let mut causal_order: Vec<usize> = Vec::with_capacity(n_features);
+    let mut r = x.clone();
+
+    while !remaining.is_empty() {
+        // Use pre-computed entropies for faster root finding
+        let root_idx = find_root_optimized(&r, &remaining, &precomputed);
+        let root = remaining[root_idx];
+        causal_order.push(root);
+        remaining.remove(root_idx);
+
+        if remaining.is_empty() {
+            break;
+        }
+
+        // Regress root out from remaining variables for next iteration
+        let root_col = r.column(root).into_owned();
+        for &j in &remaining {
+            let j_col = r.column(j).into_owned();
+            let root_var: f64 = root_col.iter().map(|x| x * x).sum();
+            let covar: f64 = root_col.iter().zip(j_col.iter()).map(|(a, b)| a * b).sum();
+            let b_jr = if root_var.abs() > 1e-10 {
+                covar / root_var
+            } else {
+                0.0
+            };
+            for i in 0..n_samples {
+                r[(i, j)] -= b_jr * root_col[i];
+            }
+        }
+    }
+
+    // Phase 2: Estimate adjacency matrix using causal order on ORIGINAL data
+    // This follows Python lingam's approach: regress each variable on its predecessors
+    let b = estimate_adjacency_matrix(data, &causal_order, config.threshold);
+
+    // Compute final residuals
+    let residuals = compute_residuals(data, &b);
+
+    DirectLiNGAMResult {
+        causal_order,
+        adjacency_matrix: b,
+        residuals,
+    }
+}
+
+/// Estimate adjacency matrix from causal order using Adaptive LASSO
+/// Exactly follows Python lingam's _estimate_adjacency_matrix with predict_adaptive_lasso
+fn estimate_adjacency_matrix(
+    data: &DMatrix<f64>,
+    causal_order: &[usize],
+    threshold: f64,
+) -> DMatrix<f64> {
+    let n_features = data.ncols();
+    let n_samples = data.nrows();
+    let mut b = DMatrix::zeros(n_features, n_features);
+
+    // Standardize data for Adaptive LASSO
+    let (x_std, _means, _stds) = standardize(data);
+
+    for i in 1..causal_order.len() {
+        let target = causal_order[i];
+        let predictors: Vec<usize> = causal_order[..i].to_vec();
+
+        if predictors.is_empty() {
+            continue;
+        }
+
+        // Build design matrix from predictors (standardized)
+        let mut design_std = DMatrix::zeros(n_samples, predictors.len());
+        for (col_idx, &pred) in predictors.iter().enumerate() {
+            design_std.set_column(col_idx, &x_std.column(pred));
+        }
+
+        // Use Adaptive LASSO for sparse coefficient estimation (like Python lingam)
+        let target_col_std = x_std.column(target).into_owned();
+        let lasso_coefs = adaptive_lasso(&design_std, &target_col_std, 1.0, 100, 1e-4);
+
+        // Find pruned predictors (non-zero coefficients)
+        let pruned_predictors: Vec<usize> = predictors
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| lasso_coefs[*idx].abs() > 1e-10)
+            .map(|(_, &p)| p)
+            .collect();
+
+        if pruned_predictors.is_empty() {
+            continue;
+        }
+
+        // Build design matrix from pruned predictors (original scale)
+        let mut design_orig = DMatrix::zeros(n_samples, pruned_predictors.len());
+        for (col_idx, &pred) in pruned_predictors.iter().enumerate() {
+            design_orig.set_column(col_idx, &data.column(pred));
+        }
+
+        // Final OLS on original scale for unbiased coefficients
+        let target_col = data.column(target).into_owned();
+        let final_coefs = ols(&design_orig, &target_col);
+
+        // Store in adjacency matrix with thresholding
+        for (idx, &pred) in pruned_predictors.iter().enumerate() {
+            let coef = final_coefs[idx];
+            if coef.abs() > threshold {
+                b[(target, pred)] = coef;
+            }
+        }
+    }
+
+    b
+}
+
+/// Standardize data (zero mean, unit variance)
+fn standardize(data: &DMatrix<f64>) -> (DMatrix<f64>, DVector<f64>, DVector<f64>) {
+    let n_samples = data.nrows() as f64;
+    let n_features = data.ncols();
+
+    let mut means = DVector::zeros(n_features);
+    let mut stds = DVector::zeros(n_features);
+    let mut result = data.clone();
+
+    for j in 0..n_features {
+        let col = data.column(j);
+        let mean = col.sum() / n_samples;
+        let var = col.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n_samples;
+        let std = var.sqrt().max(1e-10);
+
+        means[j] = mean;
+        stds[j] = std;
+
+        for i in 0..data.nrows() {
+            result[(i, j)] = (data[(i, j)] - mean) / std;
+        }
+    }
+
+    (result, means, stds)
+}
+
+/// Find root variable using OPTIMIZED pwling with pre-computed entropies
+/// O(m²) instead of O(m²·n) per iteration (arXiv:2409.05500)
+fn find_root_optimized(
+    _data: &DMatrix<f64>,
+    remaining: &[usize],
+    precomputed: &PrecomputedEntropies,
+) -> usize {
+    if remaining.len() == 1 {
+        return 0;
+    }
+
+    // Compute pwling scores using pre-computed entropies (O(1) per pair)
+    let scores: Vec<f64> = remaining
+        .par_iter()
+        .map(|&i| {
+            let mut m_score = 0.0;
+            for &j in remaining {
+                if j == i {
+                    continue;
+                }
+                // Use pre-computed diff mutual info (O(1) lookup)
+                let diff = precomputed.diff_mutual_info(i, j);
+                let penalty = diff.min(0.0);
+                m_score += penalty.powi(2);
+            }
+            m_score
+        })
+        .collect();
+
+    // Find minimum score (most independent = best root)
+    scores
+        .iter()
+        .enumerate()
+        .min_by(|a, b| {
+            let score_a = if a.1.is_nan() { f64::INFINITY } else { *a.1 };
+            let score_b = if b.1.is_nan() { f64::INFINITY } else { *b.1 };
+            score_a
+                .partial_cmp(&score_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
+
+/// Compute final residuals from original data and adjacency matrix
+fn compute_residuals(data: &DMatrix<f64>, b: &DMatrix<f64>) -> DMatrix<f64> {
+    let n_samples = data.nrows();
+    let n_features = data.ncols();
+
+    // E = X - B*X
+    let mut residuals = DMatrix::zeros(n_samples, n_features);
+
+    for i in 0..n_samples {
+        let x_row = data.row(i).transpose();
+        let bx = b * &x_row;
+        let e = &x_row - &bx;
+        residuals.set_row(i, &e.transpose());
+    }
+
+    residuals
+}
+
+/// Prune small coefficients in adjacency matrix
+///
+/// # Arguments
+/// * `b` - Adjacency matrix
+/// * `threshold` - Minimum absolute value to keep
+///
+/// # Returns
+/// * Pruned adjacency matrix
+pub fn prune_adjacency(b: &DMatrix<f64>, threshold: f64) -> DMatrix<f64> {
+    b.map(|x| if x.abs() > threshold { x } else { 0.0 })
+}
+
+/// Direct causal effect between two variables
+///
+/// Returns `B[to, from]`, the instantaneous direct effect coefficient.
+///
+/// # Arguments
+/// * `b` - Adjacency matrix from DirectLiNGAM
+/// * `from` - Source variable index
+/// * `to` - Target variable index
+pub fn direct_effect(b: &DMatrix<f64>, from: usize, to: usize) -> f64 {
+    if from == to {
+        return 1.0;
+    }
+
+    let n = b.nrows();
+    if from >= n || to >= n {
+        return 0.0;
+    }
+
+    b[(to, from)]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nalgebra::dmatrix;
+
+    #[test]
+    fn test_direct_lingam_simple() {
+        // Create simple causal structure: X0 → X1 → X2
+        let n = 200;
+        let mut data = DMatrix::zeros(n, 3);
+
+        // X0 = noise
+        for i in 0..n {
+            data[(i, 0)] = (i as f64 * 0.1).sin() + (i as f64 * 0.17).cos() * 0.5;
+        }
+
+        // X1 = 0.8 * X0 + noise
+        for i in 0..n {
+            data[(i, 1)] = 0.8 * data[(i, 0)] + (i as f64 * 0.13).sin() * 0.3;
+        }
+
+        // X2 = 0.5 * X1 + noise
+        for i in 0..n {
+            data[(i, 2)] = 0.5 * data[(i, 1)] + (i as f64 * 0.19).cos() * 0.2;
+        }
+
+        let config = DirectLiNGAMConfig::default();
+        let result = direct_lingam(&data, config);
+
+        // Causal order should be [0, 1, 2] or start with 0
+        assert_eq!(result.causal_order.len(), 3);
+
+        // Adjacency matrix should have non-zero B[1,0] and B[2,1]
+        let b = &result.adjacency_matrix;
+
+        // Print for debugging
+        println!("Causal order: {:?}", result.causal_order);
+        println!("Adjacency matrix:\n{}", b);
+    }
+
+    #[test]
+    fn test_prune_adjacency() {
+        let b = dmatrix![
+            0.0, 0.8, 0.01;
+            0.0, 0.0, 0.5;
+            0.0, 0.0, 0.0
+        ];
+
+        let pruned = prune_adjacency(&b, 0.1);
+
+        assert_eq!(pruned[(0, 1)], 0.8);
+        assert_eq!(pruned[(1, 2)], 0.5);
+        assert_eq!(pruned[(0, 2)], 0.0); // Pruned
+    }
+
+    #[test]
+    fn test_direct_effect() {
+        let b = dmatrix![
+            0.0, 0.8, 0.0;
+            0.0, 0.0, 0.5;
+            0.0, 0.0, 0.0
+        ];
+
+        // Direct effects
+        assert_eq!(direct_effect(&b, 0, 1), 0.0); // B[1,0]
+        assert_eq!(direct_effect(&b, 1, 0), 0.8); // B[0,1]
+    }
+}

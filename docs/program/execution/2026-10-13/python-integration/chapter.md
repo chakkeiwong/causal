@@ -1,0 +1,115 @@
+# Preserving causal meaning in a Python identification adapter
+\label{exec13:python-identification}
+
+A common causal interface is useful only if a question keeps its meaning when it passes into another library. An outreach decision can become a different question if a transport drops a condition, converts an uncertain graph into one directed graph, or treats a symbolic probability formula as an estimated monetary return. The proposed Python path therefore begins with a narrow service: identify an intervention distribution in one supplied causal graph, preserve the assumptions that make the formula relevant, and report an explicit limit when that service cannot answer the question.
+
+y0 is a plausible component for this service because its inspected Python API separates a query, a mixed graph and a symbolic identification expression. The source considered here is commit `cc6644d3b470a1ab2a1eb9da4f0fdb0c843f5d3a`, dated 13 April 2026; its project metadata declares development version `0.2.12-dev`. The acquisition is later than the literature cutoff, but the reviewed commit predates 7 October 2026. These identifiers describe inspected source, not a tested deployment. The proposed decision is to integrate a restricted identification path and verify its conversions before admitting it to a prototype. Porting an entire identification engine would create a second implementation to maintain before the first interface has established its scientific meaning. \citep{exec13_y0_api,exec13_y0_metadata}
+
+## A distributional question before an estimate
+
+Let \(A\) denote a bank action, \(Y\) an outcome and \(Z\) a collection of explicitly named conditions. The requested object is
+
+\[
+ p(y\mid\operatorname{do}(a),z).
+\]
+
+It is distinct from an observed conditional probability, an average difference between two actions, and a confidence interval for an estimated difference. For a finite outcome support, a later evaluator might form
+
+\[
+ \mu(a,z)=\sum_y y\,p(y\mid\operatorname{do}(a),z),
+ \qquad \tau(z)=\mu(a_1,z)-\mu(a_0,z).
+\]
+
+That calculation requires the original outcome coordinates, treatment/control order and units. If \(Y\) is a repayment indicator, \(\tau\) is a probability difference. If \(Y\) is net cash received, it has the declared currency and horizon. Multiplying the first by a loss avoided per repayment is an additional valuation model; it is not an operation that the identification library can infer from a variable label.
+
+The first adapter is deliberately limited to one scalar outcome and treatment, optional conditions, one causal DAG or acyclic directed mixed graph (ADMG), and declared finite discrete domains. This makes its numerical references and interpretation concrete. It does not establish an absence of wider functions elsewhere in y0. A graph representing selection, transport between populations, cross-world counterfactuals, an adaptive longitudinal regime or unresolved graph alternatives needs a separately reviewed path. An account panel can still describe its sampling law in the request, but a symbolic formula supplies no independence assumption, standard error or calibration for that panel.
+
+The scientific context should travel with the formula: target population, action values, outcome horizon, observation and availability clocks, variable domains, units, sign convention, sampling unit and assumptions. A hash of that complete context identifies the request. A changed population, a reversed action contrast or a different availability clock produces a different identity even when the graph picture is unchanged. The shared library, CLI and MCP operation contracts already distinguish transport completion from scientific disposition; the proposed adapter specializes that distinction for identification. \citep{exec13_y0_contract}
+
+A condition deserves particular care. Conditioning on a pretreatment risk category and conditioning on a response to the action are different targets. The interface should require the caller to state which is intended, preserve the chronology, and avoid silently relabeling a post-action variable as an adjustment covariate. Syntax can reject a missing clock declaration. It cannot determine whether the bank's claimed chronology or causal model is true.
+
+## Graph and coordinate conversion
+
+The graph object in the inspected source contains a directed component and a component named `undirected`. In the causal mixed-graph interpretation, the latter carries bidirected latent links: the source's causal-graph importer maps the input type `bidirected` into that field, and its latent expansion creates a shared hidden parent for each such edge. It is therefore incorrect to put an unresolved CPDAG edge into this component merely because both are stored by an undirected graph data structure. \citep{exec13_y0_graph}
+
+For the admitted path, a tail--arrow pair becomes a directed edge, and an arrow--arrow pair becomes an ADMG bidirected edge. Circles, tail--tail edges and graph collections receive an unsupported disposition that retains the original representation. A directed edge and a bidirected edge may coexist on the same pair of variables; erasing one would change the model. The directed component must be acyclic, with all endpoints in the declared node set. These checks belong in the adapter: the inspected graph initializer sets metadata flags and does not itself establish acyclicity.
+
+Every variable, including an isolated one, must be passed explicitly. Constructing a graph solely from edges can lose an outcome or an independent condition that has no incident edge. The adapter should compare the node and typed-edge sets before and after conversion and use a deterministic valid topological ordering. The purpose is reproducibility and semantic preservation, not the selection of a statistically preferred causal ordering.
+
+Names are another coordinate system. External identifiers may contain spaces, non-ASCII text or labels that collide after informal sanitization. The proposed conversion assigns opaque internal symbols through a bijection and keeps a sidecar containing the external identifier, displayed label, domain order, time coordinate and units. It never guesses temporal order from a name such as `lag1`, and it never converts category labels into numeric doses without a declared mapping. A graph-set request remains a graph-set request even when unsupported. An uncomputed effect set remains unknown; it is not represented by a convenient point estimate or an empty region.
+
+## Why conditional identification needs a restricted route
+
+The high-level API calls ID when its conditions field is empty and IDC otherwise. By default it converts the specific `Unidentifiable` exception to `None`; with `strict=True` it preserves the exception. Other exception types are not caught by that branch. The adapter should preserve this distinction, because a malformed graph, a runtime failure and nonidentification are different outcomes. The inspected ID recursion supplies node/district arguments when raising `Unidentifiable`, but those arguments should not be presented as an independently verified graphical certificate. \citep{exec13_y0_api,exec13_y0_id}
+
+Two additional source findings restrict the proposed conditional route. First, `Query.expression` builds a conditioned distribution when conditions exist, using an `elif` branch for interventions. When both are present, that convenience property does not add the intervention. This is a serialization hazard, not evidence that the separate IDC algorithm discards its treatment field: `Identification` retains outcomes, treatments and conditions separately. The adapter should serialize its original query triple independently of that convenience property. \citep{exec13_y0_utils}
+
+Second, IDC tests whether an observation may be exchanged for an action using a separation routine. The inspected routine takes a directed-ancestor subgraph, connects directed co-parents, flattens the remaining edges and removes conditioning vertices. For a DAG this is a familiar construction. The same steps do not generally implement the collider behavior of bidirected paths. The source-level discrepancy can be demonstrated without relying on a package's own numerical output. \citep{exec13_y0_idc,exec13_y0_rule2,exec13_y0_separation,exec13_y0_graph}
+
+Consider the ADMG
+
+\[
+ Y\leftrightarrow B\leftrightarrow Z,
+\]
+
+with an unrelated action \(X\). The middle vertex \(B\) is a collider. Conditioning on it can connect \(Y\) and \(Z\); treating it as an ordinary undirected intermediate vertex and deleting it instead disconnects them. In the rule-2 check for exchanging \(Z\), removal of incoming edges to isolated \(X\) and outgoing edges from \(Z\) does not change this path. The inspected directed co-parent rule adds no \(Y\)--\(Z\) link because there are no directed edges. Its subsequent deletion of \(B\) therefore predicts separation where the causal mixed graph does not.
+
+An exact generated law makes the consequence explicit. Let \(U,V\) be independent fair bits, let \(Y=U\), \(Z=V\), and let \(B\) report whether \(U=V\), correctly with probability \(.9\). The observed law of \((Y,B,Z)\) has positive probability in all eight cells. Direct enumeration gives
+
+\[
+ P(Y=1\mid B=1,Z=1)=\frac9{10},
+ \qquad
+ P(Y=1\mid B=1,\operatorname{do}(Z=1))=\frac12.
+\]
+
+An intervention on \(Z\) overwrites that measurement but does not change \(U,V\) or the mechanism generating \(B\). Exchanging the observation for the action would therefore change the requested probability. This is an exact reference for the scientific meaning of the graph and a trace of the inspected source path; it is not a report of an executed y0 failure. \citep{exec13_y0_oracles}
+
+The initial adapter can avoid that native conditional path. It first applies ID to the joint query \(p(y,z\mid\operatorname{do}(a))\). If it obtains an observational functional \(N(y,z,a)\), it forms
+
+\[
+ \frac{N(y,z,a)}{\sum_{y'}N(y',z,a)},
+\]
+
+on coordinates for which the denominator is positive. This is a direct probability identity. It neither uses the questionable separation step nor relies on the query-expression convenience property. The route is conservative: failure to identify the joint distribution does not prove failure to identify the conditional target. Such a failure must return “unsupported by the admitted conditional route,” leaving the original question intact. Re-enabling native IDC requires a corrected or otherwise justified path and an actual engine comparison against independent collider references.
+
+## A front-door reference with a banking interpretation
+
+A second exact example supplies a positive identification reference. Let \(A\) be assistance, \(M\) completion of the assisted process and \(Y\) successful repayment. In the generated example an unobserved \(U\) affects both assistance and repayment. The assumed graph has \(A\to M\to Y\) and \(A\leftrightarrow Y\), with no direct effect of assistance on repayment outside \(M\). This is a strong exclusion assumption. In a real service workflow an agent's advice, fees or other treatment channels could violate it, and observed associations alone do not establish it.
+
+Specify the finite law by
+
+\[
+ \begin{aligned}
+ P(U=1)&=\tfrac12,\\
+ P(A=1\mid U=u)&=\tfrac15+\tfrac35u,\\
+ P(M=1\mid A=a)&=\tfrac14+\tfrac12a,\\
+ P(Y=1\mid M=m,U=u)&=\tfrac1{10}+\tfrac12m+\tfrac15u.
+ \end{aligned}
+\]
+
+Independent rational enumeration first constructs the observed joint table, hiding \(U\), and evaluates
+
+\[
+ \sum_m p(m\mid a)\sum_{a'}E(Y\mid m,a')p(a').
+\]
+
+It separately evaluates the intervention law from the specified mechanisms. Both routes produce \(13/40=.325\) under \(a=0\) and \(23/40=.575\) under \(a=1\), for a difference of \(1/4\). The naive observed difference is \(37/100\). The exact calculation therefore distinguishes a successful symbolic formula from a shortcut that merely compares observed groups. No fitted sample, randomized qualification study or engine runtime is involved. \citep{exec13_y0_oracles}
+
+If a proposal scenario assigns an assumed USD 1,000 benefit to each additional successful repayment, the gross expected difference is USD 250 per account, before assistance costs and any other consequences. That number is planning arithmetic under the declared law and value assumption. It supplies neither observed bank ROI nor evidence that the front-door graph describes a bank.
+
+The inner treatment variable \(a'\) reveals an important serialization requirement. It is a dummy summation coordinate, while the outer \(a\) is the requested intervention value. A global string replacement could capture the dummy variable and change the formula. The proposed result format uses a typed expression tree with lexical bindings for marginalized variables. It preserves probability factors, products, sums and ratios, alpha-renames bound symbols when needed, and maps free coordinates back to the original question. The inspected symbolic classes expose those structures; rendered LaTeX or the library's Python-like display string is suitable for presentation, not as an executable interchange format. \citep{exec13_y0_dsl}
+
+An independent negative reference is equally necessary. In a graph allowing \(A\to Y\) and \(A\leftrightarrow Y\), take a fair hidden \(U\), let \(A=U\), and let an independent bit \(E\) equal one with probability \(.2\). The mechanisms \(Y=A\mathbin{\mathrm{xor}}E\) and \(Y=U\mathbin{\mathrm{xor}}E\) give the same strictly positive observed law of \((A,Y)\). Under intervention their effects are respectively \(.6\) and zero. Both belong to the model allowing those edges; no faithfulness restriction is imposed. A library cannot choose between the effects from their identical observed distribution. A successful adapter retains this nonidentification rather than translating every completed request into a finite effect. \citep{exec13_y0_oracles}
+
+## Responses, deployment and the next prototype decision
+
+A symbolic identification result should contain the original query, graph and context identities, engine revision, typed functional, support conditions and source provenance. Its numeric estimate, standard error and confidence region remain absent. When the unconditional ID path reports nonidentification in an admitted model, the response should identify that origin and retain its diagnostic without exaggerating its verification. When the conditional joint route fails, the response is unsupported. An invalid graph is rejected; a missing engine, internal failure, timeout or cancellation is unavailable. These distinctions determine whether the next action is to repair an input, add scientific information, select a different method or provision a runtime.
+
+Library, CLI and MCP surfaces should call the same core implementation and return the same context and result identities. The symbolic service requires graph and question artifacts, not bank account rows. A worker can enforce wall-time, memory and output budgets while keeping engine diagnostics separate from scientific conclusions. Cancellation must preserve a completed result if publication has already occurred; an interrupted partial expression cannot become an identified functional. These are proposed implementation requirements, not performance guarantees supplied by the inspected y0 API.
+
+The pinned project metadata requires Python 3.11 or later and lists twelve direct runtime dependencies, including NetworkX, SciPy, pandas, scikit-learn and statsmodels. The build backend is `uv_build` in its declared version range. Its optional R extra uses `rpy2`; upstream test groups include additional packages that are not all runtime requirements of the proposed pure-Python path. The inspected tree has no root lockfile establishing resolved transitive versions. A prototype admission therefore needs a frozen interpreter/platform and dependency manifest, saved distribution hashes, actual build/import logs and license notices. Source inspection alone cannot promise compatibility with whatever environment happens to be installed. \citep{exec13_y0_metadata,exec13_y0_tree}
+
+The saved BSD three-clause license permits redistribution under its notice, disclaimer and nonendorsement conditions. That supports a possible integration route, while leaving dependency rights and actual deployment behavior to be checked. It supplies no scientific warranty. A port may become justified if a later measurement shows that the Python environment or latency is a decisive constraint; there is no such measured advantage for porting in the present evidence. \citep{exec13_y0_license}
+
+The prototype's first engine trials should compare the actual pinned runtime with the independent front-door, bow and collider references, including retained unsupported requests. Conversion checks should exercise isolated variables, edge-type distinctions, coordinate permutations, dummy-variable binding, zero conditional support and distinct failures. A successful trial would support the named adapter in its declared regime. It would not establish discovery accuracy, graph truth, estimation calibration or institutional acceptance. The value of this restricted design is that each later claim has a specific test and a specific scientific object that must survive the interface.
+\label{exec13:python-identification-end}

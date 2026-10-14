@@ -1,0 +1,1966 @@
+                                          Temporal Causal Prior-Data Fitted Networks
+                                         for Panel Data with Learned Reliability Signals
+                                                         Shravan Talupula, Saurabh Sharma
+arXiv:2606.20889v1 [cs.LG] 18 Jun 2026
+
+
+
+
+                                                                  ProfitOps Inc.
+                                                       {stalupula, ssharma}@profitops.ai
+
+                                                                             Abstract
+                                               Estimating causal effects in industrial time series – such as man-
+                                           ufacturing sensor data – requires handling temporal dynamics, time-
+                                           varying treatments, unobserved confounders, and streaming data. Es-
+                                           tablished causal foundation models operate on static cross-sectional data
+                                           (CausalPFN, CausalFM); neural temporal methods (CRN, G-Net) require
+                                           per-dataset training; and concurrent temporal-PFN proposals to date
+                                           (CausalTimePrior [26], the continuous-time Neural-ODE approach [27])
+                                           are either prior-design work validated on synthetic samples only or have
+                                           not been demonstrated at industrial scale. No existing causal PFN method
+                                           outputs explicit per-pair reliability signals – null-effect probability, identi-
+                                           fiability, mediation, regime classification – alongside its CATE estimates.
+                                               We introduce Temporal Causal Prior-Data Fitted Networks
+                                           (TCPFN), a foundation model for zero-shot temporal causal discovery
+                                           with learned reliability signals – applied to unseen time series without
+                                           per-dataset training.
+                                               TCPFN makes four contributions. First, we introduce a Causal Judg-
+                                           ment Head – a structured output module that jointly predicts null-effect
+                                           probability, confounding strength, identifiability, mediation fraction, and
+                                           causal regime for each treatment-outcome pair. This enables the model to
+                                           not only estimate effects but also flag when those estimates may be unreli-
+                                           able. The judgment head is trained jointly with the CATE objective using
+                                           a three-phase curriculum that prevents destructive interference between
+                                           tasks. Second, we train with a mixed prior that exposes the model to di-
+                                           verse causal structures during pretraining: a Causal Regime Prior covering
+                                           independent (T ⊥  ⊥ Y), direct, confounded (true effect = 0), mediated, time-
+                                           varying confounded, and feedback regimes, combined with CausalFM-style
+                                           identification priors for front-door and instrumental-variable structures.
+                                           Each regime provides ground-truth supervision for all judgment head out-
+                                           puts, ensuring the model sees null-effect data during training – critical
+                                           for learning to distinguish causation from correlation. Third, a discrete-
+                                           token panel-data architecture brings the PFN paradigm to temporal
+                                           causal inference: each (unit, timestep) becomes a token with a three-part
+                                           encoding (relative time from treatment, phase indicator, elapsed time for
+                                           irregular sampling), and a cross-attention-only architecture prevents in-
+                                           formation leakage between prediction horizons. The discrete-token design
+
+
+                                                                                  1
+complements concurrent continuous-time approaches [27] and fits naturally
+for regularly-sampled industrial sensor data. Fourth, zero-shot inference
+at industrial scale via FAISS-based context selection and one-step pos-
+terior correction (OSPC) for valid confidence intervals, enabling V=1,275
+causal discovery in a single GPU pass.
+    For causal discovery, TCPFN estimates the temporal CATE (condi-
+tional average treatment effect) for each variable pair and computes an edge
+score that combines effect magnitude with null-probability and identifiabil-
+ity from the judgment head: score(i → j) = |τ̂i→j |×(1−pnull )×pidentifiable .
+    We evaluate on 19 zero-shot benchmark datasets across five domains
+(linear, nonlinear, chaotic, industrial, biological). On the Tennessee East-
+man industrial benchmark (52 variables), TCPFN achieves AUROC 0.96
+zero-shot – approaching PCMCI’s 1.00 without per-dataset fitting. On
+SWaT (water treatment, 51 variables) TCPFN reaches AUROC 0.93;
+on Causal Rivers (hydrological network), 0.98; on CAUSRCA (Fraun-
+hofer CNC lathe, 104 variables), 0.97 – and with 160 predicted edges vs.
+Granger’s 6,164 on a graph with 104 true edges, TCPFN returns a graph
+an operator can plausibly inspect rather than a saturated adjacency matrix.
+On the nonlinear CauseMe NVAR-5 benchmark, TCPFN reaches AUROC
+0.96 with best F1 0.80, versus Granger’s best F1 0.67. On the Sachs protein
+signaling benchmark (a non-temporal flow-cytometry dataset treated as
+pseudo-timeseries), TCPFN’s AUROC of 0.63 still exceeds both Granger
+(0.48) and PCMCI (0.46). The judgment head reliably detects null effects
+(NullF1 0.94, AUROC 0.99, Brier 0.04) with strong separation between null
+and non-null batches (NullSep 0.86), enabled by an “independent” training
+regime that teaches the model what “no causal effect” looks like. Per-token
+CATE trajectory shape remains a limitation (trajectory correlation near
+zero on average), though aggregated effect magnitudes used for discovery
+are robust and effect-shape PEHE is 0.40–0.60 across the six tested shapes.
+We emphasize that the judgment head’s outputs are learned heuristics,
+not formal guarantees.
+    On a proprietary Kraft pulp-and-paper manufacturing dataset, TCPFN
+completes V=1,275 causal discovery in 6 hours on a single H100 NVL GPU,
+zero-shot (the V=1,275 industrial discovery run is on H100 NVL; the model
+itself was pretrained on a single RTX 5090 in ∼4 hours, see Section 4.3
+and Appendix A.2). The discovered graph’s structure reflects the plant’s
+continuous-flow production layout, with edge density concentrated around
+the paper machine and decreasing through the upstream stages. Against
+PCMCI on the same data, TCPFN’s top edges concentrate on cross-
+subsystem causal relationships across plant areas; PCMCI’s top edges
+concentrate on within-instrument controller-measurement coupling at lag 1
+(relationships already documented on the plant’s P&ID schematics). We
+treat the Kraft deployment as a scalability and hypothesis-generation case
+study rather than as quantitative validation – the dataset has no ground-
+truth causal graph and operator-side validation of specific candidate edges
+is outside the scope of this paper.
+
+
+
+
+                                      2
+1     Introduction
+1.1    Motivation
+Modern manufacturing generates massive multivariate time series from sensors,
+actuators, and quality metrics. Plant operators routinely face causal questions:
+“What happens to product quality if I increase flow rate?” or “Which sensor is
+causing this defect?” Answering such questions requires causal inference – not
+mere correlation – yet classical approaches such as randomized controlled trials
+are infeasible in continuous production environments.
+    Observational causal inference from time series is the only viable option, but
+existing methods require per-dataset model training, which is impractical when
+each production line has unique dynamics and operators need answers in real
+time.
+
+1.2    Limitations of Existing Work
+Prior-Data Fitted Networks (PFNs) [17] have emerged as a powerful paradigm for
+amortized inference: pretrain on synthetic data drawn from a prior, then apply
+zero-shot to real data. This paradigm has been successfully applied to tabular
+prediction (TabPFN [7]), static causal inference (CausalPFN [1]), and extended
+identification strategies (CausalFM [13]). Concurrent work explores temporal ex-
+tensions through synthetic prior design (CausalTimePrior [26], a workshop-scale
+data generator) and continuous-time Neural-ODE architectures [27]. However,
+the established (scaled) causal PFN models all operate on static, cross-sectional
+data and cannot handle:
+• Temporal dynamics: treatment effects that unfold over time (delayed,
+   oscillating, decaying)
+• Time-varying treatments: repeated interventions, not just one-time binary
+   treatments
+• Irregular sampling: missing observations and variable time gaps between
+   measurements
+• Streaming data: real-time updates as new sensor readings arrive
+    Neural temporal causal methods (RMSN [11], CRN [2], G-Net [10]) address
+temporal dynamics but require per-dataset training, limiting their applicability
+to settings with abundant labeled data and sufficient training time.
+    Furthermore, no existing causal PFN method – including the concurrent
+temporal work cited above – outputs explicit per-pair reliability signals (null-
+effect probability, identifiability, mediation, regime classification) alongside its
+CATE estimates. Classical sensitivity analysis methods exist but require explicit
+assumptions and per-dataset analysis.
+
+1.3    Contributions
+We introduce Temporal Causal Prior-Data Fitted Networks (TCPFN),
+a foundation model for temporal causal inference on industrial time series. We
+
+
+                                         3
+make four contributions:
+1. Temporal token design for causal PFNs (Section 3.2). We extend
+   Prior-Data Fitted Networks from static/cross-sectional to panel data. Each
+   (unit, timestep) pair becomes a token with a three-part encoding (relative time
+   from treatment, phase indicator, elapsed time for irregular sampling). A cross-
+   attention-only architecture prevents information leakage between prediction
+   horizons. The discrete-token design complements concurrent continuous-
+   time approaches [27]: discrete tokens fit naturally for sampled-sensor data
+   (DCS/SCADA at fixed intervals), while continuous-time formulations target
+   irregular clinical data. The architecture captures delayed, oscillating, and
+   decaying treatment effects that static methods cannot.
+2. Causal Judgment Head (Section 3.4). We introduce a structured output
+   module that jointly predicts null-effect probability, confounding strength,
+   identifiability, mediation fraction, and causal regime. This enables the model
+   to not only estimate effects but also to flag when those estimates may be
+   unreliable – a capability not present in existing causal PFN methods. The
+   judgment head is trained jointly with the CATE objective using a three-
+   phase curriculum that prevents the auxiliary task from destabilizing effect
+   estimation: CATE-only → null detection → full causal reasoning.
+3. Causal Regime Prior (Section 3.5). We train on a mixed prior: a Causal
+   Regime Prior covering independent (T ⊥⊥ Y), direct, confounded (true effect
+   = 0), mediated, time-varying confounded, and feedback regimes, combined
+   with CausalFM-style identification priors for front-door and instrumental-
+   variable structures. Each regime provides ground-truth metadata for all
+   judgment head outputs. This teaches the model to distinguish causation from
+   correlation – unlike standard priors that only generate direct effects with
+   varying confounding.
+4. Zero-shot inference at scale (Section 3.6). We pair the temporal causal
+   model with FAISS-based context selection and one-step posterior correction
+   (OSPC) for valid confidence intervals, enabling V=1,275 causal discovery in a
+   single GPU pass with no per-dataset fitting.
+    A key insight is that the same temporal CATE model performs causal
+discovery through interventional reasoning: for each variable pair, estimating
+“what happens to Y when I intervene on X?” The judgment head further improves
+discovery by down-weighting edges it judges as confounded or unidentifiable:
+score(i → j) = |τ̂ | × (1 − pnull ) × pid .
+    We evaluate on 19 benchmark datasets across five domains (linear, nonlinear,
+chaotic, industrial, biological) and on a proprietary Kraft pulp-and-paper manu-
+facturing dataset, where TCPFN completes V=1,275 zero-shot causal discovery
+in 6 hours on a single H100 NVL GPU (preprocessing details in Section 4.3;
+pretraining itself ran on a single RTX 5090, see Appendix A.2). The discovered
+graph’s structure reflects the plant’s continuous-flow production layout, with edge
+density concentrated around the paper machine. Compared head-to-head against
+PCMCI on the same dataset, TCPFN’s top edges identify cross-subsystem causal
+relationships; PCMCI’s top edges are dominated by trivial within-instrument
+coupling already documented on the plant’s P&ID schematics – a distinction that
+
+
+                                        4
+matters when the goal is to surface new causal structure rather than rediscover
+known control loops.
+
+
+2     Background
+2.1     Prior-Data Fitted Networks
+Prior-Data Fitted Networks (PFNs) [17] amortize Bayesian inference by pretrain-
+ing a transformer on synthetic datasets drawn from a prior p(D). At inference
+time, the model performs approximate posterior predictive inference in a sin-
+gle forward pass, without gradient updates. This paradigm has been applied
+to tabular classification (TabPFN [7]), regression, and static causal inference
+(CausalPFN [1]).
+    CausalPFN trains on synthetic data from structural causal models (SCMs)
+where ground-truth potential outcomes Y (0), Y (1) are known. The model learns
+to estimate conditional average treatment effects (CATE) τ (x) = E[Y (1) − Y (0) |
+X = x] from observational data, using in-context learning. CausalFM [13]
+extends this to front-door adjustment and instrumental variable settings.
+    Limitations. All existing causal PFNs (1) operate on static, cross-sectional
+data – each unit i has a single outcome Yi , not a trajectory {Yi (t)}Tt=1 – and (2)
+output only a point estimate τ̂ (x) with no assessment of whether the estimate
+is trustworthy: they cannot distinguish genuine causal effects from spurious
+confounded associations, nor flag when effects are unidentifiable from the observed
+data.
+
+2.2     Temporal Causal Inference
+In the potential outcomes framework for longitudinal data [21], we observe panel
+data {(Xi , Ti (t), Yi (t))}N
+                            i=1 for t = 1, . . . , T , where Xi are static covariates, Ti (t)
+is the treatment at time t, and Yi (t) is the outcome. The temporal CATE is:
+
+ τ (x, t) = E[Yi (t) | do(Ti (t0 ) = 1), Xi = x]−E[Yi (t) | do(Ti (t0 ) = 0), Xi = x] (1)
+
+    Classical methods include g-computation [21], marginal structural mod-
+els (MSMs) [22], and structural nested models. Neural approaches include
+RMSN [11], Counterfactual Recurrent Networks (CRN) [2], and G-Net [10]. All
+require per-dataset training.
+    Key challenge. Time-varying confounding with treatment-confounder feed-
+back: past outcomes influence future treatment assignment, violating standard
+exchangeability assumptions.
+
+2.3     Causal Discovery from Time Series
+Temporal causal discovery aims to recover a directed acyclic graph (DAG)
+G with adjacency matrix A ∈ {0, 1}V ×V ×L , where Aj,k,l = 1 indicates that
+
+
+
+                                             5
+                                             TCPFN — One Model, Three Capabilities
+
+    PRETRAINING
+
+
+                                                                                                          CEPO Loss (CATE)
+        Causal Regime Prior                            Temporal Causal Model
+      independent, direct, confounded,                       (512d, 12 layers)                                                        Consistency
+      mediated, time-varying, feedback                    + Causal Judgment Head                                                      Constraints
+                                                                                                             Judgment Loss
+                                                                                                       (regime, null, confounding)
+
+
+
+
+                                                 ZERO-SHOT INFERENCE (same pretrained model)
+
+
+
+                Causal Discovery                           Effect Estimation                            Causal Judgment
+                                                                                                     Null probability (confounding)
+                  For each pair (i, j):                   Temporal CATE trajectories
+                                                                                                          Regime classification
+              score = |CATE| × (1 − pnull)                OSPC confidence intervals
+                                                                                                           Identifiability score
+                          × pident                       Continuous & time-varying T
+                                                                                                            Mediation fraction
+
+
+
+         Tennessee Eastman: AUROC 0.96                   Zero-shot on any dataset               NullF1 0.94 · RegimeAcc 0.68 (mean)
+
+
+
+
+                                                           Input: Multivariate Time Series (T, V)
+                                              CSV → auto-preprocess → causal insights + reliability assessment
+
+
+
+
+Figure 1: TCPFN system overview. A single temporal causal model is
+pretrained on synthetic SCMs (top) and applied zero-shot to real data (bottom).
+The same model performs causal discovery (pairwise interventional CATE),
+temporal effect estimation (CATE trajectories), and causal judgment (learned
+reliability signals).
+
+
+variable j causes variable k at lag l. Methods range from Granger causal-
+ity [6] to constraint-based approaches (PCMCI [24]) and continuous optimization
+(DYNOTEARS [18]).
+    Gap. No existing method provides both amortized (zero-shot) causal discov-
+ery and treatment effect estimation in a unified system, nor can any method
+assess the identifiability or reliability of its own causal conclusions.
+
+
+3     Method
+Figure 1 presents the TCPFN system. A single temporal model, pretrained on
+synthetic SCMs, performs effect estimation and causal discovery zero-shot.
+
+3.1      Problem Setup
+We observe panel data {(Xi , Ti (t), Yi (t))}N
+                                             i=1 for t = 1, . . . , Tpre + Tpost , where
+Xi ∈ RD are static covariates, Ti (t) ∈ {0, 1} (or R for continuous treatments) is
+the treatment status, and Yi (t) ∈ RK are outcome variables.
+   Goal 1 (Estimation). Estimate the temporal CATE:
+
+τ (x, h) = E[Y (t0 +h) | do(T (t0 ) = 1), X = x]−E[Y (t0 +h) | do(T (t0 ) = 0), X = x]
+                                                                                  (2)
+for each post-treatment horizon h = 0, 1, . . . , Tpost − 1.
+
+
+                                                                            6
+     Goal 2 (Discovery). Recover the temporal causal adjacency matrix A ∈
+[0, 1]V ×V ×L , where Aj,k,l indicates the strength of the causal effect of variable j
+on variable k at lag l.
+
+3.2     Temporal Token Design
+The core architectural innovation of TCPFN is representing panel data as a
+sequence of temporal tokens, enabling in-context causal inference over time.
+    Tokenization. Each (unit i, timestep t) pair becomes one token with
+features:
+               tokeni,t = [Ti , Xi , Ypre,i (1:Tpre ), 0pad ] ∈ RFmax        (3)
+where Ti is the treatment indicator, Xi are static covariates, and Ypre,i is the
+pre-treatment trajectory, zero-padded to Fmax features.
+   Temporal Encoding. Each token receives a three-part additive encoding:
+
+                enc(i, t) = Erel (δt ) + Ephase (ϕt ) + Welapsed · ∆t              (4)
+                            | {z }       | {z } |            {z     }
+                            relative time       pre/post   irregular gaps
+
+
+where δt = t − t0 is the relative time from treatment, ϕt = ⊮[t ≥ t0 ] is the
+phase indicator, Erel ∈ R(2H+1)×d and Ephase ∈ R2×d are learnable embeddings,
+Welapsed ∈ R1×d projects the actual elapsed time ∆t between observations
+(supporting irregular sampling), and all are initialized with small standard
+deviation (0.02) so the model starts close to static behavior.
+    Cross-Attention Only. The key design choice is that query tokens never
+attend to other query tokens – only to context tokens. This prevents informa-
+tion leakage between prediction horizons and ensures each horizon h predicts
+independently:
+                                                   ⊤
+                                                         
+                                          Qquery Kcontext
+              Attn(Q, K, V ) = softmax          √           Vcontext       (5)
+                                                  d
+Context tokens (full trajectories of training units) attend to each other and to
+themselves. Query tokens (post-treatment timesteps of test units) attend only
+to the context.
+
+3.3     Model Architecture
+3.3.1   Treatment Effect Model
+The TemporalTabDPTModel processes temporal token sequences:
+1. Feature encoder: LayerNorm(Linear(Fmax , d))
+2. Outcome encoder: LayerNorm(Linear(K, d)) for K outcome dimensions
+3. Temporal encoding: Added to all token embeddings (Section 3.2)
+4. Context fusion: Context tokens combine feature and outcome encodings;
+   query tokens use features only
+5. Transformer: L layers of cross-attention (Section 3.2)
+
+
+                                            7
+Figure 2: Temporal token design. (a) Panel data is converted to temporal
+tokens: each (unit, timestep) pair becomes one token. Context units have full tra-
+jectories; query units have only post-treatment tokens. (b) Cross-attention mask:
+queries attend to the full context but never to each other (red BLOCKED
+region), preventing information leakage between horizons.
+
+
+6. Output head: Linear(d, dff ) → GELU → Linear(dff , K × B), producing
+   B-bin histogram logits per outcome per query token
+    Training loss. We use the HL-Gaussian cross-entropy loss [8] over 128-bin
+histograms with CEPO (Conditional Expected Potential Outcomes) standard-
+ization. For each query token, a random treatment t ∈ {0, 1} is assigned, and
+the loss compares predicted histograms against ground-truth E[Y (t)]:
+                 B                                                     
+                X                                   ub − y         lb − y
+          L=−      ptarget
+                    b      log p̂ b , p target
+                                        b      = Φ           − Φ            (6)
+                                                      σ               σ
+                  b=1
+
+where lb , ub are bin edges, y is the Z-standardized ground-truth outcome, Φ is
+the standard normal CDF, and σ = 0.5 controls smoothing.
+
+3.3.2    Causal Discovery via Interventional Reasoning
+A key insight of TCPFN is that the same temporal CATE model used for
+effect estimation can perform causal discovery. Rather than learning a separate
+discovery model – which we found collapses to predicting base rates regardless
+of architecture – we use the treatment effect model to answer: “does intervening
+on variable i change the outcome of variable j?”
+     Pairwise CATE estimation. For each variable pair (i, j):
+1. Construct panel data from sliding windows of the multivariate time series
+2. Binarize treatment: Ti = ⊮[Xi > median(Xi )] in the pre-treatment window
+3. Include other variables as covariates: [Xkmean , Xkstd , Xktrend ] for k =
+                                                                            ̸ i, j – this
+    enables confounding adjustment
+4. Estimate τ̂ (i → j) = Ê[Yj | do(Ti =1)] − Ê[Yj | do(Ti =0)] using the temporal
+    CATE model
+
+
+                                           8
+Figure 3: Three-part temporal encoding. Top: relative time from treatment
+(δt ), encoded via learnable embedding. Middle: binary phase indicator (pre/post
+treatment). Bottom: elapsed time between observations – regular sampling
+yields 1.0; gaps from missing observations yield larger values, projected via a
+learned linear layer. The combined encoding is added to token embeddings.
+
+
+5. Edge score: Ai,j = |τ̂ (i → j)|
+     This is a pairwise CATE-based discovery heuristic: the model estimates what
+happens under hypothetical treatment changes, rather than testing correlations.
+While this is not formal interventional reasoning (the model operates on obser-
+vational data with covariate adjustment, not true do-calculus), it leverages the
+PFN’s pretraining on synthetic interventional data to approximate interventional
+effects. Because the model was pretrained on diverse SCMs where ground-truth
+interventional effects are known, it has learned to distinguish direct causal ef-
+fects from spurious correlations – the same covariates that the model uses for
+confounding adjustment in effect estimation serve as conditioning variables that
+filter out indirect effects.
+     Edge scoring with causal judgment. When the Causal Judgment Head
+(§3.4) is available, the edge score incorporates the model’s confidence in the
+causal relationship:
+
+                    Ai,j = |τ̂ (i → j)| × (1 − pnull ) × pidentifiable               (7)
+
+where pnull is the predicted probability that the true effect is zero (confounding
+detection) and pidentifiable is the predicted probability that the effect is identifiable
+from the observed data. This down-weights edges the model judges as confounded
+or unidentifiable – a capability not present in existing scaled causal PFN methods,
+and, from the public descriptions of concurrent temporal-PFN work [26, 27], not
+provided by them either.
+    Computational cost. Pairwise estimation requires O(V 2 ) model calls,
+
+
+                                            9
+which is slower than Granger or PCMCI for large V . However, each call is a
+single forward pass through a small transformer (259 MB), and pairs can be
+parallelized across multiple GPUs.
+
+3.4     Causal Judgment Head
+A causal foundation model should not only predict effects – it should infer when
+effects are identifiable, mediated, spurious, or insufficient. We introduce the
+Causal Judgment Head, a structured output module that maps transformer
+hidden states to a full causal judgment for each treatment-outcome pair.
+
+3.4.1   Architecture
+Figure 4 illustrates the architecture. The judgment head takes the transformer’s
+final hidden states H ∈ RB×Lq ×d (pooled across query tokens) and produces:
+    The judgment head produces five supervised outputs (Figure 4 also shows
+a sixth consistency-bound head, “Uncertainty Bounds” (lower, upper), trained
+against an internal consistency loss rather than against external ground truth;
+and two architectural slots for Direct/Total Effect magnitudes that are not
+trained by the judgment objective and are populated at inference from the
+CATE model):
+1. Null probability pnull ∈ [0, 1]: P (true effect = 0 | data) – confounding
+   detector
+2. Confounding score c ∈ [0, 1]: estimated strength of unmeasured confound-
+   ing
+3. Identifiability pid ∈ [0, 1]: P (effect is identifiable from observed data)
+4. Mediation fraction m ∈ [0, 1]: fraction of total effect mediated by observed
+   variables
+5. Causal regime: arg max over four regime classes {direct, confounded, mediated, feedback}.
+   The prior generates six regimes (Section 3.5); for the 4-way regime cross-
+   entropy loss, the two regimes without a dedicated output class – Independent
+   and Time-varying confounded – are folded into the confounded class, so the
+   classifier sees the consolidated labels {direct, confounded ∪ independent ∪
+   time-varying, mediated, feedback}. This consolidation is structural (it groups
+   regimes that share the strongest visible association pattern), not semantic:
+   Independent is a null-effect regime, but Time-varying confounded is not. The
+   null-vs-non-null distinction is carried separately by the binary null-probability
+   head.
+    Effect magnitudes (τ̂total , τ̂direct ) are obtained from the main CATE model
+at inference time via predict_cepo_temporal(), not from the judgment head
+– the CATE model is specifically optimized for effect estimation and produces
+superior predictions.
+    Important caveat. These outputs are learned heuristics – correlations
+between data patterns and prior-assigned labels. Identifiability is a property
+of the causal model and assumptions [19], not something determinable from
+data patterns alone. The model learns to recognize patterns that correlated
+
+
+                                      10
+with identifiability in the training prior. We do not claim formal identifiability
+analysis; see §4.2.3 for an honest assessment of what the model does and does
+not learn.
+
+3.4.2   Supervision
+Each judgment output is supervised with ground truth from the training prior:
+• Null probability: binary cross-entropy against ⊮[is_null_effect]
+• Regime: cross-entropy against the regime label from the prior
+• Identifiability: binary cross-entropy against ⊮[is_identifiable] (matching the
+  binary target shown in Figure 4)
+• Mediation fraction, confounding strength: MSE against prior metadata
+   The judgment loss is the average across all task losses (not the sum), so each
+task contributes equally regardless of how many are active:
+                                           1 X
+                                Ljudg =        ℓt                              (8)
+                                          |T |
+                                               t∈T
+
+   For non-confounded batches, the total loss combines CATE and judgment:
+
+                         L = LCATE + λLjudg ,        λ = 0.1                   (9)
+
+   For confounded batches (where Z-standardization corrupts CATE targets
+due to confounding-induced group mean differences), only the judgment loss is
+used: L = Ljudg .
+
+3.4.3   Curriculum Training Schedule
+Training the CATE objective and judgment head simultaneously creates de-
+structive gradient interference: the judgment head’s gradients destabilize the
+backbone before it has learned stable temporal representations. We address this
+with a three-phase curriculum:
+1. Phase 1 (steps 0–20K): CATE only. The backbone learns stable temporal
+   and effect representations without any judgment head interference. L =
+   LCATE .
+2. Phase 2 (steps 20K–50K): Add null detection + confounding. The
+   easiest judgment tasks – null-effect detection (pnull ) and confounding strength
+   – are introduced. These binary/scalar tasks align well with CATE features
+   since they reason about effect presence.
+3. Phase 3 (steps 50K+): Add regime + identifiability + mediation.
+   The hardest tasks – regime classification (4-class), identifiability, mediation
+   fraction – are enabled. By this point, the backbone has stable representations
+   for both CATE and basic judgment, providing a foundation for structural
+   causal reasoning.
+    This curriculum is motivated by the observation that null-effect detection
+(binary: “is there an effect?”) is learnable early, while regime classification
+(4-class: “what kind of causal structure?”) requires richer representations that
+
+
+                                          11
+only emerge after extended CATE training. The phase boundaries (20K, 50K)
+are configurable hyperparameters.
+
+3.5     Training Prior Design
+TCPFN is pretrained on synthetic data generated on-the-fly from a diverse prior
+over temporal SCMs. Each training batch uses a freshly sampled SCM with
+randomized structure, ensuring the model generalizes across temporal dynamics.
+
+3.5.1   Base Temporal Prior with Causal Regimes
+The base prior generates AR(p) dynamics with six temporal effect shapes (imme-
+diate, gradual, delayed, decaying, oscillating, permanent) and diverse treatment
+assignment mechanisms.
+    Critically, the base prior samples from a Causal Regime Prior (Figure 6)
+that exposes the model to qualitatively different causal structures:
+• Independent (25%): T ⊥⊥ Y . Treatment is randomly assigned, no confound-
+   ing, no causal effect. The most direct anti-hallucination signal: the model
+   must learn to predict “no effect” when none exists.
+• Direct (25%): Standard treatment → outcome; confounding present but
+   adjustable via covariates.
+• Confounded (15%): T ← U → Y with zero true effect (τ ∗ = 0). Strong
+   association exists from shared causes, but the causal effect is null. Confounding
+   strength 3× amplified. The model must learn: strong association ̸= causal
+   effect.
+• Mediated (15%): T → M → Y . Effect flows entirely through a mediator
+   variable.
+• Time-varying confounded (10%): Confounders change over time, requiring
+   temporal adjustment.
+• Feedback (10%): T ⇌ Y . Treatment and outcome mutually cause each
+   other across time lags.
+    Each regime generates ground-truth metadata for all judgment head outputs:
+is_null_effect, causal_regime, identifiable, mediation_fraction, and
+confounding_strength.
+    Design rationale. Most causal PFN training priors generate only direct
+effects with varying confounding strength. By including null-effect data totaling
+40% of batches (confounded 15% + independent 25%), we teach the model to
+distinguish causation from correlation. By including mediated and feedback
+structures, we teach it to recognize qualitatively different causal mechanisms.
+This regime diversity is what enables the Causal Judgment Head to make
+meaningful predictions at inference time.
+
+3.5.2   TemporalRegimePrior
+Building on Dynamic Structural Causal Models [3] and concurrent prior-design
+work [26], we generate nonlinear temporal SCMs with Erdős-Rényi DAGs and lag-
+
+
+                                        12
+decaying edges. Where Thumm & Chen’s CausalTimePrior is a synthetic-data
+generator validated on its own held-out samples, our TemporalRegimePrior is
+one component of a larger mixed prior that supplies the regime-labelled metadata
+downstream from the judgment-head supervision objective (Section 3.4). The
+prior supports industrial mechanisms:
+• Feedback loops (lagged reverse edges: if A → B at lag 0, allow B → A at lag
+   ≥ 1)
+• Saturation effects, threshold triggers, PID controllers
+• Cascade failures (propagating effects through the DAG)
+• Regime switching (sticky Markov chain over multiple mechanism sets)
+• Non-stationarity (parameter drift, abrupt changepoints, startup transients)
+• Missing data and irregular sampling (with elapsed-time encoding)
+    Judgment head metadata is derived from the generated DAG structure:
+feedback detected from lagged reverse edges, mediation from indirect paths
+through intermediate variables.
+
+3.5.3   CausalFM Prior
+Following [13], we include identification-aware priors with three strategies:
+• Back-door: All confounders observed; standard adjustment.
+• Front-door: Unobserved U confounds T and Y , but mediator M is observed.
+  Regime: mediated, confounding strength from actual wAU coefficient.
+• Instrumental variable: Instrument Z affects T but not Y directly. Unob-
+  served U confounds T and Y .
+    Training uses a mixed prior: TemporalRegimePrior, base temporal prior
+(which includes the independent, direct, confounded, mediated, time-varying
+confounded, and feedback regimes), and CausalFM priors. The base prior’s
+inclusion is critical – it provides null-effect training data (independent and
+confounded regimes, totaling 40% of batches) that teaches the judgment head to
+distinguish causation from correlation. All priors provide complete judgment
+head metadata.
+
+3.6     Inference
+3.6.1   FAISS-Based Context Selection
+With N units and T timesteps, the full token sequence (N × T ) may exceed
+the context window (4,096 tokens). We train a gradient-boosted regressor as a
+CATE proxy, build a FAISS index over its predictions, and select the K most
+informative context units by propensity-stratified nearest-neighbor lookup.
+
+
+
+
+                                      13
+3.6.2    OSPC Calibration
+Following [16], we apply one-step posterior correction (OSPC) to debias PFN
+estimates using the efficient influence function:
+                                            n
+                                       1X
+                    ψ̂OSPC = ψ̂PFN +         EIF(Oi ; ψ̂PFN )             (10)
+                                       n i=1
+
+This yields doubly robust estimates with valid confidence intervals.
+
+
+4       Evaluation
+We evaluate TCPFN on 19 benchmark datasets spanning five domains (linear,
+nonlinear, chaotic, industrial, biological) (Section 4.1), and on a proprietary
+industrial deployment (Section 4.3). All experiments use a single pretrained
+model applied zero-shot – no per-dataset fitting, hyperparameter tuning, or
+adaptation.
+
+4.1     Causal Discovery
+4.1.1    Setup
+We evaluate TCPFN’s causal discovery on 19 individually-reported benchmark
+datasets across the suites listed below (CauseMe 12, water-treatment 2, real-
+world TE/SWaT/Rivers/CAUSRCA/Sachs 5; total = 19), plus a 50-dataset
+synthetic aggregate reported as a single row in Table 9:
+• Synthetic (50-dataset aggregate, reported as one row in Table 9): Random
+  temporal DAGs with V =10 variables, T =500 timesteps, varying edge density
+  and dynamics.
+• CauseMe (12 datasets): Community-standard benchmarks – linear VAR
+  (V ∈ {5, 10, 20}), nonlinear NVAR (V ∈ {5, 10, 20}), Lorenz-96 chaotic sys-
+  tems (V ∈ {10, 20}), and long-lag variants LongLag-VAR (V ∈ {10, 20})
+  and LongLag-NVAR (V ∈ {10, 20}). Main-text tables (Tables 1 and 2) re-
+  port the 4 smaller VAR / NVAR configurations (V ∈ {5, 10}); the 4 larger
+  CauseMe configurations (VAR-20, NVAR-20, Lorenz96-10, Lorenz96-20), the
+  4 LongLag variants, and the additional water-system benchmarks (next bullet)
+  are reported in Appendix A.6 (Table 9).
+• Water-treatment additional (2 datasets): BATADAL and WADI water-
+  system benchmarks reported in Appendix A.6.
+• Tennessee Eastman (1 dataset): Industrial chemical process, 52 variables,
+  38 known edges [4].
+• SWaT (1 dataset): Secure Water Treatment testbed, 51 variables, 55 known
+  attack/fault edges.
+• Causal Rivers (1 dataset): Environmental river flow causal network, 47
+  known hydrological edges.
+• CAUSRCA (1 dataset): Fraunhofer CNC vertical lathe benchmark, 104
+  variables with expert-validated ground-truth causal graph.
+
+
+                                       14
+• Sachs (1 dataset): Protein signaling network, 11 phosphoproteins, 17 known
+    edges [25].
+       TCPFN discovery method. For each variable pair (i, j), the temporal
+model estimates the causal effect of i on j using five techniques: (1) natural
+experiment detection – centering windows on sharp changes in the cause variable
+rather than uniform sliding windows; (2) continuous treatment – z-scored dose-
+response rather than binary median split; (3) multi-lag estimation – testing three
+time scales (0.5×, 1×, 2×) and taking the maximum; (4) judgment-aware scoring
+– |τ̂ |×(1−pnull )×pid , using the Causal Judgment Head to discount confounded and
+unidentifiable associations; and (5) asymmetry penalty – penalizing bidirectional
+edges that suggest confounding rather than causation. Optionally, TCPFN scores
+are combined with Granger F-statistics via geometric mean for linear+nonlinear
+ensemble.
+       Baselines. Granger causality [6] (pairwise VAR F-tests) and PCMCI [24]
+(conditional independence with partial correlations). Both require per-dataset
+fitting.
+       Metrics. F1 at default threshold (0.5), best F1 across thresholds, and
+AUROC.
+
+4.1.2   Results
+Tables 1 and 2 present two complementary views: out-of-the-box performance (no
+per-dataset tuning) and maximum performance with oracle threshold selection.
+Key findings:
+    1. Out-of-the-box, TCPFN dominates F1 across 8 of 9 datasets.
+At the default threshold of 0.5 (Table 1), TCPFN achieves the highest F1 on
+Tennessee Eastman (0.387 vs. 0.039 for Granger), Causal Rivers (0.507 vs. 0.047),
+SWaT (0.288 vs. 0.050), CAUSRCA (0.447 vs. 0.033), NVAR-5 (0.667 vs. 0.353),
+NVAR-10 (0.667 vs. 0.415), VAR-5 (0.769 vs. 0.435), and VAR-10 (0.586 vs.
+0.481). Sachs is the only exception, where Granger’s 0.228 narrowly exceeds
+TCPFN’s 0.217 at threshold 0.5 (TCPFN still wins Sachs Best F1 in Table 2).
+PCMCI produces F1≈0 at threshold 0.5 across every dataset (its 1 − p-value
+scores cluster at the conventional p < 0.10–0.15 cut, far below 0.5); Granger
+collapses to F1≈0 on the four industrial datasets (saturation: 1,897 predicted
+edges vs. 38 true on TE, similar elsewhere) while remaining competitive on the
+smaller synthetic benchmarks. Both behaviours reflect score distributions that
+require dataset-specific threshold tuning – exactly the kind of tuning that is
+unavailable for a new dataset without ground-truth labels.
+    2. With oracle threshold selection, PCMCI dominates industrial
+F1; TCPFN wins on Sachs and ties on NVAR-5. Table 2 shows that
+when each method is given its optimal threshold, PCMCI achieves near-perfect
+F1 on industrial datasets (TE 1.000, SWaT 1.000, CAUSRCA 1.000, Rivers
+0.956). TCPFN’s Best F1 remains competitive (0.333–0.613 on industrial, with
+SWaT at the lower bound), and on the Sachs protein signaling benchmark –
+a non-temporal flow-cytometry dataset treated as pseudo-timeseries, outside
+TCPFN’s training distribution – TCPFN’s Best F1 of 0.337 exceeds both Granger
+
+
+                                       15
+(0.279) and PCMCI (0.272) along with the highest AUROC (0.628 vs 0.479 and
+0.462). On CauseMe NVAR-5 (nonlinear synthetic), TCPFN ties PCMCI at
+Best F1 0.800. The honest reading: PCMCI’s tuned dominance reflects its
+design strength on data matching its statistical assumptions; TCPFN’s value is
+competitive performance under those conditions combined with wins on data
+that violates them.
+    3. PCMCI’s tuned-threshold range is its conventional p-value cutoff.
+PCMCI’s best threshold clusters at 0.10–0.15 across all industrial and synthetic
+datasets, mirroring its conventional statistical-significance cut (p < 0.05–0.1).
+This is not arbitrary tuning – it is PCMCI’s standard deployment. The relevant
+practical contrast with TCPFN is therefore not "tuning vs. no tuning" but
+"method-specific score conventions vs. a calibrated probability." Granger has the
+opposite failure mode on real industrial data: it saturates the adjacency matrix
+(e.g., 6,164 predicted edges on CAUSRCA’s 104-variable graph vs. TCPFN’s
+160 predicted), giving high AUROC ranking quality but operationally unusable
+output even with oracle threshold knowledge.
+    4. AUROC is competitive across the board, with industrial datasets
+within 0.03–0.07 of PCMCI. On Tennessee Eastman, TCPFN achieves
+AUROC 0.96 vs. PCMCI’s 1.00 (gap 0.04). SWaT 0.93 vs. 1.00 (gap 0.07).
+CAUSRCA 0.97 vs. 1.00 (gap 0.03). The 0.03–0.07 range applies to the three
+true industrial sets above; environmental Causal Rivers (0.98 vs. 1.00, gap 0.02)
+sits just below the band, and on the nonlinear synthetic NVAR-5 TCPFN reaches
+0.96 vs. 1.00 (gap 0.04). The model with the same 259 MB checkpoint, zero-shot,
+sits within a few hundredths of a fully-fitted PCMCI on ranking quality, while
+predicting graphs that operators can verify in a shift rather than thousands of
+edges they cannot.
+    5. One model, all datasets. The same pretrained TCPFN model (259 MB,
+200K training steps) is applied to all 19 datasets without any adaptation. This
+includes linear dynamics (VAR), nonlinear dynamics (NVAR), chaotic systems
+(Lorenz-96), long-lag industrial processes (LongLag-VAR/NVAR), real chemical
+process control (Tennessee Eastman), real water treatment (SWaT), real CNC
+manufacturing (CAUSRCA), real environmental hydrology (Causal Rivers), and
+biological signaling networks (Sachs) – five fundamentally different domains
+(linear, nonlinear, chaotic, industrial, biological). Granger and PCMCI fit per-
+dataset; TCPFN’s zero-shot reusability is structural to the PFN paradigm and
+is not available in the baselines.
+
+4.2     Causal Judgment Head Evaluation
+We evaluate the Causal Judgment Head on synthetic data where ground-truth
+regime labels are known.
+
+4.2.1   Setup
+We generate 1,000 synthetic datasets from the base temporal prior, which
+samples across six causal regimes at the canonical training mix (Section 3.5):
+
+
+                                       16
+independent (25%), direct (25%), confounded (15%), mediated (15%), time-
+varying confounded (10%), and feedback (10%). For each dataset, the model
+predicts:
+• Null-effect detection: is the true CATE zero (independent or confounded
+  regime)?
+• Regime classification: which of four regimes (direct, confounded, mediated,
+  feedback)?
+
+4.2.2   Results
+We evaluate the judgment head on two tasks: null-effect detection (binary: is
+the true CATE zero?) and regime classification (4-class: direct, confounded,
+mediated, feedback). Metrics are defined in Appendix A.1.
+    Table 3 shows the judgment head’s performance. Key findings:
+    1. Null-effect detection is reliable. Null detection accuracy averages
+0.94 with AUROC 0.99 over the final 50K training steps. Brier score of 0.04
+indicates well-calibrated null probabilities. The null separation metric (NullSep
+= 0.86) confirms the model assigns substantially higher pnull to actual null-effect
+batches than to non-null batches. This anti-hallucination capability was enabled
+by adding an “independent” regime to the training prior (25% of base prior
+batches), where treatment is randomly assigned with zero confounding and zero
+causal effect. Without this regime, null F1 remained at 0.00 throughout training.
+    2. Regime classification above random. Regime accuracy averages 0.68
+(random: 0.25) with peaks at 0.90. Macro-F1 averages 0.48, indicating the model
+distinguishes direct from confounded reliably and shows improving separation of
+mediated and feedback regimes.
+    3. Curriculum training was essential. The three-phase curriculum
+prevented the judgment head from destabilizing CATE. Without curriculum,
+JudgmentLoss grew to 60+ and EffectLoss degraded from 3.0 to 5.2.
+
+4.2.3   What the Model Does NOT Learn
+1. True identifiability. Identifiability depends on the DAG and assump-
+tions [19], not data patterns. Two datasets with identical observed distributions
+can have different identifiability depending on the underlying structure. The pid
+output is a learned proxy, not a formal guarantee.
+    2. Robust confounding detection. The model detects the specific
+confounding pattern in the training prior (strong correlation, zero effect). Real-
+world confounding may take different forms – weak confounding with nonzero
+but biased effects – that the model has not seen.
+    3. Out-of-distribution generalization. We have not evaluated the
+judgment head on structures outside the training prior. Performance likely
+degrades on novel structures.
+    When useful. Screening (flagging potentially spurious edges), discovery
+scoring (down-weighting confounded edges), prioritization of follow-up inves-
+tigation. NOT useful for high-stakes decisions without domain validation,
+
+
+                                        17
+replacing formal sensitivity analysis [23, 28], or novel causal structures outside
+the training distribution.
+
+4.3     Industrial Scaling: Kraft Pulp & Paper Mill (V=1,275)
+This subsection is a case study demonstrating scalability and the qualitative
+character of the discovered structure on a real industrial deployment. The
+data is under NDA; ground-truth causal labels are not available for this plant.
+We accordingly report aggregate structural properties (plant-area flow matrix,
+anonymized top-edge listings) and contrast with PCMCI’s output on the same
+data, but treat the hypothesis-generation interpretations as candidates pending
+operator validation rather than as quantitatively-validated discoveries.
+    For an Industry 4.0 deployment, a central question for a causal discovery
+method is which kinds of relationships dominate its top-ranked output: cross-
+subsystem causal flows of the sort an operator might act on, or the within-
+instrument controller-measurement couplings that any plant’s P&ID schematic
+already documents. We report which class each method elevates on this dataset,
+and let the reader judge the operational relevance.
+
+Dataset and preprocessing. We apply TCPFN to a proprietary Kraft pulp
+& paper mill DCS dataset – 1,325 raw variables, 65,550 timesteps at 2-minute
+sampling (∼91 days of continuous production). The variable population is
+filtered through the standard DCS-data pipeline before discovery: drop 24
+derived/setpoint columns identified by tag suffix (CALC, RAW, TV) so the model
+is not asked to discover trivial algebraic relationships; drop 4 columns with
+> 50% missing values; drop 13 columns with zero variance; apply percentile
+winsorization ([0.1%, 99.9%]) to suppress sensor-glitch spikes; drop 9 columns
+whose distribution collapses to a constant after winsorization; and z-score every
+retained column. This leaves V = 1,275 variables and V (V −1) = 1,624,350
+directed pairs for discovery.
+
+Methodology. Each pair (i, j) conditions on Dother = 31 covariates (the
+architectural maximum given max_num_features= 100 minus treatment and
+cause-summary slots). At this V , naive “first-31-by-column-index” covariate
+selection covers only 31/1275 ≈ 2.4% of candidates and is essentially arbitrary;
+we instead rank candidates by maximum absolute lagged cross-correlation with
+both cause and effect, taking the maximum over lags {0, 5, 10, 20, 30, 60} timesteps
+to capture the physical-delay structure typical of industrial sensor data. The
+V × V similarity matrix is precomputed once per dataset (∼ 10 s on CPU) and
+reused across all per-pair selections. Final per-edge scoring applies the paper’s
+canonical formula score(i→j) = |τ̂ij | · (1 − pnull,ij ) · pident,ij , with pnull and pident
+produced by the Causal Judgment Head on the transformer’s already-computed
+hidden state.
+
+
+
+
+                                            18
+TCPFN recovers the Kraft mill plant-area flow matrix. The pulp-and-
+paper mill is organized into five physical plant areas identified by their DCS
+tag prefixes per the plant’s piping-and-instrumentation legend: 27 (Cooking /
+Digester + Brown Stock Washing), 28 (Screens + Reject Refining), 29 (Paper
+Machine 2), 31 (Paper Machine 1 + Presses + Drying + Coating), and 39 (Stock
+Preparation). The mill produces unbleached Kraft paper; there is no bleaching
+stage. Causal flow between these areas is determined by the continuous-flow
+paper production line: pulp flows downstream Cooking → Screens → Stock Prep
+→ Paper Machine (PM1 and PM2 in parallel). We report the plant-area flow
+matrix of the top-200 discovered edges in Table 4.
+    The matrix has three observable structural features. First, PM1 dominates:
+its 58 within-area edges are the largest diagonal cell, and the 102 incoming
+edges into PM1 account for 51% of all top-200 edges in the graph. Second,
+inter-area edge counts decrease with distance from PM1 – the row sums are
+PM1 (88), Stock Prep (41), Screens (34), PM2 (23), and Cook+Wash (8) –
+consistent with a topology where edges concentrate around the most heavily
+instrumented subsystem and attenuate further upstream. Third, several area-
+pairs have substantial counts in both directions – Stock-Prep↔PM1 (18+14=32),
+Screens↔PM1 (14+14=28), and at lower magnitude Cook↔Screens (3+3=6)
+– confirming the discovered graph contains bidirectional structure rather than
+only strict downstream-to-upstream causality.
+    We interpret these patterns cautiously. They are consistent with standard
+continuous-flow control architecture – the paper machine as the most internally
+instrumented subsystem, downstream- driven setpoint cascades from PM up-
+stream through stock prep and screens, within-area PID loops at each stage –
+but we make no edge-by-edge attribution to specific documented control loops.
+Per- edge mechanism verification would require comparison against the mill’s
+actual control hierarchy, which we leave to operator-side validation. Absent
+ground-truth labels, the structural match described above is the validation we
+offer; the methodological contrast with PCMCI’s top-of-ranking edges (next
+paragraph) is the load-bearing claim.
+
+Head-to-head with PCMCI: the two methods prioritize structurally
+different edges. We compare TCPFN’s discovered graph against PCMCI on
+the same mill dataset. PCMCI was run on a V = 666 variable subset selected by
+plant operators independently of our preprocessing pipeline, with τmax = 300 lags
+(∼ 10 hours of physical delay) and the standard ParCorr conditional-independence
+test; 656 of those 666 variables overlap with the V = 1,275 retained by TCPFN’s
+preprocessing (the remaining 10 PCMCI variables were filtered out by our suffix
+/ variance / winsorization steps), and per-pair edge comparisons below are
+restricted to that 656-variable intersection. Both methods discover dense edge
+structure – PCMCI recovers 33,764 directed off-diagonal edges (density 7.6%),
+with 5,055 bidirectional pairs – so the methodological difference lies not in edge
+count but in which edges each method elevates to its top-of-ranking.
+    PCMCI’s top edges are dominated by within-tag controller ↔ mea-
+
+
+
+                                       19
+surement coupling at lag 1. The strongest 20 edges PCMCI reports are, in
+nearly every case, same-instrument transmitter→controller (or controller→transmitter)
+pairs at lag 1 – a level transmitter driving its own level-indicator-controller,
+a flow transmitter driving its own flow-indicator-controller, an analyzer driv-
+ing its own analyzer-indicator-controller, and eight instances of the same-tag
+light-wood-active / enzymatic-active sensor pair appearing across eight different
+cooking batches. These are real causal couplings – the PID controller does follow
+the measurement at lag 1 – but they are precisely the relationships any DCS
+P&ID schematic already documents at design time. PCMCI ranks them at the
+top because its standard partial-correlation independence test (ParCorr) reliably
+identifies the strongest linear 1-step dependence in the data, and within-loop
+controller ↔ measurement coupling dominates that metric on DCS time series.
+We report the standard PCMCI configuration here; nonlinear variants (GPDC,
+CMIknn) might surface different rankings but are not computationally feasible
+at V =666 with τmax =300.
+    TCPFN’s top edges are cross-plant-area process flows. TCPFN’s
+strongest edges are not within-tag, not within-instrument, and rarely at lag 1.
+The top of the ranking is dominated by cross-area pairs (cause in one plant area,
+effect in another). The full ranked list is reported in Table 5 with anonymized
+tag identifiers and aggregate area-flow statistics in Table 4; per-edge process-
+engineering readings are candidates derived from the DCS tag taxonomy and
+remain subject to operator validation before any one specific edge can be claimed
+as a recovered causal relationship. Specific DCS tag IDs are withheld under the
+dataset’s NDA.
+    Operational reading of the comparison. For decision support use
+cases (which upstream variable to act on when a downstream quality indicator
+drifts; how a setpoint change propagates across subsystems), PCMCI’s within-
+instrument top edges are technically correct but redundant with the plant’s
+design-time P&ID. TCPFN’s top edges identify cross-subsystem influence paths
+that are at least candidates for that kind of decision support, pending operator
+validation. We do not claim these candidates are correct; we claim that which
+class of edge a method elevates is itself a property worth evaluating when
+comparing discovery methods at V∼1000 scale.
+
+Representative top edges. Table 5 lists 15 representative edges from the top
+of the global TCPFN ranking. Anonymized variable identifiers preserve identity
+across rows so recurring hub variables (e.g., the cooking-pressure transmitter
+Cook-PT-11 appearing as the effect of three different causes) remain visible. The
+Interp. column lists candidate process-engineering readings derived from the
+DCS tag taxonomy; these are hypothesis-generation labels pending operator
+validation, not validated causal mechanisms. Specific DCS tag IDs are withheld
+under the dataset’s NDA.
+
+Aggregate edge statistics. The judgment-scored adjacency has global max
+τ̂max = 27.776, off-diagonal mean 0.9065, and per-column max distribution
+
+
+                                       20
+(min/median/99%ile/max) of 2.00 / 5.07 / 17.49 / 27.78. After global [0, 1] nor-
+malization, edge counts at standard thresholds: thr=0.01: 1,382,299; thr=0.10:
+79,599; thr=0.20: 3,818; thr=0.30: 592; thr=0.50: 62; thr=0.70: 15; thr=0.90:
+1.
+
+Compute (secondary). As a secondary observation, the per-pair compute
+is also considerably more efficient. The full V =1,275 TCPFN run completes in
+6.1 hours on a single NVIDIA H100 NVL (∼ 75 pairs/sec), versus 81.5 hours of
+CPU compute for PCMCI on the V=666 subset (∼ 1.5 pair-tests/sec; the ∼80×
+per-pair slowdown vs. the Tennessee Eastman PCMCI run in Appendix A.5
+(∼ 120 pair-tests/sec) reflects τmax =300 lags here vs. default short-lag conditional-
+independence testing on TE). Per-pair, TCPFN is ∼50× more efficient; extrap-
+olating PCMCI’s pairwise complexity to V = 1,275 yields a lower-bound wall
+time of ∼12.5 days. We emphasize this is supporting, not primary – the value
+of TCPFN at industrial scale comes from which edges it surfaces (the cross-
+subsystem causal flows discussed above), not from how many CPU-seconds the
+discovery took.
+
+Limitations. We are honest about three limits of this evaluation. (1) No
+comprehensive ground-truth DAG. The Kraft mill DCS data is proprietary;
+we have plant P&ID schematics and SME spot-validation of TCPFN’s top-K
+predicted edges, but no exhaustive expert-labeled causal graph covering all
+1,624,350 potential variable pairs. These positive-label sources let us argue
+qualitatively about edge plausibility – PCMCI’s top edges rediscover within-loop
+controller-measurement coupling already on the P&ID schematics; TCPFN’s top
+edges surface cross-subsystem flows consistent with the plant’s continuous-flow
+layout and judged plausible by the plant engineer in a sample review – but
+they do not provide the comprehensive negative-label set needed to compute
+F1/AUROC at this scale. A semi-synthetic benchmark with a curated Kraft-mill
+DAG would convert this qualitative argument into a numerical one; we view this
+as a natural follow-up. (2) Architectural feature ceiling. Per-pair conditioning is
+capped at Dother = 31 covariates, set by the model’s max_num_features= 100
+at training. At V = 1,275 this is 2.4% candidate coverage; lagged-correlation
+selection makes those slots count, but the ceiling itself is a property of the
+backbone, not the selection rule. Lifting the cap requires retraining at higher
+max_num_features, the same open problem the broader TabPFN-family research
+program faces. (3) Judgment-head OOD calibration. The Causal Judgment Head
+was trained on priors at V ≤ 50. At V = 1,275 it provides modest discounting
+(∼ 3% on most pairs, up to 50% on the highest-multi-collinearity hub columns
+such as the master cooking-pressure transmitter), suggesting calibration partially
+extrapolates but does not fully transfer to industrial scale. A retrained judgment
+head against larger-V priors is the natural next step.
+
+
+
+
+                                         21
+5    Related Work
+We position TCPFN at the intersection of six research streams and identify how
+it advances each.
+
+Causal foundation models. CausalPFN [1] introduced PFN-based causal
+inference, demonstrating that a single pretrained model can estimate treatment
+effects zero-shot across datasets. CausalFM [13] extended identifiability to front-
+door and instrumental variable settings via structured SCM priors. Do-PFN [20]
+proved that PFN outputs approximate the optimal Bayesian conditional interven-
+tional distribution P (Y | do(T = t), X). OSPC [16] resolved the prior-induced
+bias problem, showing that naive PFN posteriors lack frequentist consistency
+and proposing a one-step correction. Critical gaps: (1) all operate on static,
+cross-sectional data – a single outcome per unit, no temporal dynamics; (2) few
+provide explicit signals about reliability of their estimates – they output τ̂ (x)
+without indicating whether confounding, mediation, or identifiability concerns
+apply. TCPFN addresses both: temporal dynamics via panel data tokenization,
+and reliability assessment via the Causal Judgment Head.
+
+Temporal causal inference. The classical literature provides g-computation [21],
+marginal structural models [22], and structural nested models for time-varying
+treatments. Neural approaches – RMSN [11], CRN [2], G-Net [10], Causal Trans-
+former [15] – model temporal dynamics with recurrent or attention architectures
+but require per-dataset training, assume binary treatments, and cannot operate
+zero-shot. What TCPFN adds: (i) zero-shot temporal causal inference with-
+out retraining, (ii) continuous and multi-dimensional treatments, (iii) irregular
+sampling and missing data handling. The key scientific insight is that the PFN’s
+in-context learning mechanism – which learns a prior-to-posterior map – can be
+extended to temporal data via our temporal tokenization scheme (Section 3.2).
+
+Causal discovery from time series. Granger causality [6] tests whether
+lagged values of one variable improve prediction of another. PCMCI [24] com-
+bines constraint-based testing with momentary conditional independence for
+nonlinear settings. DYNOTEARS [18] formulates structure learning as con-
+tinuous optimization. Amortized structure learning from i.i.d. data has been
+explored [9, 12]; concurrent work by Thumm and colleagues [26, 27] extends the
+PFN paradigm to temporal causal effect estimation (see the dedicated paragraph
+below), but does not address pairwise-CATE-based discovery at scale. A shared
+limitation of existing amortized methods – AVICI [12], DECI [5], NOTEARS [30],
+and DAG-GNN [29] – is that they require a fixed variable count V at training
+time, precluding zero-shot application to systems of different sizes. TCPFN’s
+contribution: a temporal token design that emits one token per unit×timestep
+(rather than per-variable) and reduces structure learning to repeated CATE
+estimation – the same pretrained model that produces causal effects is queried
+pairwise over candidate (cause, target) pairs, and the resulting effect-magnitude
+
+
+                                        22
+matrix is post-processed into a directed graph. Because tokens are per-unit×time
+rather than per-variable, the architecture is variable-count agnostic at inference,
+sidestepping the fixed-V limitation of prior amortized methods and enabling
+zero-shot discovery at industrial scale.
+
+Concurrent temporal-PFN work. Two concurrent contributions from
+Thumm and colleagues directly target the temporal causal PFN setting. CausalTimePrior [26]
+is a synthetic prior-design framework that generates paired observational and in-
+terventional time series with regime-switching dynamics and multiple intervention
+types (hard, soft, time-varying); the accompanying proof-of-concept is a 2-layer
+GRU PFN trained in ∼11 min on CPU and evaluated on 1,000 of the framework’s
+own held-out synthetic samples (Pred/GT ratio 0.95). The authors explicitly
+note that the prior has not been validated against real-world causal time series.
+The continuous-time extension [27] builds a Neural-ODE-based architecture
+trained on SDE-parameterised priors and evaluates on pharmacokinetic data
+and the CausalChamber synthetic benchmark. Relationship to TCPFN. The
+three lines of work are complementary rather than competing: CausalTimePrior
+advances prior design; the continuous-time work advances architecture for ir-
+regular clinical data; TCPFN ships the full discrete-token foundation-model
+artifact – 12-layer transformer + Causal Judgment Head – evaluated on 19
+real-world benchmarks across five domains (with chaotic Lorenz-96 at chance,
+see Section 6) and at V=1,275 industrial scale. The TemporalRegimePrior
+in this paper builds on the Dynamic SCM framework [3] that also underpins
+CausalTimePrior; the key architectural addition is that every regime sample
+carries the metadata labels (is_null_effect, causal_regime, identifiable,
+mediation_fraction, confounding_strength) that supervise the judgment
+head – enabling a capability neither concurrent work delivers.
+
+In-context learning for scientific data. TabPFN [7] demonstrated that
+transformers pretrained on synthetic tabular data perform in-context learning at
+test time – producing predictions by conditioning on the training set as context,
+without gradient updates. This paradigm has since been extended to regression,
+survival analysis, and forecasting. TCPFN extends this to the fundamentally
+harder setting of causal inference on temporal data, where the model must
+simultaneously handle confounding, temporal dynamics, treatment timing, and
+distributional shift – while maintaining the zero-shot property.
+
+Sensitivity analysis and causal reliability. Classical methods for assessing
+causal estimate reliability include Rosenbaum bounds [23], E-values [28], and
+partial identification [14]. These provide formal guarantees but require the
+practitioner to specify a sensitivity model and assumptions. Our Causal Judgment
+Head provides a complementary, approximate signal – a learned heuristic that
+correlates with causal reliability without requiring explicit sensitivity modeling.
+It does not replace formal analysis but can serve as a screening tool.
+
+
+
+                                        23
+5.1    Summary of Positioning
+Table 6 summarizes how TCPFN relates to prior work.
+
+
+6     Discussion
+6.1    When to Use TCPFN
+TCPFN is suited to settings where: (1) per-dataset model training is impractical
+– many datasets, limited data, or real-time requirements; (2) quick causal screen-
+ing is needed without threshold tuning – TCPFN works at default thresholds
+while PCMCI requires per-dataset threshold selection; (3) the data involves
+temporal dynamics (delayed, decaying, oscillating effects) that static methods
+cannot capture; (4) the data is nonlinear or from domains where statistical
+assumptions (linearity, Gaussianity) break down – TCPFN outperforms Granger
+and PCMCI on nonlinear and biological data; and (5) trustworthiness assessment
+is needed alongside discovery – the Causal Judgment Head provides calibrated
+null-effect detection and regime classification (metrics in abstract), enabling
+the model to flag potentially spurious edges rather than blindly reporting all
+associations as causal. The same nonlinear-data advantage seen on Sachs – the
+only benchmark where TCPFN beats PCMCI on both F1 and AUROC – extends
+to the industrial pulp-and-paper run in Section 4.3, where the model identifies
+physically interpretable cross-area process flows at V =1275 despite the absence
+of ground-truth labels.
+
+6.2    When NOT to Use TCPFN
+(1) When statistical optimality is required and threshold tuning is feasible –
+PCMCI at its optimal threshold substantially outperforms on most datasets.
+(2) When per-token CATE trajectory shape (not just magnitude) is critical
+– TCPFN’s per-token trajectory correlation is near zero on average, and per-
+token direction (sign) accuracy is near random (consistent with the near-zero
+trajectory correlation). Aggregated CATE magnitudes for discovery and effect-
+shape PEHE are reliable (PEHE 0.40–0.60 across all six effect shapes), but the
+per-step trajectory ordering at each horizon is not. (3) When formal identifiability
+guarantees are required – use classical sensitivity analysis methods. The judgment
+head’s identifiability output is a learned heuristic, not a formal guarantee.
+(4) When computational cost matters at large scale – TCPFN’s O(V 2 ) pairwise
+estimation takes ∼16 minutes for 52 variables versus ∼22 seconds for PCMCI.
+
+6.3    Causal Judgment Head
+The null detector (metrics in abstract and Section 4) was achieved by adding
+an “independent” regime to the training prior – 25% of base prior batches have
+random treatment assignment, zero confounding, and zero causal effect. The
+judgment head’s null probability is used directly in the discovery score (defined
+
+
+                                        24
+in Section 3), reducing false-positive edges from confounded associations. Regime
+classification (4-class) averages 0.68 accuracy with macro-F1 0.48 over the last
+50K steps (0.60 accuracy and 0.38 macro-F1 at the final checkpoint we ship; we
+report the mean rather than the final-step value because of the high step-to-step
+variance on this metric noted in the limitations bullet below).
+
+6.4    Joint Training Dynamics
+Training the judgment head jointly with the CATE objective introduces a multi-
+task optimization challenge. We found that (1) a curriculum schedule is essential
+– the backbone must learn stable CATE representations before judgment tasks are
+introduced, (2) averaging judgment sub-losses (rather than summing) prevents
+the judgment head from dominating the gradient budget, (3) the training prior
+must include both null-effect and independent-regime data – without it, the null
+detector never learns to predict “null” (NullF1 = 0), and (4) effect magnitude
+heads should not be trained separately from the main CATE model – they are
+redundant and their unbounded MSE loss destabilizes training.
+
+6.5    Limitations
+• AUROC gap on larger linear data (V ≥ 20). On the largest stan-
+  dard (short-lag) linear VAR benchmark (VAR-20), PCMCI achieves AUROC
+  0.96 (Table 9) while TCPFN reaches 0.510; the gap shrinks dramatically at
+  smaller V (TCPFN AUROC 0.960 on VAR-5, 0.764 on VAR-10). PCMCI’s
+  partial-correlation test is statistically optimal for linear Gaussian data and its
+  advantage grows with V on standard short-lag data; this regularity does not
+  extend to long-lag dynamics, where PCMCI’s advantage disappears (LongLag-
+  VAR-20 AUROC 0.491 and LongLag-NVAR-20 0.538 in Table 9, both at
+  chance).
+• O(V 2 ) discovery cost. Pairwise CATE estimation requires one model call
+  per variable pair. Tennessee Eastman (V =52) takes ∼16 minutes versus 22
+  seconds for PCMCI.
+• Regime classification variance. Regime accuracy averages 0.68 but fluctu-
+  ates between 0.40 and 0.90 across evaluations (10-batch eval), suggesting the
+  representations encode regime-distinguishing features but not robustly across
+  all samples.
+• CATE estimation quality. TCPFN ranks variable pairs effectively for
+  discovery (AUROC 0.96 on Tennessee Eastman). On effect-shape estimation,
+  mean PEHE is 0.40–0.60 across the six tested shapes (permanent 0.40, decay
+  0.42, delayed 0.48, gradual 0.51, immediate 0.59, oscillating 0.60), within
+  the range reported for CATE-PFN methods on i.i.d. data (we do not have
+  a direct head-to-head PEHE baseline on the same temporal-prior samples).
+  The remaining limitation is per-token trajectory shape: trajectory correlation
+  is near zero on average, indicating TCPFN reliably predicts the right effect
+  magnitude integrated over a horizon but not the precise per-step path within
+  it. Why discovery works while per-token trajectory does not: discov-
+
+
+                                        25
+  ery uses |τ̂ | aggregated across all query tokens and averaged over horizons –
+  aggregation smooths per-token noise and the absolute value eliminates sign
+  errors. A per-token trajectory requires correct sign, magnitude, and temporal
+  shape at each horizon – a much harder task on which per-treatment-group
+  Z-standardization remains weak.
+• Judgment outputs are heuristic. The identifiability and confounding
+  scores are learned proxies – correlations between data patterns and prior-
+  assigned labels – not formal guarantees. Out-of-distribution structures have
+  not been evaluated.
+• Prior diversity bounds generalization. Chaotic systems (Lorenz-96
+  AUROC 0.45–0.54) are furthest from the training distribution and show the
+  weakest results.
+• Discrete-time tokenisation. TCPFN’s temporal tokens encode regularly-
+  sampled panel data; irregular clinical sampling fits less naturally. Concurrent
+  work on continuous-time causal PFNs [27] via Neural-ODE architectures is
+  complementary – a natural direction for sparsely-sampled clinical or epidemio-
+  logical data where TCPFN’s discrete-token regular-sampling assumption is a
+  poor fit.
+
+6.6    Future Work
+• Improved CATE estimation: We also trained an alternative variant that
+  replaces TCPFN’s per-treatment-group Z-standardization with global stan-
+  dardization, hypothesizing this would tighten per-token trajectory predictions.
+  The alternative does improve discovery on biological (Sachs +0.06 AUROC)
+  and water-treatment (SWaT +0.03) data but is uniformly worse on estimation:
+  per-shape PEHE rises by 0.31–0.78 across every effect shape. We report this
+  as an honest negative result – the global-standardization hypothesis did not
+  deliver the predicted CATE improvement, and the model reported throughout
+  this paper retains per-treatment-group standardization.
+• One-pass multivariate discovery: Extract causal graphs from transformer
+  attention patterns in a single forward pass rather than O(V 2 ) pairwise estima-
+  tion.
+• Batched multivariate discovery: Process all variable pairs in a single
+  forward pass, reducing the O(V 2 ) cost to O(1) model calls.
+• Expanded regime prior: Add confounded and non-identifiable structures
+  to TemporalRegimePrior for better judgment head training.
+• Domain adaptation: Few-shot fine-tuning on small real-world datasets to
+  adapt to specific manufacturing processes.
+• Promptable inference via axis-conditioned priors: The current TCPFN
+  prior is fixed at training time, so domain knowledge that is unidentifi-
+  able from observational data alone (causal direction in confounded struc-
+  tures, conservation laws, monotonicity constraints, per-sensor reliability)
+  cannot be injected at inference without retraining. We propose augment-
+  ing TemporalRegimePrior with sampled steerable axes (e.g. monotonicity,
+  lag_scale, feedback_allowed) and training TCPFN to honor a tag em-
+
+
+                                       26
+  bedding alongside the context via cross-attention. A reserved fraction of
+  training samples uses tag=unknown per axis, preserving bit-identical uncon-
+  ditional behavior against the baseline reported here; the remainder narrows
+  the prior per the sampled tag. This parallels instruction-tuned LLMs and
+  ControlNet-style conditioning in diffusion models, and directly addresses the
+  judgment-as-heuristic limitation (Section 6): experts inject the identifiability
+  information the judgment head currently has to approximate.
+• Learnable priors via outer-loop optimization: The TCPFN prior was
+  hand-designed and its hyperparameters (curriculum schedule, mixed-prior
+  weights, regime mass) tuned empirically across model iterations. Declaring
+  these knobs as a typed search space and applying an outer optimizer (Bayesian
+  optimization at ≤ 20 knobs, CMA-ES at larger scale, implicit differentiation
+  through the inner training loop as a research target) automates this loop.
+  The same machinery supports per-deployment prior fitting against held-out
+  historical data without that data leaving the tenant, addressing the prior
+  diversity bounds generalization limitation: chaotic systems and other out-of-
+  distribution structures could be moved in-distribution by fitting against them
+  directly.
+
+
+7    Conclusion
+We introduced Temporal Causal Prior-Data Fitted Networks (TCPFN), a causal
+foundation model for temporal data that performs causal discovery, tempo-
+ral effect estimation, and judgment-aware reliability assessment from a single
+pretrained model – entirely zero-shot.
+    1. Causal judgment, not just prediction. The Causal Judgment Head
+outputs null-effect probability, confounding strength, identifiability, mediation
+fraction, and causal regime for each treatment-outcome pair – a capability
+not present, to our knowledge, in existing causal PFN methods. The null
+detector achieves NullF1 0.94, enabled by adding an “independent” regime to the
+training prior that teaches the model what “no causal effect” looks like. Regime
+classification averages 0.68 accuracy (random baseline: 0.25).
+    2. Interventional causal discovery with judgment-aware scoring.
+TCPFN discovers causal structure through pairwise CATE estimation – esti-
+mating “what happens to Y when I change X?” via temporal CATE – rather
+than correlation or conditional independence testing. The judgment head further
+improves discovery by down-weighting edges judged as confounded or unidentifi-
+able. This zero-shot approach reaches PCMCI-comparable AUROC on industrial
+benchmarks (Section 4) and outperforms both Granger and PCMCI on non-
+temporal biological data (Sachs).
+    3. Causal Regime Prior for structural diversity. Training on diverse
+causal structures from a mixed prior – the Causal Regime Prior (independent,
+direct, confounded, mediated, time-varying confounded, feedback) combined
+with CausalFM-style front-door and instrumental-variable priors – teaches the
+model to distinguish causation from correlation. This is qualitatively different
+
+
+                                       27
+from standard training priors that only vary confounding strength within a
+direct-effect structure.
+    4. One model, all domains. The same pretrained model is applied
+zero-shot across five domains (linear, nonlinear, chaotic, industrial, biological)
+and scales from V =5 synthetic benchmarks to V =1,275 industrial deployment
+in 6 hours of single-GPU compute. The discovered graph’s structure reflects the
+plant’s continuous-flow production layout, with edge density concentrated around
+the paper machine. Compared head-to-head against PCMCI on the same data,
+TCPFN’s top edges identify cross-subsystem causal relationships across plant
+areas; PCMCI’s top edges are dominated by trivial within-instrument coupling
+(sensor → its own controller at lag 1) already documented on the plant’s P&ID
+schematics.
+    Limitations. TCPFN’s AUROC on larger datasets (V ≥20) is lower than
+PCMCI, suggesting the model’s pairwise estimation scales less gracefully than
+conditional independence testing. The O(V 2 ) pairwise estimation is also slower
+than Granger and PCMCI. The judgment head’s regime classification, while
+above the random baseline, does not yet match supervised classifiers trained on
+fixed datasets. Improving scalability – through batched pairwise estimation or
+native multivariate discovery heads – and more diverse training regimes are key
+directions for future work.
+    Broader impact. The manufacturing sector generates vast multivariate
+time series but lacks the data science capacity to build per-process causal models.
+A foundation model that operates zero-shot – and can assess its own confidence –
+removes this bottleneck: operators upload sensor data and receive causal insights
+with reliability assessments, without statistical expertise.
+
+
+References
+ [1] Vahid Balazadeh Meresht and Vasilis Syrgkanis. Causalpfn: Prior-data fitted
+     networks for treatment effect estimation. Advances in Neural Information
+     Processing Systems, 2024.
+ [2] Ioana Bica, Ahmed M Alaa, James Jordon, and Mihaela van der Schaar.
+     Estimating counterfactual treatment outcomes over time through adver-
+     sarially balanced representations. International Conference on Learning
+     Representations, 2020.
+ [3] Philip Boeken and Joris M. Mooij. Dynamic structural causal models. In
+     UAI 2024 Workshop on Causal Inference for Time Series (CI4TS), 2024.
+ [4] James J Downs and Ernest F Vogel. A plant-wide industrial process control
+     problem. Computers & Chemical Engineering, 17(3):245–255, 1993.
+
+ [5] Tomas Geffner, George Papamakarios, and Andriy Mnih. Deep end-to-end
+     causal inference. Advances in Neural Information Processing Systems, 2022.
+
+
+
+
+                                        28
+ [6] Clive WJ Granger. Investigating causal relations by econometric models
+     and cross-spectral methods. Econometrica, 37(3):424–438, 1969.
+ [7] Noah Hollmann, Samuel Müller, Katharina Eggensperger, and Frank Hutter.
+     Tabpfn: A transformer that solves small tabular classification problems in
+     a second. International Conference on Learning Representations, 2023.
+
+ [8] Ehsan Imani and Martha White. Improving regression performance with
+     distributional losses. International Conference on Machine Learning, 2018.
+ [9] Nan Rosemary Ke, Silvia Chiappa, Jane Liao, Anirudh Goyal, Sungjin Ahn,
+     and Jorg Bornschein. Learning to induce causal structure. International
+     Conference on Learning Representations, 2022.
+
+[10] Rui Li, Stephanie Hu, Mingyu Lu, Yuria Utsumi, Prithwish Chakraborty,
+     Daby Sow, Piyush Mack, Mohamed Ghalwash, et al. G-net: A recurrent
+     network approach to g-computation for counterfactual prediction under a
+     dynamic treatment regime. Machine Learning for Health, 2021.
+
+[11] Bryan Lim, Ahmed M Alaa, and Mihaela van der Schaar. Forecasting
+     treatment responses over time using recurrent marginal structural networks.
+     Advances in Neural Information Processing Systems, 2018.
+[12] Lars Lorch, Scott Sussex, Jonas Rothfuss, Andreas Krause, and Bernhard
+     Schölkopf. Amortized inference for causal structure learning. Advances in
+     Neural Information Processing Systems, 2022.
+[13] Yuchen Ma, Dennis Frauen, Emil Javurek, and Stefan Feuerriegel. Foun-
+     dation models for causal inference via prior-data fitted networks. arXiv
+     preprint arXiv:2506.10914, 2026.
+[14] Charles F Manski.     Partial Identification of Probability Distributions.
+     Springer, 2003.
+[15] Valentyn Melnychuk, Dennis Frauen, and Stefan Feuerriegel. Causal trans-
+     former for estimating counterfactual outcomes. International Conference
+     on Machine Learning, 2022.
+[16] Valentyn Melnychuk, Vahid Balazadeh, Stefan Feuerriegel, and Rahul G
+     Krishnan. Frequentist consistency of prior-data fitted networks for causal
+     inference. arXiv preprint arXiv:2603.12037, 2026.
+[17] Samuel Müller, Noah Hollmann, Sebastian P Arango, Josif Grabocka, and
+     Frank Hutter. Transformers can do bayesian inference. International
+     Conference on Learning Representations, 2022.
+
+[18] Roxana Pamfil, Nisara Sriwattanaworachai, Shaan Desai, Philip Pilger-
+     storfer, Konstantinos Georgatzis, Paul Beaumont, and Bryon Aragam.
+     Dynotears: Structure learning from time-series data. In International
+     Conference on Artificial Intelligence and Statistics (AISTATS), 2020.
+
+
+                                      29
+[19] Judea Pearl. Causality: Models, Reasoning and Inference. Cambridge
+     University Press, 2nd edition, 2009.
+[20] Jake Robertson, Arik Reuter, Siyuan Guo, Noah Hollmann, Frank Hutter,
+     and Bernhard Schölkopf. Do-pfn: In-context learning for causal effect
+     estimation. In Advances in Neural Information Processing Systems, 2025.
+     Spotlight; arXiv:2506.06039.
+[21] James Robins. A new approach to causal inference in mortality studies with
+     a sustained exposure period. Mathematical Modelling, 7:1393–1512, 1986.
+[22] James M Robins, Miguel A Hernán, and Babette Brumback. Marginal
+     structural models and causal inference in epidemiology. Epidemiology, 11
+     (5):550–560, 2000.
+[23] Paul R Rosenbaum. Observational Studies. Springer, 2nd edition, 2002.
+[24] Jakob Runge, Sebastian Bathiany, Erik Bollt, Gustau Camps-Valls, Dim
+     Coumou, Ethan Deyle, Clark Glymour, Marlene Kretschmer, Miguel D
+     Mahecha, Jordi Muñoz-Marí, et al. Detecting and quantifying causal
+     associations in large nonlinear time series datasets. Science Advances, 5(11),
+     2019.
+[25] Karen Sachs, Omar Perez, Dana Pe’er, Douglas A Lauffenburger, and
+     Garry P Nolan. Causal protein-signaling networks derived from multipa-
+     rameter single-cell data. Science, 308(5721):523–529, 2005.
+[26] Dennis Thumm and Ying Chen. Interventional time series priors for causal
+     foundation models. In ICLR 2026 Workshop on Time Series in the Age of
+     Large Models (TSALM), 2026. arXiv:2603.11090.
+[27] Dennis Thumm, Ruben Wiedemann, and Ying Chen. Towards continuous-
+     time causal foundation models. arXiv preprint arXiv:2605.28880, 2026.
+[28] Tyler J VanderWeele and Peng Ding. Sensitivity analysis in observational
+     research: Introducing the e-value. Annals of Internal Medicine, 167(4):
+     268–274, 2017.
+[29] Yue Yu, Jie Chen, Tian Gao, and Mo Yu. DAG-GNN: DAG structure
+     learning with graph neural networks. International Conference on Machine
+     Learning, 2019.
+[30] Xun Zheng, Bryon Aragam, Pradeep Ravikumar, and Eric P Xing. DAGs
+     with NO TEARS: Continuous optimization for structure learning. Advances
+     in Neural Information Processing Systems, 2018.
+
+
+
+
+                                        30
+A       Appendix
+A.1     Evaluation Metrics
+We define all evaluation metrics used in this paper.
+
+A.1.1    Causal Discovery Metrics
+• F1@threshold: Harmonic mean of precision and recall at a given edge
+  score threshold. We report F1@0.5 (default threshold) and best F1 across all
+  thresholds.
+• AUROC: Area Under the Receiver Operating Characteristic curve. Measures
+  how well the model’s edge scores rank true edges above non-edges, independent
+  of threshold choice.
+• SHD: Structural Hamming Distance – number of edge additions, deletions,
+  and reversals needed to transform the predicted graph into the true graph.
+
+A.1.2    Causal Judgment Metrics
+• Null detection accuracy: Fraction of eval batches where the predicted null
+  label (pnull > 0.5) matches the true label.
+• Null F1: Harmonic mean of precision and recall for the null-effect class. F1
+  = 0 when the model never predicts “null”; F1 = 1 when all null effects are
+  correctly identified with no false positives.
+• Null AUROC: Area under ROC for null vs. non-null classification. Measures
+  ranking quality independent of threshold.
+• Null Brier score (↓): Mean squared error between predicted pnull and true
+  binary label. Measures calibration: 0 = perfect, 0.25 = random. Lower is
+  better.
+• Regime accuracy (4-class): Fraction of eval batches where the predicted
+  regime (direct, confounded, mediated, feedback) matches the true regime.
+  Random baseline: 0.25.
+• Regime macro-F1: F1 averaged across all 4 regime classes. Handles class
+  imbalance by weighting each class equally.
+• Precision@10: Of the top 10 variable pairs ranked by predicted |τ̂ |, how
+  many have a true non-null causal effect?
+• Effect RMSE (↓): Root mean squared error between predicted and true
+  CATE magnitude, averaged across query tokens.
+
+A.1.3    CATE Estimation Metrics
+• Direction accuracy: Fraction of query tokens where sign(τ̂ ) = sign(τ ∗ ).
+  Random baseline: 0.50.
+• Rank correlation (Spearman): Spearman correlation between |τ̂ | and |τ ∗ |
+  across query tokens. Measures whether the model ranks effect magnitudes
+  correctly, invariant to scale.
+
+
+
+                                      31
+• RMSE: Root mean squared error of predicted vs. true CATE per token. Note:
+  may be inflated by Z-standardization confounding leakage (see §6).
+
+A.2     Training Details
+Training data volume. Each training step generates one fresh synthetic
+dataset with 150 units (100 context, 50 query), 3–10 static covariates, and
+8–80 timesteps per unit. Over 200K steps, the model sees approximately 30
+million synthetic units across 200K unique causal structures – none repeated. All
+training data is generated on-the-fly from structural causal models; no real-world
+data is used during training. Each synthetic dataset has a randomly sampled
+causal regime from the six-regime Causal Regime Prior (independent, direct,
+confounded, mediated, time-varying confounded, feedback; see Section 3.5), effect
+shape (immediate, gradual, delayed, decaying, oscillating, permanent), treatment
+type (binary or continuous), and confounding strength. This diversity is what
+enables zero-shot generalization to unseen real data.
+    Training prior mix (mixed_prior). TemporalRegimePrior (nonlinear
+SCMs with industrial mechanisms) + base temporal prior (includes independent,
+direct, confounded, mediated, time-varying confounded, and feedback regimes;
+the independent and confounded regimes together supply the ground-truth
+null-effect data, totaling 40% of batches) + CausalFM priors (front-door and
+instrumental variable identification). The base prior’s inclusion ensures the
+judgment head sees null-effect training data – without it, the model learns to
+always predict “not null” (NullF1 = 0).
+    Judgment head training. The judgment loss is the average (not sum)
+of all supervised task losses, preventing the number of tasks from scaling the
+gradient budget. For confounded batches in Phase 2+, the CATE loss is skipped
+entirely because Z-standardization by treatment group corrupts targets when
+confounding induces systematic group mean differences; in Phase 1, confounded
+batches train CATE normally since no judgment gradients are flowing. Effect
+heads (total_effect, direct_effect) exist in the architecture but are not trained –
+effect magnitudes come from the main CATE model at inference time.
+
+A.3     Synthetic Prior Specification
+A.3.1    Industrial Mechanisms
+The TemporalRegimePrior generates     seven industrial mechanism types:
+1. Linear feedback: Xj (t) = k ajk Xk (t − ljk ) + ϵ
+                               P
+2. Saturation: Xj (t) = c · tanh(f (Xparents (t − l))/c)
+3. Threshold trigger: T (t) = ⊮[Xsensor (t) > θ]
+4. Exponential decay: Xj (t) = X                 −λ
+                                   Pj (t − 1) · e + g(Xparents )
+5. Cascade: Xj (t) = Xj (t − 1) + k wjk · ReLU(Xk (t − l) − θk )
+6. Oscillatory: Xj (t) = A sin(ωt + ϕ)R + f (Xparents )
+7. PID control: u(t) = Kp e(t) + Ki e + Kd ė(t)
+
+
+
+
+                                        32
+A.3.2    Causal Regime Structures
+1. Independent: T ⊥   ⊥ Y . Treatment is randomly assigned with no confounding;
+   true CATE = 0 and the model must learn to predict “no effect.”
+2. Direct: T → Y . Standard treatment-outcome with confounded assignment.
+   True CATE ̸= 0.
+3. Confounded: T ← U → Y . Strong observed association (3× confounding),
+   but true CATE = 0.
+4. Mediated: T → M → Y . Effect flows through mediator.
+5. Time-varying confounded: T ← U (t) → Y . Time-varying confounders.
+6. Feedback: T ⇌ Y (lagged). Bidirectional causation at different time lags.
+    Sampling weights match the implementation (src/tcpfn/temporal/temporal_prior.py):
+{Independent 25%, Direct 25%, Confounded 15%, Mediated 15%, Time-varying
+10%, Feedback 10%}. These six classes sum to 100%; CausalFM-style identifica-
+tion priors (front-door, instrumental variable; see Section 3.5) are sampled as a
+separate prior component in the mixed-prior pipeline, not as additional regimes
+within the Causal Regime Prior.
+
+A.3.3    Effect Shapes
+Six temporal effect shapes, randomly selected per batch with heterogeneous
+magnitude ci = Xi⊤ weffect :
+• Immediate: τi (h) = ci
+• Gradual: τi (h) = ci (1 − e−h/λ ), λ ∼ Uniform(2, Tpost /2)
+• Delayed: τi (h) = ci · ⊮[h ≥ d], d ∼ Uniform(1, Tpost /2)
+• Decaying: τi (h) = ci · e−h/λ
+• Oscillating: τi (h) = ci · sin(2πh/P ) · e−h/λ , P ∼ Uniform(4, Tpost )
+• Permanent: τi (h) = ci + ϵh , ϵh ∼ N (0, 0.05|ci |)
+
+A.4     Industrial Dataset
+The proprietary pulp-and-paper manufacturing dataset is used under NDA:
+• Raw dimensions: 1,325 variables × 65,550 timesteps
+• Sampling rate: 2-minute intervals (∼91 days)
+• Variable types: Flow rates, quality indices, temperatures, pressures, levels,
+  machine speeds
+• Preprocessing (see Section 4.3 for the full description): drop 24 derived/setpoint
+  columns by DCS-tag suffix (→ 1,301); drop 4 columns with >50% missing
+  (→ 1,297); drop 13 zero-variance columns (→ 1,284); apply [0.1%, 99.9%]
+  winsorization; drop 9 columns that collapse to a constant after winsorization
+  (→ 1,275); z-score every retained column. Leaves V = 1,275.
+
+A.5     Computational Cost
+Discovery cost scales as O(V 2 ): 7s for V =5, 33s for V =10, 963s for V =52. Pairs
+can be parallelized across GPUs. For comparison, PCMCI takes 22s on Tennessee
+Eastman (V =52) and Granger takes 12s.
+
+
+                                        33
+A.6    Additional Benchmark Results
+Table 9 shows discovery results for datasets not included in the main table
+(Section 4.1).
+
+
+
+
+                                    34
+                                Causal Judgment Head Architecture
+            BACKBONE                                                    OUTPUT HEADS                       SUPERVISION
+
+
+
+
+                                                                         Regime Logits
+                                                                          softmax → 4 classes              CE vs regime
+    Transformer Hidden States
+                                                              (direct, confounded, mediated, feedback)
+
+          shape: (B, L_q, d)
+                                                                     Uncertainty Bounds
+                                                                                                            consistency
+                                                                (lower, upper) — 2 unbounded scalars
+
+                Pool
+       mean over query tokens
+                                                                      Mediation Fraction
+              → (B, d)
+                                                                                                          MSE vs fraction
+                                                                          sigmoid → [0, 1]
+
+
+
+
+           Shared MLP                                                    Identifiability
+                                                                                                         BCE vs identifiable
+                                                                          sigmoid → [0, 1]
+           Linear(d, 256)
+                GELU
+          LayerNorm(256)
+          → shared (B, 256)                                           Confounding Score
+                                                                                                          MSE vs strength
+                                                                          sigmoid → [0, 1]
+
+
+
+
+                                                                        Null Probability
+                                                                                                           BCE vs is_null
+                                                                          sigmoid → [0, 1]
+
+
+
+
+                                                                          Direct Effect
+                                                                                                             not trained
+                                                                                                         (from CATE model)
+                                                                         unbounded scalar
+
+
+
+
+                                                                          Total Effect
+                                                                                                             not trained
+                                                                                                         (from CATE model)
+                                                                         unbounded scalar
+
+
+                                Discovery scoring: score(i → j) = |τ|̂ × (1 − pnull) × pident
+
+
+
+
+Figure 4: Causal Judgment Head architecture. Transformer hidden states
+are pooled, passed through a shared MLP (Linear → GELU → LayerNorm), then
+routed to 8 output heads: 5 supervised task heads (Regime, Mediation, Identi-
+fiability, Confounding, Null), 1 consistency-bound head (Uncertainty Bounds),
+and 2 untrained effect heads (Direct/Total Effect, rendered greyed-out; effect
+magnitudes are obtained from the main CATE model at inference time, not
+from the judgment head). Binary heads use BCE; regime uses cross-entropy;
+continuous heads use MSE.
+
+
+
+
+                                                            35
+Figure 5: Training prior diversity. Top row: six temporal effect shapes
+generated by the base prior – immediate, gradual, delayed, decaying, oscil-
+lating, and permanent. Bottom row: industrial mechanisms – feedback loops
+(temperature↔pressure mutual causation) and cascade failures (sensor A triggers
+B, which degrades quality). Orange: treated trajectory; blue: control trajectory;
+green shading: treatment effect.
+
+
+
+
+                     Causal Regime Prior — six structures sampled during pretraining
+
+
+          Independent                               Direct                    Confounded
+                  25%                                25%                           15%
+                  T ⟂⟂ Y
+                                                                                    U
+
+              T            Y                    T             Y
+                                                                               T           Y
+                  τ* =0                             τ* ≠0                          τ* =0
+
+
+
+              Mediated                   Time-varying confounded               Feedback
+                  15%                                10%                           10%
+                                                     U(t)
+
+          T         M          Y                                               T           Y
+                                                T             Y
+                                               U shifts over time               lagged T ⇌ Y
+
+
+
+
+Figure 6: Causal Regime Prior. Six causal structures sampled during pre-
+training. Each regime provides ground-truth metadata for all judgment head
+outputs. The confounded (15%) and independent (25%) regimes both have zero
+true effect – teaching the model to distinguish causation from correlation.
+
+
+
+
+                                                     36
+Table 1: Out-of-the-box causal discovery (no per-dataset threshold
+tuning). F1 with each method’s normalized score thresholded at 0.5 – the
+realistic deployment case where ground-truth labels are unavailable for per-
+dataset threshold selection. AUROC is threshold-independent. Edges: predicted
+edges / true edges at threshold 0.5. PCMCI’s (1−pvalue ) score is concentrated
+near 0 at this no-tuning cut; its tuned performance is in Table 2. Granger’s
+saturation (> 50× true on industrial data) indicates p-value distributions produce
+operationally unusable graphs without per-dataset tuning. Bold: best F1@0.5
+per row.
+
+  Dataset                   Method             F1@0.5     AUROC        Edges
+                            TCPFN (ours)        0.507       0.975       99/47
+  Causal Rivers             Granger             0.047       0.938      1963/47
+                            PCMCI               0.000       0.996       0/47
+                            TCPFN (ours)        0.387       0.959       81/38
+  Tennessee Eastman         Granger             0.039       0.998      1897/38
+                            PCMCI               0.000       1.000       0/38
+                            TCPFN (ours)        0.288       0.932      216/55
+  SWaT (water)              Granger             0.050       0.997      2143/55
+                            PCMCI               0.000       1.000       0/55
+                            TCPFN (ours)        0.447       0.967     160/104
+  CAUSRCA (CNC lathe)       Granger             0.033       0.994     6164/104
+                            PCMCI               0.000       1.000      0/104
+                            TCPFN (ours)        0.217       0.628       29/17
+  Sachs (biology)           Granger             0.228       0.479       62/17
+                            PCMCI               0.000       0.462        0/17
+                            TCPFN (ours)        0.667       0.961       6/3
+  CauseMe NVAR-5            Granger             0.353       0.980       14/3
+                            PCMCI               0.000       1.000        0/3
+                            TCPFN (ours)        0.667       0.805       25/23
+  CauseMe NVAR-10           Granger             0.415       0.919       83/23
+                            PCMCI               0.000       0.968       0/23
+                            TCPFN (ours)        0.769       0.960       8/5
+  CauseMe VAR-5             Granger             0.435       1.000       18/5
+                            PCMCI               0.000       1.000        0/5
+                            TCPFN (ours)        0.586       0.764       30/28
+  CauseMe VAR-10            Granger             0.481       0.858       80/28
+                            PCMCI               0.000       0.944       0/28
+
+
+
+
+                                       37
+Table 2: Maximum F1 under oracle threshold selection. Best F1 each
+method achieves when its threshold is tuned with knowledge of the ground-truth
+labels (not available in real deployment). @thr: threshold at which Best F1
+is achieved. Edges (at best threshold): predicted edges / true edges. PCMCI
+dominates F1 on industrial datasets when given oracle threshold knowledge
+(consistently at p < 0.10–0.15, i.e., its conventional statistical-significance cut).
+TCPFN still wins on Sachs (out-of-distribution biological data) and ties PCMCI
+on CauseMe NVAR-5; on the remaining datasets TCPFN’s tuned F1 is com-
+petitive within a single fixed threshold range (0.3–0.8, Sachs at the lower end),
+versus PCMCI’s 0.01–0.15 range that mirrors its statistical convention. Bold:
+best F1 per row.
+
+ Dataset                    Method              Best F1     @thr    AUROC         Edges
+                            TCPFN (ours)          0.549      0.60      0.975       66/47
+ Causal Rivers              Granger               0.074      0.90      0.938      1216/47
+                            PCMCI                 0.956      0.15      0.996       43/47
+                            TCPFN (ours)          0.613      0.60      0.959       24/38
+ Tennessee Eastman          Granger               0.126      0.90      0.998      565/38
+                            PCMCI                 1.000      0.15      1.000      38/38
+                            TCPFN (ours)          0.333      0.70      0.932       29/55
+ SWaT (water)               Granger               0.143      0.90      0.997      712/55
+                            PCMCI                 1.000      0.15      1.000      55/55
+                            TCPFN (ours)          0.450      0.60      0.967      56/104
+ CAUSRCA (CNC lathe)        Granger               0.094      0.90      0.994     2101/104
+                            PCMCI                 1.000      0.15      1.000     104/104
+                            TCPFN (ours)          0.337      0.30     0.628        78/17
+ Sachs (biology)            Granger               0.279      0.15     0.479       105/17
+                            PCMCI                 0.272      0.01     0.462       108/17
+                            TCPFN (ours)          0.800      0.80      0.961        2/3
+ CauseMe NVAR-5             Granger               0.667      0.90      0.980        6/3
+                            PCMCI                 0.800      0.10      1.000        2/3
+                            TCPFN (ours)          0.667      0.50      0.805       25/23
+ CauseMe NVAR-10            Granger               0.532      0.90      0.919       56/23
+                            PCMCI                 0.930      0.10      0.968       20/23
+                            TCPFN (ours)          0.909      0.60      0.960        6/5
+ CauseMe VAR-5              Granger               0.714      0.90      1.000        9/5
+                            PCMCI                 1.000      0.10      1.000        5/5
+                            TCPFN (ours)          0.600      0.40      0.764       42/28
+ CauseMe VAR-10             Granger               0.562      0.90      0.858       61/28
+                            PCMCI                 0.943      0.10      0.944       25/28
+
+
+
+
+                                         38
+Table 3: Causal Judgment Head evaluation on in-distribution synthetic
+data. Mean and range over steps 150K–200K (10 eval batches per step). Results
+are noisy; we report the distribution honestly.
+
+ Metric                                Mean           Range         Step 200K       Random
+ Null detection accuracy                0.94         [0.80, 1.00]        0.90           0.50
+ Null F1 score                          0.94         [0.83, 1.00]        0.86             –
+ Null AUROC                             0.99         [0.83, 1.00]        1.00           0.50
+ Null Brier score (↓)                   0.04         [0.00, 0.19]        0.06           0.25
+ Null separation (NullSep)              0.86         [0.51, 0.99]        0.87           0.00
+ Regime accuracy (4-class)              0.68         [0.40, 0.90]        0.60           0.25
+ Regime macro-F1                        0.48         [0.32, 0.90]        0.38           0.25
+ Precision@10 (top effects)             0.57         [0.30, 1.00]        0.70             –
+ Effect RMSE (↓)                        0.08        [0.006, 0.20]        0.05             –
+
+
+
+
+Table 4: Plant-area flow matrix of top-200 discovered edges (V=1,275
+unbleached Kraft pulp & paper mill). Rows are cause plant areas, columns
+are effect plant areas. Cell values are the number of edges among the global top
+200 whose cause is in the row area and whose effect is in the column area. Diagonal
+cells reflect within-area control loops; off-diagonal cells reflect inter-area causal
+flows. The dominant entries – Paper Machine 1 internal complexity (31→31),
+bidirectional Stock Prep ↔ PM1 (39→31, 31→39), bidirectional Screens ↔ PM1
+(28→31, 31→28), Stock Prep → Screens (39→28), and cross-paper-machine
+coordination (29→31) – concentrate the discovered top-200 edges around the
+paper machine.
+
+ Cause \ Effect        27 (Cook+Wash)           28 (Screen)     29 (PM2)        31 (PM1)       39 (Prep)
+                                                                                                           P
+
+ 27 (Cook+Wash)                 0                      3            1              2              2         8
+ 28 (Screen)                    3                     14            3              14             0        34
+ 29 (PM2)                       0                      4            5              10              4       23
+ 31 (PM1)                       0                     14            2              58             14       88
+ 39 (Prep)                      2                     12            0              18              9       41
+                                5                     47            11            102             29
+ P
+                                                                                                           194
+  The 5×5 grid sums to 194 of the top-200 edges; the remaining 6 are 3 edges involving a
+ minor utility area (DCS prefix 34, 12 variables) and 3 edges with one or both endpoints in
+                                 unclassified tags (“OTH”).
+
+
+
+
+                                               39
+Table 5: Representative top-15 discovered edges (V=1,275 Kraft pulp
+mill). Score = |τ̂ | · (1−pnull ) · pident (judgment-head adjusted). Flow: cause
+area → effect area, with “intra” denoting within-area edges. Interp.: candidate
+process-engineering reading derived from the DCS tag taxonomy; these labels are
+hypothesis-generation hints, not validated causal mechanisms (no operator-side
+validation has been performed for this dataset). The recurring effect targets
+include the cooking-pressure transmitter Cook-PT-11 and PM1-area flow-control
+hubs PM1-FIC-13.
+
+ Rank    Score    Cause           Effect         Flow       Interpretation
+     1   27.776   Screen-FY-8     Cook-PT-11     28→27      → cook-pressure hub
+     2   23.848   Screen-PIC-3    PM1-FIC-13     28→31      Screens pressure control
+     3   23.621   PM1-PD-1        PM1-FIC-13     intra-31   process relationship
+     4   23.558   Prep-PT-15      PM1-ZIC-5      39→31      Stock-prep pressure transmitter
+     5   23.303   PM1-PT-33       PM1-ST-3       intra-31   process relationship
+     6   22.445   PM1-PD-1        PM1-ST-3       intra-31   process relationship
+     7   21.454   PM1-LIC-17      PM1-FIC-13     intra-31   process relationship
+     8   21.067   Prep-FY-24      Cook-PT-11     39→27      → cook-pressure hub
+     9   20.983   Prep-PT-15      PM1-FIC-5      39→31      Stock-prep pressure transmitter
+    10   20.929   Screen-PT-17    Prep-QUAL-1    28→PM      PM quality measurement
+    11   20.536   Prep-PIC-10     Cook-PT-11     39→27      → cook-pressure hub
+    12   20.201   Screen-FIC-10   Screen-KQI-2   intra-28   → screens quality indicator
+    13   19.737   Prep-KIC-8      Screen-CT-6    39→28      → screens chemistry
+    14   19.517   PM1-ZRC-1       PM1-LIC-29     intra-31   PM1 zonal-ratio control
+    15   19.471   Screen-FY-8     Cook-TT-22     28→27      → master cook temperature
+
+
+
+
+Table 6: Comparison with existing methods. TCPFN is, to our knowledge, the
+only method that combines zero-shot inference, temporal dynamics, causal discov-
+ery, and learned reliability judgment. † Concurrent work [26, 27] – prior-design
+/ proof-of-concept rather than full foundation-model artifacts (see paragraph
+above). ‡ Entries for concurrent work are inferred from the cited authors’ public
+manuscripts and reported scope, not from independently running their code or
+evaluating their checkpoints; we cite their explicit “not validated against real-
+world causal time series” caveat for CausalTimePrior and their evaluation set
+(CausalChamber, pharmacokinetic data) for the continuous-time architecture.
+
+ Method               Zero-shot      Temporal       Cont. T       Discov.     Arb. V          Judg.
+ CausalPFN                 ✓               ×            ×            ×            –            ×
+ CausalFM                  ✓               ×            ×            ×            –            ×
+ Do-PFN                    ✓               ×            ×            ×            –            ×
+ AVICI                     ✓               ×            ×            ✓            ×            ×
+ CausalTimePrior†          ✓               ✓            ×            ×            ✓            ×
+ Cont.-time PFN†           ✓               ✓            ✓            ×            ✓            ×
+ CRN / G-Net               ×               ✓            ×            ×            –            ×
+ PCMCI                     ×               ✓            –            ✓            ✓            ×
+ Granger                   ×               ✓            ×            ✓            ✓            ×
+ TCPFN (ours)              ✓               ✓            ✓            ✓            ✓            ✓
+
+
+
+
+                                           40
+                      Table 7: Training hyperparameters.
+
+ Parameter                                                 Value
+ Embedding dim (d)                                          512
+ Heads / Layers                                            8 / 12
+ FF dim                                                     2048
+ Bins (B)                                                    128
+ Max features (Fmax )                                        100
+ Max outcomes (K)                                             5
+ Max treatment dims (M )                                      3
+ Judgment head hidden dim                                 256
+ Judgment head outputs (trained)                           5
+ Judgment loss weight (λ)                                 0.1
+ Curriculum Phase 1 (CATE only)                       0–20K steps
+ Curriculum Phase 2 (+Null/Confounding)              20K–50K steps
+ Curriculum Phase 3 (Full)                            50K+ steps
+ Optimizer                                               AdamW
+ LR / weight decay                                      10−4 / 0.01
+ Warmup / total steps                                   2K / 200K
+ Grad clip / FP16                                        1.0 / Yes
+ Batch (context / query)                                 100 / 50
+ Training prior mix                           TRP + base + CFM (mixed)
+ Hardware                                            RTX 5090
+ Training time                                       ∼4.1 hours
+ Training speed                                     ∼13.9 steps/s
+
+Table 8: Computational cost. Discovery times from benchmark runs on RTX
+5090.
+
+   Operation                                     Time          Hardware
+   Training (200K steps, curriculum)           ∼4.1 hours      RTX 5090
+   Training speed                             ∼13.9 steps/s    RTX 5090
+   Inference (batch, 100 units)                   <1s           Any GPU
+   Discovery: Sachs (11 vars)                     41s          RTX 5090
+   Discovery: CauseMe V=5                          7s          RTX 5090
+   Discovery: CauseMe V=10                        33s          RTX 5090
+   Discovery: CauseMe V=20                       138s          RTX 5090
+   Discovery: Causal Rivers                       840s         RTX 5090
+   Discovery: Tennessee Eastman (52 vars)        963s          RTX 5090
+   Discovery: SWaT (51 vars)                     1086s         RTX 5090
+   Calibration eval (500 batches)               ∼5 min         RTX 5090
+   CATE eval (100 datasets)                     ∼5 min         RTX 5090
+
+
+                                       41
+Table 9: Additional discovery benchmark results (datasets not in main table).
+
+   Dataset                      Method     F1@0.5    Best F1    AUROC
+                                TCPFN       0.091      0.446      0.510
+   CauseMe VAR-20               Granger     0.446      0.446      0.509
+                                PCMCI       0.036      0.876      0.958
+                                TCPFN       0.197      0.467      0.598
+   CauseMe NVAR-20              Granger     0.459      0.474      0.728
+                                PCMCI       0.000      0.910      0.958
+                                TCPFN       0.312      0.583      0.454
+   Lorenz96-10                  Granger     0.583      0.587      0.580
+                                PCMCI       0.000      0.712      0.850
+                                TCPFN       0.255      0.393      0.538
+   Lorenz96-20                  Granger     0.407      0.480      0.810
+                                PCMCI       0.000      0.619      0.779
+                                TCPFN       0.426      0.426      0.487
+   CauseMe LongLag-VAR-10       Granger     0.421      0.421      0.510
+                                PCMCI       0.000      0.429      0.526
+                                TCPFN       0.446      0.449      0.440
+   CauseMe LongLag-VAR-20       Granger     0.449      0.449      0.490
+                                PCMCI       0.000      0.456      0.491
+                                TCPFN       0.576      0.576      0.511
+   CauseMe LongLag-NVAR-10      Granger     0.571      0.571      0.500
+                                PCMCI       0.000      0.567      0.445
+                                TCPFN       0.470      0.486      0.523
+   CauseMe LongLag-NVAR-20      Granger     0.486      0.486      0.500
+                                PCMCI       0.000      0.490      0.538
+                                TCPFN       0.203      0.225      0.652
+   BATADAL (water)              Granger     0.053      0.077      0.648
+                                PCMCI       0.000      0.046      0.430
+                                TCPFN       0.140      0.140      0.563
+   WADI (water)                 Granger     0.103      0.115      0.510
+                                PCMCI       0.000      0.113      0.447
+                                TCPFN       0.299        –        0.561
+   Synthetic (50 datasets)      Granger     0.565        –        0.602
+                                PCMCI       0.071        –        0.891
+
+
+
+
+                                     42
+

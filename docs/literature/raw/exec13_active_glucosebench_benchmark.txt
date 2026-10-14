@@ -1,0 +1,90 @@
+"""Acquisition and evaluation phases. Learners never receive the evaluator object."""
+import copy
+import numpy as np
+from .protocol import PATIENTS, BUDGETS, CUTS, manifest, action_menu, seed_for, test_protocols
+from .oracle import episode
+from .observations import prediction_payload
+from .metrics import training_scale, score
+
+
+class Benchmark:
+    """One patient-specific run: two passive episodes, then <=4 chosen experiments.
+
+    The harness owns this object. Give learners only ``training`` and ``actions``;
+    call ``observe(index)`` for a chosen intervention and ``freeze()`` before tests.
+    This API prevents accidental leakage; it is not a security boundary against
+    code that deliberately imports the public simulator or inspects private fields.
+    """
+    def __init__(self, patient='adult#001', replicate=0):
+        if patient not in PATIENTS: raise ValueError('Unknown profile')
+        seed_for(patient, replicate, 'train', 1)
+        self._patient, self._replicate = patient, replicate
+        self._training = [episode(patient, seed_for(patient, replicate, 'train', i+1), p)[0]
+                          for i, p in enumerate(manifest()['passive_protocols'])]
+        self._used = set(); self._frozen = False
+
+    @property
+    def training(self):
+        return copy.deepcopy(self._training)
+
+    @property
+    def actions(self):
+        return {i: p for i, p in enumerate(action_menu()) if i not in self._used}
+
+    def observe(self, index):
+        if self._frozen: raise RuntimeError('Training is frozen; no more oracle calls')
+        if len(self._training) >= 6: raise RuntimeError('Six-episode budget exhausted')
+        if type(index) is not int or index not in self.actions:
+            raise ValueError('Choose an unused action index')
+        row = episode(self._patient, seed_for(self._patient, self._replicate, 'train', len(self._training)+1), self.actions[index])[0]
+        self._training.append(row); self._used.add(index)
+        return copy.deepcopy(row)
+
+    def freeze(self):
+        self._frozen = True
+        return Evaluator(self._patient, self._replicate, self._training)
+
+
+class Evaluator:
+    """Harness-only sealed outcomes, generated after training is frozen."""
+    def __init__(self, patient, replicate, training):
+        self._training = copy.deepcopy(training)
+        self._scales = training_scale(training[:2])
+        self._tests = [episode(patient, seed_for(patient, replicate, 'test', i), p)[0]
+                       for i, p in enumerate(test_protocols())]
+
+    def evaluate(self, predictor, budget=6, cuts=(45,)):
+        """Call ``predictor(payload)`` separately for each query/cut; return scores only.
+
+        Train model structure/parameters using payload.training_episodes only;
+        query prefixes may update predictive state, not fit or tune the model.
+        Return failed cells explicitly; do not average them away.
+        """
+        if budget not in BUDGETS or budget > len(self._training):
+            raise ValueError('Budget must be an available checkpoint in 2,3,4,6')
+        if not cuts or any(type(c) is not int or c not in CUTS for c in cuts) or len(set(cuts)) != len(cuts):
+            raise ValueError('Cuts must be a nonempty unique subset of 0,45,120,180')
+        rows = []
+        for i, query in enumerate(self._tests):
+            for cut in cuts:
+                row = dict(query_index=i, budget=budget, cut_min=cut)
+                try:
+                    p = predictor(prediction_payload(self._training[:budget], query, cut))
+                    row.update(status='complete', suffix=score(p, query, cut, self._scales),
+                               common_suffix=score(p, query, cut, self._scales, True))
+                except Exception as exc:
+                    row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
+                rows.append(row)
+        return rows
+
+
+def summarize(rows):
+    """Arithmetic query means per checkpoint; null means if any query failed."""
+    out = []
+    for budget, cut in sorted({(r['budget'], r['cut_min']) for r in rows}):
+        group = [r for r in rows if (r['budget'], r['cut_min']) == (budget, cut)]
+        failed = sum(r['status'] != 'complete' for r in group)
+        means = None if failed else {c: float(np.mean([r['suffix'][c]['training_variance_nmse'] for r in group]))
+                                     for c in ('cgm_mg_dl', 'insulin_pmol_l')}
+        out.append(dict(budget=budget, cut_min=cut, attempted=len(group), failed=failed, mean_nmse=means))
+    return out

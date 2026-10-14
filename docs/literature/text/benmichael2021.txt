@@ -1,0 +1,3002 @@
+                                                               The Augmented Synthetic Control Method∗
+                                                                     Eli Ben-Michael, Avi Feller, and Jesse Rothstein
+
+                                                                                           UC Berkeley
+
+                                                                                             July 2020
+arXiv:1811.04170v3 [stat.ME] 23 Jul 2020
+
+
+
+
+                                                                                              Abstract
+                                                     The synthetic control method (SCM) is a popular approach for estimating the impact of
+                                                 a treatment on a single unit in panel data settings. The “synthetic control” is a weighted
+                                                 average of control units that balances the treated unit’s pre-treatment outcomes as closely as
+                                                 possible. A critical feature of the original proposal is to use SCM only when the fit on pre-
+                                                 treatment outcomes is excellent. We propose Augmented SCM as an extension of SCM to
+                                                 settings where such pre-treatment fit is infeasible. Analogous to bias correction for inexact
+                                                 matching, Augmented SCM uses an outcome model to estimate the bias due to imperfect pre-
+                                                 treatment fit and then de-biases the original SCM estimate. Our main proposal, which uses
+                                                 ridge regression as the outcome model, directly controls pre-treatment fit while minimizing
+                                                 extrapolation from the convex hull. This estimator can also be expressed as a solution to a
+                                                 modified synthetic controls problem that allows negative weights on some donor units. We bound
+                                                 the estimation error of this approach under different data generating processes, including a linear
+                                                 factor model, and show how regularization helps to avoid over-fitting to noise. We demonstrate
+                                                 gains from Augmented SCM with extensive simulation studies and apply this framework to
+                                                 estimate the impact of the 2012 Kansas tax cuts on economic growth. We implement the
+                                                 proposed method in the new augsynth R package.
+
+
+
+
+                                             ∗
+                                               email: afeller@berkeley.edu. We thank Alberto Abadie, Josh Angrist, Matias Cattaneo, Alex D’Amour, Peng
+                                           Ding, Erin Hartman, Chad Hazlett, Steve Howard, Guido Imbens, Brian Jacob, Pat Kline, Caleb Miles, Luke Miratrix,
+                                           Sam Pimentel, Fredrik Sävje, Jas Sekhon, Jake Soloff, Panos Toulis, Stefan Wager, Yiqing Xu, Alan Zaslavsky, and
+                                           Xiang Zhou for thoughtful comments and discussion, as well as seminar participants at Stanford, UC Berkeley, UNC,
+                                           the 2018 Atlantic Causal Inference Conference, COMPIE 2018, and the 2018 Polmeth Conference. We also thank
+                                           editors and referees for constructive feedback.
+1       Introduction
+The synthetic control method (SCM) is a popular approach for estimating the impact of a treatment
+on a single unit in panel data settings with a modest number of control units and with many
+pre-treatment periods (Abadie and Gardeazabal, 2003; Abadie et al., 2010, 2015). The idea is to
+construct a weighted average of control units, known as a synthetic control, that matches the treated
+unit’s pre-treatment outcomes. The estimated impact is then the difference in post-treatment
+outcomes between the treated unit and the synthetic control. SCM has been widely applied — the
+main SCM papers have over 4,000 citations — and has been called “arguably the most important
+innovation in the policy evaluation literature in the last 15 years” (Athey and Imbens, 2017).
+    A critical feature of the original proposal, not always followed in practice, is to use SCM only
+when the synthetic control’s pre-treatment outcomes closely match the pre-treatment outcomes for
+the treated unit (Abadie et al., 2015). When it is not possible to construct a synthetic control
+that fits pre-treatment outcomes well, the original papers advise against using SCM. At that point,
+researchers often fall back to linear regression. This allows better (often perfect) pre-treatment fit,
+but does so by applying negative weights to some control units, extrapolating outside the support
+of the data.
+    We propose the augmented synthetic control method (ASCM) as a middle ground in settings
+where excellent pre-treatment fit using SCM alone is not feasible. Analogous to bias correction for
+inexact matching (Rubin, 1973; Abadie and Imbens, 2011), ASCM begins with the original SCM
+estimate, uses an outcome model to estimate the bias due to imperfect pre-treatment fit, and then
+uses this to de-bias the estimate. If pre-treatment fit is good, the estimated bias will be small, and
+the SCM and ASCM estimates will be similar. Otherwise, the estimates will diverge, and ASCM
+will rely more heavily on extrapolation.
+    Our primary proposal is to augment SCM with a ridge regression model, which we call Ridge
+ASCM. We show that, like SCM, the Ridge ASCM estimator can be written as a weighted average
+of the control unit outcomes. We also show that Ridge ASCM weights can be written as the solution
+to a modified synthetic controls problem, targeting the same imbalance metric as traditional SCM.
+However, where SCM weights are always non-negative, Ridge ASCM admits negative weights, using
+extrapolation to improve pre-treatment fit. The regularization parameter in Ridge ASCM directly
+parameterizes the level of extrapolation by penalizing the distance from SCM weights. By contrast,
+(ridge) regression alone, which can also be written as a modified synthetic controls problem with
+possibly negative weights, allows for arbitrary extrapolation and possibly unchecked extrapolation
+bias.
+    We relate Ridge ASCM’s improved pre-treatment fit to a finite sample bound on estimation
+error under several data generating processes, including a simple linear model and the linear factor
+model often invoked in this setting (Abadie et al., 2010). Under a linear model, improving pre-
+treatment fit directly reduces bias, and the Ridge ASCM penalty term negotiates a bias-variance
+
+
+                                                  1
+trade-off. Under a latent factor model, improving pre-treatment fit again reduces bias, though
+there is now a risk of over-fitting. The penalty term also directly parameterizes this trade-off.
+Thus, choosing the hyperparameter will be important for practice; we propose a cross-validation
+procedure in Section 5.3.
+   Finally, we also describe how the Augmented SCM approach can be extended to incorporate
+auxiliary covariates other than pre-treatment outcomes. We first propose to include the auxiliary
+covariates in parallel to the lagged outcomes in both the SCM and outcome models. We also propose
+an alternative when there relatively few covariates, extending a suggestion from Doudchenko and
+Imbens (2017): first residualize both the pre- and post-treatment outcomes against the auxiliary
+covariates, then fit Ridge ASCM on the residualized outcome series. We show that this controls
+the estimation error under a linear factor model with auxiliary covariates.
+   We demonstrate the properties of Augmented SCM both via calibrated simulation studies and
+by using it to examine the effect of an aggressive tax cut in Kansas in 2012 on economic output,
+finding a substantial negative effect. Overall, we see large gains from ASCM relative to alter-
+native estimators, especially under model mis-specification, in terms of both bias and root mean
+squared error. We implement the proposed methodology in the augsynth package for R, available
+at https://github.com/ebenmichael/augsynth.
+   The paper proceeds as follows. Section 1.1 briefly reviews related work. Section 2 introduces
+notation and the SCM estimator. Section 3 gives an overview of Augmented SCM. Section 4 gives
+key numerical results for Ridge ASCM. Section 5 bounds the estimation error under a linear model
+and a linear factor model, the standard setting for SCM. Section 6 extends the ASCM framework
+to incorporate auxiliary covariates and alternative outcome models. Section 7 reports on extensive
+simulation studies as well as the application to the Kansas tax cuts. Finally, Section 8 discusses
+some possible directions for further research. The appendix includes all of the proofs, as well as
+additional derivations and technical discussion, including a discussion of inference.
+
+1.1   Related work
+SCM was introduced by Abadie and Gardeazabal (2003) and Abadie et al. (2010, 2015) and is the
+subject of an extensive methodological literature; see Abadie (2019) and Samartsidis et al. (2019)
+for recent reviews. We briefly highlight some relevant aspects of this literature.
+   A first set of papers adapts the original SCM proposal to allow for more robust estimation while
+retaining the simplex constraint on the weights. Robbins et al. (2017); Doudchenko and Imbens
+(2017); Abadie and L’Hour (2018); Minard and Waddell (2018) incorporate a penalty on the weights
+into the SCM optimization problem, building on a suggestion in Abadie et al. (2015). Gobillon and
+Magnac (2016) and Hazlett and Xu (2018) explore dimension reduction strategies and other data
+transformations that can improve the performance of the subsequent estimator. See also Bilinski
+and Hatfield (2020), who propose a cross-validation procedure for selecting the number of lagged
+
+
+                                                  2
+outcomes to include.
+    A second set of papers relaxes various constraints imposed in the original SCM problem. In
+particular, Doudchenko and Imbens (2017) relax the SCM restriction that control unit weights be
+non-negative, arguing that there are many settings in which negative weights would be desirable.
+Amjad et al. (2018) propose an interesting variant that combines negative weights with a pre-
+processing step. Powell (2018) instead allows for extrapolation via a Frisch-Waugh-Lovell-style
+projection, which similarly generalizes the typical SCM setting. Doudchenko and Imbens (2017)
+and Ferman and Pinto (2018) both propose to incorporate an intercept into the SCM problem,
+which we discuss in Section 3.2. There have also been several other proposals to reduce bias
+in SCM, developed independently and contemporaneously with ours. Abadie and L’Hour (2018)
+also propose bias correcting SCM using regression, but focus on bias due to interpolation rather
+than poor pre-treatment fit. Kellogg et al. (2020) propose using a weighted average of SCM and
+matching, trading off interpolation and extrapolation bias. Finally, Arkhangelsky et al. (2019)
+propose the Synthetic Difference-in-Differences estimator, which can be seen as a special case of
+our proposal with a constrained outcome regression.
+    Finally, there have been several recent proposals to use outcome modeling rather than SCM-
+style weighting in this setting. These include the matrix completion method in Athey et al. (2017),
+the generalized synthetic control method in Xu (2017), and the combined approaches in Hsiao et al.
+(2018). We explore the performance of select methods, both in isolation and in combination with
+SCM, in Section 7.1.
+
+
+2     Overview of the Synthetic Control Method
+2.1   Notation and setup
+We consider the canonical SCM panel data setting with i = 1, . . . , N units observed for t = 1, . . . , T
+time periods; for the theoretical discussion below, we will consider both N and T to be fixed. Let
+Wi be an indicator that unit i is treated at time T0 < T where units with Wi = 0 never receive the
+treatment. We restrict our attention to the case where a single unit receives treatment, and follow
+the convention that this is the first one, W1 = 1; see Ben-Michael et al. (2019) for an extension to
+multiple treated units. The remaining N0 = N − 1 units are possible controls, often referred to as
+donor units in the SCM context. To simplify notation, we limit to one post-treatment observation,
+T = T0 + 1, though our results are easily extended to larger T .
+    We adopt the potential outcomes framework (Neyman, 1923; Rubin, 1974) and invoke SUTVA,
+which assumes a well-defined treatment and excludes interference between units (Rubin, 1980);
+the potential outcomes for unit i in period t under control and treatment are Yit (0) and Yit (1),
+
+
+
+
+                                                    3
+respectively. The observed outcomes are then:
+                                     
+                                     Y (0)
+                                       it        if Wi = 0 or t ≤ T0
+                               Yit =                                                              (1)
+                                     Y (1)      if Wi = 1 and t > T0 .
+                                          it
+
+
+We next assume that control potential outcomes are generated as a fixed component mit plus mean
+zero, additive noise εit drawn from some distribution P (·),
+
+                                          Yit (0) = mit + εit .
+
+The treated potential outcome is then Yit (1) = Yit (0) + τit , where the treatment effects τit are
+the key estimands, and are fixed parameters. The treatment effect of interest is thus τ = τ1T =
+Y1T (1) − Y1T (0).
+   In Section 5, we consider special cases where mit is a linear function of lagged outcomes or where
+mit is a linear factor model; in the Appendix, we also consider the case where mit is a linear model
+with Lipshitz deviations from linearity. We make two assumptions about the distribution of the
+noise terms εit . First, we assume that treatment assignment Wi is ignorable given mit ; specifically
+that the noise terms in the post-treatment time periods εT = (ε1T , . . . , εN T ) are mean-zero and
+uncorrelated with treatment assignment,
+
+                          EεT [Wi εiT ] = EεT [(1 − Wi )εiT ] = EεT [εiT ] = 0,                   (2)
+
+where the expectation is taken with respect to the noise term at the post-treatment time T , εT . As
+a result, the noise terms for the treated and control units do not systematically deviate from each
+other. We discuss this in more detail in the context of our application in Section 7. Second, for the
+theoretical results in Sections 5 and 6, we assume that the error terms εit are independent (across
+units and over time) sub-Gaussian random variables with scale parameter σ. See, for example,
+Chernozhukov et al. (2019) for an extended discussion of this general setup in panel data settings.
+   To emphasize that pre-treatment outcomes serve as covariates in SCM, we use Xit , for t ≤ T0 ,
+to represent pre-treatment outcomes; we use the terms pre-treatment fit and covariate balance
+interchangeably. With some abuse of notation, we use X0· to represent the N0 -by-T0 matrix of
+control unit pre-treatment outcomes and Y0T for the N0 -vector of control unit outcomes in period T .
+With only one treated unit, Y1T is a scalar, and X1· is a T0 -row vector of treated unit pre-treatment
+outcomes. The data structure is then:
+
+
+
+
+                                                   4
+                                                                                       
+      Y11   Y12   ...   Y1T0   Y1T                X11      X12   ...   X1T0      Y1T
+                                                                                                               !
+  Y21      Y22   ...   Y2T0   Y2T      X21              X22   ...   X2T0      Y2T
+                                                                                       
+                                      ≡
+                                                                                          
+                                                                                          ≡       X1·   Y1T
+  .
+  .                            ..      ..                                      ..                               (3)
+  .                             .      .                                        .
+                                                                                          
+                                                                                                  X0· Y0T
+      YN 1 YN 2 . . . YN T0    YN T               XN 1 XN 2 . . . XN T0 YN T
+                                                  |        {z         }
+                                                    pre-treatment outcomes
+
+
+
+2.2    Synthetic Control Method
+The Synthetic Control Method imputes the missing potential outcome for the treated unit, Y1T (0),
+                                                 0 γ (Abadie and Gardeazabal, 2003; Abadie et al.,
+as a weighted average of the control outcomes, Y0T
+2010, 2015). Weights are chosen to balance pre-treatment outcomes and possibly other covariates.
+We consider a version of SCM that chooses weights γ as a solution to the constrained optimization
+problem:
+                                             1/2
+                                                                             X
+                                                      0
+                                min       kVx (X1· − X0· γ)k22 + ζ                   f (γi )
+                                  γ
+                                                                             Wi =0
+                                          X
+                          subject to              γi = 1                                                           (4)
+                                          Wi =0
+
+                                          γi ≥ 0 i : Wi = 0
+
+where the constraints limit γ to the simplex ∆N0 = {γ ∈ RN0 | γi ≥ 0 ∀i,
+                                                                                               P
+                                                                            i γi = 1}, and where
+       T   ×T                                          1/2      0     2             0 γ)0 V (X −
+Vx ∈ R   0   0 is a symmetric importance matrix and kVx (X1· − X0· γ)k2 ≡ (X1· − X0·       x  1·
+  0                          T                   1/2
+X0· γ) is the 2-norm on R after applying Vx as a linear transformation. To simplify the
+                               0
+
+
+exposition and notation below, we will generally take Vx to be the identity matrix. The simplex
+constraint in Equation (4) ensures that the weights will be sparse and non-negative; Abadie et al.
+(2010, 2015) argue that enforcing this constraint is important for preserving interpretability.
+   Equation (4) modifies the original SCM proposal in two ways. First, Equation (4) excludes aux-
+iliary covariates; we re-introduce them in Section 6. Second, Equation (4) penalizes the dispersion
+of the weights with hyperparameter ζ ≥ 0, following a suggestion in Abadie et al. (2015). Possible
+penalization functions include an elastic net penalty (Doudchenko and Imbens, 2017), an entropy
+penalty (Robbins et al., 2017), and a penalty based on a measure of pairwise distance (Abadie
+and L’Hour, 2018). The choice of penalty is less central when weights are constrained to be on
+the simplex, but becomes more important below when we relax this constraint (Doudchenko and
+Imbens, 2017).
+   We can view the SCM optimization problem in Equation (4) as an approximate balancing
+weights estimator (see, e.g. Zubizarreta, 2015; Hirshberg et al., 2019). As with all balancing es-
+timators, a central question is what quantity to balance. Following the recent methodological
+literature (see Doudchenko and Imbens, 2017; Ferman and Pinto, 2018), Equation (4) directly op-
+
+
+                                                           5
+timizes for the pre-treatment fit, minimizing the (possibly weighted) imbalance of pre-treatment
+outcomes between the treated unit and the weighted control mean. In Section 5, we argue that
+this a natural quantity to target under both linearity and a latent factor model. Many choices
+are possible, however, and we can easily modify Equation (4) to balance other summary measures
+and functions of the lagged outcomes; see, for example, Gobillon and Magnac (2016), Amjad et al.
+(2018), and Hazlett and Xu (2018).
+    When the treated unit’s vector of lagged outcomes, X1· , is inside the convex hull of the control
+units’ lagged outcomes, X0· , the SCM weights in Equation (4) achieve perfect pre-treatment fit,
+and the resulting estimator has many attractive properties, including a bias bound established by
+Abadie et al. (2010). Due to the curse of dimensionality, however, achieving perfect (or nearly
+perfect) pre-treatment fit is not always feasible with weights constrained to be on the simplex (see
+Ferman and Pinto, 2018). When “the pre-treatment fit is poor or the number of pre-treatment
+periods is small,” Abadie et al. (2015) recommend against using SCM. Even if the pre-treatment fit
+is excellent, Abadie et al. (2010, 2015) propose extensive placebo checks to ensure that SCM weights
+do not overfit to noise. Thus, the conditional nature of the analysis is critical to deploying SCM,
+excluding many practical settings. Our proposal enables the use of (a modified) SCM approach in
+many of the cases where SCM alone is infeasible.
+
+
+3     Augmented SCM
+3.1   Overview
+We now show how to modify the SCM approach to adjust for poor pre-treatment fit. Let m̂iT be an
+estimator for the post-treatment control potential outcome YiT (0). The Augmented SCM (ASCM)
+estimator for Y1T (0) is:
+                                                                                          
+                           aug
+                                       X                                 X
+                        Ŷ1T   (0) =           γ̂iscm YiT + m̂1T −              γ̂iscm m̂iT     (5)
+                                       Wi =0                             Wi =0
+                                                     X
+                                 = m̂1T         +           γ̂iscm (YiT − m̂iT ),                 (6)
+                                                    Wi =0
+
+
+where weights γ̂iscm are the SCM weights defined above. Standard SCM is a special case, where m̂iT
+is a constant. We will largely focus on estimators that are a function of pre-treatment outcomes,
+m̂iT ≡ m̂(Xi ), where m̂ : RT0 → R.
+    Equations (5) and (6), while equivalent, highlight two distinct motivations for ASCM. Equation
+                                          P scm
+(5) directly corrects the SCM estimate,      γ̂i YiT , by the imbalance in a particular function of
+the pre-treatment outcomes m̂(·). Intuitively, since m̂ estimates the post-treatment outcome, we
+can view this as an estimate of the bias due to imbalance, analogous to bias correction for inexact
+
+
+                                                         6
+matching (Rubin, 1973; Abadie and Imbens, 2011). In this form, we can see that SCM and ASCM
+estimates will be similar if the estimated bias is small, as measured by imbalance in m̂(·). In
+independent work, Abadie and L’Hour (2018) also consider a bias-corrected estimator of this form,
+though their paper focuses on reducing bias due to interpolation rather than extrapolation.
+    Equation (6), by contrast, is analogous to standard doubly robust estimation (Robins et al.,
+1994), which begins with the outcome model but then re-weights to balance residuals. This is also
+comparable in form to the generalized regression estimator in survey sampling (Cassel et al., 1976;
+Breidt and Opsomer, 2017), which has been adapted to the causal inference setting by, among
+others, Athey et al. (2018) and Hirshberg and Wager (2018). We discuss a connection to inverse
+propensity score weighting in Appendix E.
+
+3.2   Choice of estimator
+While this setup is general, the choice of estimator m̂ is important both for understanding the
+procedure’s properties and for practical performance. We give a brief overview of two special cases:
+(1) when m̂ is linear in the pre-treatment outcomes; and (2) when m̂ is linear in the comparison
+units. Ridge regression is an important example that is linear in both pre-treatment outcomes and
+comparison units; we explore this estimator further in Sections 4 and 5.
+    First, consider a model that is linear in pre-treatment outcomes, m̂(X) = η̂0 + η̂ · X. The
+augmented estimator (5) is then:
+                                                                                                
+                                                            T0
+                         aug
+                                     X                      X                  X
+                      Ŷ1T   (0) =           γ̂iscm YiT +         η̂t X1t −           γ̂iscm Xit  .      (7)
+                                     Wi =0                  t=1                Wi =0
+
+
+Pre-treatment periods that are more predictive of the post-treatment outcome will have larger
+(absolute) regression coefficients and so imbalance in these periods will lead to a larger adjustment.
+Thus, even if we do not a priori prioritize balance in any particular pre-treatment time periods
+(via the choice of Vx ), the linear model augmentation will adjust for the time periods that are
+empirically more predictive of the post-treatment outcome. As we show in Section 4, the ridge-
+regularized linear model is an important special case in which the resulting augmented estimator
+is itself a penalized synthetic control estimator. This allows for a more direct analysis of the role
+of bias correction.
+    Second, consider an outcome model that is a linear combination of comparison units, m̂(X) =
+                                                                T0 → RN0 . Examples include k-nearest neighbor
+P
+  Wi =0 α̂i (X)YiT , for some weighting function α̂ : R
+matching and kernel weighting as well as other “vertical” regression approaches (Athey et al., 2017).
+
+
+
+
+                                                            7
+The augmented estimator (5) is itself a weighting estimator that adjusts the SCM weights:1
+
+                 aug
+                             X                     
+                                     γ̂iscm + γ̂iadj YiT ,      where γ̂iadj ≡ α̂i (X1 ) −
+                                                                                                X
+              Ŷ1T   (0) =                                                                           γ̂jscm α̂i (Xj ).        (8)
+                             Wi =0                                                           Wj =0
+
+
+Here the adjustment term for unit i, γ̂iadj , is the imbalance in a unit i-specific transformation of
+the lagged outcomes that depends on the weighting function α(·). While γ̂ scm are constrained to
+be on the simplex, the form of γ̂ adj makes clear that the overall weights can be negative.
+        There are many special cases to consider, though we do not explore them in depth. One is the
+linear-in-lagged-outcomes model with equal coefficients, η̂t = T10 , which estimates a fixed-effects
+outcome model as m̂(Xi ) = X̄i . The corresponding treatment effect estimate adjusts for imbalance
+in all pre-treatment time periods equally, and yields a weighted difference-in-differences estimator:
+                                                                                                                     
+                                                                  T0
+                                  X                             1 X                             X
+ τ̂ de = Y1T − X̄1 − 
+                       
+                                          γ̂i (YiT − X̄i ) =               (Y1T − X1t ) −         γ̂i (YiT − Xit ) . (9)
+                                                                T0
+                                  Wi =0                               t=1                    Wi =0
+
+
+An augmented estimator of this form has appeared as the de-meaned or intercept shift SCM (Doud-
+chenko and Imbens, 2017; Ferman and Pinto, 2018).2 See also Arkhangelsky et al. (2019), who
+extend this to weight across both units and time.
+        In Section 7.1 we conduct a simulation study to inspect the performance of a range of estimators,
+including other penalized linear models, such as the LASSO, flexible machine learning models,
+such as random forests, and panel data methods, such as fixed effects models and low-rank matrix
+completion methods (Xu, 2017; Athey et al., 2017).
+
+
+4        Ridge ASCM improves pre-treatment fit while penalizing ex-
+         trapolation
+We now inspect the algorithmic and numerical properties for the special case where m̂(Xi ) is
+estimated via a ridge-regularized linear model, which we refer to as Ridge Augmented SCM (Ridge
+ASCM). With Ridge ASCM, the estimator for the post-treatment outcome is m̂(Xi ) = η̂0ridge +
+Xi0 η̂ ridge , where η̂0ridge and η̂ ridge are the coefficients of a ridge regression of control post-treatment
+    1
+   We thank an anonymous reviewer for suggesting this presentation.
+    2
+   In these proposals, the SCM weights balance the residual outcomes Xit − X̄i rather than the raw outcomes Xit .
+We further consider balancing residuals in Section 6.
+
+
+
+
+                                                                  8
+outcomes Y0T on centered pre-treatment outcomes X0· with penalty hyper-parameter λridge :3
+                   n                   o            1 X
+                    η̂0ridge , η̂ ridge = arg min       (Yi − (η0 + Xi0 η))2 + λridge kηk22 .                 (10)
+                                              η0 ,η 2
+                                                        Wi =0
+
+
+The Ridge Augmented SCM estimator is then:
+                                                                                           
+                           aug
+                                       X                                  X
+                        Ŷ1T   (0) =           γ̂iscm YiT + X1 −                γ̂iscm Xi·  · η̂ ridge .    (11)
+                                       Wi =0                             Wi =0
+
+
+We first show that Ridge ASCM is a linear weighting estimator as in Equation (8). Unlike aug-
+menting with other linear weighting estimators, when augmenting with ridge regression the implied
+weights are themselves the solution to a penalized synthetic control problem, as in Equation (4).
+Using this representation, we show that when the treated unit lies outside the convex hull of the
+control units, Ridge ASCM improves the pre-treatment fit relative to SCM alone by allowing for
+negative weights and extrapolating away from the convex hull.
+    Allowing for negative weights is an important departure from the original SCM proposal, which
+constrains weights to be on the simplex. Ridge regression alone also allows for negative weights,
+and may have negative weights even when the treated unit is inside of the convex hull. In contrast,
+Ridge ASCM directly penalizes distance from the sparse, non-negative SCM weights, controlling
+the amount of extrapolation by the choice of λridge , and only resorts to negative weights if the
+treated unit is outside of the convex hull.
+
+4.1     Ridge ASCM as a penalized SCM estimator
+We now express both Ridge ASCM and ridge regression alone as special cases of the penalized SCM
+problem in Equation (4). The Ridge ASCM estimate of the counterfactual is the solution to (4),
+replacing the simplex constraint with a penalty f (γi ) = (γi − γ̂iscm )2 that penalizes deviations from
+the SCM weights.
+
+Lemma 1. The ridge-augmented SCM estimator (7) is:
+
+                                                  aug
+                                                                      γ̂iaug YiT ,
+                                                              X
+                                               Ŷ1T   (0) =                                                   (12)
+                                                              Wi =0
+
+
+where
+                       γ̂iaug = γ̂iscm + (X1 − X0·
+                                                0 scm 0   0
+                                                   γ̂ ) (X0· X0· + λridge IT0 )−1 Xi· .                       (13)
+   3
+     Similar to the synthetic controls problem, we can regularize time periods differently with a generalized ridge
+penalty η 0 Λη using an importance matrix Λ. Following the typical case with diagonal elements, the generalized
+ridge penalty reduces to separate regularization on each time period.
+
+
+
+
+                                                              9
+Moreover, the Ridge ASCM weights γ̂ aug are the solution to
+
+                                              1                            1
+                                min                           0
+                                                      kX1· − X0· γk22 +      kγ − γ̂ scm k22 .         (14)
+                                       γ =1 2λridge                        2
+                                P
+                          γ s.t.   i    i
+
+
+
+When the treated unit is in the convex hull of the control units — so the SCM weights exactly bal-
+ance the lagged outcomes — the Ridge ASCM and SCM weights are identical. When SCM weights
+do not achieve exact balance, the Ridge ASCM solution will use negative weights to extrapolate
+from the convex hull of the control units. The amount of extrapolation is determined both by the
+amount of imbalance and by the hyperparameter λridge . When SCM yields good pre-treatment fit
+or when λridge is large, the adjustment term will be small and γ̂ aug will remain close to the SCM
+weights.
+   We can similarly characterize ridge regression alone as a solution to a penalized SCM problem
+                                         2
+where the penalty term, f (γi ) = γi − N10 , penalizes the variance of the weights. Other penalized
+linear models, such as the LASSO or elastic net, do not have this same representation as a penalized
+SCM estimator.
+                                                      ridge
+Lemma 2. The ridge regression estimator Ŷ1T                (0) ≡ η̂0ridge + X1 · η̂ ridge can be written as
+   ridge
+         (0) = Wi =0 γ̂iridge YiT , where the ridge weights γ̂ ridge are the solution to:
+              P
+Ŷ1T
+
+                                                                                          2
+                                                  1            0           1    1
+                                min               ridge
+                                                        kX1 − X0· γk22 +     γ−               .        (15)
+                                             2λ                            2    N0
+                                P
+                          γ |      i γi =1                                                2
+
+
+For ridge regression alone, the hyperparameter λridge controls the variance of the weights rather
+than the degree of extrapolation from the simplex. Thus, in order to reduce variance, the ridge
+regression weights might still be negative even if the treated unit is inside of the convex hull and
+SCM achieves perfect fit.
+   Figure 1 visualizes these results in two dimensions. Figure 1a shows the distribution of control
+units and the treated unit outside the convex hull, along with the weighted average of control units
+using the ridge and Ridge ASCM weights, varying λridge . We see that ridge regression alone begins
+(for large λridge ) at the center of the control units, while Ridge ASCM begins at the SCM solution;
+both move smoothly towards an exact fit solution as λridge is reduced. Figure 1b shows the distance
+of the ridge and Ridge ASCM weights from the simplex as λridge varies. Ridge ASCM weights begin
+at the SCM solution, which is on the boundary of the simplex, then extrapolate outside the convex
+hull. In contrast, ridge regression weights begin in the center of the simplex (i.e., uniform weights),
+but then leave the simplex (i.e., some negative weights) before the corresponding weighted average
+is outside of the convex hull. Over this range, marked as red in Figure 1a, it is possible to achieve
+the same level of balance with non-negative weights, but ridge regression uses negative weights in
+order to reduce the variance. Eventually, as λridge → 0, both ridge and Ridge ASCM use negative
+weights to achieve perfect balance; the weight vectors are different, however, with the Ridge ASCM
+
+                                                           10
+   (a) Treated and control units with the convex hull            (b) Distance of ridge and Ridge ASCM weights
+   marked as a dashed line. Ridge and Ridge ASCM                 from the simplex.
+   estimates in solid.
+
+Figure 1: Ridge ASCM vs. ridge regression alone for a two-dimensional example with the treated
+unit outside of the convex hull of the control units. Results shown varying λridge from 103 to 10−1 .
+Green denotes that the weights are inside the simplex, red that the weights are outside the simplex
+but the weighted average is inside of the convex hull, and blue that the weighted average is outside
+the convex hull.
+
+
+vector closer to the simplex.
+       As this example makes clear, both ridge and Ridge ASCM extrapolate from the support of the
+data to improve pre-treatment fit relative to SCM alone. Ridge ASCM, however, is equivalent to
+SCM weights when SCM achieves exact pre-treatment fit. When achieving excellent pre-treatment
+fit with SCM is possible, Abadie et al. (2015) argue that we should prefer SCM weights over
+possibly negative weights: a slight balance improvement is not worth the extrapolation and the
+loss of interpretability. In this case, the Ridge ASCM weights will be close to the simplex, while
+the ridge regression weights may be quite far away. When this is not possible, however, and SCM
+has poor fit, some degree of extrapolation is critical; Ridge ASCM allows the researcher to directly
+penalize the amount of extrapolation in these cases.4
+
+4.2      Ridge ASCM improves pre-treatment fit relative to SCM alone
+Just as the hyper-parameter λridge parameterizes the level of extrapolation, it also parameterizes
+the level of improvement in pre-treatment fit over the SCM solution. Because we are removing
+the non-negativity constraint and allowing for extrapolation outside of the convex hull, the pre-
+treatment fit from Ridge ASCM will be at least as good as the pre-treatment fit from SCM alone,
+   4
+    See King and Zeng (2006) for a discussion of extrapolation in constructing counterfactuals. As they note: “If we
+learn that a counterfactual question involves extrapolation, we still might wish to proceed if the question is sufficiently
+important, but we would be aware of how much more model dependent our answers would be.”
+
+
+                                                            11
+             0 γ̂ aug k ≤ kX − X 0 γ̂ scm k . We can exactly characterize the pre-treatment fit of
+i.e., kX1 − X0·        2    1   0·         2
+Ridge ASCM using the singular value decomposition of the matrix of control outcomes.
+
+Lemma 3. Let √1N X0· = U DV 0 be the singular value decomposition of the matrix of control
+                       0
+pre-intervention outcomes, where m is the rank of X0· , U ∈ RN0 ×m , V ∈ RT0 ×m , and D =
+diag(d1 , . . . , dm ) ∈ Rm×m is the diagonal matrix of singular values, where d1 and dm are the largest
+and smallest singular values, respectively. Furthermore, let X̃i = V 0 Xi be the rotation of Xi
+along the singular vectors of X0· . Then γ̂ aug , the Ridge ASCM weights with hyper-parameter
+λridge = λN0 satisfy
+
+                                                                            λ
+      kX1· − X0· γ̂ k2 = λ (D + λI)−1 (X
+              0 aug                         f0 γ̂ scm )
+                                       f1 − X
+                                             0·                    ≤                    0 scm
+                                                                                 kX1 − X0· γ̂ k2 ,   (16)
+                                                               2       d2m + λ
+
+and the weights from ridge regression alone γ̂ ridge satisfy
+
+                                                                              λ
+                           0 ridge
+                    kX1 − X0· γ̂   k2 = λ (D + λI)−1 X
+                                                     f1                ≤           kX1 k2 .          (17)
+                                                                   2       d2m + λ
+
+From Equation (16), we see that the pre-treatment imbalance for Ridge ASCM weights is smaller
+than that of SCM weights by at least a factor of d2 λ+λ . Thus, Ridge ASCM will achieve strictly
+                                                       m
+better pre-treatment fit than SCM alone, except in corner cases where pre-treatment fit will be
+                                                                                  0 γ̂ scm is
+equal. For example, these will be equal when the pre-treatment SCM residual X1 − X0·
+orthogonal to the lagged outcomes of the control units X0· . From Equation (17), we see that the
+relationship for pre-treatment imbalance fit between SCM and ridge regression is less clear; ridge
+regression penalizes deviations from uniformity, rather than deviations from SCM weights.
+
+
+5    Error under restrictions on the data generating processes
+We now relate Ridge ASCM’s improved pre-treatment fit to improved estimation error under several
+data generating processes. We first consider the case where the post-treatment outcome is linear
+in the pre-treatment outcomes, and then extend to the canonical linear factor model considered by
+Abadie et al. (2010). In the appendix, we also consider a more general formulation, including when
+the outcome model is approximately linear, with Lipshitz deviations from linearity.
+    Under a linear model, improving pre-treatment fit directly reduces bias, and the Ridge ASCM
+penalty term negotiates a bias-variance trade-off. Under a latent factor model, improving pre-
+treatment fit again reduces bias, though there is now a risk of over-fitting. The penalty term also
+directly parameterizes this trade-off. Thus, choosing the hyper-parameter λridge is important in
+practice. In Section 5.3, we describe a cross-validation hyper-parameter selection procedure that
+builds on the in-time placebo check in Abadie et al. (2015). In Section 7.1 we explore these trade-
+offs through simulations, finding substantial gains to augmentation via ridge regression in a variety
+
+
+                                                  12
+of settings.
+
+5.1    Error under linearity
+We first illustrate the key balancing idea in the simple case where the post-treatment outcome is a
+linear combination of lagged outcomes plus additive noise:
+
+                                                      T0
+                                                      X
+                                          YiT (0) =         βt Xit + εiT .                              (18)
+                                                      t=1
+
+A special case of this setup is an auto-regressive process of order K ≤ T0 . Here we consider the pre-
+treatment outcomes Xi fixed and so the randomness in the post-treatment outcome YiT (0) is due to
+the noise term εiT . As in Section 2, we assume that the N units’ noise terms are independent, mean
+zero sub-Gaussian random variables with scale parameter σ that are uncorrelated with treatment
+assignment Wi .
+   We consider a generic weighting estimator with weights γ̂ that are independent of the post-
+treatment outcomes Y1T , . . . , YN T ; both SCM and Ridge ASCM take this form. Under linearity, the
+difference between the counterfactual outcome Y1T (0) and the weighting estimator Ŷ1T (0) decom-
+poses into: (1) systemic error due to imbalance in the lagged outcomes X, and (2) idiosyncratic
+error due to the noise in the post-treatment period:
+                                                                      
+                              X                                  X                   X
+                  Y1T (0) −           γ̂i YiT = β · X1 −            Xi  + ε1T −           γ̂i εiT .   (19)
+                              Wi =0                          Wi =0                  Wi =0
+                                              |             {z          }    |       {z          }
+                                                  imbalance in X             post-treatment noise
+
+
+With this setup, a weighting estimator that exactly balances the lagged outcomes X will eliminate
+all systematic error. Furthermore, if β is sparse, then it suffices to balance only the lagged outcomes
+with non-zero coefficients; for example, under an AR(K) process, (β1 , . . . , βT0 −K−1 ) = 0, it is
+sufficient to balance only the first K lags.
+   If the weighting estimator does not perfectly balance the pre-treatment outcomes X, there will
+be a systematic component of the error, with the magnitude depending on the imbalance. Below
+we construct a finite sample error bound for Ridge ASCM (and for SCM, the special case with
+λridge = ∞). This bound on the estimation error holds with high probability over the noise in the
+post-treatment period εT .
+
+Proposition 1. Under the linear model (18) with independent sub-Gaussian noise with scale
+parameter σ, for any δ > 0, the Ridge ASCM weights with hyperparameter λridge = λN0 satisfy
+
+
+
+
+                                                       13
+the bound
+                                                               !
+                                                         λ
+                          γ̂iaug YiT
+                  X
+      Y1T (0) −                        ≤ kβk2 diag                       f0 γ̂ scm )
+                                                                    f1 − X
+                                                                   (X                       + δσ (1 + kγ̂ aug k2 ),   (20)
+                                                                          0·
+                                                     d2j + λ                                  |      {z         }
+                  Wi =0
+                                                |                  {z                  }2     post-treatment noise
+                                                        imbalance in X
+
+                                 δ          2
+with probability at least 1 − 2e− 2 , where X
+                                            fi = V 0 Xi is the rotation of Xi along the singular
+vectors of X0· , as above.
+
+   Proposition 1 shows the finite sample error of Ridge ASCM weights is controlled by the imbal-
+ance in the lagged outcomes and the L2 norm of the weights; Lemma A.2 in the Appendix gives a
+deterministic bound for kγ̂ aug k2 . See Athey et al. (2018) for analogous results on balancing weights
+in high dimensional cross-sectional settings.
+   In the special case that SCM weights have perfect pre-treatment fit, ASCM and SCM weights
+will be equivalent, and the estimation error will only be due to variance of the weights and post-
+treatment noise. When SCM weights do not achieve perfect pre-treatment fit, Ridge ASCM with
+finite λ < ∞ extrapolates outside the convex hull, improving pre-treatment fit and thus reducing
+bias. This is subject to the usual bias-variance trade-off: The second term in (20) is increasing in the
+L2 norm of the weights, which will generally be larger for ASCM than for SCM. The hyperparameter
+λ directly negotiates this trade off.
+
+5.2    Error under a latent factor model
+We now consider the case where control potential outcomes are generated according to a linear
+factor model. Similar to the linear case above, when pre-treatment fit is poor, improving the
+pre-treatment fit by extrapolating away from the convex hull reduces the bias, with a possible
+bias-variance tradeoff. Unlike in the linear setting, however, there is additional possible error due
+to balancing noisy pre-treatment outcomes rather than the underlying factors. This raises the
+risk of over-fitting, though it can be reduced by appropriate choice of the extrapolation penalty.
+Specifically, in settings where the noise is high, ASCM can increase error relative to SCM alone.
+SCM limits over-fitting in this high-noise case by constraining weights to the simplex, although
+SCM alone is likely to perform poorly here regardless.
+   Following the setup in Abadie et al. (2010), we assume that there are J unknown, latent time-
+varying factors µt = {µjt } ∈ RT , j = 1, . . . , J, with maxjt |µjt | ≤ M , where J will typically be small
+relative to N and T0 . In addition, each unit has a vector of unknown factor loadings φi ∈ RJ . We
+consider both the time-varying factors µt and the unit-varying factor loadings φi to be non-random
+quantities and will consider a fixed N and T0 . In this setup, the control potential outcomes are
+
+
+
+
+                                                         14
+weighted averages of these factors plus additive noise:
+
+                                                J
+                                                X
+                                    Yit (0) =         φij µjt + εit = φi · µt + εit ,                                           (21)
+                                                j=1
+
+
+where again the randomness in Yit (0) is only due to the noise term εit . We assume that εit are in-
+dependent, mean zero sub-Gaussian random variables with scale parameter σ that are uncorrelated
+with treatment assignment Wi . Slightly abusing notation, we collect the pre-intervention factors
+into a matrix µ ∈ RT0 ×J , where the tth row of µ contains the factor values at time t, µ0t . Following
+Bai (2009) and Xu (2017), we further assume that the factors are orthogonal and normalized, i.e.,
+that T10 µ0 µ = IJ .
+    Under this model, the finite-sample error of a weighting estimator depends on the imbalance in
+the latent φ and a noise term due to the noise at time T :
+                                                                                   
+                                         X                              X                                X
+     Y1T (0) − Ŷ1T (0) = Y1T (0) −             γ̂i YiT = φ1 −                 γ̂i φi  · µT + ε1T −           γ̂i εit .       (22)
+                                        Wi =0                           Wi =0                           Wi =0
+                                                           |               {z             }    |         {z          }
+                                                                    imbalance in φ                      noise
+
+
+Balancing the observed pre-treatment outcomes X will not necessarily balance the latent factor
+loadings φ. Following Abadie et al. (2010), we show in the appendix that, under Equation (21),
+we can decompose the imbalance term as:
+
+                                                                                                                       
+           X                       1 0               X         1                                    X
+ φ1 −            γi φi  · µT =      µ X1 −       γi Xi  ·µT − µ0 ε1(1:T0 ) −       γi εi(1:T0 )  ·µT ,
+                                   T0                           T0
+          Wi =0                              Wi =0                               Wi =0
+                                       |      {z         }          |             {z                }
+                                            imbalance in X                                    approximation error
+                                                                                                                                (23)
+where εi(1:T0 ) = (εi1 , . . . , εiT0 ) is the vector of pre-treatment noise terms for unit i. The first term is
+the imbalance of observed lagged outcomes and the second term is an approximation error arising
+from the latent factor structure. With σ = 0 and J small, the approximation error is zero, and it is
+possible to express YiT (0) as a linear combination of Yit (0), t = 1, . . . , T0 − 1, recovering the linear
+model (18). However, with σ > 0 we cannot write the period-T outcome as a linear combination
+of earlier outcomes plus independent, additive error.
+    With this setup, we can bound the finite-sample error in Equation (22) for Ridge ASCM weights
+(and for SCM weights as a special case). This bound is with high probability over the noise in all
+time periods εit , and accounts for the noise in the pre- and post-treatment outcomes separately.
+
+Theorem 1. Under the linear factor model (21) with independent sub-Gaussian noise, for any
+
+
+
+                                                               15
+δ > 0, the Ridge ASCM weights with hyperparameter λridge = λN0 satisfy the bound
+                                                                    !
+                                   JM 2                     λ
+                  γ̂iaug Y1T (0) ≤ √
+               X
+   Y1T (0) −                                      diag                  (X    f0 γ̂ scm )
+                                                                         f1 − X                    +
+                                                          2                    0·
+                                     T0                  dj + λ
+             W =0
+                i                                                                              2
+                                              |                         {z                    }
+                                                              imbalance in X
+
+                                                                                  !
+                                                                         dj σ               f0 γ̂ scm )
+                                                                                       f1 − X
+                                              4(1 + δ) diag              2            (X     0·                 +
+                                                                        dj + λ                                            (24)
+                                                                                                            2
+                                              |                              {z                             }
+                                                              excess approximation error
+
+                                                                  !
+                                                     p          δ
+                                                  2   log 2N0 +                         +          δσ (1 + kγ̂ aug k2 )
+                                                                2
+                                                  |      {z       }                                |      {z         }
+                                              SCM approximation error                              post-treatment noise
+
+                                     δ2                         2
+with probability at least 1 − 6e− 2 − e−2(log 2+N0 log 5)δ .
+
+    Theorem 1 shows that, relative to the linear case in Proposition 1, there is an additional source
+of error under a latent factor model: approximation error due to balancing lagged outcomes rather
+than balancing underlying factors. In particular, it is now possible that a control unit only receives
+a large weight because of idiosyncratic noise, rather than because of similarity in the underlying
+factors. See Arkhangelsky et al. (2019) and Ferman (2019) for asymptotic analogues of this finite
+sample bound.
+    In the special case where SCM achieves perfect pre-treatment fit, considered by Abadie et al.
+(2010), the ASCM and SCM weights are equivalent and the error is only due to post-treatment
+noise and the approximation error. The bound in Theorem 1 accounts for the worst case scenario
+where the control unit with the largest weight is only similar to the treated unit due to idiosyncratic
+noise. The approximation error, and thus the bias, converges to zero in probability as T0 → ∞
+under suitable conditions on the factor loadings µt (see also Ferman and Pinto, 2018). Intuitively,
+as we observe more Xit — and can exactly balance each one — we are better able to match on the
+index φi · µt and, as a result, on the underlying factor loadings.5
+    Without exact balance, Theorem 1 shows that a long pre-period may not be enough to control
+the error due to imbalance. This emphasizes the critical role that conditioning on excellent pre-
+treatment fit plays in ensuring that SCM alone yields reasonable estimates of the counterfactual.
+    When perfect pre-treatment fit is not feasible with SCM, Ridge ASCM with λ < ∞ will extrap-
+olate outside the convex hull, where the hyper-parameter λ controls the amount of extrapolation.
+As in the linear case, extrapolation reduces the error due to imbalance in lagged outcomes. Unlike
+   5
+     We show in the supplementary material that with dependent errors the probability of the worst-case error
+additionally scales with the maximum eigenvalue of the covariance matrix. Dependence leads to a more complicated
+error structure overall; we leave a thorough analysis of this to future work.
+
+
+                                                         16
+Figure 2: Sketch of the error due to imbalance and approximation error (24) for the linear factor
+model; the standard deviation of the treated unit’s pre-treatment outcomes is normalized to one.
+We fit SCM weights on the empirical example in Section 7 and compute the vector of pre-treatment
+fit. Each line shows the sum of the error due to imbalance in X, excess approximation error, and
+SCM approximation error in Theorem 1 (with δ = 0) for different values of σ. These are normalized
+so that the SCM solution (with λ large) equals 100%; values below 100% show improvement over
+the unadjusted weights for a given λ.
+
+
+in the linear case, however, this could possibly lead to over-fitting to the noisy lagged outcomes.
+While some extrapolation can be helpful on net, the optimal amount will depend on the synthetic
+control fit and the amount of noise. Figure 2 illustrates this using SCM weights from the empirical
+example we discuss in Section 7, where pre-treatment fit is relatively poor. For each value of σ, the
+figure plots the sum of the imbalance, SCM approximation error, and excess approximation error
+terms in the bound in Theorem 1. At each noise level, a small amount of extrapolation leads to
+a smaller error bound, but as λ shrinks there is a point where further extrapolation leads to over-
+fitting and eventually to a worse error bound than without extrapolation. The risk of overfitting
+is greater when the noise is particularly large, though even here a sufficiently regularized ASCM
+estimate has lower error bound than SCM alone (represented as the λ → ∞ bound). When noise
+is less extreme, the benefits of augmentation are larger and the optimal amount of regularization
+shrinks.
+   It is worth noting that Theorem 1 gives a worst-case bound. In Section 7.1 we inspect the
+typical performance of the Ridge ASCM estimator via extensive simulation studies and find that
+gains to pre-treatment fit through augmentation outweigh increased approximation error in a range
+of practical settings, including when noise is very large.
+
+5.3   Hyper-parameter selection
+We propose a cross-validation approach for selecting λ inspired by the in-time placebo check pro-
+                                      (−t)   P        aug
+posed by Abadie et al. (2015). Let Ŷ1k = Wi =0 γ̂i(−t)   Yik be the estimate of Y1k where time
+period t is excluded from fitting the estimator in (13). Abadie et al. (2015) propose to compare
+
+
+                                                  17
+                         (−t)
+the difference Y1t − Ŷ1t       for some t ≤ T0 as a placebo check. We can extend this idea to compute
+the leave-one-out cross validation MSE over time periods:
+
+                                                     T0 
+                                                                    (−t) 2
+                                                     X                  
+                                          CV (λ) =          Y1t − Ŷ1t       .                      (25)
+                                                     t=1
+
+We can then choose λ to minimize CV (λ) or follow a more conservative approach such as the
+“one-standard-error” rule (Hastie et al., 2009). This proposal is similar to the leave-one-out cross
+validation proposed by Doudchenko and Imbens (2017), who select hyperparameters by holding out
+control units and minimizing the MSE of the control units in the post-treatment time T . Finally,
+only excluding time period t might be inappropriate for some outcome models, e.g. the linear model
+in Section 5.1. In these settings we can extend the procedure to exclude all time periods ≥ t when
+             aug
+estimating γ̂(−t) . For related proposals, see Kellogg et al. (2020) and Bilinski and Hatfield (2020).
+
+
+6    Auxiliary covariates
+Thus far, we have focused exclusively on lagged outcomes as predictors. We now consider the case
+where there are also a small number of auxiliary covariates Zi ∈ RK for unit i. These auxiliary
+covariates may include summaries of lagged outcomes or time-varying covariates such as the pre-
+treatment mean X̄i . Let Z0· ∈ RN0 ×K denote the matrix of covariates for the donor units. We
+assume that the covariates are centered, Z̄0· = 0.
+    These auxiliary covariates can be incorporated both into the balance objective for SCM and
+into the outcome model used for augmentation in ASCM. For example, we can extend SCM to
+choose weights to solve
+                                                                                 X
+                                             0
+                       min         θx kX1 − X0· γk22 + θz kZ1 − Z0· γk22 + ζ             f (γi ),   (26)
+                      γ∈∆N0
+                                                                                 Wi =0
+
+
+where ∆N0 is the N0 -simplex. Similarly, we can augment these weights with an outcome model
+m̂(Xi , Zi ) that is a function of both the lagged outcomes and auxiliary covariates. For example,
+we can extend Ridge ASCM to choose m̂(X, Z) = η̂0 + X 0 η̂x + Z 0 η̂z and fit via ridge regression:
+
+                                1 X
+                    min             (Yi − (η0 + Xi0 ηx + Zi0 ηz ))2 + λx kηx k22 + λz kηz k22 .     (27)
+                  η0 ,ηx ,ηz    2
+                                 Wi =0
+
+
+Both this SCM criterion and augmentation estimator incorporate user-specified weights that deter-
+mine the importance of balancing each set of covariates (Equation 26) or the amount of regulariza-
+tion for each set of coefficients (Equation 27). There are many potential choices for these weights.
+We discuss two, appropriate to different settings depending on the number of auxiliary covariates.
+    A sensible default when the dimension of the auxiliary covariates is moderate is to incorporate
+
+                                                           18
+the lagged outcomes X and the auxiliary covariates Z equally in Equations (26) and (27), setting
+θx = θz = 1 and λx = λz = λridge , after standardizing auxiliary covariates and lagged outcomes to
+have the same standard deviation. With this setup the numerical and algorithmic results in Section
+4 apply for the combined vector of lagged outcomes and auxiliary covariates, (Xi , Zi ) ∈ RT0 +K .
+In particular, Ridge ASCM is again a penalized SCM estimator that adjusts the synthetic control
+weights that solve optimization problem (26) to achieve better balance by extrapolating outside of
+the convex hull.
+     An alternative approach when the dimension of the auxiliary covariates is small relative to N
+(i.e., K  N ) is to fit a regression model that regularizes the lagged outcome coefficients ηx but
+does not regularize the auxiliary covariate coefficients ηz (i.e., set λz = 0). Lemma 4 below writes
+the resulting augmented estimator as its corresponding penalized SCM optimization problem, with
+weights that perfectly balance the auxiliary covariates. This has two key implications. First, since
+the auxiliary covariates Z are exactly balanced regardless of the balance that the SCM weights
+achieve alone, we can exclude them from the optimization problem (26). Second, as we show
+below, the pre-treatment fit on the lagged outcomes depends on how well the SCM weights balance
+the residualized lagged outcomes X̌. This suggests modifying Equation (26) to balance X̌ rather
+than the lagged outcomes X, which leads to the two-step procedure: (1) residualize the pre- and
+post-treatment outcomes on the auxiliary covariates Z; and (2) estimate Ridge ASCM on the
+residualized outcomes. This two-step procedure follows from a related proposal in Doudchenko and
+Imbens (2017).
+
+Lemma 4. Let η̂x and η̂z be the solutions to (27) with λx = λridge and λz = 0. For any weight
+vector γ̂ that sums to one, the ASCM estimator from Equation (6) with m̂(Xi , Zi ) = Xi0 η̂x + Zi0 η̂z
+is                                             0                                  0
+           X                         X                                   X                        X
+                  γ̂i YiT + X1 −           γ̂i Xi  η̂x + Z1 −                 γ̂i Zi  η̂z =           γ̂icov YiT ,   (28)
+          Wi =0                     Wi =0                                Wi =0                    Wi =0
+
+where the weights γ̂ cov are
+
+                                          0
+           γ̂icov = γ̂i + (X̌1 − X̌0· )(X̌0· X̌0· + λridge IT0 )−1 X̌i + (Z1 − Z0·
+                                                                                0
+                                                                                   γ)0 (Z0·
+                                                                                         0
+                                                                                            Z0· )−1 Zi ,                 (29)
+
+and X̌i is the residual components of a regression of pre-treatment outcomes on the control auxiliary
+covariates:
+                                      X̌i = Xi − Zi0 (Z0·
+                                                       0
+                                                          Z0· )−1 Z0·
+                                                                   0
+                                                                      X0· .                                              (30)
+                                                              0 γ̂ cov = 0; the imbalance in the
+These weights exactly balance the auxiliary covariates, Z1 − Z0·
+lagged outcomes is
+
+                                                          λridge
+                                                                        
+                                 0 cov                                               0
+                           X1 − X0· γ̂   ≤                                   X̌1 − X̌0· γ̂ 2 ,                           (31)
+                                       2
+                                                      λridge + N0 dˇ2r
+
+
+                                                         19
+where dˇr is the minimal singular value of X̌0 .
+
+    Comparing to the numerical results in Section 4, Lemma 4 shows that the two-step approach
+penalizes extrapolation from the convex hull in the residualized space X̌, rather than in the lagged
+outcomes themselves. In essence, by residualizing out the auxiliary covariates Z the two-step
+approach allows for a possibly large amount of extrapolation in the auxiliary covariates, while
+carefully penalizing extrapolation in the part of the lagged outcomes that is orthogonal to the
+covariates.
+    In the Appendix, we consider the performance of this estimator when the outcomes follow a
+linear factor model with covariates for the special case where λridge → ∞ and the weights γ̂ cov do
+not extrapolate from the convex hull after residualization. We find that, if K is small relative to N0 ,
+exactly balancing a small number of auxiliary covariates and targeting imbalance in the residuals
+X̌ can lead to decreased error due to pre-treatment fit, with only a small increase in approximation
+error and error due to post-treatment noise. However, with larger numbers of auxiliary covariates,
+the approach that incorporates auxiliary covariates in parallel to lagged outcomes would be more
+appropriate.
+
+
+7     Simulations and empirical illustrations
+We now turn to simulations and an empirical illustration. First, we conduct extensive simulation
+studies to assess the performance of different methods, finding substantial gains from ASCM. We
+then use our approach to examine the effect of an aggressive tax cut on economic output in Kansas
+in 2012.
+
+7.1   Calibrated simulation studies
+We now present simulation studies calibrated to our empirical illustration in Section 7.2. Specifi-
+cally, we use the Generalized Synthetic Control Method (Xu, 2017) to estimate a factor model with
+three latent factors based on the series of log GSP per capita (N = 50, T0 = 89). We then simulate
+outcomes using the distribution of estimated parameters and model selection into treatment as a
+function of the latent factors; see Appendix C for additional details. We also present results from
+three additional DGPs, each calibrated to estimates from the same data: (1) the factor model with
+quadruple the standard deviation of the noise term, (2) a unit and time fixed effects model, and
+(3) an autoregressive model with 3 lags.
+    We explore the role of augmentation using simple outcome estimators. For each DGP, we
+consider five estimators: (1) SCM alone, (2) ridge regression alone, (3) Ridge ASCM, (4) fixed effects
+alone, and (5) SCM augmented with fixed effects (i.e., de-meaned SCM), as shown in Equation (9).
+Figure 3 shows the Monte Carlo estimate of the absolute bias as a percentage of the absolute bias
+
+
+
+                                                   20
+Figure 3: Overall absolute bias, normalized to SCM bias for (a) the factor model simulation, (b)
+the factor model simulation with quadruple the standard deviation, (c) the fixed effects simulation,
+and (d) the AR simulation. The SCM estimates reported here are not restricted to simulation draws
+with excellent pre-treatment fit; Abadie et al. (2015) advise against using SCM in such settings.
+
+
+for SCM, with one panel for each simulation DGP; Appendix Figure F.10 shows the corresponding
+estimator root mean squared error (RMSE).
+    There are several takeaways. First, augmenting SCM with a ridge outcome regression reduces
+bias relative to SCM alone — without conditioning on excellent pre-treatment fit — in all four
+simulations. This underscores the importance of the recommendation in Abadie et al. (2010, 2015)
+to use SCM only in settings with excellent pre-treatment fit.6 Under the baseline factor model
+and the fixed effect model, the ridge augmentation greatly reduces bias, by more than 75% in the
+factor model simulation and over 90% in the fixed effects simulation. In the AR(3) model and in
+the factor model with greater noise, the gains to augmentation relative to SCM are more limited.
+Second, Ridge ASCM has slightly lower bias than ridge regression alone across all of the simulation
+settings. Third, when the fixed effects estimator is incorrectly specified, combining SCM with a
+fixed effects estimator has much lower bias than either method alone. And even when the fixed
+effects estimator is correctly specified, de-meaned SCM has similar bias to the (correctly specified)
+fixed effects approach. Finally, Appendix Figure F.10 shows that in all simulations ASCM has
+lower RMSE than SCM, as the large decrease in bias more than makes up for the slight increase
+in variance.
+    Complementing the worst-case analysis in Section 5, we now consider how the typical perfor-
+   6
+     Abadie et al. (2010, 2015) also strongly recommend incorporating auxiliary covariates, weighted by their predictive
+power, into the procedure, noting that this is important for further reducing bias. For simplicity, the simulations do
+not include auxiliary covariates.
+
+
+                                                          21
+Figure 4: Bias and RMSE of Ridge ASCM, as a percentage of SCM bias and RMSE, versus λ under
+a linear factor model. Results are divided by the quartile of the SCM fit across all simulations.
+
+
+mance of augmentation relates to the amount of extrapolation and the quality of the original SCM
+fit. Figure 4 shows the bias and RMSE as a function of λ for the primary factor model simulation,
+conditional on the quartile of SCM fit. Larger values of λ (and hence smaller adjustments) are to
+the left, with the left-most points in the plots representing SCM. First, as expected, Augmented
+SCM substantially reduces bias regardless of SCM pre-treatment fit. However, the gains are more
+modest when the SCM fit is in the best quartile: in this case the bias is non-monotonic in λ and
+there is some optimal choice of λ that minimizes the bias. Second, it is possible to under-regularize
+with ASCM, as evident in the RMSE achieving a minimum for an intermediate value of λ. Fur-
+thermore, when pre-treatment fit is good, augmentation with too-small λ leads to higher RMSE
+than SCM alone.
+   Next, we evaluate alternative outcome models for use in ASCM. For each DGP we consider SCM
+augmented with (1) LASSO, (2) a random forest, (3) CausalImpact (Brodersen et al., 2015), (4)
+matrix completion using MCPanel (Athey et al., 2017) and (5) fitting the factor model directly with
+gsynth (Xu, 2017). We compare ASCM to the pure outcome models as well as pure SCM. Figure 5
+shows the absolute bias for these methods, again as a percentage of the absolute bias for SCM alone;
+Appendix Figure F.10 shows the RMSE. We broadly see the same results as with Ridge ASCM. In
+our simulations, augmenting SCM almost always reduces the bias relative to SCM (unconditional
+on good pre-treatment fit) with some models improving SCM more than others. Additionally, in
+nearly every case ASCM also has lower bias than outcome modeling alone. Appendix Figures F.11
+and F.12 show the bias and RMSE when SCM fit is in the top quintile. As before, conditioned
+on good SCM pre-treatment fit the gains to augmentation with flexible outcome models are more
+
+
+                                                 22
+Figure 5: Absolute bias (as a percentage of SCM bias) for ridge, fixed effects, and several ma-
+chine learning and panel data outcome models, and their augmented versions using the same data
+generating processes as Figure 3.
+
+
+limited, except with the oracle gsynth estimator.
+   Overall we find that SCM augmented with a penalized regression model has consistently good
+performance across data generating processes. Due to this performance and the method’s relative
+simplicity, we therefore recommend augmenting SCM with penalized regression as a reasonable
+default in settings where SCM alone has poor pre-treatment fit. In particular, we suggest using
+ridge regression; among the other benefits, Ridge ASCM allows the practitioner to diagnose the
+level of extrapolation due to the outcome model.
+
+7.2   Illustration: 2012 Kansas tax cuts
+In 2010, Sam Brownback was elected governor of Kansas, having run on a platform emphasizing
+tax cuts and deficit reduction (see Rickman and Wang, 2018, for further discussion and analysis).
+Upon taking office, he implemented a substantial personal income tax cut, both lowering rates
+and reducing credits and deductions. This is a valuable test of “supply side” models: Brownback
+argued that the tax cuts would increase business activity in Kansas, generating economic growth
+and additional tax revenues that would make up for the static revenue losses. Kansas’ subsequent
+economic performance has not been impressive relative to its neighbors; however, potentially con-
+founding factors include a drought and declines in the locally important aerospace industry. Finding
+a credible control for Kansas is thus challenging, and SCM-type models offer a potential solution.
+
+
+                                                23
+       We estimate the effect of the tax cuts on log gross state product (GSP) per capita using the
+second quarter of 2012 — when Brownback signed the tax cut bill into law — as the intervention
+time. Results are consistent using outcomes scales other than the standard normalization of log
+GSP per capita (see Appendix F). We use four primary estimators: (1) SCM alone fit on the entire
+vector of lagged outcomes, (2) Ridge ASCM, (3) Ridge ASCM including auxiliary covariates in
+parallel to lagged outcomes and (4) Ridge ASCM on residualized outcomes, as in Section 6.7 These
+estimators rely on the ignorability assumption in Equation (2); substantively, this assumes that
+post-treatment shocks for Kansas will be the same as for other states in expectation. This also
+rules out unobserved confounders that affect both post-treatment shocks and the decision to enact
+the Brownback tax cut bill.
+       Figure 6, known as a “gap plot”, shows the difference between Kansas and its synthetic control
+before and after the passage of the tax cuts along with 95% point-wise confidence intervals computed
+via the conformal inference procedure from Chernozhukov et al. (2019); see Appendix A. Appendix
+F shows additional results, including estimates plotted on the raw outcome scale and results with
+alternative estimators. First, SCM alone achieves fairly poor pre-treatment fit; the synthetic control
+exceeds the treatment unit by two to four percent in 2004–2005, on the same scale as the estimated
+average post-treatment effect of a 3 percent decrease. This lack of pre-treatment fit should make
+us wary of the validity of the SCM effect estimates, and suggests that there may be gains to
+augmentation. Augmenting SCM with ridge regression indeed improves pre-treatment fit, especially
+in the mid 2000s. To better understand this, we can inspect the ridge regression coefficients for
+lagged outcomes (see Appendix Figure F.5), which put the most weight on the two most recent years.
+Adding auxiliary covariates and augmenting further improves both pre-treatment fit and balance
+on the covariates; see Figure 8a. Finally, balancing the auxiliary covariates via residualization
+also improves pre-treatment fit. Overall, the estimated impact is consistently negative for all four
+approaches, with weaker evidence that the effect persists to the end of the observation period.
+       To check against over-fitting, Figure 7 shows in-time placebo estimates for the Ridge ASCM
+estimator with covariates, with placebo treatment times in the second quarter of 2009, 2010, and
+2011. We estimate placebo effects that are near zero with all three placebo treatment times.
+Appendix Figures F.6 and F.7 show the corresponding placebo estimates for SCM alone and Ridge
+ASCM without covariates.
+       Figure 8a shows the covariate balance for the four estimators. While SCM and Ridge ASCM
+achieve excellent fit for the pre-treatment average log GSP per capita, neither estimator achieves
+good balance on the other covariates, most notably the average employment level across the quarters
+of the pre-period. In contrast, including the auxiliary covariates into both the SCM and ridge
+   7
+    The covariates we include are the pre-treatment averages of (1) log state and local revenue per capita, (2) log
+average weekly wages, (3) number of establishments per capita, (4) the employment level, and (5) log GSP per capita.
+For the augmented estimator on the lagged outcomes we select the hyperparameter λridge as the largest λ within one
+standard error of the λ that minimizes the cross-validation placebo fit CV (λ); see Section 5.3. Appendix Figure F.1
+plots CV (λ). When including the auxiliary covariates we use the minimal λ.
+
+
+                                                        24
+Figure 6: Point estimates along with point-wise 95% conformal confidence intervals for the effect
+of the tax cuts on log GSP per capita using SCM, Ridge ASCM, and Ridge ASCM with covariates.
+
+
+
+
+Figure 7: Placebo point estimates along with 95% conformal confidence intervals for Ridge ASCM
+with covariates with placebo treatment times in Q2 2009, 2010, and 2011. The time period begins
+in 2005 and ends in Q1 2012 to highlight placebo estimates.
+
+
+
+
+                                               25
+                     (a)                                                 (b)
+
+Figure 8: (a) Covariate balance for SCM, Ridge ASCM, and ASCM with covariates. Each covariate
+is standardized to have mean zero and standard deviation one; we plot the absolute   P difference
+between the treated unit’s covariate and the weighted control units’ covariates Z1k − Wi =0 γ̂Zik .
+(b) Donor unit weights for SCM, Ridge ASCM, using lagged outcomes only or including auxiliary
+covariates.
+
+
+optimization problems greatly improves the covariate balance, and — by design — residualizing on
+the auxiliary covariates perfectly balances them. Moreover, Ridge ASCM on residualized outcomes
+achieves very good pre-treatment fit on the lagged outcomes as shown in Figure 6.
+   Finally, Figure 8b shows the weights on donor units for SCM and Ridge ASCM as well as SCM
+and Ridge ASCM weights when including covariates jointly with the lagged outcomes. Appendix
+Figure F.9 shows the SCM and Ridge ASCM weights fit on the lagged outcomes after residualizing
+out the auxiliary covariates. Here we see the minimal extrapolation property of the ASCM weights.
+The SCM weights are zero for all but six donor states. The Ridge ASCM weights are similar but
+deviate slightly from the simplex, with only Louisiana receiving a meaningful negative weight. In
+addition, the Ridge ASCM weights retain some of the interpretability of the SCM weights. For
+the donor units with positive SCM weight, Ridge ASCM places close to the same weight. For the
+majority of those with zero SCM weight, Ridge ASCM also places a close to zero weight, with
+relatively few donor units with non-negligible negative weight. By contrast, Appendix Figure F.8
+shows the weights from ridge regression alone: many of the weights are negative and the weights are
+far from sparse. Including auxiliary covariates changes the relative importance of different states
+by adding new information, but the minimal extrapolation property remains.
+
+
+
+
+                                                26
+8    Discussion
+SCM is a popular approach for estimating policy impacts at the jurisdiction level, such as the city
+or state. By design, however, the method is limited to settings where excellent pre-treatment fit
+is possible. For settings when this is infeasible, we introduce Augmented SCM, which controls
+pre-treatment fit while minimizing extrapolation. We show that this approach controls error under
+a linear factor model and propose several extensions, including to incorporate auxiliary covariates.
+    There are several directions for future work. The most immediate is to explore robust inferential
+methods for settings where pre-treatment SCM fit is imperfect. In Appendix A, we outline how to
+apply the conformal inference approach of Chernozhukov et al. (2019) to Augmented SCM, as well
+as a possible modification based on the jackknife+ approach of Barber et al. (2019). More work
+is needed, however, to understand the performance of this in more general settings. We could also
+extend this to allow for sensitivity analysis that directly parameterizes departures from, say, the
+linear factor model, as in recent approaches for sensitivity analysis for balancing weights (Soriano
+et al., 2020).
+    A second area for future inquiry is the application of the ASCM framework to settings with
+multiple treated units. For instance, there are different approaches in settings when all treated
+units are treated at the same time: some papers propose to fit SCM separately for each treated
+unit (e.g., Abadie and L’Hour, 2018), while others simply average the units together (e.g., Kreif
+et al., 2016; Robbins et al., 2017). The situation is more complicated with staggered adoption,
+when units take up the treatment at different times (e.g., Dube and Zipperer, 2015; Donohue et al.,
+2017). We explore this extension in Ben-Michael et al. (2019).
+    A third potential extension is to more complex data structures, such as applications with mul-
+tiple outcomes series for the same units (e.g., measures of both earnings and total employment
+in minimum wage studies); hierarchical data structures with outcome information at both the
+individual and aggregate level (e.g., students within schools); or discrete or count outcomes.
+
+
+
+
+                                                 27
+References
+Abadie, A. (2019). Using synthetic controls: Feasibility, data requirements, and methodological
+ aspects. Journal of Economic Literature.
+
+Abadie, A., A. Diamond, and J. Hainmueller (2010). Synthetic Control Methods for Comparative
+ Case Studies: Estimating the Effect of California’s Tobacco Control Program. Journal of the
+ American Statistical Association 105 (490), 493–505.
+
+Abadie, A., A. Diamond, and J. Hainmueller (2015). Comparative Politics and the Synthetic
+ Control Method. American Journal of Political Science 59 (2), 495–510.
+
+Abadie, A. and J. Gardeazabal (2003). The Economic Costs of Conflict: A Case Study of the
+ Basque Country. The American Economic Review 93 (1), 113–132.
+
+Abadie, A. and G. W. Imbens (2011). Bias-corrected matching estimators for average treatment
+ effects. Journal of Business & Economic Statistics 29 (1), 1–11.
+
+Abadie, A. and J. L’Hour (2018). A penalized synthetic control estimator for disaggregated data.
+
+Amjad, M., D. Shah, and D. Shen (2018). Robust synthetic control. The Journal of Machine
+ Learning Research 19 (1), 802–852.
+
+Arkhangelsky, D., S. Athey, D. A. Hirshberg, G. W. Imbens, and S. Wager (2019). Synthetic
+  difference in differences. arXiv preprint arXiv:1812.09970 .
+
+Athey, S., M. Bayati, N. Doudchenko, G. Imbens, and K. Khosravi (2017). Matrix Completion
+  Methods for Causal Panel Data Models. arxiv 1710.10251 .
+
+Athey, S. and G. W. Imbens (2017). The state of applied econometrics: Causality and policy
+  evaluation. Journal of Economic Perspectives 31 (2), 3–32.
+
+Athey, S., G. W. Imbens, and S. Wager (2018). Approximate residual balancing: debiased inference
+  of average treatment effects in high dimensions. Journal of the Royal Statistical Society: Series
+  B (Statistical Methodology) 80 (4), 597–623.
+
+Bai, J. (2009). Panel data models with interactive fixed effects. Econometrica 77 (4), 1229–1279.
+
+Barber, R. F., E. J. Candes, A. Ramdas, and R. J. Tibshirani (2019). Predictive inference with
+  the jackknife+. arXiv preprint arXiv:1905.02928 .
+
+Ben-Michael, E., A. Feller, and J. Rothstein (2019). Synthetic controls and weighted event studies
+  with staggered adoption. arXiv preprint arXiv:1912.03290 .
+
+Bilinski, A. and L. Hatfield (2020). Goldilocks and the pre-intervention time series. Technical
+  report.
+
+Botosaru, I. and B. Ferman (2019). On the role of covariates in the synthetic control method. The
+  Econometrics Journal 22 (2), 117–130.
+
+Breidt, F. J. and J. D. Opsomer (2017). Model-Assisted Survey Estimation with Modern Prediction
+  Techniques. Statistical Science 32 (2), 190–205.
+
+                                                28
+Brodersen, K. H., F. Gallusser, J. Koehler, N. Remy, and S. L. Scott (2015). Inferring Causal
+  Impact using Bayesian Structural Time-Series Models. The Annals of Applied Statistics 9 (1),
+  247–274.
+
+Cassel, C. M., C.-E. Sarndal, and J. H. Wretman (1976). Some results on generalized difference
+  estimation and generalized regression estimation for finite populations. Biometrika 63 (3), 615–
+  620.
+
+Cattaneo, M. D., Y. Feng, and R. Titiunik (2019). Prediction intervals for synthetic control meth-
+  ods. arXiv preprint arXiv:1912.07120 .
+
+Chattopadhyay, A., Christopher H. Hase, and J. R. Zubizarreta (2020). Balancing Versus Modeling
+ Approaches to Weighting in Practice. Statistics in Medicine in press.
+
+Chernozhukov, V., K. Wuthrich, and Y. Zhu (2018). Inference on average treatment effects in
+ aggregate panel data settings. arXiv preprint arXiv:1812.10820 .
+
+Chernozhukov, V., K. Wüthrich, and Y. Zhu (2019). An Exact and Robust Conformal Inference
+ Method for Counterfactual and Synthetic Controls. Technical report.
+
+Donohue, J. J., A. Aneja, and K. D. Weber (2017). Right-to-carry laws and violent crime: A
+ comprehensive assessment using panel data and a state-level synthetic control analysis. Technical
+ report, National Bureau of Economic Research.
+
+Doudchenko, N. and G. W. Imbens (2017). Difference-In-Differences and Synthetic Control Meth-
+ ods: A Synthesis. arxiv 1610.07748 .
+
+Dube, A. and B. Zipperer (2015). Pooling multiple case studies using synthetic controls: An
+ application to minimum wage policies.
+
+Ferman, B. (2019). On the Properties of the Synthetic Control Estimator with Many Periods and
+  Many Controls.
+
+Ferman, B. and C. Pinto (2018). Synthetic controls with imperfect pre-treatment fit.
+
+Gobillon, L. and T. Magnac (2016). Regional policy evaluation: Interactive fixed effects and
+ synthetic controls. Review of Economics and Statistics 98 (3), 535–551.
+
+Hastie, T., J. Friedman, and R. Tibshirani (2009). The elements of statistical learning. Springer
+ series in statistics New York.
+
+Hazlett, C. and Y. Xu (2018). Trajectory balancing: A general reweighting approach to causal
+ inference with time-series cross-sectional data.
+
+Hirshberg, D. A., A. Maleki, and J. Zubizarreta (2019). Minimax linear estimation of the retargeted
+  mean. arXiv preprint arXiv:1901.10296 .
+
+Hirshberg, D. A. and S. Wager (2018). Augmented Minimax Linear Estimation.
+
+Hsiao, C., Q. Zhou, et al. (2018). Panel parametric, semi-parametric and nonparametric construc-
+  tion of counterfactuals-california tobacco control revisited. Technical report.
+
+
+                                                29
+Kellogg, M., M. Mogstad, G. Pouliot, and A. Torgovitsky (2020). Combining matching and syn-
+ thetic controls to trade off biases from extrapolation and interpolation. Technical report, National
+ Bureau of Economic Research.
+
+King, G. and L. Zeng (2006). The dangers of extreme counterfactuals. Political Analysis 14 (2),
+  131–159.
+
+Kline, P. (2011). Oaxaca-Blinder as a reweighting estimator. In American Economic Review,
+  Volume 101, pp. 532–537.
+
+Kreif, N., R. Grieve, D. Hangartner, A. J. Turner, S. Nikolova, and M. Sutton (2016). Examination
+  of the synthetic control method for evaluating health policies with multiple treated units. Health
+  economics 25 (12), 1514–1528.
+
+Li, K. T. (2017). Statistical Inference for Average Treatment Effects Estimated by Synthetic Control
+  Methods.
+
+Minard, S. and G. R. Waddell (2018). Dispersion-weighted synthetic controls.
+
+Neyman, J. (1990 [1923]). On the application of probability theory to agricultural experiments.
+  essay on principles. section 9. Statistical Science 5 (4), 465–472.
+
+Powell, D. (2018). Imperfect synthetic controls: Did the massachusetts health care reform save
+  lives?
+
+Rickman, D. S. and H. Wang (2018). Two tales of two us states: Regional fiscal austerity and
+  economic performance. Regional Science and Urban Economics 68, 46–55.
+
+Robbins, M., J. Saunders, and B. Kilmer (2017). A Framework for Synthetic Control Methods With
+  High-Dimensional, Micro-Level Data: Evaluating a Neighborhood-Specific Crime Intervention.
+  Journal of the American Statistical Association 112 (517), 109–126.
+
+Robins, J. M., A. Rotnitzky, and L. P. Zhao (1994). Estimation of regression coefficients when some
+  regressors are not always observed. Journal of the American Statistical Association 89 (427), 846–
+  866.
+
+Rubin, D. B. (1973). The use of matched sampling and regression adjustment to remove bias in
+ observational studies. Biometrics, 185–203.
+
+Rubin, D. B. (1974). Estimating causal effects of treatments in randomized and nonrandomized
+ studies. Journal of Educational Psychology 66 (5), 688.
+
+Rubin, D. B. (1980). Comment on “randomization analysis of experimental data: The fisher
+ randomization test”. Journal of the American Statistical Association 75 (371), 591–593.
+
+Samartsidis, P., S. R. Seaman, A. M. Presanis, M. Hickman, D. De Angelis, et al. (2019). Assessing
+  the causal effect of binary interventions from observational panel data with few treated units.
+  Statistical Science 34 (3), 486–503.
+
+Soriano, D., E. Ben-Michael, P. Bickel, A. Feller, and S. Pimentel (2020). Sensitivity analysis for
+  balancing weights. Technical report. working paper.
+
+                                                 30
+Tan, Z. (2017). Regularized calibrated estimation of propensity scores with model misspecification
+  and high-dimensional data.
+
+Toulis, P. and A. Shaikh (2018). Randomization tests in observational studies with time-varying
+  adoption of treatment.
+
+Vovk, V., A. Gammerman, and G. Shafer (2005). Algorithmic learning in a random world. Springer.
+
+Wainwright, M. (2018). High dimensional statistics: a non-asymptomatic viewpoint.
+
+Wang, Y. and J. R. Zubizarreta (2018). Minimal Approximately Balancing Weights: Asymptotic
+ Properties and Practical Considerations.
+
+Xu, Y. (2017). Generalized Synthetic Control Method: Causal Inference with Interactive Fixed
+ Effects Models. Political Analysis 25, 57–76.
+
+Zhao, Q. (2018). Covariate Balancing Propensity Score by Tailored Loss Functions. Annals of
+  Statistics, forthcoming.
+
+Zhao, Q. and D. Percival (2017). Entropy balancing is doubly robust. Journal of Causal Infer-
+  ence 5 (1).
+
+Zubizarreta, J. R. (2015). Stable Weights that Balance Covariates for Estimation With Incomplete
+  Outcome Data. Journal of the American Statistical Association 110 (511), 910–922.
+
+
+
+
+                                               31
+Supplementary Materials for “The Augmented Synthetic Control
+Method”
+
+A       Inference
+There is a large and growing literature on inference for the synthetic control method and variants,
+going beyond the original proposal in Abadie and Gardeazabal (2003) and Abadie et al. (2010);
+see, for example, Li (2017), Toulis and Shaikh (2018), Cattaneo et al. (2019), Toulis and Shaikh
+(2018), and Chernozhukov et al. (2018). Here, we consider the conformal inference approach of
+Chernozhukov et al. (2019), which is tailored to this setting, as well as an adaptation of the
+jackknife+ approach of Barber et al. (2019).
+    We now briefly describe the conformal inference approach of Chernozhukov et al. (2019):
+
+    1. For a given sharp null hypothesis, H0 : τ = τ0 :
+
+        (a) Enforce the null hypothesis by creating an adjusted post-treatment outcome for the
+            treated unit Ỹ1T = Y1T − τ0 .
+        (b) Augment the original data set to include the post-treatment time period T , with the
+            adjusted outcome Ỹ1T ; use the estimator (13) to obtain adjusted weights γ̂(τ0 ).
+                                                                                       P
+        (c) Compute a p-value by assessing whether the adjusted residual Y1T −τ0 − Wi =0 γ̂i (τ0 )YiT
+            “conforms” with the pre-treatment residuals:8
+                                                                                      
+                           T0
+                         1                                                             1
+                              1 Y1T − τ0 −
+                           X                   X                       X
+               p̂(τ0 ) =                          γ̂i (τ0 )YiT ≤ Y1t −     γ̂i (τ0 )Yit + . (A.1)
+                         T                                                             T
+                             t=1                    Wi =0                        Wi =0
+
+
+    2. Compute a level α confidence interval for τ by inverting the hypothesis test and constructing
+       the set
+                                        bτconf (α) = {τ0 | p̂τ ≥ α}.
+                                        C                     0
+
+
+   Since the counterfactual outcome Y1T (0) is random, this is equivalent to constructing a confor-
+mal prediction set (Vovk et al., 2005) for Y1T (0) by using the quantiles of pre-treatment residuals:
+                                                                                     
+                           X                                     X                     
+     bYconf = y ∈ R y −                               + 
+    C                            γ̂i (Y1T − y)YiT ≤ qT,α    Y1t −     γ̂i (Y1T − y)Yit  ,     (A.2)
+                                                                                       
+                                Wi =0                                       Wi =0
+
+        +
+where qT,α (xt ) is the d(1 − α)T eth order statistic of X1 , . . . , xT . Note that τ ∈ C     b conf ⇔ Y1T (0) ∈
+                                                                                                 τ
+CY . If τ ∈ Cτ , then the adjusted residual is less than or equal to the d(1 − α)T eth smallest
+ b conf         b conf
+
+pre-treatment residual and so Y1T (0) ∈ C  b conf . Conversely if τ 6∈ C   b conf , then the adjusted residual
+                                             Y                              τ
+                                      th
+must be larger than the d(1 − α)T e smallest pre-treatment residual and so Y1T (0) 6∈ C               b conf .
+                                                                                                       Y
+     Chernozhukov et al. (2019) provide several conditions for which approximate or exact finite-
+sample validity of the p-values (and hence coverage of the prediction interval C        b conf ) can be achieved;
+                                                                                         Y
+    8
+    There are several choices, such as the test statistic and the form of permutation across time periods, that reduce
+to Equation (A.1) with a single post treatment time period. See Chernozhukov et al. (2019) for further details.
+
+
+                                                         32
+our setup in Section 2.1 follows theirs. First, they show that approximate validity under an additive
+noise model with either i.i.d. or stationary noise depends on the estimation error. Applying
+Proposition 1 and Theorem 1, we can characterize the finite-sample coverage probability of C                b conf
+                                                                                                             Y
+and see that the true coverage will be close to the nominal coverage level α if the pre-treatment fit
+is good and the approximation error is small.
+    Second, they show exact validity if the residuals are exchangeable. Intuitively, pre-treatment
+residuals must be a good proxy for post-treatment residuals; under the linear factor model this can
+hold when the factor values do not differ much across time periods (i.e., for a two way fixed effects
+model), but can be violated if the factor values differ widely in the pre- and post-intervention
+periods. Additionally, if the ignorability assumption does not hold and treatment adoption is
+correlated with the shocks εit , then pre-treatment residuals will be poor proxies for post-treatment
+residuals, leading to undercoverage.
+    One drawback of the “full” conformal approach is that it is computationally intensive: to con-
+struct the prediction interval C b conf , we must refit the weights γ̂ aug (Y1T − y) for a grid of possible
+                                  Y                                         i
+values of the true counterfactual outcome y. A recent alternative conformal approach is the jack-
+                                                                                                      (−t)
+knife+ (Barber et al., 2019). This procedure uses the leave one out residuals Y1t − Ŷ1t and the
+                                               (−t)
+estimate of the post-treatment period Ŷ1T after dropping period t. The prediction interval for
+Y1T (0) is
+                          h                                                                      i
+            b jackknife+ = q −          (−t)             (−t)       +          (−t)            (−t)
+            C Y             T,α/2   Ŷ 1T    − Y 1t − Ŷ1t      , qT,α/2   Ŷ 1T    + Y1t − Ŷ1t       ,   (A.3)
+
+          −
+where qT,α   (xt ) is the bαT cth order statistic of X1 , . . . , xT . As with the full conformal method,
+b jackknife+ will have exact finite sample coverage when the time periods or residuals are exhangeable.
+C Y
+However, the jackknife+ procedure only requires that we re-fit the estimator for each of the T0
+pre-treatment time periods. While the full conformal method enforces a sharp null hypothesis
+when estimating the weights, the jackknife+ uses the leave-one-out residuals as a proxy for the
+distribution of of Y1T (0), incorporating variability in the estimator by including the leave-one-out
+                                              (−t)
+estimate of the post-treatment outcome Ŷ1T . We anticipate that it is possible to extend the results
+of Chernozhukov et al. (2019) to show approximate validity when residuals are not exchangeable;
+we leave this to future work.
+
+Simulation study. We assess the finite sample coverage of the conformal prediction intervals for
+Y1T (0) using both the full conformal method (A.1) and the jackknife+ procedure (A.3). For the
+four simulation settings we compute 95% prediction intervals for the first post-treatment counter-
+factual outcome Y1T0 +1 (0) using both conformal methods and the both the SCM and ridge ASCM
+estimators. Table A.1 shows the results. We see that the intervals for SCM sometimes undercover,
+due to finite sample bias from poor treatment fit. In contrast, the intervals for ridge ASCM have
+greater than or close to nominal coverage for Y1T0 +1 .
+
+
+
+
+                                                       33
+    Model                         Estimation method     Inference method    Coverage
+                                                        Full conformal          0.934
+                                  SCM
+                                                        Jackknife+              0.950
+    AR(3)                                               Full conformal          0.932
+                                  SCM + Ridge
+                                                        Jackknife+              0.947
+                                                        Full conformal          0.926
+                                  SCM
+                                                        Jackknife+              0.954
+    Factor Model                                        Full conformal          0.950
+                                  SCM + Ridge
+                                                        Jackknife+              0.966
+                                                        Full conformal          0.930
+                                  SCM
+                                                        Jackknife+              0.956
+    Factor Model (More Noise)                           Full conformal          0.936
+                                  SCM + Ridge
+                                                        Jackknife+              0.957
+                                                        Full conformal          0.889
+                                  SCM
+                                                        Jackknife+              0.957
+    Fixed Effects                                       Full conformal          0.939
+                                  SCM + Ridge
+                                                        Jackknife+              0.956
+
+Table A.1: Coverage for the full conformal (A.1) and jackknife+ (A.3) prediction intervals.
+
+
+
+
+                                            34
+B     Additional results
+B.1    Specialization of Ridge ASCM results to SCM
+This appendix section specializes select results from the main text for Ridge ASCM for the special
+case of SCM, with λ → ∞.
+   First we specialize Proposition 1 to SCM weights by taking λ → ∞.
+
+Corollary A.1. Under the linear model (18) with independent sub-Gaussian noise with scale
+parameter σ, for any δ > 0, for weights γ ∈ ∆N0 independent of the post-treatment outcomes
+(Y1T , . . . , YN T ) and for any δ > 0,
+
+                              X                                X
+                  Y1T (0) −           γ̂i YiT ≤ kβk2 X1 −              γ̂i Xi        + δσ (1 + kγ̂k2 ) ,      (A.4)
+                                                                                       |     {z     }
+                              Wi =0                            Wi =0                   post-treatment noise
+                                                 |          {z                  }2
+                                                       imbalance inX
+
+                                        δ2
+with probability at least 1 − 2e− 2 .
+
+We can similarly specialize Theorem 1.
+
+Corollary A.2. Under the linear factor model (21) with independent sub-Gaussian noise with scale
+parameter σ, for weights γ ∈ ∆N0 independent of the post-treatment outcomes (Y1T , . . . , YN T ) and
+for any δ > 0,
+
+              X               JM 2       X             2JM 2 σ p             
+  Y1T (0) −         γ̂i YiT ≤ √    X1 −       γ̂i Xi + √           log 2N0 + δ + δσ (1 + kγ̂k2 ) ,
+              Wi =0
+                                T0      Wi =0
+                                                         T0                      |       {z      }
+                                                                              } post-treatment noise
+                                                    }2
+                                                       |          {z
+                              |       {z                  approximation error
+                                       imbalance inX
+                                                                                                              (A.5)
+                                         2
+                                      − δ2
+with probability at least 1 − 6e             .
+
+B.2    Error under a partially linear model with Lipshitz deviations from linearity
+We now bound the estimation error for SCM and Ridge ASCM when the outcome is only par-
+tially linear, with Lipshitz deviations from linearity. Specifically, assume that the control potential
+outcome in time period T satisfies
+
+                                         YiT (0) = β · Xi + f (Xi ) + εiT ,                                   (A.6)
+
+where f : RT0 → R is L-Lipshitz and the noise terms εit are independent sub-Gaussian random
+variables with scale parameter σ, and are ignorable EεT [Wi εiT ] = EεT [(1 − Wi )εiT ] = EεT [εiT ] = 0,
+as above.
+    Under this model, the L-Lipshitz function f (·) will induce an approximation error from deviating
+away from the nearest neighbor match.
+
+Theorem A.1. Let C = maxWi =0 kXi k2 . For any δ > 0, the estimation error for the ridge ASCM
+weights γ̂ aug (13) with hyperparameter λridge = N0 λ is
+
+
+                                                          35
+                                                                                   !
+                                                                         λ
+                              γ̂iaug Y1T
+                      X
+       Y1T (0) −                           ≤ kβk2 diag                                       f0 γ̂ scm )
+                                                                                        f1 − X
+                                                                                       (X                           +
+                                                                       2                      0·
+                                                                      dj + λ
+                      Wi =0                                                                                     2
+                                                       |                               {z                       }
+                                                                               imbalance in X
+
+                                                                                   !
+                                                                         dj                   f0 γ̂ scm )
+                                                                                         f1 − X
+                                                 CL diag               2                (X     0·                    +
+                                                                      dj + λ                                                        (A.7)
+                                                                                                                2
+                                                 |                                 {z                           }
+                                                                excess approximation error
+
+                                                      X
+                                                 L            γ̂iscm kX1 − Xi k2                     +       δσ (1 + kγ̂ aug k2 )
+                                                     Wi =0                                                   |      {z         }
+                                                                                                             post-treatment noise
+                                                 |                {z                        }
+                                                     SCM approximation error
+
+                                            δ2
+with probability at least 1 − 2e− 2 .
+
+   We can again specialize this to the SCM weights alone by taking λ → ∞.
+
+Corollary A.3. For any δ > 0, the estimation error for weights on the simplex γ̂ ∈ ∆N0 indepen-
+dent of the post-treatment outcomes (Y1T , . . . , YN T ) is
+
+
+              X                                      X                             X
+  Y1T (0) −           γ̂i Yi ≤ kβk2 X1 −                     γ̂i Xi        +L               γ̂i kX1 − Xi k2 + δσ(1 + kγ̂k2 )        (A.8)
+                                                                                                               |      {z     }
+              Wi =0                                  Wi =0                         Wi =0                     post-treatment noise
+                                       |              {z              }2       |                 {z       }
+                                            imbalance in X                         approximation error
+
+                                            δ2
+with probability at least 1 − 2e− 2 .
+
+Inspecting Corollary A.3, we see that in order to control the estimation error, the weights must
+ensure good pre-treatment fit, while only weighting control units that are near to the treated unit,
+with the ratio L/kβk2 controlling the relative importance of both terms. Abadie and L’Hour (2018)
+propose finding weights by solving the penalized SCM problem,
+                                                                           2
+                                                       X                               X
+                                   min     X1 −               γ̂i Xi           +λ               γ̂i kX1 − Xi k22 .                  (A.9)
+                                 γ∈∆N0
+                                                      Wi =0                         Wi =0
+                                                                           2
+
+Comparing this to Corollary A.3, we see that under the partially linear model (A.6) where f (·) is
+L-Lipshitz, finding weights that limit interpolation error by controling both the overall imbalance
+in the lagged outcomes as well as the weighted sum of the distances is sufficient to control the error.
+In the above optimization problem, the hyperparameter λ takes the role of L/kβk2 .
+
+
+
+
+                                                                       36
+B.3    Error under a linear factor model with covariates
+We can quantify the behavior of the two-step procedure from Lemma 4 in controlling the error
+under a more general form of the linear factor model (21) with covariates (see Abadie et al., 2010;
+Botosaru and Ferman, 2019, for additional discussion). We can also consider the error under a
+linear model with auxiliary covariates, as a direct consequence of Lemma 4.
+    For each time period t, the covariates in the linear factor model enter through a time-varying
+function ft : RK → R in the model for the outcomes at Yit :
+                                                          J
+                                                          X
+                                            Yit (0) =           φij µjt + ft (Zi ) + εit .                     (A.10)
+                                                          j=1
+
+For this model we again assume that εiT are independent, mean-zero sub-Gaussian random variables
+with scale parameter σ, and are uncorrelated with treatment assignment.
+    To characterize how well the covariates approximate the true function f (Zi ), we will consider
+the best linear approximation in our data, and define the residual for unit i and time t as eit =
+ft (Zi ) − Zi0 (Z 0 Z)−1 Z 0 ft (Z), where Z ∈ RN ×K is the matrix of all auxiliary covariates for all units.
+For each time period we will characterize the additional approximation error         P incurred by only
+balancing the covariates linearly with the residual sum of squares RSSt = ni=1 e2it . For ease of
+exposition, we assume that the control covariates are standardized and rotated, which can always
+be true after pre-processing, and present results for the simpler case in which we fit SCM on the
+residualized pre-treatment outcomes rather than ridge ASCM (i.e., we let λridge → ∞); the more
+general version follows immediately by applying Theorem 1.
+Theorem A.2. Under the linear factor model with covariates (A.12) with N10 Z0·       0 Z = I
+                                                                                        0·   K and
+sub-Gaussian noise, for any δ > 0, γ̂ cov in Equation (29) with λridge → ∞ satisfies the bound
+                                                                              r                        !
+             X                      JM 2                   0                      K         0
+ Y1T (0) −           γ̂ cov YiT   ≤ √              X̌1 − X̌0· γ̂ 2 + 4σ              kZ1 − Z0· γ̂k2        +
+                                      T0                                          N0
+             Wi =0
+                                               |        {z       } |                  {z          }
+                                                   imbalance in X̌        excess approximation error
+
+
+                                      2JM 2 σ
+                                                                   
+                                                       p          δ                                      p
+                                        √                log N0 +     + (JM 2 + 1)e1max + (JM 2 + 1) RSSmax kγ̂ cov k2
+                                          T0                      2     |                       {z                   }
+                                      |                 {z          }              covariate approximation error
+                                        SCM approximation error
+
+                                      + δσ(1 + kγ̂ cov k2 )
+                                        |            {z          }
+                                        post-treatment noise
+                                                                                                               (A.11)
+                                                                    √
+                                               2            KN0 (2− log 5)2
+                                            − δ2          −
+with probability at least 1 − 6e    − 2e             , where e1max = maxt |e1t | is the maximal
+                                                                   2
+
+residual for the treated unit and RSSmax = maxt RSSt is the maximal residual sum of squares
+    We can also consider the special case of Theorem A.2 when ft (Zi ) = K
+                                                                        P
+                                                                          k=1 Btk Zik is a linear
+function of the covariates, and so
+                                      J
+                                      X                   K
+                                                          X
+                          Yit (0) =         φij µjt +           Btk Zik + εit = φ0i µT + Bt0 Zi + εit .        (A.12)
+                                      j=1                 k=1
+
+
+                                                                     37
+In this case the residuals eit = 0 ∀i, t.
+
+Corollary A.4. Under the linear factor model with covariates (A.12) with N10 Z0·     0 Z = I
+                                                                                        0·   K and
+sub-Gaussian noise, for any δ > 0, γ̂ cov in Equation (29) with λridge → ∞ satisfies the bound
+                                                                                       r                       !
+                    X                      JM 2                         0                  K         0
+        Y1T (0) −           γ̂ cov YiT   ≤ √                    X̌1 − X̌0· γ̂ 2 + 4σ          kZ1 − Z0· γ̂k2         +
+                                             T0                                            N0
+                    Wi =0
+                                                            |        {z       } |              {z          }
+                                                                imbalance in X̌   excess approximation error
+                                                                                                                         (A.13)
+                                               2JM 2 σ
+                                                                                
+                                                                    p          δ
+                                                   √                  log N0 +             + δσ(1 + kγ̂ cov k2 )
+                                                       T0                      2             |     {z         }
+                                               |                     {z          }            post-treatment noise
+                                                   SCM approximation error
+
+                                                                    √
+                                          δ2                KN0 (2− log 5)2
+with probability at least 1 − 6e− 2 − 2e−                          2          .
+
+    Building on Lemma 4, Theorem A.2 and Corollary A.4 show that due to the additive, separable
+structure of the auxiliary covariates in Equation (A.12), controlling the pre-treatment fit in the
+residualized lagged outcomes X̌ partially controls the error. This justifies directly targeting fit in
+the residualzed lagged outcomes X̌ rather than targeting raw lagged outcomes X. Moreover, the
+excess approximation error will be small since since the number of covariates K is small relative
+to N0 and the auxiliary covariates are measured without noise. As in Section 4.2, we can achieve
+better balance when we apply ridge ASCM to X̌ than when we apply SCM alone. Because X̌ are
+orthogonal to Z by construction, this comes at no cost in terms of imbalance in Z. However, the
+fundamental challenge of over-fitting to noise still remains, and, as in the case without auxiliary
+covariates, selecting the tuning parameter remains important. We again propose to follow the cross
+validation approach in Section 5.3, here using the residualized lagged outcomes X̌ rather than the
+raw lagged outcomes X.
+
+
+
+
+                                                                      38
+C     Simulation data generating process
+We now describe the simulations in detail. We use the Generalized Synthetic Control Method
+(Xu, 2017) to fit the following linear factor model to the observed series of log GSP per capita
+(N = 50, T0 = 89, T = 105), setting J = 3:
+                                                     J
+                                                     X
+                                   Yit = αi + νt +         φij µjt + εit .                     (A.14)
+                                                     j=1
+
+We then use these estimates as the basis for simulating data. Appendix Figure F.13 shows the
+estimated factors µ̂. We use the estimated time fixed effects ν̂ and factors µ̂ and then simulate
+data using Equation (A.14), drawing:
+
+                                                   ˆ , σ̂α )
+                                           αi ∼ N (ᾱ
+                                            φ ∼ N (0, Σ̂φ )
+                                           εit ∼ N (0, σ̂ε ),
+
+       ˆ and σ̂α are the estimated mean and standard deviation of the unit-fixed effects, Σ̂φ is
+where ᾱ
+the sample covariance of the estimated factor loadings, and σ̂ε is the estimated residual standard
+deviation. We also simulate outcomes with quadruple the standard deviation, sd(εit ) = 4σ̂ε . We
+assume a sharp null of zero treatment effect in all DGPs and estimate the ATT at the final time
+point.
+   To model selection, we compute the (marginal) propensity scores as
+                                                                               
+                                                                          X
+                  logit−1 {πi } = logit−1 {P(T = 1 | αi , φi )} = θ αi +   φij  ,
+                                                                              j
+
+
+where we set θ = 1/2 and re-scale the factors and fixed effects to have unit variance. Finally,
+we restrict each simulation to have a single treated unit and therefore normalize the selection
+probabilities as Pπiπj .
+                  j
+    We also consider an alternative data generating process that specializes the linear factor model
+to only include unit- and time-fixed effects:
+
+                                       Yit (0) = αi + νt + εit .
+
+We calibrate this data generating process by fitting the fixed effects with gsynth and drawing new
+                                ˆ , σ̂α ). We then model selection proportional to the fixed effect as
+unit-fixed effects from αi ∼ N (ᾱ
+                 3
+above with θ = 2 . Second, we generate data from an AR(3) model:
+
+                                                   3
+                                                   X
+                                  Yit (0) = β0 +         βj Yi(t−j) + εit ,
+                                                   j=1
+
+where we fit β0 , β to the observed series of log GSP per capita.
+                                                                  We model selection as proportional
+                               −1          P4                             5
+to the last 3 outcomes logit πi = θ           j=1 Yi(T0 −j+1) and set θ = 2 . For this simulation we
+
+
+
+                                                   39
+estimate the ATT at time T0 + 1.
+
+
+
+
+                                   40
+D       Proofs
+D.1     Proofs for Section 4
+Lemma A.1. With η̂0ridge and η̂ ridge , the solutions to (10), the ridge estimate can be written as a
+weighting estimator:
+                           ridge
+                                 (0) = η̂0ridge + η̂ ridge0 X1 =
+                                                                 X ridge
+                        Ŷ1T                                      γ̂i    YiT ,                 (A.15)
+                                                                            Wi =0
+
+where
+                                     1
+                        γ̂iridge =      + (X1 − X̄0 )0 (X0·
+                                                         0
+                                                            X0· + λridge IT0 )−1 Xi .                  (A.16)
+                                     N0
+Moreover, the ridge weights γ̂ ridge are the solution to
+                                                                                              2
+                                                  1            0               1    1
+                               min                ridge
+                                                        kX1 − X0· γk22 +         γ−               .    (A.17)
+                                             2λ                                2    N0
+                               P
+                         γ |     i γi =1                                                      2
+
+Proof of Lemmas 1 and A.1. Recall that the lagged outcomes are centered by the control averages.
+Notice that
+                  aug
+                                      X
+               Ŷ1T   (0) = m̂(X1 ) +   γ̂iscm (YiT − m̂(Xi ))
+                                              Wi =0
+                                                      X
+                                        0
+                          = η̂0 + η̂ X1 +                   γ̂iscm (YiT − η̂0 − Xi0 η̂)
+                                                    Wi =0
+                               X                                                                       (A.18)
+                                                  0 scm    0
+                          =      (γ̂iscm + (X1 − X0· γ̂ )(X0· X0· + λIT0 )−1 Xi )YiT
+                            Wi =0
+
+                                       γ̂iaug YiT
+                               X
+                          =
+                               Wi =0
+                      ridge
+The expression for Ŷ1T     (0) follows.
+    We now prove that γ̂   ridge and γ̂ scm solve the weighting optimization problems (A.17) and (14).
+First, the Lagrangian dual to (A.17) is
+                                                                 2
+                          1 X                         01                                   λ
+                      min                   α + β Xi +                 − (α + β 0 X1 ) +     kβk22 ,   (A.19)
+                      α,β 2                            N0                                  2
+                               Wi =0
+                                                           2             2
+where we have used that the convex conjugate of 12 x − N10     is 12 y + N10 − 2N1 2 . Solving for α
+                                                                                   0
+we see that                          X
+                                         α̂ + β̂ 0 Xi + 1 = 1
+                                              Wi =0
+
+Since the lagged outcomes are centered, this implies that
+
+                                                             α̂ = 0
+
+Now solving for β we see that
+                                                              
+                                         0          1
+                                        X0·       1    + X0· β̂ + λβ̂ = X1
+                                                    N0
+
+
+                                                               41
+This implies that
+                                                 0
+                                          β̂ = (X0· X0· + λI)−1 X1
+Finally, the weights are the ridge weights
+                                       1
+                              γ̂i =       + X10 (X0·
+                                                  0
+                                                     X0· + λI)−1 Xi = γ̂iridge
+                                       N0
+Similarly, the Lagrangian dual to (14) is
+
+                            1 X                    2                λ
+                        min     α + β 0 Xi + γ̂iscm − (α + β 0 X1 ) + kβk22 ,                        (A.20)
+                        α,β 2                                        2
+                               Wi =0
+
+
+where we have used that the convex conjugate of 12 (x − γ̂iscm )2 is 21 (y + γ̂iscm )2 − 12 γ̂iscm2 . Solving
+for α we see that α̂ = 0. Now solving for β we see that
+                                        0
+                                 β̂ = (X0· X0· + λI)−1 (X1 − X0·
+                                                              0 scm
+                                                                 γ̂ )
+
+Finally, the weights are the ridge ASCM weights
+                                             0 scm 0
+                       γ̂i = γ̂iscm + (X1 − X0·        0
+                                                γ̂ ) (X0· X0· + λI)−1 Xi = γ̂iaug
+
+
+
+Proof of Lemma 3. Notice that
+                        0 aug         0        0
+                  X1 − X0· γ̂ = (I − X0· X0· (X0· X0· + N0 λI)−1 )(X1 − X0·
+                                                                         0 scm
+                                                                            γ̂ )
+                                           0
+                                  = N0 λ(X0· X0· + N0 λI)−1 (X1 − X0·  0 scm
+                                                                        γ̂ )
+                                                     !
+                                                 λ
+                                  = V diag             V 0 (X1 − X0·
+                                                                  0 scm
+                                                                     γ̂ )
+                                             d2j + λ
+
+So since V is orthogonal,
+                                                                 !
+                              0 aug                        λ               f0 γ̂ scm )
+                       kX1 − X0· γ̂ k2 = diag            2
+                                                                      f1 − X
+                                                                     (X     0·
+                                                        dj + λ
+                                                                                         2
+
+
+
+
+Lemma A.2. The ridge augmented SCM weights with hyperparameter λN0 , γ̂ aug , satisfy
+                                                    !
+                aug      scm      1            dj           f0 γ̂ scm ) ,
+             kγ̂ k2 ≤ kγ̂ k2 + √      diag             f1 − X
+                                                      (X     0·                       (A.21)
+                                  N0        d2j + λ
+                                                                                             2
+
+     fi = V 0 Xi as defined in Lemma 3.
+with X
+
+Proof of Lemma A.2. Notice that using the singular value decomposition and by the triangle in-
+
+
+
+
+                                                      42
+equality,
+                                                   0
+                      kγ̂ aug k2 = γ̂ scm + X0· (X0· X0· + λI)−1 (X1 − X0·  0 scm
+                                                                             γ̂ ) 2
+                                                       √          !
+                                                          N0 dj
+                                 = γ̂ scm + U diag       2          V 0 (X1 − X0·0 scm
+                                                                                   γ̂ )
+                                                     N0 dj + λN0
+                                                                                           2
+                                                                    !
+                                                            dj                 f0 γ̂ scm ) .
+                                 ≤ kγ̂ scm k2 + diag    2
+                                                                √     (X f1 − X
+                                                                                0·
+                                                      (dj + λ) N0
+                                                                                                           2
+
+
+
+
+D.2    Proofs for Sections 5, B.1, and B.2
+First, consider a model where the post-treatment control potential outcomes at time T are linear
+in the lagged outcomes and include a unit specific term ξi , i.e.
+
+                                              YiT (0) = β · Xi + ξi + εiT ,                                                (A.22)
+
+where εit are independent sub-Gaussian random variables with scale parameter σ, and are ignorable
+EεT [Wi εiT ] = EεT [(1 − Wi )εiT ] = EεT [εiT ] = 0. Below we will put structure on the unit-specific
+terms ξi , first we write a general finite-sample bound.
+
+Proposition A.1. Under model (A.22) with independent sub-Gaussian noise, for weights γ̂ inde-
+pendent of the post-treatment residuals (ε1T , . . . , εN T ) and for any δ > 0,
+
+               X                                  X                               X
+   Y1T (0) −           γ̂i YiT ≤ kβk2 X1 −                 γ̂i Xi        + ξ1 −      γ̂i ξi + δσ(1 + kγ̂k2 ) ,             (A.23)
+                                                                                               |      {z     }
+               Wi =0                             Wi =0                            Wi =0
+                                     |                {z            }2    |       {z       } post-treatment noise
+                                              imbalance inX               approximation error
+
+                                         δ2
+with probability at least 1 − 2e− 2 .
+
+Proof. First, note that the estimation error is
+
+                                                                                                                  
+             X                                X                               X                           X
+ Y1T (0) −           γ̂i YiT = β · X1 −              γ̂i Xi  + ρ1 −                γ̂i ξi  + ε1T −           γ̂i εiT  (A.24)
+             Wi =0                            Wi =0                           Wi =0                       Wi =0
+
+   Now since the weights are independent of εiT , by the   P ignorability condition (2) and sub-
+Gaussianity and independence of εiT , we see that ε1T − Wi =0 γ̂i εiT is sub-Gaussian with scale
+            p
+parameter σ 1 + kγ̂k22 ≤ σ (1 + kγ̂k2 ). Therefore we can bound the second term:
+                                                            
+                                                                       2
+                               X                                         δ
+                   P  ε1T −        γ̂i εiT ≥ δσ (1 + kγ̂k2 ) ≤ 2 exp −
+                                                                         2
+                                     Wi =0
+
+The result follows from the triangle inequality and the Cauchy-Schwartz inequality.
+
+
+
+                                                                43
+Proof of Proposition 1. Note that under the linear model (18), ξi = 0 for all i. Now from Lemma
+3 we have that                                          !
+                              0 aug                 λ           f0 γ̂ scm ) .
+                     kX1 − X0· γ̂ k2 = diag                f1 − X
+                                                          (X      0·
+                                                d2j + λ
+                                                                                               2
+Plugging this in to Equation (A.23) completes the proof.
+
+Proof of Corollary A.1. This is a direct consequence of Proposition A.1 noting that under the linear
+model (18), ξi = 0 for all i.
+
+Random approximation error We now consider the case where ξi are random. We can use
+Proposition A.1 to further bound the approximation error. In particular, we’ll assume that ξi are
+sub-Gaussian random variables with scale parameter $ and Eξ [Wi ξi ] = Eξ [(1 − Wi )ξi ] = Eξ [ξi ] = 0.
+
+Lemma A.3. If ξi are mean-zero sub-Gaussian random variables with scale parameter $, then for
+weights γ̂ and any δ > 0 the approximation error satisfies
+                                                                                      
+                                 X                              p          δ
+                          ξ1 −           γ̂i ξi ≤ δ$ + 2kγ̂k1 $  log 2N0 +                 ,       (A.25)
+                                                                           2
+                                 Wi =0
+
+                                    δ2
+with probability at least 1 − 4e− 2 .
+
+Proof of Lemma A.3. From the triangle inequality and Hölder’s inequality we see that
+
+                                          X
+                                  ξ1 −            γ̂i ξi ≤ |ξ1 | + kγ̂k1 max |ξi |.
+                                                                         Wi =0
+                                          Wi =0
+
+   Now since the ξi are mean-zero sub-Gaussian with scale parameter $, we have that
+                                                                        δ2
+                                            P (|ξ1 | ≥ δ$) ≤ 2e− 2
+
+Next, from the union bound, the maximum of the N0 sub-Gaussian variables ρ2 , . . . , ρN satisfies
+                                                     
+                                                              δ2
+                         P max |ξi | ≥ 2$ log 2N0 + δ ≤ 2e− 2$2 .
+                                         p
+                                  Wi =0
+
+   Setting δ = δ$ and combining the two probabilities with the union bound gives the result.
+
+
+Lemma A.4. If ξi are mean-zero sub-Gaussian random variables with scale parameter $, for the
+ridge ASCM weights γ̂ aug with hyper-parameter λridge = λN0 and for any δ > 0 the approximation
+error satisfies
+                                                                  !
+        X                  p          δ                        dj     
+                                                                             f0 γ̂ scm
+                                                                                       
+   ξ1 −       γ̂i ξi ≤ 2$   log 2N0 +     + (1 + δ)4$ diag              f1 − X
+                                                                        X     0·            , (A.26)
+                                      2                     d2j + λ
+        Wi =0
+                                            |                    {z                      }2
+                                                                    excess approximation error
+
+
+
+                                                          44
+                                          δ2                                2
+with probability at least 1 − 4e− 2 − e−2(log 2+N0 log 5)δ .
+
+Proof of Lemma A.4. Again from Hölder’s inequality we see that
+
+
+                               γ̂iaug ξi = |ξ1 | +         (γ̂iscm + γ̂iaug − γ̂iscm )ξi
+                       X                             X
+                ξ1 −
+                       Wi =0                         Wi =0
+                                                                                                            sX
+                                                         scm                        aug          scm
+                                         ≤ |ξ1 | + kγ̂         k1 max |ξi | + kγ̂         − γ̂         k2           ξi2 .
+                                                                    Wi =0
+                                                                                                            Wi =0
+
+    We have bounded the first two terms in Lemma A.3, now it sufficies to bound the third term.
+First, from Lemma A.2 we see that
+                                                         !
+                                        1           dj
+                                                           
+                                                                  f0 γ̂ scm
+                                                                            
+                 kγ̂ aug − γ̂ scm k2 = √    diag             f1 − X
+                                                             X     0·         .
+                                         N0      d2j + λ
+                                                                                                            2
+
+Second, via a standard discretization argument (Wainwright, 2018), we can bound the L2 norm of
+the vector (ξ2 , . . . , ξN ) as
+                                                             
+                                                                            2
+                             sX                                              
+                                  2
+                                        p                                 δ
+                       P        ξi ≥ 2$ log 2 + N0 log 5 + δ  ≤ 2 exp − 2 .
+                                                                         2$
+                               Wi =0
+
+                 √
+Setting δ = 2δ$ log 2 + N0 log 5, noting that log 2 + N0 log 5 < 4N0 , we have that
+                            sX                                    !
+                aug     scm        2                         dj     
+                                                                           f0 γ̂ scm
+                                                                                     
+            kγ̂     − γ̂ k2       ξi ≤ (1 + δ)$4 diag                 f1 − X
+                                                                      X      0·
+                                                          d2j + λ
+                                       Wi =0                                                                                2
+
+                                                                2
+with probability at least 1 − 2e−2(log 2+N0 log 5)δ . Since kγ̂ scm k1 = 1, combining with Lemma A.3
+via the union bound gives the result.
+
+
+Theorem A.3. Under model (A.22) with independent sub-Gaussian noise εiT , and ξi mean-zero
+sub-Gaussian with scale parameter $, for weights γ̂ independent of the post-treatment outcomes
+(Y1T , . . . , YN T ) and for any δ > 0,
+                                                                               
+         X                                     X                 p            δ
+Y1T (0)−      γ̂i YiT ≤ kβk2 X1 −       γ̂i Xi + δ$ + 2kγ̂k1 $      log 2N0 +     + δσ (1 + kγ̂k2 ) ,
+                                                                              2     |       {z      }
+        Wi =0                     Wi =0                                            post-treatment noise
+                                               2 |              {z              }
+                            |      {z         }         approximation error
+                                       imbalance in X
+                                                                                                                                (A.27)
+                                           2
+                                        − δ2
+with probability at least 1 − 6e               .
+
+Proof of Theorem A.3. The Theorem directly follows from Proposition A.1 and Lemma A.3, com-
+bining the two probabilistic bounds via the union bound.
+
+
+
+                                                                    45
+Theorem A.4. Under model (A.22) with independent sub-Gaussian noise εiT , and ξi mean-zero
+sub-Gaussian with scale parameter $, for any δ > 0, the ridge ASCM weights with hyperparameter
+λridge = λN0 satisfy the bound
+                                                 !                          
+                                                                                                            
+              X                              λ                X
+                                                                     scm
+                                                                                          p                δ
+    Y1T (0) −       γ̂i YiT ≤ kβk2 diag              X1 −
+                                                        f          γ̂i Xi  + 2$
+                                                                         f                    log 2N0 +
+                                         d2j + λ                                                           2
+              Wi =0                                          Wi =0
+                                                                                 2   |          {z           }
+                                  |                     {z                       }     approximation error
+                                                 imbalance in X
+                                                          !
+                                                     dj     
+                                                              f1 − X  f0 γ̂ scm
+                                                                                
+                               (1 + δ)4$ diag                 X        0·            + δσ (1 + kγ̂k2 ) ,
+                                                  d2j + λ                              |       {z      }
+                               |                       {z                          }2 post-treatment noise
+                                               excess approximation error
+                                                                                                      (A.28)
+                                      2
+                                   − δ2                    log 5)δ 2
+with probability at least 1 − 6e          − e−2(log 2+N0               .
+
+Proof of Theorem A.4. First note that from Lemma 3 we have that
+                                                     !
+                             0 aug               λ           f0 γ̂ scm )
+                   kX1 − X0· γ̂ k2 = diag      2
+                                                        f1 − X
+                                                       (X     0·                        .
+                                              dj + λ
+                                                                                    2
+
+The Theorem directly follows from Proposition A.1 and Lemma A.4, combining the two probabilistic
+bounds via the union bound.
+
+   Theorems A.3 and A.4 have several implications when the outcomes follow a linear factor model
+(21). To see this, we need one more lemma:
+
+Lemma A.5. The linear factor model is a special case of model (A.22) with β = T10 µµT and
+                                    2
+ξi = T10 µ0T µεi(1:T0 ) . kβk2 ≤ M
+                                 √ J , and if εi(1:T ) are independent sub-Gaussian vectors with scale
+                                   T                0
+                                   0
+                                                                                  JM 2 σT0
+parameter σT0 , then T10 µ0T µ0 εi(1:T0 ) is sub-Gaussian with scale parameter     √
+                                                                                     T0
+                                                                                           .
+
+Proof of Lemma A.5. Notice that under the linear factor model, the pre-treatment covariates for
+unit i satisfy:
+                                    Xi = µφi + εi(1:T0 ) .
+Multiplying both sides by (µ0 µ)−1 µ0 = T10 µ0 and rearranging gives
+
+                                          1 0      1
+                                             µ Xi − µ0 εi(1:T0 ) = φi .
+                                          T0       T0
+Then we see that the post treatment outcomes are
+                                              1 0 0     1
+                                 YiT (0) =      µ µ Xi + µ0T µ0 εi(1:T0 ) .
+                                              T0 T      T0
+
+   Since εi(1:T0 ) is a sub-Gaussian vector v 0 εi(1:T0 ) is sub-Gaussian with scale parameter σT0 for any
+                                                                                     √
+v ∈ RT0 such that kvk2 = 1. Now notice that kµ0T µ0 k2 ≤ kµT k2 kµk2 ≤ M J 2 T0 . This completes
+the proof.
+
+
+                                                        46
+Proof of Corollary A.2. From Lemma A.5 we can apply Theorem A.3 with β = T10 µ0T µ0 and ξi =
+ 1 0   0
+T0 µT µ εi(1:T0 ) . Since εit are independent sub-Gaussian random
+                                                               P variables, εi(1:T0 ) is a sub-Gaussian
+vector with scale parameter σT0 = σ. Noting that kγ̂k1 = Wi =0 |γ̂i | = 1 and applying Lemma
+A.5 gives the result.
+
+Proof of Theorem 1. Again from Lemma A.5 we can apply Theorem A.4 with β = T10 µ0T µ0 and
+                                   2
+ξi = T10 µ0T µ0 εi(1:T0 ) , so $ = JM
+                                   √ . Plugging these values into Theorem A.3 gives the result.
+                                    T
+                                   0
+
+
+Corollary A.5 (Approximation error for ridge ASCM with dependent errors). Under the linear
+                                                                                     iid
+factor model (21) with time-dependent errors satisfying εi(1:T0 ) ∼ N (0, σ 2 Ω) the approximation
+error satisfies
+                                                          
+       X              1 0 0            X
+ ξ1 −       γ̂i ξi =   µ µ ε1(1:T0 ) −       γ̂i εi(1:T0 ) 
+                     T0 T
+      Wi =0                            Wi =0
+                     s                                                      !                       !
+                       kΩk2        p                                   dj
+                                                                               
+                                                                                      f0 γ̂ scm
+                                                                                                
+                   ≤2       JM 2 σ    log 2N0 + δ + (1 + δ)2 diag                f1 − X
+                                                                                 X     0·             ,
+                        T0                                          d2j + λ
+                                                                                                  2
+                                                                                              (A.29)
+Proof of Corollary A.5. From Lemma A.5, we see that ξi = T10 µ0T µ0 εi(1:T0 ) is sub-Guassian with
+                     q
+scale parameter JM 2 kΩk  2
+                        T0 . Plugging in to Lemma A.4 gives the result.
+
+
+Lipshitz approximation error If ξi are Lipshitz functions, we can can also bound the ap-
+proximation error. Specifically, we assume that ξi = f (Xi ) where f : RT0 → R is an L-Lipshitz
+function.
+Lemma A.6. If ξi = f (Xi ) where f : RT0 → R is an L-Lipshitz function, then for weights on the
+simplex γ̂ ∈ ∆N0 , the approximation error satisfies
+
+                                          X                       X
+                                  ξ1 −            γ̂i ξi ≤ L           γ̂i kX1 − Xi k2            (A.30)
+                                          Wi =0                Wi =0
+
+Proof of Lemma A.6. Since the weights sum to one, we have that
+
+                                       X                  X
+                             ξ1 −              γ̂i ξi ≤           γ̂i (f (X1 ) − f (Xi )) .
+                                       Wi =0              Wi =0
+
+Now from the Lipshitz property, |f (X1 ) − f (Xi )| ≤ LkX1 − Xi k2 , and so by Jensen’s inequalty:
+
+                           X                                           X
+                                  γ̂i (f (X1 ) − f (Xi )) ≤ L                  γ̂i kX1 − Xi k2
+                          Wi =0                                        Wi =0
+
+
+
+
+Proof of Theorem A.3. The proof follows directly from Proposition A.1 and Lemma A.6.
+
+                                                            47
+Lemma A.7. Let C = maxWi =0 kXi k2 . If ξi = f (Xi ) where f : RT0 → R is an L-Lipshitz function,
+then the ridge ASCM weights γ̂ aug (13) with hyperparameter λridge = N0 λ satisfy
+                                                                                          !
+                                                                                    dj                             
+                   γ̂iaug ξi ≤ L
+           X                         X
+   ξ1 −                                    γ̂iscm kX1 − Xi k2 + CL diag                                f0 γ̂ scm
+                                                                                                  f1 − X
+                                                                                                  X                             (A.31)
+                                                                                  2                      0·
+                                                                                 dj + λ
+           Wi =0                   Wi =0                                                                                2
+
+Proof of Lemma A.7. From the triangle inequality we have that
+
+                                                                                                   −1
+               γ̂iaug ξi ≤
+         X                   X                                       X
+                                                                                 0                                0 scm
+ξ1 −                                 γ̂iscm (f (X1 ) − f (Xi )) +            Xi X0· X0· + λI               (X1 − X0· γ̂ )f (Xi ) .
+       Wi =0                 Wi =0                                   Wi =0
+
+We have already bounded the first term in Lemma
+                                            √ A.6, now we boundN the second term. From the
+Cauchy-Schwartz inequality and since kxk2 ≤ N0 kxk∞ for all x ∈ R 0 we see that
+
+ X
+             0
+                               −1           0 scm
+                                                                       p
+                                                                                0
+                                                                                            −1        0 scm
+         Xi X0· X0· + λI              (X1 − X0· γ̂ )f (Xi ) ≤           N0 X0· X0· X0· + λI     (X1 − X0· γ̂ )                               |f (Xi )|
+                                                                                                                                         2
+ Wi =0
+                                                                                          !
+                                                                                    dj        
+                                                                                                       f0 γ̂ scm
+                                                                                                  f1 − X
+                                                                                                                    
+                                                                     = diag       2               X      0·                 |f (Xi )|
+                                                                                 dj + λ
+                                                                                                                        2
+                                                                                                  !
+                                                                                       dj             
+                                                                                                               f0 γ̂ scm
+                                                                                                                            
+                                                                     ≤ CL diag       2
+                                                                                                          f1 − X
+                                                                                                          X     0·                  ,
+                                                                                    dj + λ
+                                                                                                                                2
+
+where the second line comes from Lemma A.2 and the third line from the Lipshitz property.
+
+Proof of Theorem A.1. The proof follows directly from Proposition A.1 and Lemma A.7.
+
+D.3      Proofs for Sections 6 and B.3
+Proof of Lemma 4. The regression parameters η̂x and η̂z in Equation (27) are:
+                               0
+                      η̂x = (X̌0· X̌0· + λridge I)−1 X̌0·
+                                                       0
+                                                          Y0T                      0
+                                                                       and η̂z = (Z0· Z0· )−1 Z0·
+                                                                                               0
+                                                                                                  Y0T                           (A.32)
+
+Now notice that
+                                     X
+    cov
+ Ŷ0T   = η̂x0 X1 + η̂z0 Z1 +              (YiT − η̂x0 Xi − η̂z Zi )γ̂i
+                                Wi =0
+              0          0                       0          0
+         = η̂x (X1 − X0· γ̂) + η̂z (Z1 − Z0·       γ̂) + Y0T  γ̂
+              0          0          0        0        −1         0           0         0
+         = η̂x (X1 − X0· γ̂) − η̂x X0· (Z0· Z0· ) (Z1 − Z0·          γ̂) + Y0T   Z0· (Z0· Z0· )−1 (Z1 − Z0·
+                                                                                                         0          0
+                                                                                                            γ̂) + Y0T γ̂
+         = η̂x0 (X̌1 − X̌0·
+                         0
+                            γ̂) + Y0T0
+                                       Z0· (Z0·0
+                                                  Z0· )−1 (Z1 − Z0·0
+                                                                      γ̂) + Y0T0
+                                                                                 γ̂
+                                                                                                      
+             0                0
+         = Y0T   γ̂ + X̌0· (X̌0· X̌0· + λridge IT0 )−1 (X̌1 − X̌0·
+                                                                0              0
+                                                                   γ̂) + Z0· (Z0· Z0· )−1 (Z1 − Z0·
+                                                                                                 0
+                                                                                                    γ̂) .
+                                                                                                                                (A.33)
+
+
+
+
+                                                                48
+This gives the form of γ̂ cov . The imbalance in Z is
+               0 cov              0       0
+                                                                                        0
+                                             Z0· )−1 Z1 + Z0· − Z0·
+                                                                 0        0
+                                                                             Z0· )−1 Z0· γ̂
+                                                       
+       Z1 − Z0·  γ̂  = Z1 − Z0·     Z0· (Z0·                        Z0· (Z0·
+                                  0          0
+                               − Z0· X̌0· (X̌0· X̌0· + λridge I)−1 (X̌1 − X̌0·
+                                                                            0
+                                                                               γ̂)                            (A.34)
+                      = 0.
+
+The pre-treatment fit is
+            0 cov         0        0
+                                                                                 0
+                                      Z0· )−1 Z1 + X0· − X0·
+                                                          0        0
+                                                                      Z0· )−1 Z0· γ̂
+                                                
+      X1 − X0· γ̂ = X1 − X0· Z0· (Z0·                        Z0· (Z0·
+                             0          0
+                         − X0· X̌0· (X̌0· X̌0· + λridge IT0 )−1 (X̌1 − X̌0·
+                                                                         0
+                                                                            γ̂)
+                           
+                                 0          0
+                                                                                                             (A.35)
+                                              X̌0· + λridge IT0 )−1 X̌1 − X̌0·  0
+                                                                                     
+                      = IT0 − X0·  X̌0· (X̌0·                                     γ̂
+                                                                  
+                                 0          0
+                                              X̌0· + λridge IT0 )−1 X̌1 − X̌0·  0
+                                                                                     
+                      = IT0 − X̌0· X̌0· (X̌0·                                     γ̂ .
+
+This gives the bound on the pre-treatment fit.
+
+
+Proof of Theorem A.2. First, we will separate f (Z) into the projection onto Z and a residual.
+Defining Bt = (Z 0 Z)−1 Z 0 ft (Z) ∈ RK as the regression coefficient, the projection of ft (Zi ) is Zi0 Bt
+and the residual is eit = ft (Zi ) − Zi0 Bt . We will denote the matrix of regression coefficients over
+t = 1, . . . , T0 as B = [B1 , . . . , BT0 ] ∈ RK×T0 and denote the matrix of residuals as E ∈ Rn×T0 ,
+with E1· = (e11 , . . . , e1T0 ) as the vector of residuals for the treated unit and E0· as the matrix of
+residuals for the control units.
+    Then the error is
+                                                                                                
+                      X                                X                            X
+          Y1T (0) −         γ̂icov YiT ≤ µT · φ1 −        γ̂icov φi  + Bt · Z1 −      γ̂icov Zi 
+                   Wi =0                                    Wi =0                                     Wi =0
+
+                                                   X                              X
+                                      + e1T −              γ̂ cov eiT + ε1T −            γ̂icov εiT
+                                                   Wi =0                         Wi =0
+
+Since γ̂icov exactly balances the covariates, the second term is equal to zero. We can bound the
+third term with Hölder’s inequality:
+
+                                        X                               √
+                                e1T −           γ̂ cov eiT ≤ |e1T | +       RSS T kγ̂ cov k2
+                                        Wi =0
+
+In previous theorems we have bounded the last term with high probability. Only the error due to
+imbalance remains.
+    Denote ε0(1:T0 ) as the matrix of pre-treatment noise for the control units, where the rows
+correspond to ε2(1:T0 ) , . . . , εN0 (1:T0 ) . Building on Lemma A.5, we can see that the error due to
+
+
+
+
+                                                             49
+imbalance in φ is equal to
+                             
+                X                 1 0 0        0 cov    1
+   µT · φ1 −       γ̂icov φi  =   µ µ (X1 − X0· γ̂ ) − µ0T µ0 (ε1(1:T0 ) − ε00(1:T0 ) γ̂ cov )
+                                  T0 T                  T0
+                 Wi =0                                                                                    (A.36)
+                                     1                           1
+                                    − µ0T µ0 B 0 (Z1 − Z0·
+                                                        0 cov
+                                                           γ̂ ) − µ0T µ0 (E1· − E0·
+                                                                                 0 cov
+                                                                                    γ̂ ).
+                                     T0                          T0
+By construction, γ̂ cov perfectly balances the covariates, and combined with Lemma 4, the error due
+to imbalance in φ simplifies to
+                      
+           X                1 0 0           0      1                                       1
+µT ·φ1 −       γ i φi  =     µT µ (X̌1 −X̌0· γ̂)− µ0T µ0 (ε1(1:T0 ) −ε00(1:T0 ) γ̂ cov )− µ0T µ0 (E1· −E0·
+                                                                                                          0 cov
+                                                                                                             γ̂ ).
+                            T0                     T0                                      T0
+            Wi =0
+
+We now turn to bounding the noise term and the error due to the projection of f (Z) on to Z.
+First, notice that
+     1 0 0 0                    1 0 0 0                   1
+        µT µ ε0(1:T0 ) γ̂ cov =    µT µ ε0(1:T0 ) γ̂ scm + µ0T µ0 ε00(1:T0 ) Z0· (Z0·
+                                                                                   0
+                                                                                      Z0· )−1 (Z1 − Z0·
+                                                                                                     0 scm
+                                                                                                        γ̂ ).
+     T0                         T0                        T0
+We have bounded     the
+                      PTfirst  term on the right hand side in Lemma A.3. To bound the√second term,
+                               0                                                       2 T kZ k =
+             P            0
+notice that     Wi =0    t=1 T µt· Zik εit is sub-Gaussian with scale parameter σM J
+                              µ                                                              0 ·k 2
+       √
+M J 2 σ T0 N0 . We can now bound the L2 norm of T10 µ0T µ0 ε00(1:T0 ) Z0· ∈ RK :
+                                                     r                !!
+                                                                                    T0 δ 2
+                                                                                          
+                1     0   0 0                    2     N0 K log 5
+           P       kµ µ ε0(1:T0 ) Z0· k2 ≥ 2JM σ                  +δ      ≤ 2 exp −
+                T0 T                                       T0                        2
+                   q             √
+Replacing δ with KN     T0 (2 − log 5) and with the Cauchy-Schwarz inequality we see that
+                          0
+
+
+                                                                  r
+          1     0  0 0             0       −1      0           2     K           0 scm
+              µT µ ε0(1:T0 ) Z0· (Z0· Z0· ) (Z1 − Z0· γ̂) ≤ 4JM σ         kZ1 − Z0· γ̂ k2
+          T0                                                        T0 N0
+                                               √      2
+                                                         
+with probability at least 1 − 2 exp − KN0 (2−2 log 5) .
+   Next we turn to the residual term.pBy Hölder’s inequality and using that for a matrix A, the
+operator norm is bounded by kAk2 ≤ trace(A0 A) we see that
+
+              1 0 0           0 cov     JM 2
+                 µT µ (E1· − E0· γ̂ ) ≤ √ (kE1· k2 + kγ̂ cov k2 kE0· k2 )
+              T0                         T0
+                                                                      v              
+                                                                       u
+                                                                       u1 X   T0
+                                      ≤ JM 2  max |e1t | + kγ̂ cov k2 t         RSSt 
+                                               t=1,...,T0                 T0
+                                                                             t=1
+                                                                      q           
+                                      ≤ JM 2    max |e1t | + kγ̂ cov k2 max RSSt ,
+                                                      t=1,...,T0                     t
+
+                                                                      0 E )=
+                                                                                         PT0
+where we have used that √1T kE1· k2 ≤ maxt=1,...,T0 |e1t | and trace(E0· 0·                 t=1 RSSt .
+                                0
+
+
+
+
+                                                       50
+    Combining with Lemma 4 and putting together the pieces with the union bound gives the
+result.
+
+
+
+
+                                           51
+E     Connection to balancing weights and IPW
+We have motivated Augmented SCM via bias correction. An alternative motivation comes from
+the connection between SCM and inverse propensity score weighting (IPW).
+    First, notice that the SCM weights from the constrained optimization problem in Equation
+(4) are a form of approximate balancing weights (see, for example Zubizarreta, 2015; Athey et al.,
+2018; Tan, 2017; Wang and Zubizarreta, 2018; Zhao, 2018). Unlike traditional inverse propensity
+score weights, which indirectly minimize covariate imbalance by estimating a propensity score
+model, balancing weights seek to directly minimize covariate imbalance, in this case L2 imbalance.
+Balancing weights have a Lagrangian dual formulation as inverse propensity score weights (see, for
+example Zhao and Percival, 2017; Zhao, 2018; Chattopadhyay et al., 2020). Extending these results
+to the SCM setting, the Lagrangian dual of the SCM optimization problem in Equation (4) has the
+form of a propensity score model. Importantly, as we discuss below, it is not always appropriate to
+interpret this model as a propensity score.
+    We first derive the Lagrangian dual for a general class of balancing weights problems, then
+specialize to the penalized SCM estimator (4).
+                                                               X
+                                                        0
+                                  min hζ (X1 − X0·        γ) +         f (γi )
+                                    γ   |        {z         }          | {z }
+                                                               Wi =0
+                                          balance criterion          dispersion
+                                         X                                                  (A.37)
+                             subject to        γi = 1.
+                                            Wi =0
+
+This formulation generalizes Equation (4) in two ways: first, we remove the non-negativity con-
+straint and note that this can be included by restricting the domain of the strongly convex dispersion
+penalty f . Examples include the re-centered L2 dispersion penalties for ridge regression and ridge
+ASCM, an entropy penalty (Robbins et al., 2017), and an elastic net penalty (Doudchenko and
+Imbens, 2017). Second, we generalize from the squared L2 norm to a general balance criterion hζ ;
+another promiment example is an L∞ constraint (see e.g. Zubizarreta, 2015; Athey et al., 2018).
+
+Proposition A.2. The Lagrangian dual to Equation (A.37) is
+                         X
+                   min       f ∗ (α + β 0 Xi· ) − (α + β 0 X1 ) +           h∗ζ (β)   ,                 (A.38)
+                           α,β
+                                 Wi =0
+                                 |                  {z               }      | {z }
+                                             loss function               regularization
+
+where a convex, differentiable function g has convex conjugate g ∗ (y) ≡ supx∈dom(g) {y 0 x − g(x)}.
+The solutions to the primal problem (A.37) are γ̂i = f ∗0 (α̂+ β̂ 0 Xi ), where f ∗0 (·) is the first derivative
+of the convex conjugate, f ∗ (·).
+
+    There is a large literature relating balancing weights to propensity score weights. This literature
+shows that the loss function in Equation (A.38) is an M-estimator for the propensity score and thus
+will be consistent for the propensity score parameters under large N asymptotics. The dispersion
+measure f (·) determines the link function of the propensity score model, where the odds of treatment
+      π(x)
+are 1−π(x)   = f ∗0 (α + β 0 x). Note that un-penalized SCM, which can yield multiple solutions,
+does not have a well-defined link function. We extend the duality to a general set of balance
+criteria so that Equation (A.38) is a regularized M-estimator of the propensity score parameters
+
+
+                                                         52
+where the balance criterion hζ (·) determines the type of regularization through its conjugate h∗ζ (·).
+This formulation recovers the duality between entropy balancing and a logistic link (Zhao and
+Percival, 2017), Oaxaca-Blinder weights and a log-logistic link (Kline, 2011), and L∞ balance and
+L1 regularization (Wang and Zubizarreta, 2018). This more general formulation also suggests
+natural extensions of both SCM and ASCM beyond the L2 setting to other forms, especially L1
+regularization.
+                                                                                1
+    Specializing proposition A.2 to a squared L2 balance criterion hζ (x) = 2ζ    kxk22 as in the penalized
+SCM problems yields that the dual propensity score coefficients β are regularized by a ridge penalty.
+In the case of an entropy dispersion penalty as Robbins et al. (2017) consider, the donor weights γ̂
+have the form of IPW weights with a logistic link function, where the propensity score is π(Xi ) =
+                                                   π(Xi )
+logit−1 (α + β 0 Xi ), the odds of treatment are 1−π(X   i)
+                                                            = exp(α + β 0 Xi ) = γi .
+    We emphasize that while Proposition A.2 shows that the the estimated weights have the IPW
+form, in SCM settings it may not always be appropriate to interpret the dual problem as a propen-
+sity score reflecting stochastic selection into treatment. For example, this interpretation would not
+be appropriate in some canonical SCM examples, such as the analysis of German reunification in
+Abadie et al. (2015).
+
+Proof of Proposition A.2. We can augment the optimization problem (A.37) with auxiliary vari-
+ables , yielding:
+                                                  X
+                                     min hζ () +     f (γi ).
+                                                 γ,
+                                                          Wi =0
+                                                               0
+                                        subject to  = X1 − X0·  γ                                  (A.39)
+                                                        X
+                                                               γi = 1
+                                                       Wi =0
+
+   The Lagrangian is
+                                    X
+                L(γ, , α, β) =             f (γi ) + α(1 − γi ) + hζ () + β 0 (X1 − X0·
+                                                                                       0
+                                                                                          γ − ).   (A.40)
+                                  i|Wi =0
+
+   The dual maximizes the objective
+
+         q(α, β) = min L(γ, , α, β)
+                   γ,
+                   X
+                 =      min{f (γi ) − (α + β 0 Xi )γi } + min{hζ () − β 0 } + α + β 0 X1
+                            γi                                                                     (A.41)
+                    Wi =0
+                       X
+                 =−           f ∗ (α + β 0 Xi ) + α + β 0 X10 − h∗ζ (β),
+                      Wi =0
+
+By strong duality the general dual problem (A.38), which minimizes −q(α, β), is equivalent to the
+primal balancing weights problem. Given the α̂ and β̂ that minimize the Lagrangian dual objective,
+−q(α, β), we recover the donor weights solution to (A.37) as
+
+                                               γ̂i = f ∗0 (α̂ + β̂ 0 Xi ).                          (A.42)
+
+
+
+
+                                                          53
+F    Additional figures
+
+
+
+
+Figure F.1: Cross validation MSE and one standard error computed according to Equation (25).
+The minimal point, and the maximum λ within one standard error of the minimum are highlighted.
+
+
+
+
+                                             54
+Figure F.2: Point estimates along with point-wise 95% conformal prediction intervals for counter-
+factual log GSP per capita without the tax cuts using SCM, ridge ASCM, and ridge ASCM with
+covariates, plotting with the observed log GSP per capita in black.
+
+
+
+
+Figure F.3: Point estimates along with point-wise 95% conformal confidence intervals for the effect
+of the tax cuts on GSP per capita using SCM, ridge ASCM, and ridge ASCM with covariates.
+
+
+
+
+                                                55
+Figure F.4: Point estimates ± two standard errors of the ATT for the effect of the tax cuts on
+log GSP per capita using de-meaned SCM, ridge regression alone, ridge ASCM with λ chosen to
+minimize the cross validated MSE, the original SCM proposal with covariates (Abadie et al., 2010),
+and a two-way fixed effects differences in differences estimate.
+
+
+
+
+Figure F.5: Ridge regression coefficients for each pre-treatment quarter, averaged across post-
+treatment quarters.
+
+
+
+
+                                               56
+Figure F.6: Placebo point estimates ± two standard errors for SCM with placebo treatment times
+in Q2 2009, 2010, and 2011. Scale begins in 2005 to highlight placebo estimates.
+
+
+
+
+Figure F.7: Placebo point estimates ± two standard errors for ridge ASCM with placebo treatment
+times in Q2 2009, 2010, and 2011. Scale begins in 2005 to highlight placebo estimates.
+
+
+
+
+                                              57
+Figure F.8: Donor unit weights for SCM, ridge regression, and ridge ASCM balancing lagged
+outcomes.
+
+
+
+
+Figure F.9: Donor unit weights for SCM and ridge ASCM fit on lagged outcomes after residualizing
+out auxiliary covariates.
+
+
+                                              58
+Figure F.10: RMSE for different augmented and non-augmented estimators across outcome models.
+
+
+
+
+                                             59
+Figure F.11: Bias for different augmented and non-augmented estimators across outcome models
+conditioned on SCM fit in the top quintile.
+
+
+
+
+                                            60
+Figure F.12: RMSE for different augmented and non-augmented estimators across outcome models
+conditioned on SCM fit in the top quntile.
+
+
+
+
+                                            61
+Figure F.13: Latent factors for calibrated simulation studies.
+
+
+
+
+                             62
+References
+Abadie, A. (2019). Using synthetic controls: Feasibility, data requirements, and methodological
+ aspects. Journal of Economic Literature.
+
+Abadie, A., A. Diamond, and J. Hainmueller (2010). Synthetic Control Methods for Comparative
+ Case Studies: Estimating the Effect of California’s Tobacco Control Program. Journal of the
+ American Statistical Association 105 (490), 493–505.
+
+Abadie, A., A. Diamond, and J. Hainmueller (2015). Comparative Politics and the Synthetic
+ Control Method. American Journal of Political Science 59 (2), 495–510.
+
+Abadie, A. and J. Gardeazabal (2003). The Economic Costs of Conflict: A Case Study of the
+ Basque Country. The American Economic Review 93 (1), 113–132.
+
+Abadie, A. and G. W. Imbens (2011). Bias-corrected matching estimators for average treatment
+ effects. Journal of Business & Economic Statistics 29 (1), 1–11.
+
+Abadie, A. and J. L’Hour (2018). A penalized synthetic control estimator for disaggregated data.
+
+Amjad, M., D. Shah, and D. Shen (2018). Robust synthetic control. The Journal of Machine
+ Learning Research 19 (1), 802–852.
+
+Arkhangelsky, D., S. Athey, D. A. Hirshberg, G. W. Imbens, and S. Wager (2019). Synthetic
+  difference in differences. arXiv preprint arXiv:1812.09970 .
+
+Athey, S., M. Bayati, N. Doudchenko, G. Imbens, and K. Khosravi (2017). Matrix Completion
+  Methods for Causal Panel Data Models. arxiv 1710.10251 .
+
+Athey, S. and G. W. Imbens (2017). The state of applied econometrics: Causality and policy
+  evaluation. Journal of Economic Perspectives 31 (2), 3–32.
+
+Athey, S., G. W. Imbens, and S. Wager (2018). Approximate residual balancing: debiased inference
+  of average treatment effects in high dimensions. Journal of the Royal Statistical Society: Series
+  B (Statistical Methodology) 80 (4), 597–623.
+
+Bai, J. (2009). Panel data models with interactive fixed effects. Econometrica 77 (4), 1229–1279.
+
+Barber, R. F., E. J. Candes, A. Ramdas, and R. J. Tibshirani (2019). Predictive inference with
+  the jackknife+. arXiv preprint arXiv:1905.02928 .
+
+Ben-Michael, E., A. Feller, and J. Rothstein (2019). Synthetic controls and weighted event studies
+  with staggered adoption. arXiv preprint arXiv:1912.03290 .
+
+Bilinski, A. and L. Hatfield (2020). Goldilocks and the pre-intervention time series. Technical
+  report.
+
+Botosaru, I. and B. Ferman (2019). On the role of covariates in the synthetic control method. The
+  Econometrics Journal 22 (2), 117–130.
+
+Breidt, F. J. and J. D. Opsomer (2017). Model-Assisted Survey Estimation with Modern Prediction
+  Techniques. Statistical Science 32 (2), 190–205.
+
+                                                63
+Brodersen, K. H., F. Gallusser, J. Koehler, N. Remy, and S. L. Scott (2015). Inferring Causal
+  Impact using Bayesian Structural Time-Series Models. The Annals of Applied Statistics 9 (1),
+  247–274.
+
+Cassel, C. M., C.-E. Sarndal, and J. H. Wretman (1976). Some results on generalized difference
+  estimation and generalized regression estimation for finite populations. Biometrika 63 (3), 615–
+  620.
+
+Cattaneo, M. D., Y. Feng, and R. Titiunik (2019). Prediction intervals for synthetic control meth-
+  ods. arXiv preprint arXiv:1912.07120 .
+
+Chattopadhyay, A., Christopher H. Hase, and J. R. Zubizarreta (2020). Balancing Versus Modeling
+ Approaches to Weighting in Practice. Statistics in Medicine in press.
+
+Chernozhukov, V., K. Wuthrich, and Y. Zhu (2018). Inference on average treatment effects in
+ aggregate panel data settings. arXiv preprint arXiv:1812.10820 .
+
+Chernozhukov, V., K. Wüthrich, and Y. Zhu (2019). An Exact and Robust Conformal Inference
+ Method for Counterfactual and Synthetic Controls. Technical report.
+
+Donohue, J. J., A. Aneja, and K. D. Weber (2017). Right-to-carry laws and violent crime: A
+ comprehensive assessment using panel data and a state-level synthetic control analysis. Technical
+ report, National Bureau of Economic Research.
+
+Doudchenko, N. and G. W. Imbens (2017). Difference-In-Differences and Synthetic Control Meth-
+ ods: A Synthesis. arxiv 1610.07748 .
+
+Dube, A. and B. Zipperer (2015). Pooling multiple case studies using synthetic controls: An
+ application to minimum wage policies.
+
+Ferman, B. (2019). On the Properties of the Synthetic Control Estimator with Many Periods and
+  Many Controls.
+
+Ferman, B. and C. Pinto (2018). Synthetic controls with imperfect pre-treatment fit.
+
+Gobillon, L. and T. Magnac (2016). Regional policy evaluation: Interactive fixed effects and
+ synthetic controls. Review of Economics and Statistics 98 (3), 535–551.
+
+Hastie, T., J. Friedman, and R. Tibshirani (2009). The elements of statistical learning. Springer
+ series in statistics New York.
+
+Hazlett, C. and Y. Xu (2018). Trajectory balancing: A general reweighting approach to causal
+ inference with time-series cross-sectional data.
+
+Hirshberg, D. A., A. Maleki, and J. Zubizarreta (2019). Minimax linear estimation of the retargeted
+  mean. arXiv preprint arXiv:1901.10296 .
+
+Hirshberg, D. A. and S. Wager (2018). Augmented Minimax Linear Estimation.
+
+Hsiao, C., Q. Zhou, et al. (2018). Panel parametric, semi-parametric and nonparametric construc-
+  tion of counterfactuals-california tobacco control revisited. Technical report.
+
+
+                                                64
+Kellogg, M., M. Mogstad, G. Pouliot, and A. Torgovitsky (2020). Combining matching and syn-
+ thetic controls to trade off biases from extrapolation and interpolation. Technical report, National
+ Bureau of Economic Research.
+
+King, G. and L. Zeng (2006). The dangers of extreme counterfactuals. Political Analysis 14 (2),
+  131–159.
+
+Kline, P. (2011). Oaxaca-Blinder as a reweighting estimator. In American Economic Review,
+  Volume 101, pp. 532–537.
+
+Kreif, N., R. Grieve, D. Hangartner, A. J. Turner, S. Nikolova, and M. Sutton (2016). Examination
+  of the synthetic control method for evaluating health policies with multiple treated units. Health
+  economics 25 (12), 1514–1528.
+
+Li, K. T. (2017). Statistical Inference for Average Treatment Effects Estimated by Synthetic Control
+  Methods.
+
+Minard, S. and G. R. Waddell (2018). Dispersion-weighted synthetic controls.
+
+Neyman, J. (1990 [1923]). On the application of probability theory to agricultural experiments.
+  essay on principles. section 9. Statistical Science 5 (4), 465–472.
+
+Powell, D. (2018). Imperfect synthetic controls: Did the massachusetts health care reform save
+  lives?
+
+Rickman, D. S. and H. Wang (2018). Two tales of two us states: Regional fiscal austerity and
+  economic performance. Regional Science and Urban Economics 68, 46–55.
+
+Robbins, M., J. Saunders, and B. Kilmer (2017). A Framework for Synthetic Control Methods With
+  High-Dimensional, Micro-Level Data: Evaluating a Neighborhood-Specific Crime Intervention.
+  Journal of the American Statistical Association 112 (517), 109–126.
+
+Robins, J. M., A. Rotnitzky, and L. P. Zhao (1994). Estimation of regression coefficients when some
+  regressors are not always observed. Journal of the American Statistical Association 89 (427), 846–
+  866.
+
+Rubin, D. B. (1973). The use of matched sampling and regression adjustment to remove bias in
+ observational studies. Biometrics, 185–203.
+
+Rubin, D. B. (1974). Estimating causal effects of treatments in randomized and nonrandomized
+ studies. Journal of Educational Psychology 66 (5), 688.
+
+Rubin, D. B. (1980). Comment on “randomization analysis of experimental data: The fisher
+ randomization test”. Journal of the American Statistical Association 75 (371), 591–593.
+
+Samartsidis, P., S. R. Seaman, A. M. Presanis, M. Hickman, D. De Angelis, et al. (2019). Assessing
+  the causal effect of binary interventions from observational panel data with few treated units.
+  Statistical Science 34 (3), 486–503.
+
+Soriano, D., E. Ben-Michael, P. Bickel, A. Feller, and S. Pimentel (2020). Sensitivity analysis for
+  balancing weights. Technical report. working paper.
+
+                                                 65
+Tan, Z. (2017). Regularized calibrated estimation of propensity scores with model misspecification
+  and high-dimensional data.
+
+Toulis, P. and A. Shaikh (2018). Randomization tests in observational studies with time-varying
+  adoption of treatment.
+
+Vovk, V., A. Gammerman, and G. Shafer (2005). Algorithmic learning in a random world. Springer.
+
+Wainwright, M. (2018). High dimensional statistics: a non-asymptomatic viewpoint.
+
+Wang, Y. and J. R. Zubizarreta (2018). Minimal Approximately Balancing Weights: Asymptotic
+ Properties and Practical Considerations.
+
+Xu, Y. (2017). Generalized Synthetic Control Method: Causal Inference with Interactive Fixed
+ Effects Models. Political Analysis 25, 57–76.
+
+Zhao, Q. (2018). Covariate Balancing Propensity Score by Tailored Loss Functions. Annals of
+  Statistics, forthcoming.
+
+Zhao, Q. and D. Percival (2017). Entropy balancing is doubly robust. Journal of Causal Infer-
+  ence 5 (1).
+
+Zubizarreta, J. R. (2015). Stable Weights that Balance Covariates for Estimation With Incomplete
+  Outcome Data. Journal of the American Statistical Association 110 (511), 910–922.
+
+
+
+
+                                               66
+

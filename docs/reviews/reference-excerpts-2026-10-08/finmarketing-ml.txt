@@ -1,0 +1,341 @@
+\section{Estimating heterogeneous effects}
+\label{sec:uplift-learners}
+
+Identification supplies a conditional mean contrast, not an estimator of it.
+A learner must approximate that contrast from finite, noisy observations.
+The methods differ in how errors in the outcome and assignment models
+affect the estimated treatment contrast.
+
+The T-learner fits $\hat\mu_a(x)$ to the observed outcomes in each arm and
+uses $\hat\tau_T(x)=\hat\mu_1(x)-\hat\mu_0(x)$. Its error is the difference
+of the two response-model errors; neither a good response fit nor high
+classification accuracy alone establishes a good treatment-effect estimate.
+The S-learner instead fits one response function with treatment as a feature.
+Shared structure can help, while regularization that suppresses treatment
+interactions can hide heterogeneous effects.
+
+One route converts observed outcomes into a response whose conditional
+mean is the treatment effect. A treated outcome receives positive weight,
+a control outcome negative weight; dividing by the corresponding
+assignment probability corrects their different chances of observation.
+The transformed response can be very noisy even when its mean is right.
+
+\begin{proposition}[Transformed-outcome reduction]
+\label{prop:transformed}
+Under conditional exchangeability, consistency and overlap, define
+\begin{equation}
+Z_i=\frac{W_iY_i}{e(X_i)}-\frac{(1-W_i)Y_i}{1-e(X_i)}.
+\label{eq:transformed-outcome}
+\end{equation}
+Then $\E[Z\mid X=x]=\tau(x)$.
+\end{proposition}
+
+\begin{proof}
+Conditional exchangeability gives
+$\E[WY\mid X]=e(X)\E[Y(1)\mid X]$ and
+$\E[(1-W)Y\mid X]=(1-e(X))\E[Y(0)\mid X]$.
+Dividing and subtracting proves the identity. A regression of $Z$ targets
+this conditional mean only to the extent that its function class and
+estimation procedure recover that regression.
+\end{proof}
+
+Small propensities amplify outcome noise. Uplift trees instead form groups
+using contrasts between treatment and control outcomes
+\citep{rzepakowski2012decision,radcliffe2011real}. Honest causal trees use
+separate observations to choose splits and estimate leaf effects
+\citep{athey2016recursive}. Causal forests aggregate suitably constructed
+trees; their pointwise inference requires the sampling, overlap, regularity
+and tree conditions of the relevant analysis
+\citep{wager2018causalforests}. Generalized random forests express the local
+estimate through weighted moment equations, permitting targets beyond a
+mean treatment effect \citep{athey2019grf}. A generic random forest does not
+acquire these inferential properties merely by being used twice in a
+T-learner. Instrumented and quantile targets require their own identifying
+moments and assumptions.
+
+The X-learner of \citet{kunzel2019metalearners} predicts each observed
+customer's missing alternative outcome. For a treated customer, subtract
+the predicted control outcome from what happened. For a control customer,
+subtract what happened from the predicted treated outcome. Fit an effect
+regression to each set of these imputed differences, then blend them:
+
+\begin{equation}
+\begin{split}
+\tilde D_i^1&=Y_i-\hat\mu_0(X_i)\quad(W_i=1),\\
+\tilde D_i^0&=\hat\mu_1(X_i)-Y_i\quad(W_i=0),\\
+\hat\tau_X(x)&=g(x)\hat\tau_0(x)+(1-g(x))\hat\tau_1(x),
+\end{split}
+\label{eq:uplift-x}
+\end{equation}
+where each $\hat\tau_a$ regresses the corresponding imputed effect and
+$g(x)=e(x)$ is one suggested blend. When treatment is rare, this blend
+places more weight on $\hat\tau_1$, fitted to treated pseudo-effects whose
+control response is imputed from the abundant control observations. It does
+not place more weight on $\hat\tau_0$ merely because that regression has
+more rows. The inspected arXiv version's equations (5)--(9) and Algorithm 3
+specify this orientation.
+
+Their Simulation 1 uses one percent treatment and a comparatively simple
+CATE against a more complex baseline response. Their balanced designs also
+illustrate a complex CATE favoring separate response fits and a zero CATE
+favoring shrinkage toward zero. No learner dominates all these designs.
+The paper's BART/RF guidance is conditional on those comparisons; it cannot
+select a banking default from treatment imbalance alone. Sample size,
+function approximation, outcome noise and the downstream contact decision
+must also be assessed. The finite-dimensional example below makes those
+choices explicit and compares four regression-based learners.
+
+Another route removes the predictable baseline from both outcome and
+assignment. The outcome residual asks how the observation differs from its
+usual level at those covariates. The assignment residual asks how treatment
+differs from its usual probability. Their relation isolates the effect,
+with the remaining noise collected in $\varepsilon_i$.
+
+\begin{proposition}[Robinson decomposition and the R-learner]
+\label{prop:rlearner}
+Under the same identifying assumptions, write $m(x)=\E[Y\mid X=x]$.
+Then
+\begin{equation}
+Y_i-m(X_i)=(W_i-e(X_i))\tau(X_i)+\varepsilon_i,
+\qquad \E[\varepsilon_i\mid X_i,W_i]=0.
+\label{eq:robinson}
+\end{equation}
+The population squared residual loss identifies $\tau$ wherever overlap holds.
+\end{proposition}
+
+\begin{proof}
+Write $Y=\mu_0(X)+W\tau(X)+\varepsilon$ and use
+$m(X)=\mu_0(X)+e(X)\tau(X)$. Subtraction gives
+\cref{eq:robinson}. For a candidate $t(x)$, conditional expected squared
+loss equals
+$\E[\varepsilon^2\mid X=x]+e(x)(1-e(x))(t(x)-\tau(x))^2$,
+because the cross term has zero expectation. Its second term is minimized
+at the true effect. Under a restricted function class, the minimizer is the
+corresponding overlap-weighted approximation.
+\end{proof}
+
+\citet[Section 2, equations (1)--(4)]{nie2021quasi} replace $m$ and $e$
+by predictions fitted without the observation's fold and minimize this loss
+with a chosen complexity penalty. Their quasi-oracle theory studies specified
+estimation classes and rate conditions; it is not an unconditional guarantee
+for any regression package or tuning rule.
+
+The doubly robust (DR) learner starts from a predicted treated-minus-control
+difference. It then corrects that prediction using the observed outcome's
+error in the assigned arm, weighted by the chance of that assignment.
+The first term below is the prediction; the next two are those corrections.
+Regressing this augmented response on $X$ estimates the conditional effect:
+
+\begin{equation}
+\hat\varphi_i=\hat\mu_1(X_i)-\hat\mu_0(X_i)
++\frac{W_i\{Y_i-\hat\mu_1(X_i)\}}{\hat e(X_i)}
+-\frac{(1-W_i)\{Y_i-\hat\mu_0(X_i)\}}{1-\hat e(X_i)}.
+\label{eq:dr-pseudo}
+\end{equation}
+Condition on the training observations used for these nuisance estimates,
+so they are fixed for the held-out row. The remaining conditional bias
+has a useful structure: an assignment-probability error multiplies a
+combination of outcome-model errors. If either part is exactly correct,
+this product vanishes. Iterated expectation gives
+\begin{equation}
+\E[\hat\varphi\mid X=x]-\tau(x)
+=(\hat e-e)\left\{
+\frac{\hat\mu_1-\mu_1}{\hat e}
++\frac{\hat\mu_0-\mu_0}{1-\hat e}\right\}(x).
+\label{eq:uplift-dr-bias}
+\end{equation}
+Either correct response means or a correct propensity removes this
+conditional bias, under exchangeability and overlap. A subsequent regression
+still has sampling and approximation error. In
+\citet[Algorithm 1, Theorem 2 and Section 7.4]{kennedy2023towards}, comparison
+with an oracle regression additionally requires stability of the second
+stage and convergence of the estimated pseudo-outcome. The relevant remainder
+is a smoothed product of nuisance errors relative to that regression's oracle
+rate. ATE inference and conditional-effect inference are therefore distinct.
+\section{Neyman orthogonality and double machine learning}
+\label{sec:uplift-dml}
+
+The nuisance functions are necessary ingredients, such as assignment
+probabilities and baseline outcomes, rather than the treatment effect we
+ultimately want. Orthogonality asks for an estimating equation that is
+locally insensitive to small errors in those ingredients. It is a property
+of the equation at the truth, not a claim that estimation errors disappear.
+
+\begin{definition}[Neyman orthogonality]
+\label{def:orthogonality}
+A moment $\E[\psi(D;\theta,\eta)]=0$ for target $\theta$ and nuisance
+$\eta$ is Neyman orthogonal if its directional derivative with respect to
+$\eta$ vanishes at the truth in the permitted nuisance directions.
+\end{definition}
+
+For the ATE, use $\psi=\varphi-\theta$. The conditional remainder in
+\cref{eq:uplift-dr-bias} contains a product of propensity and response
+errors, so its first derivative vanishes when both errors are zero.
+This calculation explains the orthogonality; it does not remove the
+identification assumptions. \citet{chernozhukov2018dml} combine orthogonal
+scores with sample splitting and cross-fitting to control overfitting in
+low-dimensional targets such as an ATE or an elasticity.
+
+The product structure explains the required accuracy. One ingredient can
+converge more slowly if the other converges faster; their combined error
+must become negligible relative to the usual $1/\sqrt n$ sampling scale.
+Here $\|\cdot\|_2$ measures root-mean-square error over the covariate
+population, and $o_p$ means a smaller order in probability. For their ATE
+score, a sufficient rate condition is
+\begin{equation}
+\|\hat e-e\|_2\,\max_{a\in\{0,1\}}\|\hat\mu_a-\mu_a\|_2
+=o_p(n^{-1/2}),
+\label{eq:uplift-dml-rate}
+\end{equation}
+together with the moment, overlap, nuisance consistency and variance conditions
+of Assumption 5.1 and Theorem 5.1 in the inspected arXiv version.
+Having both errors be $o_p(n^{-1/4})$ suffices for the product condition;
+merely stating an order $n^{-1/4}$ does not establish it. When assignment
+probabilities are known, the propensity error is zero and the rate requirement
+relaxes, though the other conditions still matter. Influence-function standard
+errors follow from a verified asymptotic expansion and appropriate sampling
+structure. They are not supplied automatically by cross-fitting.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[font=\small]
+\node[economic box,text width=3.5cm] (train) at (0,1)
+ {Other training folds\\Fit outcome and assignment models};
+\node[economic box,text width=3.5cm] (held) at (0,-1.4)
+ {Excluded fold\\Observed assignment and outcome};
+\node[economic box,text width=3.7cm] (score) at (5,0)
+ {Construct corrected responses\\Predictions exclude this row};
+\node[economic box,text width=3.7cm] (target) at (10,0)
+ {Combine the folds\\Estimate the stated target};
+\draw[economic flow] (train.east)--(score.west);
+\draw[economic flow] (held.east)--(score.west);
+\draw[economic flow] (score)--(target);
+\end{tikzpicture}
+\caption{Cross-fitting keeps a row out of the models used to construct
+its corrected response. Repeat the exclusion for every fold. The target
+may be an average effect or a specified effect regression, with different
+inference requirements. Choosing and evaluating a marketing policy still
+needs the appropriate protection against selection.}
+\label{fig:uplift-cross-fitting}
+\end{figure}
+
+For a constant effect, residualizing outcomes and treatment in
+\cref{eq:robinson} gives the familiar partially linear, Frisch--Waugh--Lovell
+construction. A varying CATE generally has a different convergence rate and
+requires a separate inference argument. Neither theorem guarantees that an
+estimated sign is correct for each customer, or that an estimated contribution
+will be realized on the bank's next campaign.
+
+\section{When there is no experiment}
+\label{sec:uplift-observational}
+
+Historical offer assignments can depend on information absent from the
+analyst's data. The first task is to explain why the comparison would identify
+a causal quantity. Adjustment, policy discontinuities and encouragement
+designs make different assumptions and identify different populations.
+
+\begin{assumption}[Conditional exchangeability and overlap]
+\label{ass:unconfounded}
+$\{Y(1),Y(0)\}\perp W\mid X$ and $0<e(x)<1$ on the target population.
+Consistency and the observation conditions in \cref{ass:sutva} also hold.
+\end{assumption}
+
+Observed treatment frequencies can reveal poor overlap. They cannot test
+whether all joint causes of assignment and potential outcomes have been
+measured. The adverse experiment below illustrates that distinction.
+
+Weight an observed treated outcome by the inverse chance of treatment.
+Under exchangeability, it then represents the treated potential outcome
+for comparable customers regardless of their actual assignment. The
+algebra shows the assignment probability cancelling, while the assumptions
+explain why it is legitimate to do so.
+
+\begin{proposition}[Inverse-propensity identification]
+\label{prop:ipw}
+Under \cref{ass:unconfounded} and integrability,
+\begin{equation}
+\E\!\left[\frac{WY}{e(X)}\right]
+=\E\!\left[\frac{e(X)\E[Y(1)\mid X]}{e(X)}\right]
+=\E[Y(1)].
+\label{eq:ipw}
+\end{equation}
+The control identity uses $(1-W)Y/(1-e(X))$.
+\end{proposition}
+
+\begin{proof}
+Condition on $X$, apply consistency and exchangeability to the numerator,
+and cancel the positive propensity. Iterating expectations gives the result.
+\end{proof}
+
+The balancing-score result of \citet{rosenbaum1983propensity} motivates
+propensity matching and stratification. Estimating a score does not by itself
+establish exchangeability or adequate balance, and double robustness in
+\cref{eq:dr-pseudo} addresses nuisance estimation within the identifying
+model rather than omitted confounding outside it.
+
+Difference-in-differences compares changes in an affected group with changes
+in a comparison group. Its causal interpretation requires a parallel-trends
+restriction on untreated potential outcomes, together with suitable anticipation
+and composition conditions. Pretreatment event-study coefficients can expose
+some violations but cannot prove the counterfactual post-treatment restriction.
+Heterogeneous effects with staggered adoption also change what a two-way
+fixed-effects coefficient averages \citep{roth2023trending};
+\cref{sec:panel-causal} develops those issues. Synthetic controls in
+\cref{sec:mmm-geo} construct comparison paths under their own restrictions.
+
+For a sharp regression discontinuity, suppose treatment is assigned when
+a running variable $R$ reaches a cutoff $c$. Continuity of each potential
+outcome's conditional mean at $c$ and observations on both sides let us
+compare customers just above and just below the threshold. The limits
+remove the distance from the threshold, leaving a local treated-minus-control
+contrast:
+\begin{equation}
+\tau_{\mathrm{RD}}=
+\lim_{r\downarrow c}\E[Y\mid R=r]
+-\lim_{r\uparrow c}\E[Y\mid R=r].
+\label{eq:rdd}
+\end{equation}
+The first limit reveals the treated potential mean and the second the
+untreated mean at the cutoff. Sorting around the threshold, another policy
+changing at the same cutoff, bandwidth choice and finite-sample bias all
+matter \citep{imbenslemieux2008rd}. Credit-score cutoffs motivate banking
+applications such as \citet{agarwal2018passthrough}. The resulting effect is
+local to the cutoff, even when the bank wants a decision for a wider population.
+
+An encouragement design randomizes an invitation while allowing take-up to
+vary. With a nonzero first stage, an exclusion restriction, instrument
+independence and monotonicity, the Wald contrast identifies an average effect
+for compliers \citep{angristimbensrubin1996iv}. The exclusion restriction fails
+if the invitation changes the outcome other than through the defined treatment.
+Fuzzy discontinuity designs require analogous conditions. These estimands
+need not equal the population ATE used in an unrestricted targeting problem.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[font=\footnotesize,thick,
+ q/.style={draw=ink,rounded corners=2pt,fill=fog,align=center,inner sep=1.8mm},
+ d/.style={draw=ocean,rounded corners=2pt,fill=papergray,align=center,inner sep=1.6mm},
+ arr/.style={-{Latex[length=2.2mm]}}]
+\node[q,text width=11cm] (r) at (0,0){Can the action or its encouragement be randomized?};
+\node[d,text width=4.6cm] (rct) at (-3,-1.6)
+ {Yes: randomized action;\\encouragement: IV assumptions};
+\node[q,text width=4.6cm] (thr) at (3,-1.6)
+ {No: does a threshold\\assign the action?};
+\node[d,text width=4.6cm] (rd) at (-3,-3.3)
+ {Yes: discontinuity, \cref{eq:rdd}\\continuity and local support};
+\node[q,text width=4.6cm] (shock) at (3,-3.3)
+ {No: dated policy change\\and a comparison group?};
+\node[d,text width=4.6cm] (did) at (-3,-5.2)
+ {Yes: DiD or synthetic control\\counterfactual trend restrictions};
+\node[d,text width=4.6cm] (uncf) at (3,-5.2)
+ {Otherwise: assess \cref{ass:unconfounded}\\or retain partial identification};
+\draw[arr] (r)--(rct);\draw[arr] (r)--(thr);
+\draw[arr] (thr)--(rd);\draw[arr] (thr)--(shock);
+\draw[arr] (shock)--(did);\draw[arr] (shock)--(uncf);
+\end{tikzpicture}
+\caption{Candidate identification designs. The presence of a threshold or
+policy date does not establish the required assumption. Failure to justify
+one design does not automatically justify selection on observables.}
+\label{fig:uplift-designs}
+\end{figure}
+

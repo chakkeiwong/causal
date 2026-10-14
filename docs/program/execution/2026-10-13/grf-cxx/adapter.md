@@ -1,0 +1,297 @@
+\section{A native forest boundary that preserves the banking question}
+\label{exec13:grf-adapter}
+
+A servicing analyst asks whether making a specified offer changes twelve-month
+net receipts for eligible customers. The proposed treatment is the offer, coded
+one, against no offer, coded zero. The outcome includes the offer's cost and is
+measured in dollars per customer over the stated horizon. A heterogeneous-effect
+forest can help estimate this contrast under a declared identification model.
+Its C++ implementation cannot decide whether the recorded offer was randomized,
+whether all confounders were measured, or whether the analyst actually wants
+the mean over customers, branches, or treated customers. Those choices must
+precede engine dispatch and survive it.
+
+The proposed first grf integration uses its maintained R interface in a pinned
+local process, which in turn invokes the native C++ core. Direct native
+embedding is a separate alternative. Inspection covers commit
+\texttt{5bee99b51471}, dated 30 April 2026, whose package description declares
+version 2.6.1. The snapshot therefore precedes the literature cutoff; its
+October acquisition date is separately retained. The design is not an installed
+adapter. The executed examples below are project-owned arithmetic references;
+they neither train grf nor measure its statistical performance
+\cite{exec13_grf_runtime,exec13_grf_design,exec13_grf_oracle}.
+
+\subsection{From an offer question to a local moment}
+
+Let \(X\) contain information available before the offer, \(W\in\{0,1\}\)
+denote assignment, and \(Y(w)\) denote the potential twelve-month net receipt.
+With consistency, no interference, conditional exchangeability and positivity,
+the target is
+\[
+ \tau(x)=E[Y(1)-Y(0)\mid X=x],\qquad
+ \theta=E[\tau(X)].
+\]
+The outer expectation defines the customer population. An observed treated
+subpopulation or an overlap-weighted population gives a different target.
+The initial proposed profile accepts complete observations from independent
+customers, a binary treatment, one fixed outcome and a fixed horizon. It
+excludes repeated decision histories, unmeasured confounding, interference,
+survey weighting and latent-graph ambiguity that has not been resolved for
+this estimand. These are restrictions of the proposed profile, not assertions
+that the package has no other functionality.
+
+Write \(m(x)=E[Y\mid X=x]\) and \(e(x)=E[W\mid X=x]\). The inspected R
+wrapper either obtains nuisance predictions or uses supplied predictions,
+then passes \(Y-\widehat m(X)\) and \(W-\widehat e(X)\) to the native
+training boundary. A direct call that passes the original vectors does not
+replicate that boundary. The causal binding selects the instrumental trainer
+and sets the instrument coordinate to the treatment coordinate. Consequently
+the inspected native prediction is a ratio of locally weighted covariances,
+with the treatment variance in its denominator
+\cite{exec13_grf_rpath,exec13_grf_native}.
+
+For normalized nonnegative forest weights \(a_i(x)\), let \(\widetilde Y_i\)
+and \(\widetilde W_i\) denote the residualized values. The local calculation
+has the form
+\[
+ \widehat\tau(x)=
+ \frac{\sum_i a_i(x)(\widetilde Y_i-\overline Y_a)
+                         (\widetilde W_i-\overline W_a)}
+      {\sum_i a_i(x)(\widetilde W_i-\overline W_a)^2},
+ \quad
+ \overline Y_a=\sum_i a_i(x)\widetilde Y_i,
+ \quad \overline W_a=\sum_i a_i(x)\widetilde W_i.
+\]
+In the exact reference, equal weights on residual outcomes
+\((-2,-1,1,2)\) and residual treatments
+\((-1/2,-1/2,1/2,1/2)\) give slope three. Constant residual treatment gives
+zero denominator and the reference refuses the calculation. Its numerical
+threshold is an explicit arithmetic rule, not evidence that positivity holds
+in a bank population. The native source divides by its local first-stage
+quantity; the adapter must inspect finite outputs and retain weak-support
+diagnostics instead of silently replacing a failed division with zero.
+
+Honest tree splitting and out-of-bag prediction address particular reuse of
+observations. They do not establish the causal premises or turn customer rows
+from a common branch shock into independent samples. Generalized forest theory
+also imposes regularity, subsampling, smooth local identification and variance
+conditions; a named package and a successful fit do not verify them
+\cite{grf2018}. The proposed first profile retains the R nuisance path and its
+out-of-bag predictions. Supplying an independently estimated nuisance vector
+requires a later profile with explicit training identities, alignment and
+sampling-unit split rules. A known randomized propensity may be supplied only
+with the corresponding assignment declaration; it is never inferred from a
+convenient constant.
+
+\subsection{Why the average effect needs its own calculation}
+
+The average of fitted conditional effects is not interchangeable with the
+package's default augmented average-effect estimator. In the inspected binary
+path, write \(\widehat\tau_i\) for the out-of-bag conditional prediction. Its
+score is
+\[
+ \Gamma_i=\widehat\tau_i+
+ \frac{W_i-\widehat e_i}{\widehat e_i(1-\widehat e_i)}
+ \{Y_i-\widehat m_i-\widehat\tau_i(W_i-\widehat e_i)\}.
+\]
+This equals the familiar two-outcome-regression expression after setting
+\(\widehat\mu_{0i}=\widehat m_i-\widehat e_i\widehat\tau_i\) and
+\(\widehat\mu_{1i}=\widehat m_i+(1-\widehat e_i)\widehat\tau_i\).
+The equality is algebraic. Consistency and uncertainty still require
+appropriate nuisance estimation, overlap and sampling assumptions
+\cite{exec13_grf_rpath}.
+
+The reference uses four tuples \((Y,W,\widehat m,\widehat e,\widehat\tau)\):
+\((0,0,1,1/4,2)\), \((1,0,1,1/2,2)\),
+\((3,1,2,1/2,2)\), and \((5,1,2,3/4,2)\).
+Their scores are \(8/3,0,2,16/3\). The mean score is \(5/2\), whereas the
+mean conditional prediction is two. The C++ residual-score calculation and
+an independent rational Python calculation using the two-regression formula
+agree. This is an exact conversion check with deliberately supplied numbers,
+not fitted evidence for double robustness or coverage
+\cite{exec13_grf_oracle}.
+
+For target weights \(q_i\), the corresponding estimator is
+\(\widehat\theta=\sum_iq_i\Gamma_i/\sum_iq_i\). Choosing \(q_i=1\)
+targets a customer-weighted population; choosing inverse branch sizes gives
+each observed branch equal total weight. A branch with two customer scores of
+ten dollars and a branch with four scores of forty dollars produce a customer
+mean of thirty dollars and an equal-branch mean of twenty-five dollars. A
+planning cohort of ten thousand customers turns the five-dollar difference
+into fifty thousand dollars in a naive projection. That calculation exposes
+the target change; it does not justify applying an equal-branch mean to an
+arbitrary customer portfolio.
+
+The R interface documents that equal cluster weighting changes both training
+sampling and average-effect weights, and disallows user sample weights in that
+mode. Replacing the final mean alone cannot reproduce training under that
+option. A native port would have to preserve both mechanisms. The initial
+independent-customer profile therefore rejects cluster and weight options;
+the independent-cluster extension is specified for later qualification and
+must name whether customers or clusters define its target
+\cite{exec13_grf_rpath}.
+
+\subsection{Sampling uncertainty is not a numerical decoration}
+
+For independent clusters indexed by \(g\), define
+\(S_g=\sum_{i\in g}q_i(\Gamma_i-\widehat\theta)\),
+\(Q=\sum_iq_i\), and let \(G\) count positive-weight clusters. The inspected
+all-sample augmented average-effect path computes the variance expression
+\[
+ \widehat V_{\rm cl}=\frac{G}{G-1}\frac{\sum_g S_g^2}{Q^2}.
+\]
+This specifies a computation. Asymptotic validity needs an appropriate
+independent-cluster experiment, sufficient effective clusters and nuisance
+conditions; no fixed small cluster count guarantees it. Dependence shared
+across branches through a calendar factor lies outside that law.
+
+For the six scores above, treating all rows as independent gives variance
+forty dollars squared. Preserving two branch clusters while retaining the
+customer target gives \(1600/9\) dollars squared. Giving the two branches equal
+total weight gives variance 225 dollars squared around the changed target of
+twenty-five dollars. The standard errors are approximately 6.325, 13.333 and
+15 dollars. Two clusters make a useful arithmetic counterexample and supply
+no empirical confidence-coverage qualification. A single positive-weight
+cluster is refused. Zero total weight is separately refused
+\cite{exec13_grf_oracle,exec13_grf_rpath}.
+
+Conditional prediction variance is another quantity. The native prediction
+strategy estimates it using grouped trees and a variance-debiasing
+calculation; the binding copies the variance values into
+\texttt{variance.estimates}. The R average-effect operation instead returns
+\texttt{std.err}, already square-rooted. Squaring the wrong field or taking
+its square root twice changes the units. The proposed adapter keeps the
+raw field identity, method and units, then creates any reported interval
+only under a declared inference profile. Pointwise conditional intervals
+cannot become a simultaneous customer band or an interval for their average
+through serialization. Likewise \texttt{excess.error}, a finite-forest error
+diagnostic, is not a substitute for sampling uncertainty
+\cite{exec13_grf_native,exec13_grf_rpath}.
+
+\subsection{Memory ownership, coordinates and model persistence}
+
+The inspected \texttt{Data} class is a read-only view of a borrowed contiguous
+column-major buffer. Element \((r,c)\) is read at offset \(cn+r\), where
+\(n\) is the number of rows. Constructing the view from a temporary vector
+does not transfer ownership. The host must keep the allocation alive until
+all training or prediction threads have finished; it must validate shape,
+index ranges and multiplication overflow before the call. A three-row,
+two-column example has columns \((1,2,3)\) and \((10,20,30)\). Correct layout
+reads twenty at zero-based coordinate \((1,1)\); passing row-major bytes to
+the same index formula reads three. Neither value is a memory error, so a
+mere successful call cannot detect the scientific corruption
+\cite{exec13_grf_memory,exec13_grf_oracle}.
+
+Role coordinates must remain separate from predictor coordinates. The native
+setters mark outcome, treatment, instrument and weight columns as disallowed
+split variables. The host records the ordered covariate dictionary, row
+identifiers, role indices and training/query distinction. It cannot infer
+those roles from whichever columns happen to be numeric. Missing values in
+covariates are supported by inspected package paths, but are excluded by the
+initial profile so that an undocumented imputation or missingness assumption
+is not introduced. Conversion to double precision must preserve identifier
+strings separately and refuse nonfinite numerical values rather than silently
+dropping affected customers.
+
+Model serialization also has ownership semantics. The inspected Rcpp helper
+iterates by moving the unique pointer to each native tree into its serialized
+representation. The header explicitly says the original forest cannot be used
+after that operation. A direct embedding that serializes and then predicts
+on the consumed forest is therefore invalid. Either serialize an explicitly
+supported copy, or deserialize the saved representation into a new object.
+Retain the engine commit, ordered feature map, original training-data identity,
+nuisance vectors, options and format version beside the forest. The selected
+source does not establish a stable C++ ABI or a portable standalone model
+format. These are admission questions for a native route, not problems solved
+by choosing a file extension \cite{exec13_grf_memory}.
+
+\subsection{A concrete request and result contract}
+
+The operation is \texttt{estimate.effect}. Its generic parameter schema
+accepts an engine identifier and estimator identifier, so the proposed profile
+uses \texttt{grf-r-native-2.6.1} and \texttt{binary-iid-aipw-all-v1} there.
+Detailed settings reside in an immutable configuration artifact, carried
+through the existing artifact list. That artifact binds the exact source
+commit, treatment contrast, outcome/horizon, row and column roles, seed,
+thread count, tree options and target. The adapter validates its own profile
+before dispatch; generic JSON acceptance alone does not validate these
+scientific restrictions \cite{exec13_grf_design}.
+
+Library, CLI and MCP surfaces must resolve identical authorized data and
+configuration identities. The context digest retains the estimand,
+population, units, information clock, assumptions, sampling declaration and
+graph. The full request identity additionally binds data bytes, configuration,
+engine environment and numerical settings. Changing the target population or
+turning branch weighting on produces a different request; transport names
+cannot cause reuse of a previous result. Graph endpoint marks and unresolved
+sets remain intact. A forest is not a graph-identification service: if a
+retained model class gives different effects and the query has no accepted
+identification argument, this profile cannot silently select a graph.
+
+Before runtime admission, discovery of this engine returns unavailable. A
+recognized but unsupported sampling regime, continuous treatment, dynamic
+policy request or unresolved graph requirement returns unsupported with an
+actionable explanation. Nonfinite output, failed subprocess execution or an
+invalid model artifact is a failure; no finite effect accompanies it. A
+reviewed identification failure can return not-identified with its evidence,
+but the adapter's inability to analyze a model is not an impossibility proof.
+An overlap alarm produces a refusal under the declared profile. Trimming or
+switching to an overlap population requires a newly reviewed target and request.
+
+After engineering admission, a computed scalar estimate keeps its dollar
+unit, signed offer-minus-no-offer contrast and target identifier. A diagnostic
+conditional-prediction artifact retains query-row coordinates and explicitly
+denotes conditional means, not individual counterfactual differences. The
+initial engineering result carries execution-only qualification and no
+confidence claim. Conditional inference needs its own reviewed uncertainty
+construction and evidence. A mathematically unbounded or disconnected result
+from another method must be returned with its topology; this forest profile
+does not approximate it by a large finite interval.
+
+\subsection{Deployment choices and the next informative comparison}
+
+The package description requires R at least 3.5.0, C++17 and GNU make, links
+Rcpp and RcppEigen, and imports additional packages including Matrix,
+DiceKriging, lmtest and sandwich. These declarations are minimum/source
+requirements, not a tested environment lock. The proposed R process must
+record the installed R and dependency versions, source and binary hashes,
+compiler and flags, thread settings and runtime options. The inspected native
+CMake file collects both source and test files into an executable; its presence
+does not supply a ready production shared library or a reviewed installed ABI.
+Package metadata declares GPL-3 and the inspected source headers state GPL
+version 3 or later. Preserve file and dependency terms and review distribution
+obligations before shipping; a subprocess boundary alone settles neither
+licensing compatibility nor distribution duties \cite{exec13_grf_runtime}.
+
+The parent process bounds wall time, memory and output size and publishes
+only a complete validated result atomically. Standard output is the protocol
+channel; diagnostics have a bounded separate log. A crash or timeout leaves a
+typed failure and its input identities. No mid-tree recovery is promised.
+Replaying an immutable request starts from its recorded seed and environment;
+bitwise equality across different compilers or thread settings remains a
+measured property. One worker per isolated R process is the conservative
+initial choice because the inspected binding also writes global runtime
+context. Concurrency inside a shared embedding requires its own review.
+
+The proposal recommends the R/native route first because it retains the
+inspected nuisance, score and aggregation paths. Direct native embedding may
+later reduce interface overhead or fit a host's deployment constraints, but
+would transfer those statistical and ownership responsibilities to the host.
+A full algorithm port has the greatest maintenance and conformance burden.
+Reject direct embedding for the initial profile until it reproduces the R path;
+this is a scoped engineering choice, not a claim that native integration is
+impossible.
+
+The next comparison should freeze one environment and the complete workload:
+data conversion, nuisance estimation, forest training, average-effect scoring,
+serialization, output validation and failure handling. Compare the maintained
+R route with a direct-native candidate only under identical inputs, target,
+options and estimator formulas. Exact fixtures first check coordinates,
+residualization, score aggregation and refusal behavior. A separately
+registered generated-data study can then examine coverage, availability,
+heterogeneity recovery and resources, retaining weak-overlap and dependent
+cases in its denominator. Pure arithmetic agreement cannot replace that
+study, and local runtime cannot establish bank workflow savings. The useful
+investment question is whether a native route improves the complete workload
+enough to justify owning the additional statistical and deployment machinery.
+\label{exec13:grf-adapter-end}

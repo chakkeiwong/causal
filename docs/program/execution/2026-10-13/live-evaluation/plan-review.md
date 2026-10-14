@@ -1,0 +1,9 @@
+# Prospective live evaluation: reviewed continuation plan
+
+Complete LL.LIVE.DESIGN using the preserved LA06 limitations, public/generated P6 design and inspected benchmark literature. This operation asks for a reviewed prospective design, with unresolved model revisions, final sample sizes and thresholds visible. It is not a final registration or a paid experiment.
+
+Develop one task/graph/effect/decision rubric, mechanism-level split and exposure rules, comparator information contracts, label/language/retrieval perturbations, abstention/failure denominators, deterministic power/precision examples and complete workflow cost. Preserve the exposed P6 fixtures as development/design assets. Generate no supposedly sealed final set in a session that also inspects its reference labels. Keep independent adjudication as a requirement for an independent-adjudication claim; objective generated references can support a narrower author-reviewed prototype without pretending to be bank truth.
+
+Review traps before execution: success on paraphrases is not additional independent evidence; an effect inferred beyond the admitted equivalence class is a critical error even with a correct prediction; abstaining on every identifiable task must not win; data-only and retrieval-only baselines must be scored on roles they can perform and their information differences exposed; null-error bounds and improvement tests require a joint multiplicity budget; a cost cap includes internal agent calls as well as transport retries. All planning probabilities and prices must be labeled hypothetical or unset.
+
+Write the actual design and developed evaluation section, integrate a preserving working reader and record the reviewed result. Continue the next eligible task. Leave live execution and final registration unperformed until their real inputs are supplied. No bank records, paid calls, credentials, external contacts or sibling changes are needed for this design work.

@@ -1,0 +1,588 @@
+        DYNOTEARS: Structure Learning from Time-Series Data
+
+
+
+    Roxana Pamfil1⇤ , Nisara Sriwattanaworachai1⇤ , Shaan Desai1† ,          Philip Pilgerstorfer1 ,
+                        1                                  1
+         Paul Beaumont ,            Konstantinos Georgatzis ,             Bryon Aragam2
+           1                                              2
+             QuantumBlack, a McKinsey company               University of Chicago
+                causal@quantumblack.com                 bryon@chicagobooth.edu
+                                         ⇤
+                                             These authors contributed equally.
+
+
+                      Abstract                                 models and causal insights about an underlying process,
+                                                               directed acyclic graphs (DAGs) have shown promise in
+                                                               many applications. The edges in a DAG provide users
+     We revisit the structure learning problem for
+                                                               with important clues about the relationship between
+     dynamic Bayesian networks and propose a
+                                                               variables in a system. When these edges are not known
+     method that simultaneously estimates contem-
+                                                               based on prior knowledge, it is necessary to resort to
+     poraneous (intra-slice) and time-lagged (inter-
+                                                               structure learning, namely, the problem of learning the
+     slice) relationships between variables in a
+                                                               edges in a graphical model from data. Broadly speak-
+     time-series. Our approach is score-based, and
+                                                               ing, structure learning can be divided into static (i.e.
+     revolves around minimizing a penalized loss
+                                                               equilibrium) and dynamic models, the latter of which
+     subject to an acyclicity constraint. To solve
+                                                               explicitly model temporal dependencies. Static models
+     this problem, we leverage a recent algebraic
+                                                               make sense for independent and identically distributed
+     result characterizing the acyclicity constraint
+                                                               data. Many applications, however, exhibit strong tem-
+     as a smooth equality constraint. The result-
+                                                               poral fluctuations that we are interested in modeling
+     ing algorithm, which we call DYNOTEARS,
+                                                               explicitly. The problem of learning graphical structures
+     outperforms other methods on simulated data,
+                                                               from temporal data collected from dynamic systems
+     especially in high-dimensions as the number
+                                                               has received significant attention from the machine
+     of variables increases. We also apply this al-
+                                                               learning (Koller and Friedman, 2009), econometrics
+     gorithm on real datasets from two di↵erent
+                                                               (Lütkepohl, 2005), and neuroscience (Rajapakse and
+     domains, finance and molecular biology, and
+                                                               Zhou, 2007) communities.
+     analyze the resulting output. Compared to
+     state-of-the-art methods for learning dynamic             In this paper, we revisit the problem of learn-
+     Bayesian networks, our method is both scal-               ing dynamic Bayesian networks (DBNs) (Dean and
+     able and accurate on real data. The simple                Kanazawa, 1989; Murphy, 2002) from data. DBNs
+     formulation and competitive performance of                have been used successfully in a variety of domains
+     our method make it suitable for a variety of              such as clinical disease prognosis (Van Gerven et al.,
+     problems where one seeks to learn connections             2008; Zandonà et al., 2019), gene regulatory network
+     between variables across time.                            (Linzner et al., 2019), facial and speech recognition
+                                                               (Meng et al., 2019; Nefian et al., 2002), neuroscience
+                                                               (Rajapakse and Zhou, 2007), among others. DBNs
+1    Introduction                                              are the standard approach to modeling discrete-time
+                                                               temporal dynamics in directed graphical models. In
+Graphical models are a popular approach to under-              econometrics, they are also known as structural vector
+standing large datasets, and provide convenient, inter-        autoregressive (SVAR) models (Demiralp and Hoover,
+pretable output that is needed in today’s high stakes ap-      2003; Swanson and Granger, 1997).
+plications of machine learning and artificial intelligence.    We propose a simple, score-based approach for learning
+In particular, with the growing need for interpretable         these models that scales gracefully to high-dimensional
+†
+                                                               datasets. To accomplish this, we cast the problem as
+  Contributed during an internship at QuantumBlack. Pro-
+ceedings of the 23rd International Conference on Artificial
+                                                               an optimization problem (i.e. score-based learning),
+Intelligence and Statistics (AISTATS) 2020, Palermo, Italy.    and use standard second-order optimization schemes
+PMLR: Volume 108. Copyright 2020 by the author(s).             to solve the resulting program. Our approach is based
+                          DYNOTEARS: Structure Learning from Time-Series Data
+
+
+on the recent algebraic characterization of acyclicity        Time t    2           Time t   1                  Time t
+in directed graphs from Zheng et al. (2018), which                                                 (1)
+                                                                                                  A11
+                                                                 X1                 X1                          X1
+makes the formulation simple and amenable to di↵erent                                                                    W13
+modeling choices.                                                        X3                  X3
+                                                                                                          (1)
+                                                                                                         A31      W12      X3
+                                                                                                   (1)
+                                                                                                  A22
+Contributions The main contributions of this paper               X2                 X2                          X2
+are the following:
+  • We develop a score-based approach to learning                                    (2)
+                                                                                    A22
+
+     DBNs and use standard optimization routines to
+     optimize the resulting program. The resulting
+     method, which we call DYNOTEARS, can be used            Figure 1: Illustration of intra-slice (solid lines) and
+     to learn time series of arbitrary order, without        inter-slice (dashed lines) dependencies in a DBN with
+     any implicit assumptions on the underlying graph        d = 3 nodes and autoregression order p = 2. For clarity,
+     topologies such as bounded in-degree or treewidth.      we display edges that do not influence the variables at
+  • We validate our approach with extensive simula-          time t in a lighter shade.
+     tion experiments, exhibiting the accuracy of our
+     approach in learning both intra-slice and inter-slice
+     relationships in dynamic models.                        is worth briefly reviewing this here. These methods
+  • We apply our method to two real datasets: A              can be classified into constraint-based methods and
+     financial dataset consisting of daily stock returns     score-based methods, as well as hybrid methods that
+     (d = 97) and the DREAM4 dataset (d = 100)               combine these two approaches. Constraint-based meth-
+     (Marbach et al., 2009). These examples illustrate       ods use conditional independence tests to recover the
+     the importance of modeling both temporal trends         Markov equivalence class of DAGs under the assump-
+     as well as steady state relationships and achieve       tion of faithfulness (e.g. Colombo et al., 2012; Spirtes
+     competitive accuracy among other DBN methods.           and Glymour, 1991). While this yields fast algorithms,
+The resulting method simultaneously achieves three           these methods are sensitive to the underlying graph
+important goals: 1) Accuracy on high-dimensional data        structure and su↵er from error propagation (Spirtes,
+with d > n, which allows for application to real world       2010). Score-based methods, on the other hand, use
+data 2) Robustness to complex graph topologies, and          a score function to find the best DAG that fits the
+3) A simple, plug-n-play algorithm for learning based        given data (e.g. Heckerman et al., 1995; Chickering,
+on black-box optimization.                                   2002; Bouckaert, 1993). Examples of scores include
+                                                             the BIC, BDe, and BDeu (Spirtes et al., 2000). Score-
+Related work There are many methods for learn-               based methods are computationally expensive due to
+ing DBNs in the literature. Some approaches ignore           the acyclicity constraint and the vast number of DAGs
+contemporaneous dependencies and recover only time-          to search over (Robinson, 1977). The recent work of
+lagged relationships (Haufe et al., 2010; Song et al.,       Zheng et al. (2018) expresses the acyclicity of a DAG by
+2009). Others learn both types of relationships in-          a smooth equality constraint, which makes it possible to
+dependently (Haufe et al., 2010; Song et al., 2009).         formulate structure learning as a smooth minimization
+Many methods follow a two-step approach of first learn-      problem subject to this equality constraint.
+ing inter-slice weights and then estimating intra-slice
+weights from the residuals from the first step (Chen and
+Chihying, 2007; Hyvärinen et al., 2010; Moneta et al.,      2        Dynamic Structure Learning
+2011). There are also hybrid algorithms that combine
+conditional-independence tests and local search to im-       2.1      Formulation
+prove the score (Malinsky and Spirtes, 2018, 2019).
+While all of these methods can achieve good structure        Consider M independent realizations of a station-
+recovery on small graphs, they su↵er from the curse of       ary time series, with the mth time series given by
+dimensionality. More discussion and comparison can be        {xm,t }t2{0,...,T } for xm,t 2 Rd , where d represents the
+found in Section 2.3. There is also an extensive litera-     number of variables in the dataset. We assume that
+ture on learning SVAR models in the econometrics and         variables influence each other in both a contemporane-
+statistics literature (Demiralp and Hoover, 2003; Lanne      ous and a time-lagged manner, as illustrated in Figure 1.
+et al., 2017; Reale and Wilson, 2001, 2002; Swanson          We call these intra-slice and inter-slice dependencies,
+and Granger, 1997; Tank et al., 2019).                       respectively.
+Since algorithms for learning DBNs typically rely in-        We model the data using the following standard SVAR
+ternally on calling methods for learning static BNs, it      model (Demiralp and Hoover, 2003; Kilian, 2011; Swan-
+              Pamfil, Sriwattanaworachai, Desai, Pilgerstorfer, Beaumont, Georgatzis, Aragam
+
+
+son and Granger, 1997):                                            • The errors zm,t are standard Gaussian, i.e. zm,t ⇠
+                                                                      N (0, I). Identifiability of this model is an imme-
+ x>      >      >                >          >
+  m,t = xm,t W+xm,t 1 A1 +. . .+xm,t p Ap +zm,t (1)                   diate consequence of Theorem 1 of Peters and
+                                                                      Bühlmann (2013) and the acyclicity of W.
+for t 2 {p, . . . , T } and for all m 2 {1, . . . , M }, where
+                                                                 In what follows, we assume that one of these two con-
+p is the autoregressive order, and zm,t is a vector of
+                                                                 ditions on zm,t holds.
+centered error variables, which are independent within
+and across time. The error variables are not assumed
+to be Gaussian. Extensions to nonlinear models are               2.2   Optimization problem
+also possible, but not explored here, see Section 5 for          Given the data X and Y, our goal is to estimate
+more discussion.                                                 weighted adjacency matrices W and A that correspond
+The matrices W and Ai (i 2 {1, . . . , p}) represent             to DAGs. The edges in A go only forward in time and
+weighted adjacency matrices with nonzero entries cor-            thus they do not create cycles. In order to ensure
+responding to the intra-slice and inter-slice edges, re-         that the whole network is acyclic, it thus suffices to
+spectively. When W is acyclic, as we will assume                 require that W is acyclic. Minimizing the least-squares
+throughout this paper, these matrices parametrize a              loss with the acyclicity constraint gives the following
+DBN. We also assume that this network structure is               optimization problem:
+constant across time. This allows us to write Equa-
+                                                                           min `(W, A) s.t. W is acyclic ,             (4)
+tion (1) in matrix form as                                                 W, A
+                                                                                           1
+        X = XW + Y1 A1 + . . . + Yp Ap + Z,               (2)           where `(W, A) =      kX XW YAk2F .
+                                                                                          2n
+where X is an n ⇥ d matrix whose rows are x>       m,t , and
+                                                                 To enforce the sparsity of W and A, we also intro-
+the matrices Y1 , . . . , Yp are time-lagged versions of X.      duce `1 penalties in the objective function. Let the
+The number n of rows is our e↵ective sample size, and            regularized optimization problem be
+we have n = M (T + 1 p).                                                   min f (W, A) s.t. W is acyclic ,            (5)
+                                                                           W, A
+Let Y = [ Y1 | · · · | Yp ] be the n ⇥ pd matrix of time-
+lagged data. Additionally, let A = [ A>              > >           with f (W, A) = `(W, A) +       W kWk1 +     A kAk1 ,
+                                        1 | · · · | Ap ]
+be the pd ⇥ d matrix of inter-slice weights. With this           where k·k1 stands for the element-wise `1 norm. Regu-
+notation, the SEM in (2) takes the compact form:                 larization is especially useful in cases with much fewer
+                                                                 samples than variables, n ⌧ d. For example, for static
+                  X = XW + YA + Z .                       (3)    BNs, the least-squares loss has been shown to be con-
+                                                                 sistent in high-dimensional settings for learning DAGs
+This general formulation makes it possible to consider           (van de Geer et al., 2013; Aragam et al., 2015).
+scenarios in which the time-lagged data matrix Y does
+                                                                 The key difficulty in solving the optimization problem
+not necessarily cover a contiguous sequence of time
+                                                                 (5) is the acyclicity constraint on W. To deal with this,
+slices (i.e., from t p to t 1). For instance, in time
+                                                                 we use an equivalent formulation of acyclicity via the
+series that exhibit known seasonality patterns, one can
+                                                                 trace exponential function, due to Zheng et al. (2018).
+include in the lagged data matrix Y only those time
+                                                                 They show that the function h(W) = tr eW W d
+points that have an impact on the variables at time t.
+                                                                 satisfies h(W) = 0 if and only if W is acyclic. Here,
+                                                                 denotes the Hadamard product of two matrices. Re-
+Identifiability Identifiability in SVAR models is a
+                                                                 placing the acyclicity constraint in (5) with the equality
+central topic of the econometrics literature (see Kil-
+                                                                 constraint h(W) = 0, the resulting equality constrained
+ian, 2011 for a review). Identifiability of A follows
+                                                                 program can be solved as in Zheng et al. (2018), using
+from standard results on vector autoregressive (VAR)
+                                                                 the augmented Lagrangian method. This translates
+models, whereas identifiability of W is more difficult
+                                                                 the problem to a series of unconstrained problems of
+to establish. We focus on two special cases where
+                                                                 the form
+identifiability holds:
+                                                                                        min F (W, A)                   (6)
+  • The errors zm,t are non-Gaussian. Identifiabil-                                   W, A
+
+    ity in this model is a well-known consequence                where F is the following smooth augmented objective:
+    of Marcinkiewicz’s theorem on the cumulants                                             ⇢
+    of the normal distribution (Kagan et al., 1973;                 F (W, A) = f (W, A) + h(W)2 + ↵h(W) .        (7)
+                                                                                            2
+    Marcinkiewicz, 1939) and independent component
+    analysis (ICA), see Hyvärinen et al. (2010); Lanne          By writing W = W+ W such that W+ 0 and
+    et al. (2017); Moneta et al. (2011).                         W     0 (and analogously for A), we transform (6) to
+                         DYNOTEARS: Structure Learning from Time-Series Data
+
+
+a quadratic program with non-negative constraints and       3.1   Setup
+twice the number of variables. The resulting problem
+can be solved using standard solvers such as L-BFGS-B       To benchmark DYNOTEARS against existing ap-
+(Zhu et al., 1997).                                         proaches, we simulate data according to the SEM from
+                                                            (3). There are three steps to this process: 1) generating
+Following Zheng et al. (2018), in order to reduce the       the weighted graphs GW and GA , 2) generating data
+e↵ect of numerical error from computing h(W), we            matrices X and Y consistent with these graphs, and
+eliminate weights close to 0 by thresholding the entries    3) running all algorithms on X and Y and computing
+of W and A. Overall, DYNOTEARS has 4 hyper-                 performance metrics. See Appendix B.4 for a detailed
+parameters: the regularization constants W and A ,          description of steps 1) and 2).
+and the weight thresholds ⌧W and ⌧A .
+                                                            There are three algorithms that we use for benchmark-
+2.3   Alternative formulations                              ing. The first algorithm is based on a general approach
+                                                            from Murphy (2002); here, we use static NOTEARS
+An alternative approach to jointly minimizing (6) over      and Lasso regression to estimate W and A indepen-
+(W, A) is to use a two-stage optimization procedure,        dently. The second algorithm is the SVAR estimation
+similar to those in Chen and Chihying (2007); Demiralp      method based on LiNGAM (Hyvärinen et al., 2010).
+and Hoover (2003); Hyvärinen et al. (2010). We can         The third algorithm is tsGFCI (Malinsky and Spirtes,
+rewrite Equation (2) as the structural VAR (SVAR)           2018). For details, see Appendix B.1.
+
+          XA0 = Y1 A1 + . . . + Yp Ap + Z ,          (8)    3.2   Results
+where A0 = I W. With the acyclicity constraint,
+                                                            We start by illustrating the typical performance of
+W can be written as an upper triangular matrix. It
+                                                            DYNOTEARS on one simulated dataset in Figure 2.
+follows that A0 has full rank and is invertible. Right-
+                                                            We follow the process from Appendix B.4 to generate
+multiplying (8) by A0 1 gives
+                                                            data with Gaussian noise, n = 500 samples, d = 5
+            X = Y 1 B1 + . . . + Y p Bp + e ,        (9)    variables, and p = 3 autoregressive terms. The intra-
+                                                            slice DAG is an ER graph with mean degree equal to 4
+where Bi = Ai A0 1 (i 2 {1, . . . , p}) and e = ZA0 1 is    (counting edges in either direction), and the inter-slice
+a noise term whose elements are correlated (for fixed t).   DAG is an ER graph with a mean out-degree equal to 1.
+Equation (9) is now a reduced-form VAR that we can          The base of the exponential decay of inter-slice weights
+fit using least-squares (Amisano and Giannini, 2012).       is ⌘ = 1.5. We run DYNOTEARS on this dataset with
+This produces estimates of the matrices Bi and of the       regularization parameters W = A = 0.05 and weight
+residuals e. Recall that                                    thresholds ⌧W = ⌧A = 0.01. The low values for the
+                                                            thresholds are intentional, as we want to highlight that
+    eA0 = Z , e(I     W) = Z , e = eW + Z ,         (10)    the algorithm recovers a structure close to the ground
+                                                            truth even without tweaking these parameters. We
+so we can estimate W by applying static NOTEARS             consider here the case where the autoregressive order
+to the matrix of residuals e.                               p is known, however, see Appendix B.5 for details on
+One disadvantage of the two-step approach is that           how to estimate p when it is unknown. As Figure 2
+enforcing sparsity via `1 regularization is no longer       shows, estimated weights are close to the true weights
+straightforward, as Bi and Ai do not necessarily have       for both W and A. The only significant omission is a
+the same sparsity patterns. Moreover, any errors in         missing entry in the third row and third column of A2 .
+estimating the Bi at the right sparsity levels propagate    Performance is similar without `1 regularization and
+to the residuals e, which directly a↵ects the estimation    for larger values of p.
+of W. In turn, this a↵ects the final step of the process,   In Figure 3, we compare the performance of
+where one calculates Ai = Bi (I W). See Appendix A          DYNOTEARS to that of three other algorithms (see
+for additional discussion.                                  Appendix B.1). We consider two distributions for the
+                                                            noise, Gaussian and Exponential, and two choices for
+3     Experiments                                           the number of samples, n 2 {50, 500}. Within each
+                                                            of the four panels, each column corresponds to one
+To validate the e↵ectiveness of the proposed method,        choice of intra-slice graph model and mean degree;
+we performed a series of simulation experiments for         for instance, ER2 indicates that we used an Erdős–
+which the ground truth is known in advance. We focus        Rényi graph model with a mean degree of 2. Similarly,
+here on the main results; more detailed results can be      each row corresponds to one choice of inter-slice graph
+found in Appendix B.                                        model and mean degree. For each individual plot,
+              Pamfil, Sriwattanaworachai, Desai, Pilgerstorfer, Beaumont, Georgatzis, Aragam
+
+
+
+
+Figure 2: Example results using DYNOTEARS for data with Gaussian noise, n = 500 samples, d = 5 variables,
+and p = 3 autoregressive terms. We set the regularization parameters W = A = 0.05 and the weight thresholds
+⌧W = ⌧A = 0.01. Our algorithm recovers weights that are close to the ground truth.
+
+
+we generate n data samples with autoregression or-               other than the F1 score.
+der p = 1 for five choices of the number of variables,
+d 2 {5, 10, 20, 50, 100}. The vertical axis indicates the        4       Applications
+performance of each algorithm in terms of the F1 score,
+which we calculate separately for intra-slice and inter-         Our approach allows us to detect whether contempora-
+slice matrices. We discuss the selection of hyperparame-         neous or time-lagged relationships are more meaningful
+ter values for the four algorithms in Appendix B.3. The          in a given dataset. We discuss two examples for which
+relative ranking of the four algorithms is not especially        each type of interaction is dominant.
+sensitive to these hyperparameters. In particular, the
+regularization parameters are largely irrelevant when
+                                                                 4.1       S&P 100 stock returns
+there is sufficient data (n     dp).
+DYNOTEARS is the best-performing algorithm in                    We apply DYNOTEARS to a financial dataset of daily
+Figure 3, with F1 scores close to 1 for n = 500.                 stock returns of companies in the S&P 100. The dataset
+DYNOTEARS is also the best-performing algorithm                  was obtained using the yahoofinancials1 Python
+when the number of variables exceeds the number of               package and consists of daily closing prices from 1 July
+samples (see panels (c) and (d) for d = 100). This               2014 to 30 June 2019, inclusive. To account for non-
+high-dimensional case is especially difficult, yet com-          stationarity in the stock price data, we use log-returns,
+mon in applications, and we discuss one such example             defined as the temporal di↵erence of the logarithms of
+in Section 4.2. The second-best algorithm is tsGFCI.             the stock prices. We test the stationarity of the transfor-
+However, its performance tends to degrade as we add              mation using the Augmented Dick-Fuller test and reject
+more edges to the ground-truth graphs; see Figure B.3            the Null hypothesis of a unit-root with pvalue < 0.01.
+in the Appendix. The variance in performance is also             We normalise the log-returns so that they have zero
+larger for tsGFCI than for the other algorithms. As              mean and unit variance. If we did not perform this
+expected, learning intra-slice and inter-slice structure         step, the regularization would favor low-variance stocks,
+separately with NOTEARS + Lasso underperforms                    whose (linear) weights would be relatively larger than
+DYNOTEARS. In particular, we find that the Lasso                 for high-risk stocks.
+step falsely identifies some intra-slice edges as inter-slice.   The resulting dataset contains n = 1257 samples (i.e.,
+LiNGAM is an algorithm designed for non-Gaussian                 trading days) and d = 97 variables (i.e., stocks). We
+data, so its poor performance in panels (a) and (c)              apply DYNOTEARS with p = 1, W = 0.1, and
+of Figure 3 is not surprising. However, even on data              A = 0.1. The values are selected via grid search; see
+with exponential noise (panels (b) and (d) of Figure 3),         Figure C.1 in the supplement. We hold out the final
+its performance degrades significantly as d increases.           400 data points of the series for validation (⇡ 32%)
+Appendix B.7 contains additional figures that compare            and we discard 2 trading days to avoid validation-set
+the performance of the four algorithms using metrics
+                                                                     1
+                                                                         https://pypi.org/project/yahoofinancials/
+                         DYNOTEARS: Structure Learning from Time-Series Data
+
+
+
+
+                   (a) Gaussian noise, n = 500                     (b) Exponential noise, n = 500
+
+
+
+
+                   (c) Gaussian noise, n = 50                      (d) Exponential noise, n = 50
+
+
+
+
+Figure 3: F1 scores for di↵erent noise models (Gaussian, Exponential) and di↵erent sample sizes (n 2 {50, 500}.).
+Each panel contains results for two di↵erent choices of intra-slice graphs (columns) and inter-slice graphs (rows).
+Every marker corresponds to the mean performance across 5 algorithm runs, each on a di↵erent simulated dataset.
+F1 scores for intra-slice and inter-slice edges appear in continuous and dashed lines, respectively. DYNOTEARS
+typically outperforms the other algorithms. Note that the ICA step in LiNGAM does not work for n < d, so the
+corresponding markers for d = 100 are missing from panels (c) and (d).
+
+
+contamination. Running DYNOTEARS on the whole              167.784. Comparing the two graphs, the biggest di↵er-
+dataset took 3.8 minutes on a laptop, with 25.8 minutes    ence is that the edge between GOOGL and GOOG flips.2
+total CPU time.                                            The dynamic parametrization helps to find a better
+                                                           local optimum.
+The final graph does not contain inter-slice edges.
+This means that the best prediction of future returns      Figure 4 provides a visualization of the estimated intra-
+is the current return. This could be evidence for          slice weights matrix W. When we order the stocks
+the efficient market hypothesis, which says that asset     by industry sector, we obtain an approximately block-
+prices contain all information available (Fama, 1970).     diagonal structure. Thus, two stocks are more likely to
+While there are no inter-slice edges, the validation
+                                                              2
+loss for DYNOTEARS is slightly smaller than for               Both shares are issued by Alphabet, the holding com-
+static NOTEARS with the same W value, 167.387 <            pany of Google, and they are equal in terms of dividends.
+                                                           However, only GOOGL includes shareholder voting rights.
+             Pamfil, Sriwattanaworachai, Desai, Pilgerstorfer, Beaumont, Georgatzis, Aragam
+
+
+
+
+Figure 4: Estimated intra-slice matrix W, with rows and columns sorted by sector. A row is the source stock,
+a column is the target stock. Stocks in the same sector tend to have larger edge weights between them. The
+normalized mutual information between a community-induced partition and the sector-based partition indicates
+agreement between the estimated network and the sectors.
+
+
+influence each other if they belong to the same sector        4.2   DREAM4 gene expression data
+than if they are from di↵erent sectors. The weight of
+96% of all identified edges is positive, so most stocks       We benchmark DYNOTEARS on the DREAM4 net-
+move together. This percentage is roughly the same            work inference challenge (Marbach et al., 2009), in
+for edges within and between sectors. One noteworthy          which the objective is to learn gene regulatory net-
+feature in Figure 4 is that Amazon (AMZN), which is           works from gene expression data. DREAM4 consists
+part of the Consumer Cyclicals sector, is connected           of 5 independent datasets, each with 10 di↵erent time-
+to many of the technology stocks, including Facebook,         series recordings for 100 genes across 21 time steps.
+Netflix, NVIDIA, Google, and Microsoft.                       We preprocess our data and choose hyperparameters
+To quantify the sector relationship, we apply the Lou-          A and W through 10-fold cross validation, details
+
+vain method (Blondel et al., 2008), a community detec-        of which can be found in Appendix D.1. In Lu et al.
+tion algorithm and a form of graph clustering, to W.3         (2019), the authors compared di↵erent approaches to
+This partitions the set of stocks into subsets that corre-    learning these networks, including methods based on
+spond to densely-connected subgraphs in the estimated         mutual information, Granger causality, dynamical sys-
+Bayesian network. The normalized mutual information           tems, decision trees, Gaussian processes (GPs), and
+(NMI, Li et al., 2001) between this community-induced         DBNs. Unsurprisingly, their results indicate that flexi-
+partition and the sector-based partition is approxi-          ble nonparametric methods such as GPs and decision
+mately 0.79, which indicates close agreement.4                trees perform the best. It is nonetheless instructive to
+                                                              compare the performance of DYNOTEARS to these
+                                                              methods for two reasons: 1) This gives us a sense of
+                                                              how much is lost in assuming the linear model (1),
+                                                              and 2) For an apples-to-apples comparison, we can still
+                                                              compare DYNOTEARS to the DBN methods (six in
+   3
+     We use the python-louvain package from https://pypi.     total) tested by Lu et al. (2019).
+org/project/python-louvain/.
+   4
+     An NMI value of 1 corresponds to identical partitions,   As in the original DREAM4 challenge, we use mean
+whereas a value of 0 corresponds to independent partitions.   AUPR and AUROC across the 5 datasets to compare
+                         DYNOTEARS: Structure Learning from Time-Series Data
+
+
+    Algorithm        Mean AUPR       Mean AUROC            existing work on DBNs.
+    DYNOTEARS           0.173            0.664             To conclude, we briefly discuss some limitations and
+    G1DBN               0.110            0.676             possible extensions of DYNOTEARS.
+    ScanBMA             0.101            0.657
+    VBSSMb              0.096            0.618             Assumptions We have assumed that the structure
+    VBSSMa              0.086            0.624             of the DBN is fixed through time and is identical for
+    Ebdbnet             0.043            0.643             all time series in the data (i.e., it is the same for all
+                                                           m 2 {1, . . . , M }). It would be useful to relax these
+Table 1: AUPR and AUROC scores of DBN algorithms           assumptions in various ways, for example by allowing
+on the DREAM4 dataset. Values for methods other            the structure to change smoothly over time (Song et al.,
+than DYNOTEARS are from Lu et al. (2019).                  2009) or at discrete change points that we infer from
+                                                           the data (Grzegorczyk and Husmeier, 2011). Another
+                                                           topic for future work is to investigate the behaviour of
+DYNOTEARS to the 23 algorithms presented in Lu             the algorithm on nonstationary or cointegrated time
+et al. (2019). The results are as follows:                 series (Malinsky and Spirtes, 2019), or in situations
+    • DYNOTEARS achieves an average AUROC of               with confounders (Huang et al., 2015; Malinsky and
+      0.664 and an average AUPR of 0.173. Among the        Spirtes, 2018). A possible approach is to apply a post-
+      six DBN methods tested, this ranks 1st and 2nd       processing step to the output of DYNOTEARS so as to
+      in AUPR and AUROC, respectively, as shown in         remove spurious relationships between variables (e.g.,
+      Table 1.                                             by using statistical tests).
+    • Furthermore, DYNOTEARS is within one stan-
+                                                           Undersampling As pointed out by a reviewer, as
+      dard deviation of the best performing method
+                                                           with most DBN models, we implicitly assume that the
+      (G1DBN) based on AUPR, and no other method
+                                                           sampling rate of the process is at least as high as the
+      is within one standard deviation of DYNOTEARS
+                                                           fluctuations in the underlying causal process. See for
+      based on AUROC.
+                                                           example Gong et al. (2015); Hyttinen et al. (2016);
+    • Overall, this ranks 4th in AUPR and 8th in           Plis et al. (2015); Cook et al. (2017). As a check on
+      AUROC (see Table D.2 and Table D.1, respec-          the sensitivity of DYNOTEARS to this (strong) as-
+      tively). While the top performing methods were       sumption, we tested a modification of our approach for
+      based on nonparametric models such as GPs,           undersampled data adapted from Cook et al. (2017).
+      DYNOTEARS still outperforms several other non-       In essence, by running DYNOTEARS on the data
+      parametric methods despite its use of the linear     and then post-processing any intra-slice edges by mak-
+      model (1).                                           ing them bi-directed, we can obtain a graph which is
+5     Discussion                                           comparable to the methods suggested in Cook et al.
+                                                           (2017). Although our method was not designed to
+In this paper, we proposed DYNOTEARS, an algo-             handle undersampling, it achieves lower false-negative
+rithm for learning dynamic Bayesian networks, in-          rates compared to other methods. Of course, more
+spired by recent work on structure learning for static     careful modifications to handle undersampling is an
+Bayesian networks using di↵erentiable acyclicity con-      interesting direction for future work.
+straints (Zheng et al., 2018). Our algorithm learns
+both intra-slice and inter-slice dependencies between      Nonlinear dependence Finally, we emphasize that
+variables simultaneously, in contrast with some existing   linear assumption in (1-2) is made purely for simplicity,
+methods that perform these estimations in succession.      in order to keep the focus on the most salient dynamic
+                                                           and temporal aspects of this problem. For example,
+An important feature of DYNOTEARS is its simplicity,       using the general approach outlined in Zheng et al.
+both in terms of formulating an objective function and     (2019), it is possible to model complicated nonlinear
+in terms of optimizing it. It performs well on simulated   dependencies via neural networks or orthogonal basis
+data across a wide range of parameter choices in the       expansions. Furthermore, it is straightforward to re-
+data-generation process.                                   place the least squares loss with the logistic loss (or
+We also applied DYNOTEARS to two empirical                 more generally, any exponential family log-likelihood)
+datasets from di↵erent application domains, finance        to model binary data. It is also possible to go a step
+and molecular biology. The results reveal insightful       further and consider combinations of continuous and
+patterns in the data. Both of these applications have      discrete data (Andrews et al., 2019), which is important
+d ⇡ 100, confirming that DYNOTEARS can be ap-              for many real-world applications.
+plied to larger datasets than those considered in most
+             Pamfil, Sriwattanaworachai, Desai, Pilgerstorfer, Beaumont, Georgatzis, Aragam
+
+
+References                                                  Haufe, S., Müller, K.-R., Nolte, G., and Krämer, N.
+                                                             (2010). Sparse causal discovery in multivariate time
+Amisano, G. and Giannini, C. (2012). Topics in Struc-
+                                                             series. In Causality: Objectives and Assessment,
+ tural VAR Econometrics. Springer Berlin Heidelberg.
+                                                             pages 97–106.
+Andrews, B., Ramsey, J., and Cooper, G. F. (2019).          Heckerman, D., Geiger, D., and Chickering, D. M.
+ Learning high-dimensional directed acyclic graphs           (1995). Learning Bayesian networks: The combi-
+ with mixed data-types. In The 2019 ACM SIGKDD                nation of knowledge and statistical data. Machine
+ Workshop on Causal Discovery, pages 4–21.                   Learning, 20:197–243.
+Aragam, B., Amini, A. A., and Zhou, Q. (2015). Learn-       Huang, B., Zhang, K., and Schölkopf, B. (2015). Identi-
+  ing directed acyclic graphs with penalized neighbour-      fication of time-dependent causal model: A Gaussian
+  hood regression. arXiv preprint arXiv:1511.08963.          process treatment. In Twenty-Fourth International
+Blondel, V. D., Guillaume, J.-L., Lambiotte, R., and         Joint Conference on Artificial Intelligence.
+  Lefebvre, E. (2008). Fast unfolding of communities        Hyttinen, A., Plis, S., Järvisalo, M., Eberhardt, F., and
+  in large networks. Jounal of Statistical Mechanics:         Danks, D. (2016). Causal discovery from subsampled
+ Theory and Experiment, 2008(10):10008.                       time series data by constraint optimization.
+Bouckaert, R. R. (1993). Probabilistic network con-         Hyvärinen, A., Zhang, K., Shimizu, S., and Hoyer,
+  struction using the minimum description length prin-       P. O. (2010). Estimation of a structural vector au-
+  ciple. In Symbolic and Quantitative Approaches to          toregression model using non-Gaussianity. Journal
+ Reasoning and Uncertainty: European Conference              of Machine Learning Research, 11(May):1709–1731.
+ ECSQARU ’93, volume 747 of Lecture Notes in Com-           Kagan, A. M., Rao, C. R., and Linnik, Y. V. (1973).
+  puter Science, pages 41–48. Springer-Verlag.               Characterization problems in mathematical statis-
+Chen, P. and Chihying, H. (2007). Learning causal            tics.
+ relations in multivariate time series data. Economics:     Kilian, L. (2011). Structural vector autoregressions.
+ The Open-Access, Open-Assessment E-Journal, 1:11.           CEPR Discussion Paper No. DP8515.
+Chickering, D. M. (2002). Optimal structure identi-         Koller, D. and Friedman, N. (2009). Probabilistic graph-
+ fication with greedy search. Journal of Machine             ical models: Principles and techniques. MIT Press.
+ Learning Research, 3(Nov):507–554.                         Lanne, M., Meitz, M., and Saikkonen, P. (2017). Iden-
+Colombo, D., Maathuis, M. H., Kalisch, M., and                tification and estimation of non-Gaussian structural
+  Richardson, T. S. (2012). Learning high-dimensional         vector autoregressions. Journal of Econometrics,
+  directed acyclic graphs with latent and selection vari-     196(2):288–304.
+  ables. The Annals of Statistics, 40(1):294–321.           Li, M., Badger, J. H., Chen, X., Kwong, S., Kear-
+Cook, J. W., Danks, D., and Plis, S. M. (2017). Learn-        ney, P., and Zhang, H. (2001). An information-
+  ing dynamic structure from undersampled data. In            based sequence distance and its application to whole
+ Proceedings of the UAI Causality Workshop.                   mitochondrial genome phylogeny. Bioinformatics,
+                                                              17(2):149–154.
+Dean, T. and Kanazawa, K. (1989). A model for reason-
+  ing about persistence and causation. Computational        Linzner, D., Schmidt, M., and Koeppl, H. (2019). Scal-
+ Intelligence, 5(2):142–150.                                  able structure learning of continuous-time bayesian
+                                                              networks from incomplete data. arXiv preprint
+Demiralp, S. and Hoover, K. D. (2003). Searching              arXiv:1909.04570.
+ for the causal structure of a vector autoregression.
+ Oxford Bulletin of Economics and Statistics, 65:745–       Lu, J., Dumitrascu, B., McDowell, I. C., Jo, B., Barrera,
+ 767.                                                         A., Hong, L. K., Leichter, S. M., Reddy, T. E., and
+                                                              Engelhardt, B. E. (2019). Causal network inference
+Fama, E. F. (1970). Efficient capital markets: A re-          from gene transcriptional time series response to
+  view of theory and empirical work. The Journal of           glucocorticoids. bioRxiv, 587170.
+  Finance, 25(2):383–417.
+                                                            Lütkepohl, H. (2005). New introduction to multiple
+Gong, M., Zhang, K., Schoelkopf, B., Tao, D., and             time series analysis. Springer Science & Business
+ Geiger, P. (2015). Discovering temporal causal rela-         Media.
+ tions from subsampled data. In International Con-          Malinsky, D. and Spirtes, P. (2018). Causal structure
+ ference on Machine Learning, pages 1898–1906.               learning from multivariate time series in settings
+Grzegorczyk, M. and Husmeier, D. (2011). Non-                with unmeasured confounding. In Proceedings of
+ homogeneous dynamic Bayesian networks for contin-           2018 ACM SIGKDD Workshop on Causal Discovery,
+ uous data. Machine Learning, 83(3):355–419.                 pages 23–47.
+                         DYNOTEARS: Structure Learning from Time-Series Data
+
+
+Malinsky, D. and Spirtes, P. (2019). Learning the           Spirtes, P. (2010). Introduction to causal infer-
+ structure of a nonstationary vector autoregression.          ence.   Journal of Machine Learning Research,
+ In The 22nd International Conference on Artificial           11(May):1643–1662.
+ Intelligence and Statistics, pages 2986–2994.              Spirtes, P. and Glymour, C. (1991). An algorithm for
+Marbach, D., Scha↵ter, T., Mattiussi, C., and Flore-          fast recovery of sparse causal graphs. Social Science
+ ano, D. (2009). Generating realistic in silico gene          Computer Review, 9(1):62–72.
+ networks for performance assessment of reverse engi-       Spirtes, P., Glymour, C. N., Scheines, R., Heckerman,
+ neering methods. Journal of Computational Biology,           D., Meek, C., Cooper, G., and Richardson, T. (2000).
+ 16(2):229–239.                                               Causation, prediction, and search. MIT Press.
+Marcinkiewicz, J. (1939). Sur une propriété de la loi     Swanson, N. R. and Granger, C. W. (1997). Im-
+ de Gauss. Mathematische Zeitschrift, 44(1):612–618.          pulse response functions based on a causal approach
+Meng, Z., Han, S., Liu, P., and Tong, Y. (2019). Im-          to residual orthogonalization in vector autoregres-
+ proving speech related facial action unit recognition        sions. Journal of the American Statistical Associa-
+ by audiovisual information fusion. IEEE Transac-             tion, 92(437):357–367.
+ tions on Cybernetics, 49(9):3293–3306.                     Tank, A., Fox, E. B., and Shojaie, A. (2019). Identi-
+Moneta, A., Chlaß, N., Entner, D., and Hoyer, P.              fiability and estimation of structural vector autore-
+ (2011). Causal search in structural vector autoregres-       gressive models for subsampled and mixed-frequency
+ sive models. In NIPS Mini-Symposium on Causality             time series. Biometrika, 106(2):433–452.
+ in Time Series, pages 95–114.                              van de Geer, S., Bühlmann, P., et al. (2013). `0 -
+Murphy, K. P. (2002). Dynamic Bayesian Networks:              penalized maximum likelihood for sparse directed
+ Representation, Inference and Learning. PhD thesis,          acyclic graphs. The Annals of Statistics, 41(2):536–
+ University of California, Berkeley. AAI3082340.              567.
+Nefian, A. V., Liang, L., Pi, X., Liu, X., and Murphy, K.   Van Gerven, M. A. J., Taal, B. G., and Lucas, P. J. F.
+ (2002). Dynamic Bayesian networks for audio-visual          (2008). Dynamic Bayesian networks as prognostic
+  speech recognition. EURASIP Journal on Advances             models for clinical patient management. Journal of
+ in Signal Processing, 2002(11):783042.                       Biomedical Informatics, 41(4):515–529.
+Peters, J. and Bühlmann, P. (2013). Identifiability        Zandonà, A., Vasta, R., Chiò, A., and Di Camillo, B.
+  of Gaussian structural equation models with equal           (2019). A dynamic bayesian network model for the
+  error variances. Biometrika, 101(1):219–228.                simulation of amyotrophic lateral sclerosis progres-
+                                                              sion. BMC Bioinformatics, 20(4):118.
+Plis, S., Danks, D., Freeman, C., and Calhoun, V.
+  (2015). Rate-agnostic (causal) structure learning. In     Zheng, X., Aragam, B., Ravikumar, P. K., and Xing,
+  Advances in neural information processing systems,          E. P. (2018). DAGs with NO TEARS: Continuous
+  pages 3303–3311.                                            optimization for structure learning. In Advances in
+                                                              Neural Information Processing Systems 31, pages
+Rajapakse, J. C. and Zhou, J. (2007). Learning e↵ective       9472–9483.
+  brain connectivity with dynamic Bayesian networks.
+ Neuroimage, 37(3):749–760.                                 Zheng, X., Dan, C., Aragam, B., Ravikumar, P., and
+                                                              Xing, E. P. (2019). Learning sparse nonparametric
+Reale, M. and Wilson, G. T. (2001). Identification of         dags. arXiv preprint arXiv:1909.13189.
+  vector AR models with recursive structural errors
+  using conditional independence graphs. Statistical        Zhu, C., Byrd, R. H., Lu, P., and Nocedal, J. (1997).
+ Methods and Applications, 10(1-3):49–65.                     Algorithm 778: L-BFGS-B: Fortran subroutines for
+                                                              large-scale bound-constrained optimization. ACM
+Reale, M. and Wilson, G. T. (2002). The sampling prop-       Transactions on Mathematical Software (TOMS),
+  erties of conditional independence graphs for struc-        23(4):550–560.
+  tural vector autoregressions. Biometrika, 89(2):457–
+  461.
+Robinson, R. W. (1977). Counting unlabeled acyclic
+ digraphs. In Combinatorial Mathematics V, pages
+ 28–43. Springer.
+Song, L., Kolar, M., and Xing, E. P. (2009). Time-
+  varying dynamic Bayesian networks. In Advances
+  in Neural Information Processing Systems 22, pages
+  1732–1740.
+

@@ -1,0 +1,238 @@
+                                                    Causal-TS: A Python Library for Causal Discovery
+                                                   in High-Dimensional and Nonstationary Time Series
+                                                           Mohammad Fesanghary mfesanghary1@bloomberg.net
+                                                                 Bloomberg LP, New York, NY, USA
+
+
+                                                                                          Abstract
+                                                  We describe Causal-TS, an open-source Python library for causal discovery in high-
+                                              dimensional and nonstationary multivariate time series. Causal-TS provides four specialized
+                                              algorithms—CDNOTS, CDNOTS+, Cedar, and Grace—along with wrappers for GES,
+                                              Granger, LASSO-VAR, and LGES, all sharing a unified conditional independence (CI) test layer
+                                              with GPU acceleration via PyTorch. A regime discovery pipeline detects structural breaks via
+                                              pluggable changepoint detectors and runs discovery per regime with regime-specific parameters.
+                                              A command-line interface, synthetic data generators, and optional DoWhy integration provide an
+arXiv:2607.24673v1 [cs.LG] 27 Jul 2026
+
+
+
+
+                                              end-to-end pipeline from raw time series to causal effect estimates. The library is pip-installable,
+                                              tested on Python 3.10–3.12, and available at https://github.com/bloomberg/causal-ts.
+
+                                         Keywords: Causal Discovery, Time Series, Nonstationarity, GPU Acceleration, Python
+
+                                         1   Introduction
+                                         Identifying causal relationships from observational time series is a fundamental problem across
+                                         many scientific disciplines, including climate science, neuroscience, finance, epidemiology, and eco-
+                                         nomics [Peters et al., 2017]. Time series offer a structural advantage: since causes must precede their
+                                         effects, temporal order alone rules out many candidate causal directions. A further underexploited
+                                         signal is nonstationarity—changes in causal mechanisms over time—which recent work shows can
+                                         resolve causal direction that is otherwise unidentifiable [Huang et al., 2020, Sadeghi et al., 2025].
+                                             Existing tools such as Causal-learn [Zheng et al., 2024], Tigramite [Runge et al., 2019], and
+                                         DoWhy [Sharma and Kiciman, 2020] address related problems but do not combine nonstationarity-
+                                         aware discovery, GPU-accelerated CI testing, and an integrated discovery-to-effect pipeline.
+
+                                         2   Interface and Usage
+                                         A typical Causal-TS workflow has three steps (Figure 1): load data, run discovery, and analyze
+                                         results.
+
+                                         Python API. Discovery requires two to three lines:
+                                         from causalts.cdnots import run_cdnots, run_cdnots_plus
+                                         from causalts.cedar import run_cedar
+                                         from causalts.grace import run_cdnots_gated
+
+                                         res = run_cdnots(df, ci_test, num_lags=3) # constraint (PC)
+                                         res = run_cdnots_plus(df, ci_test, num_lags=3) # constraint (PCMCI+)
+                                         res = run_cedar(df, ci_test, max_lag=3) # pairwise
+                                         res = run_cdnots_gated(df, max_lag=3) # neural L0
+
+                                         Each result object natively supports DoWhy effect estimation via .estimate_effect(), .fit_scm(),
+                                         and .counterfactual().
+
+                                                                                               1
+                                                  GPU-supported CI Tests
+                                             ParCorr • KCI • SplitKCI • DFCIT • LinSig
+                                                     RCOT • CMIknn • GCMI
+
+                               Time series
+                                                            CDNOTS                   Causal graph
+                                                           CDNOTS+                  + visualization
+
+                                                              Cedar                 Effect estimation
+                                                                                       (DoWhy /
+                                                             Grace                     Tigramite)
+
+
+                                              + GES, Granger, LASSO-VAR, LGES
+                                 causal-ts discover data.csv --algorithm grace --max-lag 3
+
+
+
+Figure 1: Causal-TS architecture. All algorithms share a unified CI test layer. The causal-ts
+CLI wraps the full pipeline in a single command.
+
+                       Table 1: Causal discovery algorithms in Causal-TS.
+         Algorithm                                                Type                                  Best for
+         CDNOTS [Sadeghi et al., 2025]                            Constraint (PC)                       Nonstationarity
+         CDNOTS+ (PCMCI+ var.)                                    Constraint (PCMCI+)                   Hub/scale-free
+         Cedar [Fesanghary, 2026]                                 Pairwise CI                           Autoregressive
+         Grace [Fesanghary and Havaldar, 2026]                    Neural L0 gates                       High-dim, d ≤ 100
+
+
+Regime-aware discovery. When causal lag structures vary across operating conditions (e.g.,
+flood vs. dry season), the regime module segments the series and runs discovery per regime:
+from causalts.regime import run_regime_discovery
+from causalts.regime import PeltRegimeDetector
+result = run_regime_discovery(df, cedar_fn,
+            detector=PeltRegimeDetector())
+
+Domain knowledge is supported via AncestralKnowledge, which accepts both direct edge constraints
+(enforced during skeleton discovery) and path-level ancestral constraints (enforced during orientation).
+
+Command-line interface. The causal-ts CLI requires no Python expertise:
+causal-ts discover data.csv --algorithm grace --max-lag 3
+
+
+
+3     Package Design
+3.1    Algorithms
+Causal-TS provides implementations of four recently proposed algorithms (Table 1), plus wrappers
+for established baselines (GES, Granger causality, LASSO-VAR, LGES) under the same API.
+    CDNOTS extends PC with temporal constraints and a potentially multidimensional variable
+C—composed of components such as time index, seasonal cycles, or regime indicators—that captures
+nonstationarity. CDNOTS+ replaces its skeleton phase with a PCMCI+-style procedure that
+restricts conditioning to discovered parents, reducing over-conditioning on hub-structured and scale-
+free graphs. Cedar uses partial distance correlation lag selection (default), AR(p)-aware CI testing,
+and stable MCI pruning to avoid exponential conditioning sets; a deterministic C-node handles
+nonstationarity. Grace refines a CDNOTS skeleton with Hard Concrete gates [Louizos et al., 2018]
+and L0 regularization.
+
+Regime discovery. The causalts.regime module segments series whose causal lag structure
+shifts across regimes—via pluggable detectors (PELT [Killick et al., 2012], HMM, CUSUM, KS,
+
+                                                                 2
+        Table 2: GPU speedup on synthetic data (T = 1000, d = 20). Hardware: NVIDIA L4.
+                                   CI test       CPU (s)          GPU (s)     Speedup
+                                   KCI               1.71             0.60        2.9×
+                                   SplitKCI          0.79             0.40        2.0×
+
+
+                         Table 3: Feature comparison with related Python libraries.
+         Feature                                  Causal-TS            Causal-learn      Tigramite   DoWhy
+         Temporal graph discovery                        ✓                   –              ✓         –
+         Nonstationarity-aware discovery                 ✓                   ◦a             –         –
+         GPU-accelerated CI tests                        ✓                   –              –         –
+         Nonlinear CI tests                              ✓                   ✓              ✓         –
+         Effect estimation                               ✓                   –              ✓         ✓
+         Regime-aware discovery                          ✓                   –              ✓         –
+         CLI workflow                                    ✓                   –              –         –
+         a i.i.d. data only (e.g., CD-NOD); no time-series support.
+
+
+
+
+Levene, ensemble, quantile, seasonal)—then runs discovery per regime and aggregates the graphs
+(union/majority/weighted/intersection).
+
+3.2     Conditional Independence Tests and GPU Acceleration
+All algorithms share a modular CI test layer with eight tests: ParCorr, KCI, SplitKCI [Pogodin et al.,
+2024], DFCIT [Cai et al., 2022], LinSig (our linear-kernel variant of the signature kernel of Manten
+et al., 2024), RCOT, CMIknn [Runge, 2018], and GCMI. All eight tests include GPU-accelerated
+implementations via PyTorch. Tests can also be used standalone for general CI testing tasks.
+    Table 2 reports wall-clock times for the most expensive tests on synthetic data (T = 1000, d = 20,
+averaged over 5 runs).
+
+3.3     Software Quality
+Causal-TS targets Python 3.10+ and is installable via pip install causalts (with optional
+extras [dowhy] and [dev]).
+
+      • Testing & CI: 22 test modules (pytest) across Python 3.10–3.12; six GitHub Actions workflows
+        for testing, linting (Black/isort/flake8), CodeQL security analysis, and OpenSSF Scorecard.
+
+      • Documentation: Sphinx with API reference, 25 example notebooks, CI test selection guide,
+        and full CLI reference.
+
+      • Dependencies & License: NumPy, Pandas, PyTorch, SciPy, NetworkX, causal-learn (MIT),
+        statsmodels. GPL-3.0-or-later; paper CC-BY 4.0.
+
+4     Comparison with Related Software
+Table 3 positions Causal-TS relative to existing libraries.
+    Causal-TS fills a complementary niche: nonstationary temporal dynamics at scale, with built-in
+bridges to DoWhy and Tigramite for the full discovery-to-inference pipeline.
+
+
+
+
+                                                              3
+5   Conclusion
+Causal-TS provides a unified Python library for causal discovery in nonstationary and high-
+dimensional time series, combining temporally aware algorithms, regime-conditional discovery,
+GPU-accelerated CI tests, and an end-to-end pipeline from CLI to effect estimation. The library
+assumes sufficiently sampled multivariate time series and does not by itself resolve hidden confounding
+or selection bias; these assumptions are documented per algorithm. The submitted version is v0.25.0,
+available at https://github.com/bloomberg/causal-ts with Sphinx documentation and tutorial
+notebooks.
+
+Acknowledgments
+We thank the open-source contributors to Tigramite and causal-learn whose implementations informed
+parts of Causal-TS’s design (see NOTICE for attribution).
+
+References
+Zhanrui Cai, Runze Li, and Yaowu Zhang. A distribution-free conditional independence test with
+  applications to causal discovery. Journal of Machine Learning Research, 23(85):1–41, 2022.
+
+Mohammad Fesanghary. CEDAR: Causal edge discovery for autoregressive processes. arXiv preprint,
+ 2026. arXiv ID to be inserted upon posting.
+
+Mohammad Fesanghary and Abhinav Havaldar. GRACE: Gated refinement for accurate causal edge
+ discovery in high-dimensional time series. arXiv preprint arXiv:2606.23880, 2026.
+
+Biwei Huang, Kun Zhang, Jiji Zhang, Joseph Ramsey, Ruben Sanchez-Romero, Clark Glymour,
+  and Bernhard Schölkopf. Causal discovery from heterogeneous/nonstationary data. Journal of
+  Machine Learning Research, 21(89):1–53, 2020.
+
+Rebecca Killick, Paul Fearnhead, and Idris A. Eckley. Optimal detection of changepoints with a
+  linear computational cost. Journal of the American Statistical Association, 107(500):1590–1598,
+ 2012.
+
+Christos Louizos, Max Welling, and Diederik P Kingma. Learning sparse neural networks through
+ L0 regularization. In International Conference on Learning Representations, 2018.
+
+Georg Manten, Cecilia Casolo, Emilio Ferrucci, Søren Wengel Mogensen, Cristopher Salvi, and
+ Nico Kilbertus. Signature kernel conditional independence tests in causal discovery for stochastic
+ processes. In Advances in Neural Information Processing Systems, 2024.
+
+Jonas Peters, Dominik Janzing, and Bernhard Schölkopf. Elements of Causal Inference: Foundations
+  and Learning Algorithms. MIT Press, 2017.
+
+Roman Pogodin, Antonin Schrab, Yazhe Li, Danica J. Sutherland, and Arthur Gretton. Practical
+  kernel tests of conditional independence, 2024. URL https://arxiv.org/abs/2402.13196.
+
+Jakob Runge. Conditional independence testing based on a nearest-neighbor estimator of conditional
+  mutual information. In International Conference on Artificial Intelligence and Statistics, pages
+  938–947. PMLR, 2018.
+
+Jakob Runge, Peer Nowack, Marlene Kretschmer, Seth Flaxman, and Dino Sejdinovic. Detecting
+  and quantifying causal associations in large nonlinear time series datasets. Science Advances, 5
+  (11):eaau4996, 2019.
+
+
+
+                                                  4
+Agathe Sadeghi, Achintya Gopal, and Mohammad Fesanghary. Causal discovery from nonstationary
+  time series. International Journal of Data Science and Analytics, 19:33–59, 2025. doi: 10.1007/
+  s41060-024-00679-7.
+
+Amit Sharma and Emre Kiciman. DoWhy: An end-to-end library for causal inference. arXiv preprint
+ arXiv:2011.04216, 2020.
+
+Yujia Zheng, Biwei Huang, Wei Chen, Joseph Ramsey, Mingming Gong, Ruichu Cai, Shohei Shimizu,
+  Peter Spirtes, and Kun Zhang. Causal-learn: Causal discovery in Python. Journal of Machine
+  Learning Research, 25(60):1–8, 2024.
+
+
+
+
+                                               5
+

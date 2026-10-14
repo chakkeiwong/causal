@@ -1,0 +1,1966 @@
+             Causal Transformer for Estimating Counterfactual Outcomes
+
+
+                             Valentyn Melnychuk 1 Dennis Frauen 1 Stefan Feuerriegel 1
+
+
+                        Abstract                               Traditionally, the gold standard for estimating the effects of
+                                                               treatments are randomized controlled trials (RCTs). How-
+     Estimating counterfactual outcomes over time              ever, RCTs are costly, often impractical, or even unethical.
+     from observational data is relevant for many appli-       To address this, there is a growing interest in estimating
+     cations (e.g., personalized medicine). Yet, state-        health outcomes over time from observational data, such as,
+     of-the-art methods build upon simple long short-          e. g., electronic health records.
+     term memory (LSTM) networks, thus rendering
+     inferences for complex, long-range dependencies           Numerous methods have been proposed for estimating
+     challenging. In this paper, we develop a novel            (counterfactual) outcomes from observational data in the
+     Causal Transformer for estimating counterfactual          static setting (van der Laan & Rubin, 2006; Chipman et al.,
+     outcomes over time. Our model is specifically             2010; Johansson et al., 2016; Curth & van der Schaar, 2021;
+     designed to capture complex, long-range depen-            Kuzmanovic et al., 2022). Different from that, we focus on
+     dencies among time-varying confounders. For               longitudinal settings, that is, over time. In fact, longitudi-
+     this, we combine three transformer subnetworks            nal data are nowadays paramount in medical practice. For
+     with separate inputs for time-varying covariates,         example, almost all electronic health records (EHRs) nowa-
+     previous treatments, and previous outcomes into           days store sequences of medical events over time (Allam
+     a joint network with in-between cross-attentions.         et al., 2021). However, estimating counterfactual outcomes
+     We further develop a custom, end-to-end training          over time is challenging. One reason is that counterfactual
+     procedure for our Causal Transformer. Specifi-            outcomes are generally never observed. On top of that, di-
+     cally, we propose a novel counterfactual domain           rectly estimating counterfactual outcomes with traditional
+     confusion loss to address confounding bias: it            machine learning methods in the presence of (time-varying)
+     aims to learn adversarial balanced representations,       confounding has a larger generalization error of estimation
+     so that they are predictive of the next outcome           (Alaa & van der Schaar, 2018a), or is even biased (in case
+     but non-predictive of the current treatment assign-       of multiple-step-ahead prediction) (Robins & Hernán, 2009;
+     ment. We evaluate our Causal Transformer based            Frauen et al., 2022). Instead, tailored methods are needed.
+     on synthetic and real-world datasets, where it            To estimate counterfactual outcomes over time, state-of-
+     achieves superior performance over current base-          the-art methods make nowadays use of machine learning.
+     lines. To the best of our knowledge, this is the          Prominent examples are: recurrent marginal structural net-
+     first work proposing transformer-based architec-          works (RMSNs) (Lim et al., 2018), counterfactual recurrent
+     ture for estimating counterfactual outcomes from          network (CRN) (Bica et al., 2020), and G-Net (Li et al.,
+     longitudinal data.                                        2021). However, these methods build upon simple long
+                                                               short-term memory (LSTM) networks, because of which
+                                                               their ability to model complex, long-range dependencies
+1. Introduction                                                in observational data is limited. Long-range dependencies
+                                                               are omnipresent in medical data; e. g., long-term treatment
+Decision-making in medicine requires precise knowledge
+                                                               effects have been observed for obesity (Latner et al., 2000),
+of individualized health outcomes over time after applying
+                                                               multiple sclerosis (Sormani & Bruzzi, 2015), or diabetes
+different treatments (Huang & Ning, 2012; Hill & Su, 2013).
+                                                               (Jacobson et al., 2013). To address this, we develop a Causal
+This then informs the choice of treatment plans and thus
+                                                               Transformer (CT) for estimating counterfactual outcomes
+ensures effective care personalized to individual patients.
+                                                               over time. It is carefully designed to capture complex, long-
+   1
+     LMU Munich, Munich, Germany. Correspondence to: Valen-    range dependencies in medical data that are nowadays com-
+tyn Melnychuk <melnychuk@lmu.de>.                              mon in EHRs.
+Proceedings of the 39 th International Conference on Machine   In this paper, we aim at estimating counterfactual outcomes
+Learning, Baltimore, Maryland, USA, PMLR 162, 2022. Copy-      over time, that is, for one- and multi-step-ahead predictions.
+right 2022 by the author(s).
+                                                       Causal Transformer for Estimating Counterfactual Outcomes
+
+
+
+                                                                                                                                                    Feed-forward                     Feed-forward                      Feed-forward
+
+
+
+
+                                                                                                                                               Masked                           Masked                           Masked
+                                                                                                                                            cross-attention                  cross-attention                  cross-attention
+
+                                                                                                                                                             Masked                            Masked                           Masked
+                                                                                                                                                          cross-attention                   cross-attention                  cross-attention
+
+
+
+                                                                                                                                                      Masked                           Masked                            Masked
+                                                                                                                                                    self-attention                   self-attention                    self-attention
+
+
+
+
+          Linear   Linear   Linear    Linear           Linear   Linear   Linear   Linear   Linear               Linear   Linear
+                                                                                                                                          Legend:
+
+                                                                                                                                                      Inputs / Outputs      Network layer          Element-wise
+                                     Patient history                                       Projection horizon                                                                                  averaging / summation
+
+
+
+
+Figure 1. Overview of our CT. We distinguish two timelines: time steps 1, . . . , t refer to observational data (patient trajectories) and
+thus input; time steps t + 1, . . . , t + τ is the projection horizon and thus output. Three separate transformers are used in parallel for
+encoding observational data as input: treatments At / treatment interventions at (blue), outcomes Yt / outcome predictions Ŷt (green),
+and time-varying covariates Xt (red). These are fused via B stacked multi-input blocks. Additional static covariates V (gray) are fed into
+all multi-input blocks. Each multi-input block further makes use of cross-attentions. Afterward, the three respective representation for
+treatments, outcomes, and time-varying covariates are averaged, giving the (balanced) representation Φt (purple). On top of that are two
+additional networks GY (outcome prediction network) and GA (treatment classifier network) for learning balanced representations in our
+CDC loss. Layer normalizations and residual connections are omitted for clarity.
+
+For this, we develop a novel Causal Transformer (CT). It                                                                    on three subnetworks and our novel CDC loss.
+combines two innovations: (1) a tailored transformer-based
+                                                                                                                            Overall, our main contributions are as follows:1
+architecture to capture complex, long-range dependencies
+in the observational data; and (2) a novel counterfactual                                                                         1. We propose a new end-to-end model for estimating
+domain confusion (CDC) loss for end-to-end training.                                                                                 counterfactual outcomes over time: the Causal Trans-
+                                                                                                                                     former (CT). To the best of our knowledge, this is the
+For (1), we combine three separate transformer subnetworks
+                                                                                                                                     first transformer tailored to causal inference.
+for processing time-varying covariates, past treatments, and
+                                                                                                                                  2. We develop a custom training procedure for our CT
+past outcomes, respectively, into a joint network with in-
+                                                                                                                                     based on a novel counterfactual domain confusion
+between cross-attentions. Here, each transformer subnet-
+                                                                                                                                     (CDC) loss.
+work is further extended by (i) masked multi-head self-
+                                                                                                                                  3. We use synthetic and real-world data to demonstrate
+attention, (ii) shared trainable relative positional encoding,
+                                                                                                                                     that our CT achieves state-of-the-art performance. We
+and (iii) attentional dropout.
+                                                                                                                                     further achieve this both for one- and multi-step-ahead
+For (2), we develop a custom end-to-end training procedure                                                                           predictions.
+based on our CDC loss. This allows us to solve an adversar-
+ial balancing objective in which we balance representations                                                                 2. Related Work
+to be (a) predictive of outcomes and (b) non-predictive of
+the current treatment assignment. The latter is crucial to ad-                                                              Estimating counterfactual outcomes in static setting.
+dress confounding bias and thus reduces the generalization                                                                  Extensive literature has focused on estimating counterfac-
+error of counterfactual prediction. Importantly, this objec-                                                                tual outcomes (or, analogously, individual treatment ef-
+tive is different from previously proposed gradient reversal                                                                fects [ITE]) in static settings (Johansson et al., 2016; Alaa &
+balancing (Ganin & Lempitsky, 2015; Bica et al., 2020),                                                                     van der Schaar, 2018b; Wager & Athey, 2018; Yoon et al.,
+as it aims to minimize a reversed KL-divergence to build                                                                    2018; Curth & van der Schaar, 2021). Several works have
+balanced representations.                                                                                                   adapted deep learning for that purpose (Johansson et al.,
+                                                                                                                            2016; Yoon et al., 2018). In the static setting, the input is
+We demonstrate the effectiveness of our CT over state-of-                                                                   given by cross-sectional data, and, as such, there are no
+the-art methods using an extensive series of experiments                                                                    time-varying covariates, treatments, and outcomes. How-
+with synthetic and real-world data. Our ablation study (e.g.,                                                               ever, we are interested in counterfactual outcome estimation
+against a single-subnetwork architecture) shows that neither                                                                over time.
+(1) nor (2) alone are sufficient for learning. Rather, it is                                                                 1
+crucial to combine our transformer-based architecture based                                                                    Code is available online: https://github.com/
+                                                                                                                           Valentyn1997/CausalTransformer
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+Estimating counterfactual outcomes over time. Meth-               processing (e.g., BERT (Devlin et al., 2019), RoBERTa (Liu
+ods for estimating time-varying outcomes were originally          et al., 2019), and GPT-3 (Brown et al., 2020)). Other exam-
+introduced in epidemiology and make widespread use of             ples include image understanding tasks (Dosovitskiy et al.,
+simple linear models. Here, the aim is to estimate average        2020), multi-modal tasks (image/video captioning) (Liu
+(non-individual) effects of time-varying treatments. Ex-          et al., 2021), math problem solving (Schlag et al., 2019),
+amples of such methods include G-computation, marginal            and time-series forecasting (Tang & Matteson, 2021; Zhou
+structural models (MSMs), and structural nested models            et al., 2021). However, to the best of our knowledge, no
+(Robins, 1986; Robins et al., 2000; Hernán et al., 2001;         paper has developed transformers specifically for causal
+Robins & Hernán, 2009). To address the limited expres-           inference. This presents our novelty.
+siveness of linear models, several Bayesian non-parametric
+methods were proposed (Xu et al., 2016; Schulam & Saria,          3. Problem Formulation
+2017; Soleimani et al., 2017). However, these make strong
+assumptions regarding the data generation mechanism, and          We build upon the standard setting for estimating counterfac-
+are not designed for multi-dimensional outcomes as well           tual outcomes over time as in (Robins & Hernán, 2009; Lim
+as static covariates. Other methods build upon recurrent          et al., 2018; Bica et al., 2020; Li et al., 2021). Let i refer to
+neural networks (Qian et al., 2021; Berrevoets et al., 2021)      some patient and with health trajectories that span time steps
+but these are restricted to single-time treatments or make        t = 1, . . . , T (i) . For each time step t and each patient i, we
+stronger assumptions for identifiability, which do not hold                                                              (i)
+                                                                  have the following: dx time-varying covariates Xt ∈ Rdx ;
+for our setting (see Appendix B).                                                                   (i)
+                                                                  da categorical treatments At ∈ {a1 , . . . , ada }; and dy out-
+                                                                              (i)
+There are several methods that build upon the potential out-      comes Yt ∈ Rdy . For example, data from critical care
+comes framework (Rubin, 1978; Robins & Hernán, 2009),            units of COVID-19 patients would involve blood pressure
+and, thus, ensure identifiability by making the same assump-      and heart rate as time-varying covariates, ventilation as treat-
+tions as we do (see Sec. 3). Here, state-of-the-art methods       ment, and respiratory frequency as outcome. Treatments
+are recurrent marginal structural networks (RMSNs) (Lim           are modeled as categorical variables as this relates to the
+et al., 2018), counterfactual recurrent network (CRN) (Bica       question of whether to apply a treatment or not, and is thus
+et al., 2020), and G-Net (Li et al., 2021). These methods         consistent with prior works (Lim et al., 2018; Bica et al.,
+address bias due to time-varying confounding in different         2020; Li et al., 2021). Further, we record static covariates
+ways. RMSNs combine two propensity networks and use the           describing a patient V(i) (e. g., gender, age, or other risk
+predicted inverse probability of treatment weighting (IPTW)       factors). For notation, we omit patient index (i) unless
+scores for training the prediction networks. CRN uses an          needed.
+adversarial objective to produce a sequence of balanced rep-
+                                                                  For learning, we have access to i.i.d. observational data D =
+resentations, which are simultaneously predictive of the out-      (i) (i) (i) T (i)               N
+come but non-predictive of the current treatment assignment.       {xt , at , yt }t=1 ∪ v(i) i=1 . In clinical settings, such
+G-Net aims to predict both outcomes and time-varying co-          data are nowadays widely available in form of EHRs (Allam
+variates, and then performs G-computation for multiple-           et al., 2021). Here, we summarize the patient trajectory
+step-ahead prediction. All of three aforementioned methods        by H̄t = {X̄t , Āt−1 , Ȳt , V}, where X̄t = (X1 , . . . , Xt ),
+are built on top of one/two-layer LSTM encoder-decoder            Ȳt = (Y1 , . . . , Yt ), and Āt−1 = (A1 , . . . , At−1 ).
+architectures. Because of that, they are limited in their abil-   We build upon the potential outcomes framework (Ney-
+ity to capture long-range, complex dependencies between           man, 1923; Rubin, 1978) and its extension to time-varying
+time-varying confounders (i. e., time-varying covariates, pre-    treatments and outcomes (Robins & Hernán, 2009). Let
+vious treatments, and previous outcomes). However, such           τ ≥ 1 denote projection horizon for a τ -step-ahead pre-
+complex data are nowadays widespread in medical practice          diction. Further, let āt:t+τ −1 = (at , . . . , at+τ −1 ) denote a
+(e. g., EHRs) (Allam et al., 2021), which may impede the          given (non-random) treatment intervention. Then, we are
+performance of the previous methods for real-world medical        interested in the potential outcomes, Yt+τ [āt:t+τ −1 ], under
+data. As a remedy, we develop a deep transformer network          the treatment intervention. However, the potential outcomes
+for counterfactual outcomes estimation over time.                 for a specific treatment intervention are typically never ob-
+                                                                  served for a patient but must be estimated. Formally, the
+                                                                  potential counterfactual outcomes over time are identifiable
+Transformers. Transformers refer to deep neural net-              from factual observational data D under three standard as-
+works for sequential data that typically adopt a custom self-     sumptions: (1) consistency, (2) sequential ignorability, and
+attention mechanism (Vaswani et al., 2017). This makes            (3) sequential overlap (see Appendix A for details).
+transformers both flexible and powerful in modeling long-
+range associative dependencies for sequence-to-sequence           Our task is thus to estimate future counterfactual outcomes
+tasks. Prominent examples come from natural language              Yt+τ , after applying a treatment intervention āt:t+τ −1 for
+                                     Causal Transformer for Estimating Counterfactual Outcomes
+
+a given patient history H̄t . Formally, we aim to estimate:        denote sequences of hidden states after block b by three
+                                                                                                    >             >
+                                                                  tensors Ab = Ābt−1 ∪ ābt:t+τ −1 , Xb = X̄bt , and
+                E Yt+τ [āt:t+τ −1 ] | H̄t .             (1)                   ¯b          >
+                                                                   Yb = Ȳtb ∪ Ŷt+1:t+τ −1 , .
+To do so, we learn a function g(τ, āt:t+τ −1 , H̄t ). Simply      Following (Dong et al., 2021; Lu et al., 2021), each trans-
+estimating g(·) with traditional machine learning is biased        former block combines a (i) multi-head self-/cross-attention,
+(Robins & Hernán, 2009). For example, one reason is that          (ii) feed-forward layer, and (iii) layer normalization. Details
+treatment interventions not only influence outcomes but            are in Appendix C.
+also future covariates. To address this, we develop a tailored
+model for estimation.                                              (i) Multi-head self-/cross-attention uses a scaled dot-
+                                                                   product attention with several parallel attention heads. Each
+                                                                   attention head requires a 3-tuple of keys, queries, and values,
+4. Causal Transformer                                              i. e., K, Q, V ∈ RT ×dqkv , respectively. These are obtained
+                                                                                                                            >
+Input. Our Causal Transformer (CT) is a single multi-              from a sequence of hidden states Hb = hb1 , . . . , hbt      ∈
+input architecture, which combines three separate trans-           RT ×dh (Hb is one of Ab , Xb or Yb , depending on the sub-
+former subnetworks. Each subnetwork processes a differ-            network). Formally, we compute
+ent sequence as input: (i) past time-varying covariates X̄t ;                                                        Q(i) K (i)> 
+(ii) past outcomes Ȳt ; and (iii) past treatments before inter-    Attn(i) (Q(i) , K (i) , V (i) ) = softmax          p           V (i) ,
+vention Āt−1 . Since we aim at estimating the counterfactual                                                              dqkv
+outcome after treatment intervention, we further input the fu-                                                                        (3)
+ture treatment assignment that a medical practitioners wants                                            (i)   (i)
+                                                                    Q(i) = Q(i) (Hb ) = Hb WQ + 1bQ > ,                                (4)
+to intervene on. Also, we autoregressively feed predictions
+               ¯                                                                                        (i)
+                                                                    K (i) = K (i) (Hb ) = Hb WK + 1bK > ,
+                                                                                                              (i)
+                                                                                                                                       (5)
+of outcomes Ŷt+1:t+τ −1 , starting at the intervention time
+step (prediction origin). Thus, we concatenate two treatment                                           (i)   (i)
+                                                                    V   (i)
+                                                                              =V   (i)     b
+                                                                                         (H ) = H b
+                                                                                                      WV + 1bV > ,                     (6)
+sequences Āt−1 ∪ āt:t+τ −1 , and two outcome sequences
+        ¯
+Ȳt ∪ Ŷt+1:t+τ −1 for input. Additionally, (iv) the static                    (i)         (i)   (i)
+                                                                   where WQ , WK , WV ∈ Rdh ×dqkv and bQ , bQ , bV ∈
+                                                                                                                         (i)   (i)   (i)
+covariates V are fed into all subnetworks.
+                                                                   Rdqkv are parameters of a single attention head i, where
+                                                                   softmax(·) operates separately on each row, and where 1 ∈
+4.1. Model architecture
+                                                                   Rdqkv is a vector of ones. We set the dimensionality of keys
+Our CT yields a sequence of treatment-invariant (balanced)         and queries to dqkv = dh /nh , where nh is the number of
+representations Φ̄t+τ −1 = (Φ1 , . . . , Φt+τ −1 ). To do so,      heads.
+we stack B identical transformer blocks. The first trans-          The output of a multi-head attention is a concatenation of
+former block receives the three input sequences. The B-th          the different heads, i. e.,
+transformer block outputs a sequence of representations
+Φ̄t+τ −1 . The architecture is shown in Fig. 1.                      MHA(Q, K, V ) = Concat(Attn(1) , . . . , Attn(nh ) ). (7)
+
+Transformer blocks. Let b = 1, . . . , B index the differ-         Here, we simplified the original multi-head attention in
+ent transformer blocks. Each transformer block receives            (Vaswani et al., 2017) by omitting the final output projection
+three parallel sequences of hidden states as input (for each       layer after concatenation to reduce risk of overfitting.
+of the input sequences). For time step t, we denote the
+                                                                   In our CT, self-attention uses the sequence of hidden states
+respective hidden state by Abt or abt ; Ytb or Ŷtb ; and Xbt .
+                                                                   from the same transformer subnetwork to infer keys, queries,
+We denote size of the hidden states by dh . Further, each
+                                                                   and values, while cross-attention uses the sequence of hid-
+transformer block receives a representation vector of the
+                                                                   den states of the other two transformer subnetworks as keys
+static covariates Ṽ as additional input.
+                                                                   and values. We use multiple cross-attentions to exchange
+For the first transformer block (b = 1), we use linearly-          the information between parallel hidden states.2 These are
+transformed time-series as input:                                  placed on top of the self-attention layers (see subdiagram in
+                                                                   Fig. 1). We add the representation vector of static covariates,
+ A0t , a0t = LinearA (At , at ),      X0t = LinearX (Xt ),         Ṽ when pooling different cross-attention outputs. We mask
+                                                             (2)
+ Yt0 , Ŷt0 = LinearY (Yt , Ŷt ),      Ṽ = LinearV (V),          hidden states for self- and cross-attentions by setting the
+                                                                      2
+                                                                        Different variants of combining multiple-input information
+where parameters of fully-connected linear layers are shared       with self- and cross-attentions were already studied in the context
+for all time steps. All blocks ≥ 2 use the output sequence         of multi-source translation, e.g., in (Libovický et al., 2018). Our
+of the previous block b − 1 as inputs. For notation, we            implementation is closest to parallel attention combination.
+                                  Causal Transformer for Estimating Counterfactual Outcomes
+
+attention logits in Eq. (3) to −∞. This ensures that infor-         ensures that we obtain relative encodings, that is, our CT
+mation flows only from the current input to future hidden           considers the distance between past or current position j
+states (and not the other way around).                              and current position i, but not the actual location. Further-
+                                                                    more, the current position i attends only to past information
+(ii) Feed-forward layer (FF) with ReLU activation is ap-
+                                                                    or itself, and, thus, we never use aVij and aKij where i < j.
+plied time-step-wise to the sequence of hidden states, i. e.,
+                                                                    As a result, there are only (lmax + 1) × dqkv parameters to
+                                                                    estimate.
+                                                
+         FF(ht ) = Linear ReLU(Linear(ht )) ,
+where fully-connected linear layers are followed by dropout.        We then use the relative PE to modify the self-attention
+                                                                    operation (Eq. (3)). Formally, we compute the attention
+(iii) Layer normalization (LN) (Ba et al., 2016) and residual       scores via (indices of heads are dropped for clarity)
+connections are added after each self- and cross-attention.
+                                                                                                     t
+We compute the layer normalization via                                                               X
+                                                                              (Attn(Q, K, V ))i =          αij (Vj + aVij ),   (13)
+                           γ                                                                         j=1
+                 LN(ht ) =        (ht − µ) + β,              (8)
+                           σ                                                                                         !
+                                                                                                  Q>        K
+                                                                                                   i (Kj + aij )
+             d
+                               v
+                                     dh
+                                                                              αij = softmaxj         p                   ,     (14)
+                                                                                                       dqkv
+          h
+                               u
+       1 X                     u1 X               2
+   µ=        (ht )j ,        σ=t        (ht )j − µ ,         (9)
+      dh j=1                     dh j=1                             with attention scores αij and where Kj , Vj , and Qi are
+                                                                    columns of corresponding matrices and where softmaxj
+where γ, β ∈ Rdh are scale and shift parameters and where
+                                                                    operates with respect to index j. Cross-attention with PE is
+  is an element-wise product.
+                                                                    defined in an analogous way. In our CT, the attention scores
+Balanced representations. The (balanced) representations            are shared across all the heads and blocks, as well as the
+are then constructed via average pooling over three (or             three different subnetworks.
+two) parallel hidden states of the B-th transformer block.
+                                                                     In our CT, we use relative positional encodings (Shaw et al.,
+Thereby, we use a fully-connected linear layer and an expo-
+                                                                     2018) that are incorporated in every self- and cross-attention.
+nential linear unit (ELU) non-linearity; i. e.,
+                                                                     This is different from the original transformer (Vaswani
+                                                                     et al., 2017), which used absolute positional encodings with
+      (
+          1
+            (AB + XB           B
+                       i + Yi ), i ∈ {1, . . . , t},
+Φ̃i = 31 Bi−1         B                                              fixed weights for the initial hidden states of the first trans-
+          2 (ai−1 + Ŷi ),           i ∈ {t + 1, . . . , t + τ − 1},
+                                                                     former block (see Appendix D for details). However, rel-
+Φt = ELU(Linear(Φ̃t ))                                       (10)    ative PE is regarded as more robust and, further, suited
+                                                                     for patient trajectories where the order of treatments and
+where fully-connected linear layer is followed by dropout,           diagnoses is informative (Allam et al., 2021), but not the
+Φt ∈ Rdr and dr is the dimensionality of the balanced                absolute time step. Additionally, it allows for better general-
+representation.                                                      ization to unseen sequence lengths: for the ranges beyond
+                                                                     the maximal distinguishable distance lmax , CT stops to dis-
+4.2. Positional encoding                                             tinguish the precise relative location of states and considers
+In order to preserve information about the order of hid-             everything as distant past information. In line with this, our
+den states, we make use of position encoding (PE). This              experiments later also confirm relative PE to be superior
+is especially relevant for clinical practice as it allows us to      over absolute PE.
+distinguish sequences such as, e. g., htreatment A 7→ side-
+effect S 7→ treatment Bi from htreatment A 7→ treatment B           4.3. Training of our Causal Transformer
+7→ side-effect Si.                                                  In our CT, we aim at two simultaneous objectives to ad-
+We model information about relative positions in the input          dress confounding bias: we aim at learning representations
+at time steps j and i with 0 ≤ j ≤ i ≤ t by a set of vectors        that are (a) predictive of the next outcome and (b) are non-
+aVij , aK      dqkv                                                 predictive of the current treatment assignment. This thus
+        ij ∈ R      (Shaw et al., 2018). Specifically, they are
+shaped in the form of Toeplitz matrices                             naturally yields an adversarial objective. For this purpose,
+                                                                    we make use of balanced representations, which we train
+    aVij = wclip(j−i,l
+            V
+                       max )
+                             ,   aK     K
+                                  ij = wclip(j−i,lmax ) ,   (11)    via a novel counterfactual domain confusion (CDC) loss.
+    clip(x, lmax ) = max{−lmax , min{lmax , x}}             (12)
+                                                                    Adversarial balanced representations. As in (Bica
+with trainable weights wlK , wlV ∈ Rdqkv , for l ∈                  et al., 2020), we build balanced representations that allow
+{−lmax , . . . , 0}, and where lmax is the maximum distinguish-     us to achieve the adversarial objectives (a) and (b). For this,
+able distance in the relative PE. The above formalization           we put two fully-connected networks on top of the represen-
+                                                                 Causal Transformer for Estimating Counterfactual Outcomes
+                                                                                                                                                                                            1.2
+                        2.0       MSMs
+                                                                                                        2.50
+                                  RMSNs                                                                                                                                                     1.1
+                        1.8
+                                  CRN                                                                   2.25
+    RMSE (normalized)
+
+
+
+
+                                                                                                                                                                        RMSE (normalized)
+                                                                                    RMSE (normalized)
+                        1.6       G-Net                                                                                                                                                     1.0
+                                                                                                        2.00
+                                  CT (α = 0) (ours)
+                        1.4                                                                             1.75                                                                                0.9
+                                  CT (ours)
+
+                        1.2                                                                             1.50                                                                                0.8
+                                                                                                        1.25
+                        1.0                                                                                                                                                                 0.7
+                                                                                                        1.00
+                        0.8                                                                                                                                                                 0.6
+                                                                                                        0.75
+                              0        1            2           3          4                                   0       1            2           3             4                                   0         1            2           3            4
+                                   Amount of time-varying confounding γ                                            Amount of time-varying confounding γ                                                 Amount of time-varying confounding γ
+
+                              (a) One-step-ahead prediction                         (b) τ -step-ahead prediction (single slid-                                          (c) τ -step-ahead prediction (random tra-
+                                                                                    ing treatment).                                                                     jectories)
+Figure 2. Results for fully-synthetic data based on tumor growth simulator (lower values are better). Shown is the mean performance
+averaged over five runs with different seeds. Here: τ = 6.
+Table 1. Results for semi-synthetic data for τ -step-ahead prediction based on real-world medical data (MIMIC-III). Shown: RMSE as
+mean ± standard deviation over five runs. Here: random trajectory setting. MSMs struggle for long prediction horizons with values >
+10.0 (due to linear modeling of IPTW scores).
+
+                                                        τ =1              τ =2                           τ =3          τ =4             τ =5                τ =6                             τ =7            τ =8             τ =9              τ = 10
+ MSMs (Robins et al., 2000)                           0.37 ± 0.01     0.57 ± 0.03            0.74 ± 0.06            0.88 ± 0.03       1.14 ± 0.10         1.95 ± 1.48                   3.44 ± 4.57          > 10.0           > 10.0             > 10.0
+ RMSNs (Lim et al., 2018)                             0.24 ± 0.01     0.47 ± 0.01            0.60 ± 0.01            0.70 ± 0.02       0.78 ± 0.04         0.84 ± 0.05                   0.89 ± 0.06        0.94 ± 0.08      0.97 ± 0.09        1.00 ± 0.11
+ CRN (Bica et al., 2020)                              0.30 ± 0.01     0.48 ± 0.02            0.59 ± 0.02            0.65 ± 0.02       0.68 ± 0.02         0.71 ± 0.01                   0.72 ± 0.01        0.74 ± 0.01      0.76 ± 0.01        0.78 ± 0.02
+ G-Net (Li et al., 2021)                              0.34 ± 0.01     0.67 ± 0.03            0.83 ± 0.04            0.94 ± 0.04       1.03 ± 0.05         1.10 ± 0.05                   1.16 ± 0.05        1.21 ± 0.06      1.25 ± 0.06        1.29 ± 0.06
+ EDCT w/ GR (λ = 1) (ours)                            0.29 ± 0.01     0.46 ± 0.01            0.56 ± 0.01            0.62 ± 0.01      0.67 ± 0.01          0.70 ± 0.01                   0.72 ± 0.01        0.74 ± 0.01      0.76 ± 0.01        0.78 ± 0.01
+ CT (α = 0) (ours) ∗                                  0.20 ± 0.01     0.38 ± 0.01            0.45 ± 0.01            0.50 ± 0.02      0.52 ± 0.02          0.55 ± 0.02                   0.56 ± 0.02        0.58 ± 0.02      0.60 ± 0.02        0.61 ± 0.02
+ CT (ours)                                            0.20 ± 0.01     0.38 ± 0.01            0.45 ± 0.01            0.49 ± 0.01      0.52 ± 0.02          0.53 ± 0.02                   0.55 ± 0.02        0.56 ± 0.02      0.58 ± 0.02        0.59 ± 0.02
+ Lower = better (best in bold)
+ ∗
+   Identical hyperparameters as proposed CT for comparability
+
+tation Φt , corresponding to the respective objectives: (a) an                                                                    i. e., via
+outcome prediction network GY and (b) a treatment clas-
+                                                                                                                                                                   da
+sifier network GA . Both receive the representation Φt as
+                                                                                                                                                                                    1[At =aj ] log GA (Φt (θR ); θA ), (16)
+                                                                                                                                                                   X
+                                                                                                                                 LGA (θA , θR ) = −
+input; the outcome prediction network additionally receives
+                                                                                                                                                                   j=1
+the current treatment At . We implement both as single hid-
+den layer fully-connected networks with number of units                                                                           where 1[·] is the indicator function. This thus minimizes a
+nFC and ELU activation. For notation, let θY and θA de-                                                                           classification loss of the current treatment assignment given
+note the trainable parameters in GY and GA , respectively.                                                                        Φt . However, while GA can predict the current treatment,
+Further, let θR denote all trainable parameters in CT for                                                                         the actual representation Φt should not, and should rather
+generating the representation Φt .                                                                                                be non-predictive. For this, we propose to minimize the
+                                                                                                                                  cross-entropy between a uniform distribution over treatment
+Factual outcome loss. For objective (a), we fit the out-                                                                          categorical space and predictions of GA via
+come prediction network GY , and thus Φt , by minimizing
+                                                                                                                                                                                   da
+the factual loss of the next outcome. This can be done, e. g.,                                                                                                                     X  1
+                                                                                                                                       Lconf (θA , θR ) = −                                            log GA (Φt (θR ); θA ),                  (17)
+via the mean squared error (MSE). We then yield                                                                                                                                                   da
+                                                                                                                                                                                    j=1
+                                                     2
+   LGY (θY , θR ) = Yt+1 − GY Φt (θR ), At ; θY         .
+                                                                                                                                  thus achieving domain confusion.
+                                                        (15)
+                                                                                                                                  Overall adversarial objective.                                             Using the above, CT is
+CDC loss. For objective (b), we want to fit the treatment
+                                                                                                                                  trained via
+classifier network GA , and thus the representation Φt , in
+way that it is non-predictive of the current treatment At .                                                                      (θ̂Y , θ̂R ) = arg min LGY (θY , θR ) + αLconf (θ̂A , θR ), (18)
+To achieve this, we develop a novel CDC loss tailored for                                                                                                 θY ,θR
+counterfactual inference. Our idea builds upon the domain                                                                                  θ̂A = arg min αLGA (θA , θ̂R ),                                                                      (19)
+confusion loss (Tzeng et al., 2015) for handling adversarial                                                                                                θA
+objectives, which was previously used for unsupervised
+                                                                                                                                  where α is a hyperparameter for domain confusion. Thereby,
+domain adaptation, whereas we adapt it specifically for
+                                                                                                                                  optimal values of θ̂Y , θ̂R and θ̂A achieve an equilibrium
+counterfactual inference.
+                                                                                                                                  between factual outcome prediction and domain confusion.
+Then, we fit GA so that it can predict the current treatment,                                                                     In CT, we implement this by performing iterative updates
+                                   Causal Transformer for Estimating Counterfactual Outcomes
+
+of the parameters (rather than optimizing globally). Details       Mini-batch augmentation with masking allows us to train
+are in Appendix E.                                                 a single model for both one- and multiple-step-ahead pre-
+                                                                   diction in end-to-end fashion. This distinguishes our CT
+Previous work (Bica et al., 2020) has addressed the above
+                                                                   from RMSNs and CRN, which are built on top of encoder-
+adversarial objective through gradient reversal (Ganin &
+                                                                   decoder architectures and trained in a multiple-stage proce-
+Lempitsky, 2015). However, this has two shortcomings:
+                                                                   dure. Later, we also experiment with an encoder-decoder
+(i) If the parameter λ of gradient reversal becomes too large,
+                                                                   version of CT (i.e., a single-subnetwork variant) but find
+the representation may be predictive of opposite treatment
+                                                                   that it is inferior performance to our end-to-end model.
+(Atan et al., 2018a). (ii) If the treatment classifier network
+learns too fast, gradients vanish and are not passed to repre-
+sentations, leading to poor fit (Tzeng et al., 2017). Different    4.4. Theoretical insights
+from that, we propose a novel CDC loss. As we see later,           The following result provides a theoretical justification that
+our loss is highly effective: it even improves CRN (Bica           our CDC loss indeed leads to balanced representations,
+et al., 2020), when replacing gradient reversal with our loss.     and, thus, removes the bias induced by time-varying con-
+                                                                   founders.3
+Stabilization. We further stabilize the above adversarial
+                                                                   Theorem 4.1. We fix t ∈ N and define P as the distribution
+training by employing exponential moving average (EMA)
+                                                                   of H̄t , Pj as the distribution of H̄t given At = aj , and
+of model parameters during training (Yaz et al., 2018). EMA
+                                                                   PjΦ as the distribution of Φt = Φ(H̄t ) given At = aj for
+helps to limit cycles of model parameters around the equilib-
+                                                                   all j ∈ {1, . . . , da }. Here, Φ(·) = Φ(·; θR ) denotes any
+rium with vanishing amplitude and thus accelerates overall
+                                                                   network that generates representations. Let GjA denote the
+convergence. We apply EMA to all trainable parameters
+                                                                   output of GA corresponding to treatment aj . Then, there
+(i. e., θY , θR , θA ). Formally, we update parameters during
+                                                                   exists an optimal pair (Φ∗ , G∗A ) such that
+training via
+                                                                                     da
+               (i)         (i−1)                                                                  h                   i
+              θEMA = β θEMA + (1 − β) θ(i) ,
+                                                                                     X
+                                                           (20)    Φ∗ = arg max            EH̄t ∼P log G∗ jA (Φ(H̄t )             (21)
+                                                                               Φ     j=1
+where superscripts (i) refers to the different steps of the                          da
+optimization algorithm, where β is a exponential smoothing
+                                                                                     X             h                  i
+                                    (0)
+                                                                   G∗A = arg max           EH̄t ∼Pj log GjA (Φ∗ (H̄t ) P(At = aj )
+parameter, and where we initialize θEMA = θ(0) . We provide                   GA     j=1
+pseudocode for an iterative gradient update in CT via EMA                                                                         (22)
+in Appendix E.                                                                      da
+                                                                                    X
+                                                                       subject to         GiA (Φ∗ (H̄t )) = 1.                    (23)
+Attentional dropout. To reduce the risk of overfitting be-                          i=1
+tween time steps, we implement attentional dropout via
+DropAttention (Zehui et al., 2019). During training, atten-        Furthermore, Φ∗ satisfies Eq. (21) if and only if it induces
+                                                                                                                           ∗
+tion scores αij in Eq. (14) are element-wise randomly set to       balanced representations across treatments, i.e., P1Φ =
+                                                                               ∗
+zero with probability p (i. e., the dropout rate). However, we     . . . = PdΦa .
+make a small simplification. We do not perform normalized
+rescaling (Zehui et al., 2019) of attention scores but opt for
+                                                                   Proof. See Appendix F.
+traditional dropout rescaling (Srivastava et al., 2014), as this
+resulted in more stable training for short-length sequences.
+                                                                   Further, it can be easily shown that objectives (16) and (17)
+Mini-batch augmentation with masking. For training                 are exactly finite sample versions of (22) and (21) from
+data D, we always have access to the full time-series, that is,    Theorem 4.1, respectively.
+                                          (i)         (i)
+including all time-varying covariates x1 , . . . , xT (i) . How-
+ever, upon deployment, these are no longer observable for          4.5. Implementation
+τ -step-ahead predictions with τ ≥ 2. To reflect this during       Training. We implemented CT in PyTorch Lightning. We
+training, we perform data augmentation at the mini-batch           trained CT using Adam (Kingma & Ba, 2015) with learning
+level. For this, we duplicate the training samples: We uni-        rate η and number of epochs ne . The dropout rate p was
+formly sample the length 1 ≤ ts ≤ T (i) of the masking
+                                                                      3
+window, and then create a duplicate data sample where the                Importantly, our loss is different from gradient reversal (GR)
+                                   (i)         (i)                 in (Ganin & Lempitsky, 2015; Bica et al., 2020). It builds balanced
+last ts time-varying covariates xts , . . . , xT (i) are masked
+                                                                   representations by minimizing reversed KL divergence between the
+by setting the corresponding attention logits of Hb = Xb in        treatment-conditional distribution of representation and mixture of
+Eq. (3) to −∞.                                                     all treatment-conditional distributions.
+                                                Causal Transformer for Estimating Counterfactual Outcomes
+
+Table 2. Results for experiments with real-world medical data                             tual outcomes over time (Lim et al., 2018; Bica et al., 2020;
+(MIMIC-III). Shown: RMSE as mean ± standard deviation over                                Li et al., 2021). These are: MSMs (Robins et al., 2000;
+five runs.                                                                                Hernán et al., 2001), RMSNs (Lim et al., 2018), CRN (Bica
+                 τ =1             τ =2         τ =3           τ =4            τ =5        et al., 2020), and G-Net (Li et al., 2021). Details are in
+  MSMs         6.37 ± 0.26     9.06 ± 0.41   11.89 ± 1.28   13.12 ± 1.25   14.44 ± 1.12   Appendix G. For comparability, we use the same hyperpa-
+  RMSNs        5.20 ± 0.15     9.79 ± 0.31   10.52 ± 0.39   11.09 ± 0.49   11.64 ± 0.62
+  CRN          4.84 ± 0.08     9.15 ± 0.16    9.81 ± 0.17   10.15 ± 0.19   10.40 ± 0.21
+                                                                                          rameter tuning for the baselines as for CT (see Appendix H).
+  G-Net        5.13 ± 0.05    11.88 ± 0.20   12.91 ± 0.26   13.57 ± 0.30   14.08 ± 0.31
+
+  CT (ours)    4.59 ± 0.09    8.99 ± 0.21    9.59 ± 0.22     9.91 ± 0.26   10.14 ± 0.29   5.1. Experiments with fully-synthetic data
+  Lower = better (best in bold)
+
+Table 3. Ablation study for proposed CT (with CDC loss, α =                               Data. We          build    upon      the    pharmacokinetic-
+0.01, β = 0.99). Reported: normalized RMSE of CT with relative                            pharmacodynamic model of tumor growth (Geng
+changes.                                                                                  et al., 2017). It provides a state-of-the-art biomedical
+                                                                                          model to simulate the effects of lung cancer treatments over
+                                                      τ =1                 τ =6
+                                                                                          time. The same model was previously used for evaluating
+                                                  γ=1       γ=4        γ=1       γ=4
+                                                                                          RMSNs (Lim et al., 2018) and CRN (Bica et al., 2020).
+ CT (proposed)                                   0.80        1.32      0.63      0.93
+     w/ non-trainable PE∗                       ±0.00       −0.02     +0.01     −0.03     For τ -step-ahead prediction, we distinguish two settings:
+     w/ absolute PE∗                            +0.04       +0.16     +0.15     +1.00     (i) “single sliding treatment” where trajectories involve only
+ a
+     w/o attentional dropout∗                   ±0.00       +0.07     +0.00     +0.09
+     w/o cross-attention∗                       +0.03       +0.16     +0.06     +0.10     a single treatment as in (Bica et al., 2020); and (ii) “random
+      w/o EMA (β = 0)∗                          +0.03       +0.38     +0.03     +0.33     trajectories” where one or more treatments are assigned.
+ b    w/o balancing (α = 0; β = 0.99)∗          −0.01       −0.02     ±0.00     +0.07     We simulate patient trajectories for different amounts of
+      w/ GR (λ = 1)                             +0.02       +0.17     +0.08     +0.33
+      EDCT w/ GR (λ = 1)                        +0.16       +0.08     +0.05     +0.23
+                                                                                          confounding γ. Further details are in Appendix J. Here,
+ c
+      EDCT w/ DC (α = 0.01; β = 0.99)           −0.03       +0.10     −0.03     +0.23     and in all following experiments, we apply hyperparameter
+ Lower = better;                                                                          tuning (see Appendix H).
+ Improvement over CT in green, worse performance in red
+ ∗
+   Identical hyperparameters as proposed CT for comparability
+
+kept the same for both feed-forward layers and DropAtten-                                 Results. Fig. 2 shows the results. We see a notable perfor-
+tion (we call it sequential dropout rate). We employed the                                mance gain for our CT over the state-of-the-art baselines,
+teacher forcing technique (Williams & Zipser, 1989). Dur-                                 especially pronounced for larger confounding γ and larger
+ing evaluation of multiple-step-ahead prediction, we switch                               τ . Overall, CT is superior by a large margin.
+off teacher forcing and autoregressively feed model predic-
+                                                                                          Fig. 2 also shows a CT variant in which we removed the
+tions. For the parameters α and β of adversarial training,
+                                                                                          CDC loss by setting α to zero, called CT (α = 0). For com-
+we choose values β = 0.99 and α = 0.01 as in the original
+                                                                                          parability, we keep the hyperparameters as in the original
+works (Tzeng et al., 2015; Yaz et al., 2018), which also per-
+                                                                                          CT. The results demonstrate the effectiveness of the pro-
+formed well in our experiments. We additionally perform
+                                                                                          posed CDC loss, especially for multi-step-ahead prediction.
+an exponential rise of α during training.
+                                                                                          CT also provides a significant runtime speedup in compari-
+                                                                                          son to other neural network methods, mainly due to faster
+Hyperparameter tuning. p, η, and all other hyperparam-                                    processing of sequential data with self- and cross-attentions,
+eters (number of blocks B, minibatch size, number of at-                                  and single-stage end-to-end training (see exact runtime and
+tention heads nh , size of hidden units dh , size of balanced                             model size comparison in Appendix M). We plotted t-SNE
+representation dr , size of hidden units in fully-connected                               embeddings of the balanced representations (Appendix N)
+networks nFC ) are subject to hyperparameter tuning. Details                              to exemplify how balancing works.
+are in Appendix H.
+                                                                                          5.2. Experiments with semi-synthetic data
+5. Experiments
+                                                                                          Data. We create a semi-synthetic dataset based on real-
+To demonstrate the effectiveness of our CT, we make use                                   world medical data from intensive care units. This allows
+of synthetic datasets. Thereby, we follow common practice                                 us to validate our CT with high-dimensional, long-range
+in benchmarking for counterfactual inference (Lim et al.,                                 patient trajectories. For this, we use the MIMIC-III dataset
+2018; Bica et al., 2020; Li et al., 2021). For real datasets,                             (Johnson et al., 2016). Building upon the ideas of (Schulam
+the true counterfactual outcomes are typically unknown. By                                & Saria, 2017), we then generate patient trajectories with
+using (semi-)synthetic datasets, we can compute the true                                  outcomes under endogeneous and exogeneous dependen-
+counterfactuals and thus validate our CT.                                                 cies while considering treatment effects. Thereby, we can
+                                                                                          again control for the amount of confounding. Details are
+Baselines. The chosen baselines are identical to those in                                 in Appendix K. Importantly, we again have access to the
+previous, state-of-the-art literature for estimating counterfac-                          ground-truth counterfactuals for evaluation.
+                                       Causal Transformer for Estimating Counterfactual Outcomes
+
+Table 4. CRN with different training procedures. Results for fully-synthetic data based on tumor growth simulator (here: γ = 4).
+                                                                 τ =1          τ =2          τ =3          τ =4          τ =5          τ =6
+       CRN + original GR (λ = 1) as in (Bica et al., 2020)     1.30 ± 0.14   1.12 ± 0.25   1.23 ± 0.32   1.23 ± 0.34   1.17 ± 0.34   1.10 ± 0.32
+       CRN + our counterfactual DC loss (α = 0.01; β = 0.99)   1.33 ± 0.21   1.18 ± 0.31   1.19 ± 0.36   1.12 ± 0.35   1.03 ± 0.33   0.93 ± 0.31
+       Lower = better (best in bold)
+
+Results. Table 1 shows the results. Again, CT has a con-                     the effectiveness of the different components inside the sub-
+sistent and large improvement across all projection hori-                    networks, the CDC loss, and the subnetwork architecture.
+zons τ (average improvement over baselines: 38.5%). By                       We grouped these into categories. a varies different compo-
+comparing our CT against CT (α = 0), we see clear per-                       nents within the subnetworks. Here, we replace trainable
+formance gains, demonstrating the benefit of our CDC loss.                   relative positional encoding (PE) with non-trainable rela-
+Additionally, we separately fitted an encoder-decoder ar-                    tive PE, generated as described in Appendix D. Further, we
+chitecture, namely Encoder-Decoder Causal Transformer                        replace our PE with a trainable absolute PE as in the origi-
+(EDCT). This approach leverages a single-subnetwork ar-                      nal transformer (Vaswani et al., 2017). Finally, we remove
+chitecture, where all three sequences are fed into a single                  attentional dropout as well as cross-attention layers for all
+subnetwork (as opposed to three separate networks as in                      subnetworks. b varies the loss. Here, we remove EMA of
+our CT). Further, the EDCT leverages the existing GR loss                    model weights; switch off adversarial balancing, but not
+from (Bica et al., 2020) and the similar encoder-decoder                     EMA; and replace our CDC loss with gradient reversal (GR)
+two-stage training. Details on this EDCT model are in Ap-                    as in (Bica et al., 2020). c evaluates a single-subnetwork
+pendix I. Here, we find that, for superior performance, it is                version of CT. We refer to this as EDCT (see Appendix I for
+crucial to combine both three-subnetwork architecture and                    details). It thus has an encoder-decoder architecture which
+our CDC loss.                                                                we train with either our CDC loss or GR.
+Semi-synthetic data is also used for a case study, where we                  Overall, we see that the combination of both our novel ar-
+study the importance of each subnetwork. See Appendix O.                     chitecture based three-subnetworks and our novel DC loss
+                                                                             is crucial. This observation is particularly pronounced for
+5.3. Experiments with real-world data                                        a long prediction horizon (τ = 6), where our proposed CT
+                                                                             achieves the best performance. Notably, the main insight
+Data. We now demonstrate the applicability of our CT to                      here is: simply switching the backbone from LSTM to trans-
+real-world data and, for this, use intensive care unit stays                 former and using gradient reversal as in (Bica et al., 2020)
+in MIMIC-III (Johnson et al., 2016). We use the same 25                      gives unstable results (see “EDCT w/ GR (λ = 1)“). Fur-
+vital signs and 3 static features. We use (diastolic) blood                  thermore, our three-subnetworks CT with GR loss performs
+pressure as an outcome and consider two treatments: vaso-                    even worse (see ablation “w/ GR (λ = 1)“).
+pressors and mechanical ventilation, similar to (Kuzmanovic
+et al., 2021; Hatt & Feuerriegel, 2021). Prediction of blood                 To further demonstrate the effectiveness of our novel CDC
+pressure is crucial for critical care, e. g., to avoid tissue                loss, we perform an additional test based on the fully-
+hypoperfusion (Vincent et al., 2018). The application of                     synthetic dataset (Table 4). We use (i) a CRN with GR
+vasopressors is highly confounded by previous and current                    as in (Bica et al., 2020). We compare it with (ii) a CRN
+levels of blood pressure, as they aim to raise low blood pres-               trained with our proposed CDC loss (implementation details
+sure. So far, an optimal administration of vasopressors is                   in Appendix G). Evidently, our loss also helps the CRN to
+not fully understood (Subramanian et al., 2008), and, hence,                 achieve a better RMSE.
+it is important for medical practitioners to have individual-
+ized counterfactual predictions. Experiment details are in                   6. Conclusion
+Appendix L.
+                                                                             For personalized medicine, estimates of the counterfactual
+                                                                             outcomes for patient trajectories are needed. Here, we pro-
+Results. Because we no longer have access to the true                        posed a novel, state-of-the-art method: the Causal Trans-
+counterfactuals, we now report the performance of predict-                   former which is designed to capture complex, long-range
+ing factual outcomes; see Table 2. All state-of-the-art base-                patient trajectories. It combines a custom subnetwork archi-
+lines are outperformed by our CT. This demonstrates the                      tecture to process the input together with a new counterfac-
+superiority of our proposed model.                                           tual domain confusion loss for end-to-end training. Across
+                                                                             extensive experiments, our Causal Transformer achieves
+5.4. Ablation study                                                          state-of-the-art performance.
+We performed an extensive ablation study (Table 3) using
+full-synthetic data (setting: random trajectories) to confirm
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+References                                                        Devlin, J., Chang, M., Lee, K., and Toutanova, K. BERT:
+                                                                    Pre-training of deep bidirectional transformers for lan-
+Alaa, A. and van der Schaar, M. Limits of estimating het-
+                                                                    guage understanding. In Conference of the North Amer-
+  erogeneous treatment effects: Guidelines for practical
+                                                                    ican Chapter of the Association for Computational Lin-
+  algorithm design. In International Conference on Ma-
+                                                                    guistics: Human Language Technologies, 2019.
+  chine Learning, 2018a.
+                                                                  Dong, Y., Cordonnier, J.-B., and Loukas, A. Attention
+Alaa, A. M. and van der Schaar, M. Bayesian nonpara-                is not all you need: Pure attention loses rank doubly
+  metric causal inference: Information rates and learning           exponentially with depth. In International Conference on
+  algorithms. IEEE Journal of Selected Topics in Signal            Machine Learning, 2021.
+  Processing, 12(5):1031–1046, 2018b.
+                                                                  Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn,
+Allam, A., Feuerriegel, S., Rebhan, M., Krauthammer, M.,            D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M.,
+  et al. Analyzing patient trajectories with artificial intel-      Heigold, G., Gelly, S., et al. An image is worth 16x16
+  ligence. Journal of Medical Internet Research, 23(12):           words: Transformers for image recognition at scale. In
+  e29812, 2021.                                                    International Conference on Learning Representations,
+                                                                    2020.
+Atan, O., Zame, W. R., and van der Schaar, M. Counterfac-
+                                                                  Frauen, D., Hatt, T., Melnychuk, V., and Feuerriegel, S.
+  tual policy optimization using domain-adversarial neural
+                                                                    Estimating average causal effects from patient trajectories.
+  networks. In ICML CausalML Workshop, 2018a.
+                                                                    arXiv preprint arXiv:2203.01228, 2022.
+Atan, O., Zame, W. R., and van der Schaar, M. Learning            Ganin, Y. and Lempitsky, V. Unsupervised domain adapta-
+  optimal policies from observational data. arXiv preprint          tion by backpropagation. In International Conference on
+  arXiv:1802.08679, 2018b.                                          Machine Learning, 2015.
+
+Ba, J. L., Kiros, J. R., and Hinton, G. E. Layer normalization.   Geng, C., Paganetti, H., and Grassberger, C. Prediction of
+  arXiv preprint arXiv:1607.06450, 2016.                            treatment response for combined chemo-and radiation
+                                                                    therapy for non-small cell lung cancer patients using a
+Berrevoets, J., Curth, A., Bica, I., McKinney, E., and van der      bio-mathematical model. Scientific Reports, 7(1):Article
+  Schaar, M. Disentangled counterfactual recurrent net-            13542, 2017.
+  works for treatment effect inference over time. arXiv
+  preprint arXiv:2112.03811, 2021.                                Hatt, T. and Feuerriegel, S. Sequential deconfounding for
+                                                                    causal inference with unobserved confounders. arXiv
+Bica, I., Alaa, A. M., Jordon, J., and van der Schaar, M.           preprint arXiv:2104.09323, 2021.
+  Estimating counterfactual treatment outcomes over time          Hensman, J., Durrande, N., Solin, A., et al. Variational
+  through adversarially balanced representations. 2020.             Fourier features for Gaussian processes. Journal of Ma-
+                                                                    chine Learning Research, 18(1):5537–5588, 2017.
+Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D.,
+  Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G.,           Hernán, M. A., Brumback, B., and Robins, J. M. Marginal
+  Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G.,           structural models to estimate the joint causal effect of
+  Henighan, T., Child, R., Ramesh, A., Ziegler, D., Wu, J.,         nonrandomized treatments. Journal of the American Sta-
+  Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M.,          tistical Association, 96(454):440–448, 2001.
+  Gray, S., Chess, B., Clark, J., Berner, C., McCandlish,
+  S., Radford, A., Sutskever, I., and Amodei, D. Language         Hill, J. and Su, Y.-S. Assessing lack of common support
+  models are few-shot learners. In Advances in Neural               in causal inference using Bayesian nonparametrics: Im-
+  Information Processing Systems, 2020.                             plications for evaluating the effect of breastfeeding on
+                                                                    children’s cognitive outcomes. The Annals of Applied
+Chipman, H. A., George, E. I., and McCulloch, R. E. BART:           Statistics, 7:1386–1420, 2013.
+  Bayesian additive regression trees. The Annals of Applied       Huang, X. and Ning, J. Analysis of multi-stage treatments
+  Statistics, 4(1):266–298, 2010.                                   for recurrent diseases. Statistics in Medicine, 31(24):
+                                                                    2805–2821, 2012.
+Curth, A. and van der Schaar, M. Nonparametric estimation
+  of heterogeneous treatment effects: From theory to learn-       Jacobson, A. M., Braffett, B. H., Cleary, P. A., Gubitosi-
+  ing algorithms. In International Conference on Artificial         Klug, R. A., Larkin, M. E., and research group, D.
+  Intelligence and Statistics, 2021.                                The long-term effects of type 1 diabetes treatment and
+                                Causal Transformer for Estimating Counterfactual Outcomes
+
+  complications on health-related quality of life: a 23-         Lu, K., Grover, A., Abbeel, P., and Mordatch, I. Pretrained
+  year follow-up of the diabetes control and complica-             transformers as universal computation engines. arXiv
+  tions/epidemiology of diabetes interventions and com-            preprint arXiv:2103.05247, 2021.
+  plications cohort. Diabetes Care, 36(10):3131–3138,
+  2013.                                                          Neyman, J. S. On the application of probability theory to
+                                                                   agricultural experiments. Annals of Agricultural Sciences,
+Johansson, F., Shalit, U., and Sontag, D. Learning repre-         10:1–51, 1923.
+  sentations for counterfactual inference. In International
+  Conference on Machine Learning, 2016.                          Qian, Z., Zhang, Y., Bica, I., Wood, A., and van der Schaar,
+                                                                   M. SyncTwin: Treatment effect estimation with longi-
+Johnson, A. E., Pollard, T. J., Shen, L., Li-Wei, H. L., Feng,     tudinal outcomes. In Advances in Neural Information
+  M., Ghassemi, M., Moody, B., Szolovits, P., Celi, L. A.,         Processing Systems, 2021.
+  and Mark, R. G. MIMIC-III: A freely accessible critical
+  care database. Scientific Data, 3(1):Article 160035, 2016.     Robins, J. A new approach to causal inference in mortality
+                                                                   studies with a sustained exposure period: Application to
+Kingma, D. P. and Ba, J. Adam: A method for stochastic             control of the healthy worker survivor effect. Mathemati-
+  optimization. In International Conference on Learning            cal Modelling, 7(9-12):1393–1512, 1986.
+  Representations, 2015.
+                                                                 Robins, J. M. and Hernán, M. A. Estimation of the causal ef-
+Kuzmanovic, M., Hatt, T., and Feuerriegel, S. Deconfound-          fects of time-varying exposures. CRC Press, Boca Raton,
+  ing temporal autoencoder: estimating treatment effects           FL, 2009.
+  over time using noisy proxies. In Machine Learning for
+  Health, 2021.                                                  Robins, J. M., Hernan, M. A., and Brumback, B. Marginal
+                                                                   structural models and causal inference in epidemiology,
+Kuzmanovic, M., Hatt, T., and Feuerriegel, S. Estimat-             2000.
+  ing conditional average treatment effects with missing
+  treatment information. arXiv preprint arXiv:2203.01422,        Rubin, D. B. Bayesian inference for causal effects: The role
+  2022.                                                            of randomization. The Annals of Statistics, pp. 34–58,
+                                                                   1978.
+Latner, J., Stunkard, A., Wilson, G., Jackson, M., Zelitch,
+  D., and Labouvie, E. Effective long-term treatment of          Schlag, I., Smolensky, P., Fernandez, R., Jojic, N., Schmid-
+  obesity: a continuing care model. International Journal          huber, J., and Gao, J. Enhancing the transformer with
+  of Obesity, 24(7):893–898, 2000.                                 explicit relational encoding for math problem solving.
+                                                                   arXiv preprint arXiv:1910.06611, 2019.
+Li, R., Shahn, Z., Li, J., Lu, M., Chakraborty, P., Sow, D.,
+  Ghalwash, M., and Lehman, L.-W. H. G-Net: A deep               Schulam, P. and Saria, S. Reliable decision support using
+  learning approach to G-computation for counterfactual            counterfactual models. Advances in Neural Information
+  outcome prediction under dynamic treatment regimes. In           Processing Systems, 2017.
+  Machine Learning for Health, 2021.
+                                                                 Shaw, P., Uszkoreit, J., and Vaswani, A. Self-attention with
+Libovický, J., Helcl, J., and Mareček, D. Input combina-         relative position representations. In Conference of the
+  tion strategies for multi-source transformer decoder. In         North American Chapter of the Association for Computa-
+  Conference on Machine Translation, 2018.                         tional Linguistics: Human Language Technologies, 2018.
+
+Lim, B., Alaa, A., and van der Schaar, M. Forecasting            Soleimani, H., Subbaswamy, A., and Saria, S. Treatment-
+  treatment responses over time using recurrent marginal           response models for counterfactual reasoning with
+  structural networks. Advances in Neural Information              continuous-time, continuous-valued interventions. In
+  Processing Systems, 2018.                                        Uncertainty in Artificial Intelligence, 2017.
+
+Liu, W., Chen, S., Guo, L., Zhu, X., and Liu, J. CPTR: Full      Sormani, M. P. and Bruzzi, P. Can we measure long-term
+  transformer network for image captioning. arXiv preprint         treatment effects in multiple sclerosis? Nature Reviews
+  arXiv:2101.10804, 2021.                                          Neurology, 11(3):176–182, 2015.
+
+Liu, Y., Ott, M., Goyal, N., Du, J., Joshi, M., Chen, D.,        Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I.,
+  Levy, O., Lewis, M., Zettlemoyer, L., and Stoyanov, V.           and Salakhutdinov, R. Dropout: A simple way to prevent
+  RoBERTa: A robustly optimized BERT pretraining ap-               neural networks from overfitting. Journal of Machine
+  proach. arXiv preprint arXiv:1907.11692, 2019.                   Learning Research, 15(1):1929–1958, 2014.
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+Subramanian, S., Yilmaz, M., Rehman, A., Hubmayr, R. D.,          Yoon, J., Jordon, J., and van der Schaar, M. GANITE:
+  Afessa, B., and Gajic, O. Liberal vs. conservative va-            Estimation of individualized treatment effects using gen-
+  sopressor use to maintain mean arterial blood pressure            erative adversarial nets. In International Conference on
+  during resuscitation of septic shock: an observational            Learning Representations, 2018.
+  study. Intensive Care Medicine, 34(1):157–162, 2008.
+                                                                  Zehui, L., Liu, P., Huang, L., Chen, J., Qiu, X., and
+Tang, B. and Matteson, D. Probabilistic transformer for             Huang, X. DropAttention: A regularization method for
+  time series analysis. Advances in Neural Information              fully-connected self-attention networks. arXiv preprint
+  Processing Systems, 2021.                                         arXiv:1907.11065, 2019.
+
+Tzeng, E., Hoffman, J., Darrell, T., and Saenko, K. Simulta-      Zhou, H., Zhang, S., Peng, J., Zhang, S., Li, J., Xiong, H.,
+  neous deep transfer across domains and tasks. In IEEE             and Zhang, W. Informer: Beyond efficient transformer
+  International Conference on Computer Vision, 2015.                for long sequence time-series forecasting. In Association
+                                                                    for the Advancement of Artificial Intelligence, 2021.
+Tzeng, E., Hoffman, J., Saenko, K., and Darrell, T. Adver-
+  sarial discriminative domain adaptation. In IEEE Confer-
+  ence on Computer Vision and Pattern Recognition, 2017.
+
+van der Laan, M. J. and Rubin, D. Targeted maximum likeli-
+  hood learning. The International Journal of Biostatistics,
+  2(1):Article 11, 2006.
+
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones,
+  L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. Atten-
+  tion is all you need. In Advances in Neural Information
+  Processing Systems, 2017.
+
+Vincent, J.-L., Nielsen, N. D., Shapiro, N. I., Gerbasi, M. E.,
+  Grossman, A., Doroff, R., Zeng, F., Young, P. J., and
+  Russell, J. A. Mean arterial pressure and mortality in
+  patients with distributive shock: a retrospective analysis
+  of the MIMIC-III database. Annals of Intensive Care, 8
+  (1):1–10, 2018.
+
+Wager, S. and Athey, S. Estimation and inference of hetero-
+ geneous treatment effects using random forests. Journal
+ of the American Statistical Association, 113(523):1228–
+ 1242, 2018.
+
+Wang, S., McDermott, M. B., Chauhan, G., Ghassemi, M.,
+ Hughes, M. C., and Naumann, T. MIMIC-extract: A data
+ extraction, preprocessing, and representation pipeline for
+ MIMIC-III. In ACM Conference on Health, Inference,
+ and Learning, 2020.
+
+Williams, R. J. and Zipser, D. A learning algorithm for con-
+ tinually running fully recurrent neural networks. Neural
+ Computation, 1(2):270–280, 1989.
+
+Xu, Y., Xu, Y., and Saria, S. A non-parametric Bayesian
+  approach for estimating treatment-response curves from
+  sparse time series. In Machine Learning for Health, 2016.
+
+Yaz, Y., Foo, C.-S., Winkler, S., Yap, K.-H., Piliouras, G.,
+  Chandrasekhar, V., et al. The unusual effectiveness of
+  averaging in GAN training. In International Conference
+  on Learning Representations, 2018.
+                                   Causal Transformer for Estimating Counterfactual Outcomes
+
+A. Assumptions for Causal Identification
+We build upon the potential outcomes framework (Neyman, 1923; Rubin, 1978) and its extension to time-varying treatments
+and outcomes (Robins & Hernán, 2009). The potential outcomes framework has been widely used in earlier works with
+a similar objective as ours (Robins & Hernán, 2009; Lim et al., 2018; Bica et al., 2020). To this end, three standard
+assumptions for data generating mechanism are needed to identify a counterfactual outcome distribution over time, or,
+specifically, average τ -step-ahead potential outcome conditioned on history from Eq. (1):
+Assumption A.1. (Consistency). If Āt = āt is a given sequence of treatments for some patient, then Yt+1 [āt ] = Yt+1 .
+This means that the potential outcome under treatment sequence āt coincides for the patient with the observed (factual)
+outcome, conditional on Āt = āt .
+Assumption A.2. (Sequential Overlap). There is always a non-zero probability of receiving/not receiving any treatment
+for all the history space over time: 0 < P(At = at | H̄t = h̄t ) < 1, if P(H̄t = h̄t ) > 0, where h̄t is some realization of a
+patient history.
+Assumption A.3. (Sequential Ignorability) or No Unobserved Confounding. The current treatment is independent of
+the potential outcome, conditioning on the observed history: At ⊥
+                                                                ⊥ Yt+1 [at ] | H̄t , ∀at . This implies that there are no
+unobserved confounders that affect both treatment and outcome.
+
+The data generating mechanism for D is shown in Figure 3.
+
+
+
+
+Figure 3. Causal diagram for data generating mechanism, depicted for different time steps t. Ut is unobserved exogenous noise, which
+only affects time-varying covariates and outcomes, but not treatments. All time-varying confounders up to time t are included in the
+observed history H̄t . Static covariates are ignored for the simplicity.
+
+Corollary A.4. (G-computation (Robins, 1986)). Assumptions A.1–A.3 provide sufficient identifiability conditions for
+Eq. (1), e.g., with the G-computation
+
+                                              Z
+                                                                                                                      
+              E Yt+τ [āt:t+τ −1 ] | H̄t =                     E Yt+τ    H̄t , x̄t+1:t+τ −1 , ȳt+1:t+τ −1 , āt:t+τ −1 ×
+                                                Rdx ×···×Rdx
+               Y−1
+              t+τ                                                                                                              (24)
+                                                                      
+                       P xj yj | H̄t , x̄t+1:j−1 , ȳt+1:j−1 , āt:j−1 dx̄t+1:t+τ −1 dȳt+1:t+τ −1
+               j=t+1
+
+
+Empirical G-computation is used by G-Net (Li et al., 2021), but requires the estimation of conditional distributions of
+time-varying covariates. This could be particularly challenging, given a finite dataset size and high dimensionality of
+covariates. Thus, we refrain from explicit usage of G-computation.
+                                           Causal Transformer for Estimating Counterfactual Outcomes
+
+B. Methods for Estimating Counterfactual Outcomes over Time
+In Table 5, we provide an overview of the machine-learning-based methods for estimating counterfactual outcomes over time.
+For our experiments, we selected MSMs (Robins et al., 2000; Hernán et al., 2001), as the simplest linear baseline, and three
+state-of-the-art methods: RMSNs (Lim et al., 2018), CRN (Bica et al., 2020), and G-Net (Li et al., 2021)). Importantly, our
+choice of baselines is thus analogous to the those in the state-of-the-art literature (Lim et al., 2018; Bica et al., 2020; Li et al.,
+2021). Below, we provide details why certain works are not of fit for our setting and are thus not applicable as baselines.
+Here, we again emphasize that this selection is again consistent with the literature (Lim et al., 2018; Bica et al., 2020; Li
+et al., 2021).
+One stream of the literature focuses on non- or semi-parametric methods (Xu et al., 2016; Schulam & Saria, 2017; Soleimani
+et al., 2017). These are, for example, based on Gaussian processes (GPs). However, the aforementioned methods have
+three limitations: (1) They are not designed to handle static covariates. As such, risk factors (e.g., age, gender) that are
+standard in any electronic health record must be excluded. This omits a substantial heterogeneity in any patient cohort, and
+is thus impractical. (2) These methods cannot handle multiple outcomes. (3) Due to the non-parametric nature of their
+estimation, these methods typically cannot scale to large-scale datasets. Contrary to that, several methods have been built
+that overcome these limitations, namely RMSNs (Lim et al., 2018), CRN (Bica et al., 2020), and G-Net (Li et al., 2021),
+which we included as baselines.
+We excluded two additional methods as these do not match our setting:
+
+   • SyncTwin (Qian et al., 2021) is a semi-parametric method using synthetic control, but is limited to a single-time binary
+     treatment and, therefore, not applicable to our setting.
+   • DCRN (Berrevoets et al., 2021) may appear relevant at first glance; however, it only works with sequences of binary
+     treatments. More importantly, it requires a stronger version of the sequential ignorability assumption: Sequential
+     Ignorability conditional on current covariates. The current treatment is independent from the potential outcome,
+     conditional on current time-varying covariates: At ⊥     ⊥ Yt+1 [at ] | Xt , ∀at . Therefore, this setting and ours are
+     different, as in our setting, past time-varying covariates may also serve as confounders.
+
+We further make an important remark. The problem of estimating counterfactual outcomes over time differs also from
+reinforcement learning: different from reinforcement learning, we assume a non-Markovian data generation mechanism.
+This impedes the applicability of such approaches as the size of the state space (history) grows typically with time (see
+Appendix A, Fig. 3).
+
+
+                                  Table 5. Overview of methods for estimating counterfactual outcomes over time.
+   Method                                 Setting                Model type (backbone)                Time             Treatments            Framework
+   HITR (Xu et al., 2016)                 DGM (7)                NP (GP)                              Disc & Cont      Seq, Cat              G-computation
+   CGP (Schulam & Saria, 2017)            C, SO, SI, CSI (7)     NP (GP)                              Cont             Seq, Cat              G-computation
+   MOGP (Soleimani et al., 2017)          DGM (7)                SP (GP)                              Disc & Cont      Seq, Cont             G-computation
+   SyncTwin (Qian et al., 2021)           DGM (7)                SP (GRU-D, LSTM)                     Disc             Single-time, Bin      Synthetic control
+   DCRN (Berrevoets et al., 2021)         C, SO, Cov (7)         P (3 LSTMs)                          Disc             Seq, Bin              Disentangled representation
+   * MSMs (Robins et al., 2000)           C, SO, SI (3)          P (Logistic & linear regressions)    Disc             Seq, Cat              IPTW weighted loss
+   * RMSNs (Lim et al., 2018)             C, SO, SI (3)          P (LSTM)                             Disc             Seq, Cat              IPTW weighted loss
+   * CRN (Bica et al., 2020)              C, SO, SI (3)          P (LSTM)                             Disc             Seq, Cat              BR (gradient reversal)
+   * G-Net (Li et al., 2021)              C, SO, SI (3)          P (LSTM)                             Disc             Seq, Cat              G-computation
+   * Causal Transformer (this paper)      C, SO, SI              P (3 transformers)                   Disc             Seq, Cat              BR (CDC)
+   ∗
+     = Methods with the same assumptions as ours (and thus included in our baselines)
+   Legend:
+     • Setting: consistency (C), sequential overlap (SO), sequential ignorability (SI), sequential ignorability but conditional on covariates (Cov),
+   continuous sequential ignorability (CSI), assumed data generating model (DGM)
+     • Model: parametric (P), semi-parametric (SP), and non-parametric (NP)
+     • Time: discrete (Disc) or continuous (Cont) time steps
+     • Treatments: sequential (Seq), binary (Bin), categorical (Cat), continuous (Cont).
+     • Framework: inverse probability of treatment weights (IPTW), balanced representations (BR)
+                                Causal Transformer for Estimating Counterfactual Outcomes
+
+C. Details for Transformer Block
+Here, we provide the detailed formalization of the multi-input transformer block. Recall that our multi-input transformer
+block builds on top of three intertwined transformer subnetworks (see Fig. 1). First, we incorporate three separate self-
+attentions:
+                                                                                         
+                            Ãb−1 = LN MHA Q(Ab−1 ), K(Ab−1 ), V (Ab−1 ) + Ab−1 ,
+                                                                                
+                                                                                                                      (25)
+                                                                                         
+                            X̃b−1 = LN MHA Q(Xb−1 ), K(Xb−1 ), V (Xb−1 ) + Xb−1 ,
+                                                                                
+                                                                                                                      (26)
+                                                                                          
+                            Ỹb−1 = LN MHA Q(Yb−1 ), K(Yb−1 ), V (Yb−1 ) + Yb−1 .
+                                                                                 
+                                                                                                                      (27)
+
+Further, we incorporate cross-attentions:
+                                                                                         
+                             Ãb−1                 b−1       b−1         b−1          b−1
+                                                                               
+                               X   = LN   MHA Q(Ã     ), K(X    ), V (X     )   + Ã       ,                        (28)
+                                                                                         
+                             Ãb−1 = LN MHA Q(Ãb−1 ), K(Yb−1 ), V (Yb−1 ) + Ãb−1 ,
+                                                                               
+                               Y                                                                                     (29)
+                                                                                         
+                             X̃b−1 = LN MHA Q(X̃b−1 ), K(Ab−1 ), V (Ab−1 ) + X̃b−1 ,
+                                                                               
+                               A                                                                                     (30)
+                                                                                          
+                             X̃b−1                 b−1        b−1         b−1          b−1
+                                                                                
+                               Y   = LN   MHA Q(X̃     ), K(Y     ), V (Y     )   + X̃       ,                       (31)
+                                                                                 
+                               b−1
+                                   = LN MHA Q(Ỹb−1 ), K(Xb−1 ), V (Xb−1 ) + Ỹb−1 ,
+                                                                          
+                             ỸX                                                                                     (32)
+                                                                                 
+                               b−1
+                                   = LN MHA Q(Ỹb−1 ), K(Ab−1 ), V (Ab−1 ) + Ỹb−1 .
+                                                                          
+                             ỸA                                                                                     (33)
+
+Notably, the tensors of treatment representations Ab and Ãb are left-shifted with respect to covariates and outcomes
+representation tensors. Next, we pool the intermediate outputs using linearly transformed static features:
+                                              ˜ b−1 = Ãb−1 + Ãb−1 + 1Ṽ> ,
+                                              Ã                                                                     (34)
+                                                          X       Y
+                                              ˜
+                                              X̃ b−1
+                                                     = X̃ b−1
+                                                              + X̃b−1 + 1Ṽ> ,                                       (35)
+                                                         A        Y
+                                              ˜ b−1 = Ỹb−1 + Ỹb−1 + 1Ṽ> .
+                                              Ỹ                                                                     (36)
+                                                        X       A
+
+Finally, the hidden states are processed in parallel by feed-forward layers:
+                                                        ˜ b−1 ) + Ã
+                                             Ab = LN FF(Ã        ˜ b−1                                             (37)
+                                                        ˜ b−1 ) + X̃
+                                             Xb = LN FF(X̃        ˜ b−1 ,                                           (38)
+                                               b       ˜ b−1 ) + Ỹ
+                                             Y = LN FF(Ỹ        ˜ b−1 .                                            (39)
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+D. Absolute Positional Encoding
+For completeness, we briefly summarize absolute positional encoding (Vaswani et al., 2017) in the following. We thereby
+hope that readers can better understand the differences in the use of relative positional encoding as used in our Causal
+Transformer.
+In (Vaswani et al., 2017), absolute positional encoding PE(t) ∈ Rdh was introduced to uniquely encode each time step
+t ∈ {1, . . . , T }. Absolute positional encodings were added to the initial hidden states right before the first transformer block
+via
+                                                       ĥ0t = h0t + PE(t).                                                     (40)
+In addition, the authors used fixed (non-trainable) weights, produced by sine and cosine functions with differing frequencies;
+i. e.,
+                                                                     t
+                                                   PE(t) 2j = sin            ,                                                (41)
+                                                                  100002j/dh
+                                                                     t
+                                                 PE(t) 2j+1 = cos            .                                                (42)
+                                                                  100002j/dh
+This encoding scheme ensures continuity between neighboring time steps and that time-delta shifts are equivalent to linear
+transformations. Alternatively, one could use trainable absolute positional encodings, which would require learning T × dh
+parameters, where T is a maximum sequence length from the training subset. For our CT, this limits the ability to generalize
+to unseen sequence lengths. Hence, this is the main reason why we opted for clipped relative positional encodings for our
+CT instead.
+Notably, we used the same fixed encoding scheme from Eq. (41)–(42) to produce non-trainable relative PE.
+                               Causal Transformer for Estimating Counterfactual Outcomes
+
+E. Details on Adversarial Training
+In our CT, we implement the adversarial training for Eq. (18) and Eq. (19) by performing iterative gradient descent updates
+(rather than optimizing globally). Algorithm 1 provides the pseudocode. Recall that we further make use of exponential
+moving average (EMA) for stabilization.
+
+Algorithm 1 Adversarial training in CT via iterative gradient descent
+  Input: number of iterations niter , smoothing parameter β, CDC coefficient α, learning rate η
+              (0) (0) (0)
+  Initialize θY , θA , θR
+  for i = 1 to niter do
+                              (i)       (i−1)               (i−1) (i−1) 
+     Update gradient descent θY ← θY          − η∇θY LGY (θY      , θR )
+                              (i)       (i−1)               (i−1) (i−1)             (i−1)    (i−1) 
+     Update gradient descent θR ← θR          − η∇θR LGY (θY      , θR ) + αLconf (θA,EMA , θR )
+                    (i)          (i−1)             (i)
+     Update EMA θY,EMA ← βθY,EMA + (1 − β)θY
+                    (i)          (i−1)             (i)
+     Update EMA θR,EMA ← βθR,EMA + (1 − β)θR
+                              (i)  (i−1)             (i−1) (i)   
+     Update gradient descent θA ← θA     − η∇θA LGA (θA , θR,EMA )
+                    (i)          (i−1)             (i)
+    Update EMA θA,EMA ← βθA,EMA + (1 − β)θA
+  end for
+                                Causal Transformer for Estimating Counterfactual Outcomes
+
+F. Proof of Theorem F.2
+We begin by stating a lemma similar to Lemma 1 (Bica et al., 2020), yet ours includes the treatment probabilities P(At = ai )
+of Eq. (22).
+Lemma F.1. Let αi = P(At = ai ) and x0 = Φ(H̄t ) for some fixed representation network Φ(·). Then, it holds that
+
+                                                                αj PjΦ (x0 )
+                                                G∗ jA (x0 ) = Pda             .                                                  (43)
+                                                                        Φ 0
+                                                               i=1 αi Pi (x )
+
+
+Proof. The objective in Eq. (46) is obtained for fixed Φ by maximizing the following objective pointwise for any x0 :
+
+                                       da
+                                       X                                                            da
+                                                                                                      X
+                      G∗A = arg max          αj log GjA (x0 ) PjΦ (x0 ) subject to                          GiA (x0 ) = 1.       (44)
+                                GA     j=1                                                            i=1
+
+
+The result can now be obtained by applying Lagrange multipliers as done in (Bica et al., 2020).
+
+We now derive our theorem.
+Theorem F.2. We fix t ∈ N and define P as the distribution of H̄t , Pj as the distribution of H̄t given At = aj , and PjΦ
+as the distribution of Φ(H̄t ) given At = aj for all j ∈ {1, . . . , da }. Let GjA denote the output of GA corresponding to
+treatment aj . Then, there exists an optimal pair (Φ∗ , G∗A ) such that
+
+                                                 da
+                                                 X            h                  i
+                                Φ∗ = arg max           EH̄t ∼P log G∗ jA (Φ(H̄t )                                                (45)
+                                          Φ      j=1
+                                                 da
+                                                 X             h                  i
+                               G∗A = arg max           EH̄t ∼Pj log GjA (Φ∗ (H̄t ) P(At = aj )                                   (46)
+                                         GA      j=1
+                                                     da
+                                                     X
+                                        subject to           GiA (Φ∗ (H̄t )) = 1.                                                (47)
+                                                       i=1
+
+                                                                                                                             ∗
+Furthermore, Φ∗ satisfies Eq. (45) if and only if it induces balanced representations across treatments, i.e., P1Φ = . . . =
+    ∗
+PdΦa .
+
+Proof of Theorem F.2. We plug the optimal prediction probabilities provided by Lemma F.1 into the objective Eq. (45) and
+obtain
+            da
+                       "                      #    da Z
+                                                                                    !                   da
+           X                    αj PjΦ (x0 )      X                 PjΦ (x0 )           Φ 0       0
+                                                                                                       X
+               Ex0 ∼P Φ log Pda                 =        log Pda                      P (x ) dx +          log(αj ) (48)
+                                        Φ 0                                Φ 0
+           j=1                 i=1 αi Pi (x )     j=1             i=1 αi Pi (x )                       j=1
+                                                                                                       | {z }
+                                                                                                            =C
+                                                   d
+                                                                                    ! d
+                                                                      Φ   0
+                                                    a
+                                                                    Pj (x )             a
+                                                  X    Z                              X
+                                                =        log Pda                          αi PiΦ (x0 ) dx0 + C      (49)
+                                                                      α  P Φ  (x 0)
+                                                  j=1             i=1 i i             i=1
+                                                      da       da
+                                                                                           !
+                                                     X        X
+                                                                        Φ 0          Φ 0
+                                                =−       KL        αi Pi (x ) Pj (x ) + C.                          (50)
+                                                          j=1            i=1
+
+
+Hence, the objective becomes
+                                               da            da
+                                                                                              !
+                                               X             X
+                                         min         KL            αi PiΦ (x0 )   PjΦ (x0 )       .                              (51)
+                                          Φ
+                                               j=1           i=1
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+For balanced representations P1Φ = · · · = PdΦa , we obtain a global minimum because
+
+                                     da
+                                                                  !
+                                     X                                                               
+                                KL         αi PiΦ (x0 )   PjΦ (x0 )   = KL P1Φ (x0 )         P1Φ (x0 ) = 0            (52)
+                                     i=1
+
+for all j ∈ {1, . . . , da }.
+Let us now assume that there exists an optimal Φ that satisfies Eq. (52) and that induces unbalanced representations, i.e.,
+there exists an j 6= ` with PjΦ 6= P`Φ . This implies
+
+                                           da
+                                           X                                   da
+                                                                               X
+                                                 αi PiΦ (x0 ) = PjΦ 6= P`Φ =         αi PiΦ (x0 ),                    (53)
+                                           i=1                                 i=1
+
+which is a contradiction. Hence, Φ attains the global optimum if and only if it induces balanced representations.
+                                Causal Transformer for Estimating Counterfactual Outcomes
+
+G. Baseline Methods
+We select four methods as baselines, which make use of the same setting as our work (see Sec. 2). These are: (1) marginal
+structural models (MSMs) (Robins et al., 2000; Hernán et al., 2001), (2) recurrent marginal structural networks (RMSNs)
+(Lim et al., 2018), (3) counterfactual recurrent network (CRN) (Bica et al., 2020), and (4) G-Net (Li et al., 2021). We
+provide details for each in the following.
+
+G.1. Marginal Structural Models (MSMs)
+Marginal structural models (MSMs) (Robins et al., 2000; Hernán et al., 2001) are a standard baseline from epidemiology,
+which aim at counterfactual outcomes estimation with inverse probability of treatment weights (IPTW) via linear modeling.
+Time-varying confounding bias is removed with the help of stabilized weights
+                                                           Qt+τ                  
+                                                           n=t f An | Ān−1
+                                            SW (t, τ ) =   Qt+τ                     ,                                          (54)
+                                                            n=t f An | H̄n
+                                                                       
+where τ ranges from 1 to τmax , and f An | Ān−1 and f An | H̄n denote the conditional probabilities mass functions
+for discrete treatments of An given Ān−1 and H¯n , respectively. Both are estimated with logistic regressions, which depend
+on the sum of previous treatment applications, two previous time-varying covariates and static covariates
+                                                      
+                                  dA    t−1
+                                            1[An =aj ]  ,
+                                 X     X
+         f At | Āt−1 = σ           ωj                                                                                 (55)
+                                   j=1   n=1
+                                                                                                                        
+                                                                                              dA         t−1
+                                                                                                               1[An =aj ]  ,
+                                                                                             X          X
+           f At | H̄t = σ W1,x Xt + W2,x Xt−1 + W1,y Yt + W2,y Xt−1 + Wv V +                       φj                          (56)
+                                                                                              j=1        n=1
+
+
+where σ(·) is a sigmoid function and where ω· , φ· , W· are logistic regression parameters. After the stabilized weights are
+estimated, they are normalized and truncated at their 1-st and 99-th percentiles as done in (Lim et al., 2018).
+Counterfactual outcome regressions are fit for each prediction horizon τ separately. For a specific τ , we split dataset into
+smaller chunks with a rolling origin
+                                    and calculate stabilized weights for each chunk. Outcome regressions use the same
+history inputs, as f An | H̄n (Eq. (56)).
+MSMs do not contain hyperparameters; thus, we have merged train and validation subsets for all the experiments.
+
+G.2. Recurrent Marginal Structural Networks (RMSNs)
+RMSNs refer to sequence-to-sequence architectures consisting of four LSTM subnetworks: propensity treatment network,
+propensity history network, encoder, and decoder. RMSNs are designed to handle multiple binary treatments. The encoder
+first learns a representation of the observed history H̄t to perform one-step-ahead prediction. The decoder then uses this
+representation for estimating τ -step-ahead counterfactual outcomes. A fully-connected linear layer (memory adapter) is
+used to match the size of the representation of the encoder and the hidden units of the decoder.
+In RMSNs, time-varying confounding is addressed by re-weighting the objective with the IPTW (Robins et al., 2000) during
+training. IPTW creates a pseudo-population that mimics a randomized
+                                                                     controlled
+                                                                                trial. As done in (Lim et al., 2018), we
+use the stabilized weights (Eq. (54)). Both f An | Ān−1 and f An | H̄n are learned from the data using LSTM
+networks, which are called propensity treatment network (nominator) and propensity history network (denominator).
+During training, the propensity networks are trained first to estimate the stabilized weights SW (t, τ ). Afterward, the encoder
+is trained using a mean squared error (MSE) weighted with SW (·, 1). Similarly to MSMs, stabilized weights are normalized
+and truncated.
+Finally, the decoder is trained by minimizing the loss using the full stabilized weights SW (·, τmax ). For this purpose, the
+dataset is processed into smaller chunks with rolling origins, and, for each rolling origin, a representation is built using the
+trained encoder. We refer to (Lim et al., 2018) for details on the training algorithm.
+We tuned the same hyperparameters, as in the original paper (Lim et al., 2018) (see details in Appendix H).
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+G.3. Counterfactual Recurrent Network (CRN)
+CRN consists of an encoder-decoder architecture. In contrast to RMSNs, which use IPTW to address time-varying
+confounding, CRN builds balanced representations which are non-predictive of the treatment assignment. This is achieved
+by adopting an adversarial learning technique, namely gradient reversal (Ganin & Lempitsky, 2015).
+In CRN, both encoder and decoder consist of a single LSTM-layer. Unlike RMSNs, the authors and we did not use a
+memory adapter. Thus, the number of LSTM hidden units dh of decoder is set to the size of the balanced representation of
+the encoder.
+At each time step t, the hidden states ht are fed into a fully-connected linear layer that builds a representation Φt . Then, two
+fully-connected networks GY and GA , put on top of Φt , aim to predict the next outcome Yt+1 and the current treatment
+At , respectively. For this, both encoder and decoder are trained by minimizing the loss
+                                                                        da
+                                                                              1[At =aj ] log GA (Φt )
+                                                              2        X
+                                L = Yt+1 − GY Φt , At              −λ                                                        (57)
+                                                                        j=1
+
+with hyperparameter λ. The loss L is based on a gradient reversal layer (Ganin & Lempitsky, 2015), which forces GA to
+minimize cross-entropy between predicted and current treatment, but Φt to maximize it. In our experiments, we kept λ = 1,
+as it was used by (Atan et al., 2018b; Bica et al., 2020).
+In our ablation study (Sec. 5.4), we combined CRN with our CDC loss. For that, we applied our adversarial training
+procedure (introduced in Sec. 4.3) to representations of LSTM-based encoder and decoder, and feed-forward networks GY
+and GA . Here, EMA of model parameters (β = 0.99) was also accompanying the CDC loss.
+
+G.4. G-Net
+G-Net is based the G-computation formula from Eq. (24), which expresses the average counterfactual outcome
+Yt+τ [āt,t+τ −1 ] conditioned on the history H̄t in terms of the observational data distribution.
+G-Net performs counterfactual outcomes prediction in two steps: First, the conditional distributions P(Xj |
+H̄t , x̄t+1:j−1 , āt:j−1 ) are estimated. Then, Monte Carlo simulations are performed via Eq. (24), by sampling from
+the estimated distributions. Afterward, Yt+τ [āt,t+τ −1 ] is predicted by taking the empirical mean over the Monte Carlo
+samples (M = 50 in our experiments).
+The conditional distributions P(Xj | H̄t , x̄t+1:j−1 , āt:j−1 ) are learned by estimating the respective conditional expectations
+E(Xj | H̄t , x̄t+1:j−1 , āt:j−1 ), which are learned via a single LSTM jointly with outcome prediction. One can then sample
+from P(Xt+j | H̄t , x̄t+1:j−1 , āt:j−1 ) by drawing from the empirical distributions of the residuals on some holdout set not
+used to estimate the conditional expectations. We used 10% of the training data for the holdout dataset.
+For better comparability with other baselines, we used one or two-layered LSTMs (as in the original papers) with an extra
+fully-connected linear representation layer and a network with hidden units on top of the latter (analogous to GY in CT or
+CRN).
+                                    Causal Transformer for Estimating Counterfactual Outcomes
+
+H. Hyperparameter Tuning
+We performed hyperparameter optimization for all benchmarks via random grid search with respect to the factual RMSE of
+the validation set. We list the ranges of hyperparameter grids in Table 6. We report additional information on model-specific
+hyperparameters in Table 7 (here we used the same ranges for all experiments). For reproducibility, we make the selected
+hyperparameters public: they can be found in YAML format in our GitHub4 .
+We aimed for a fair comparison and thus kept the number of parameters and layers similar across datasets and models.
+Nevertheless, the hyperparameter ranges differ slightly for each dataset and model, as the size of inputs is different (see
+Table 7). Thus, e.g., the range of sizes of hidden units (sequential, representational, or fully-connected) is decreased for
+the MIMIC-III-based experiments. In specific cases (LSTM hidden units propensity treatment network of RMSNs or
+transformer units of CT), we discarded unrealistically small values for synthetic datasets. For the fully-synthetic dataset
+based on the tumor growth simulator, we use one layer sequential models. For MIMIC-III, we also include two-layered
+LSTMs/transformers. The number of epochs (ne ) is also chosen differently for each dataset to reflect its complexity. CT
+generally requires more epochs to converge due to the EMA of model weights. Therefore, we used approximately 60 %
+more epochs for CT than other models. Note that CT still outperforms the baselines when EMA is omitted, as shown in our
+ablation study. Due to the high memory usage of self-attention for long sequences and batch augmentation with masked
+vitals of CT, we also use smaller ranges of minibatch sizes for CT. Notably, as in CT, we omitted the final projection layer
+after concatenation of the attention heads, as we need the size of hidden units (which always depends on the input size while
+tuning) to always be divisible by the number of heads nh . Thus, we have chosen the closest larger divisible by the number
+of hidden units.
+Training of baselines: All baseline models are implemented in PyTorch Lightning and, as our CT, trained with Adam
+(Kingma & Ba, 2015). The number of epochs (ne ) is varied across datasets for a better fit.
+We perform exponential rise of both α (in the CDC loss) and λ (in gradient reversal). This is given by
+                                           2                                            2             
+                    αe = α ·                            −1 ,       λe = λ ·                            −1 ,             (58)
+                                   1 + exp(−10 ∗ e/ne )                           1 + exp(−10 ∗ e/ne )
+
+where e ∈ 1, . . . , ne is an index of current epoch.
+For all baselines, we also used the teacher forcing technique (Williams & Zipser, 1989) when training the models for
+multiple-step-ahead prediction. During evaluation of multiple-step-ahead prediction, we switch off teacher forcing and
+autoregressively feed model predictions.
+
+
+
+
+   4
+       https://github.com/Valentyn1997/CausalTransformer/
+                                  Causal Transformer for Estimating Counterfactual Outcomes
+
+
+Table 6. Ranges for hyperparameter tuning across experiments. Here, we distinguish (1) data using the tumor growth (TG) simulator
+(=experiments with fully-synthetic data), (2) data from the semi-synthetic (SS) benchmark, and (3) real-world (RW) MIMIC-III data. C is
+the input size. dr is the size of balanced representation (BR) or the output of LSTM (in the case of G-Net).
+
+   Model      Sub-model         Hyperparameter                     Range (TG simulator)            Range (SS data)      Range (RW data)
+                                LSTM layers (B)                                1                     1, 2                     1, 2
+                                Learning rate (η)                                       0.01, 0.001, 0.0001
+                Propensity      Minibatch size                                             64, 128, 256
+                treatment       LSTM hidden units (dh )             0.5C, 1C, 2C, 3C, 4C        0.5C, 1C, 2C             0.5C, 1C, 2C
+                network         LSTM dropout rate (p)                                  0.1, 0.2, 0.3, 0.4, 0.5
+                                Max gradient norm                                           0.5, 1.0, 2.0
+                                Number of epochs (ne )                      100                      400                      200
+                                LSTM layers (B)                                1                     1, 2                     1, 2
+                Propensity      Learning rate (η)                                       0.01, 0.001, 0.0001
+                history         Minibatch size                                             64, 128, 256
+   RMSNs
+                network         LSTM hidden units (dh )             0.5C, 1C, 2C, 3C, 4C        0.5C, 1C, 2C             0.5C, 1C, 2C
+                                LSTM dropout rate (p)                                  0.1, 0.2, 0.3, 0.4, 0.5
+                Encoder         Max gradient norm                                           0.5, 1.0, 2.0
+                                Number of epochs (ne )                      100                      400                      200
+                                LSTM layers (B)                                1                     1, 2                     1, 2
+                                Learning rate (η)                                       0.01, 0.001, 0.0001
+                                Minibatch size                                            256, 512, 1024
+                Decoder         LSTM hidden units (dh )             1C, 2C, 4C, 8C, 16C          1C, 2C, 4C               1C, 2C, 4C
+                                LSTM dropout rate (p)                                  0.1, 0.2, 0.3, 0.4, 0.5
+                                Max gradient norm                                        0.5, 1.0, 2.0, 4.0
+                                Number of epochs (ne )                      100                      400                      200
+                                LSTM layers (B)                                1                           1, 2               1, 2
+                                Learning rate (η)                                             0.01, 0.001, 0.0001
+                                Minibatch size                                                   64, 128, 256
+                                LSTM hidden units (dh )             0.5C, 1C, 2C, 3C, 4C              0.5C, 1C, 2C       0.5C, 1C, 2C
+                Encoder
+                                BR size (dr )                       0.5C, 1C, 2C, 3C, 4C              0.5C, 1C, 2C       0.5C, 1C, 2C
+                                FC hidden units (nFC )            0.5dr , 1dr , 2dr , 3dr , 4dr     0.5dr , 1dr , 2dr   0.5dr , 1dr , 2dr
+                                LSTM dropout rate (p)                                        0.1, 0.2, 0.3, 0.4, 0.5
+                                Number of epochs (ne )                        100                          400                200
+   CRN
+                                LSTM layers (B)                                1                           1, 2               1, 2
+                                Learning rate (η)                                             0.01, 0.001, 0.0001
+                                Minibatch size                                                  256, 512, 1024
+                                LSTM hidden units (dh )                                       BR size of encoder
+                Decoder
+                                BR size (dr )                       0.5C, 1C, 2C, 3C, 4C              0.5C, 1C, 2C       0.5C, 1C, 2C
+                                FC hidden units (nFC )            0.5dr , 1dr , 2dr , 3dr , 4dr     0.5dr , 1dr , 2dr   0.5dr , 1dr , 2dr
+                                LSTM dropout rate (p)                                        0.1, 0.2, 0.3, 0.4, 0.5
+                                Number of epochs (ne )                        100                          400                200
+                                LSTM layers (B)                                1                           1, 2               1, 2
+                                Learning rate (η)                                             0.01, 0.001, 0.0001
+                                Minibatch size                                                   64, 128, 256
+                                LSTM hidden units (dh )             0.5C, 1C, 2C, 3C, 4C              0.5C, 1C, 2C       0.5C, 1C, 2C
+   G-Net        —
+                                LSTM output size (dr )              0.5C, 1C, 2C, 3C, 4C              0.5C, 1C, 2C       0.5C, 1C, 2C
+                                FC hidden units (nFC )            0.5dr , 1dr , 2dr , 3dr , 4dr     0.5dr , 1dr , 2dr   0.5dr , 1dr , 2dr
+                                LSTM dropout rate (p)                                        0.1, 0.2, 0.3, 0.4, 0.5
+                                Number of epochs (ne )                         50                          400                200
+                                Transformer blocks (B)                         1                           1, 2               1, 2
+                                Learning rate (η)                                             0.01, 0.001, 0.0001
+                                Minibatch size                           64, 128, 256                     32, 64            32, 64
+                                Attention heads (nh )                           2                          2, 3               2, 3
+                                Transformer units (dh )                1C, 2C, 3C, 4C                 0.5C, 1C, 2C       0.5C, 1C, 2C
+   CT           —
+                                BR size (dr )                       0.5C, 1C, 2C, 3C, 4C              0.5C, 1C, 2C       0.5C, 1C, 2C
+                                FC hidden units (nFC )            0.5dr , 1dr , 2dr , 3dr , 4dr     0.5dr , 1dr , 2dr   0.5dr , 1dr , 2dr
+                                Sequential dropout rate (p)                                  0.1, 0.2, 0.3, 0.4, 0.5
+                                Max positional encoding (lmax )                15                           20                 30
+                                Number of epochs (ne )                        150                          400                300
+                        Causal Transformer for Estimating Counterfactual Outcomes
+
+
+
+
+      Table 7. Additional information on model-specific hyperparameters (kept the same for all experiments).
+Model       Sub-model                          Hyperparameter                                Value
+                                               Random search iterations                      50
+             Propensity treatment network      Input size (C)                                da
+                                               Output size                                   da
+                                               Random search iterations                      50
+             Propensity history network        Input size (C)                                da + dy + dx + dv
+RMSNs                                          Output size                                   da
+                                               Random search iterations                      50
+             Encoder                           Input size (C)                                da + dy + dx + dv
+                                               Output size                                   dy
+                                               Random search iterations                      20
+             Decoder                           Input size (C)                                da + dy + dv
+                                               Output size                                   dy
+                                               Random search iterations                      50
+                                               Input size (C)                                da + dy + dx + dv
+             Encoder
+                                               Output size                                   da + dy
+                                               Gradient reversal coefficient (λ)             1.0
+CRN
+                                               Random search iterations                      30
+                                               Input size (C)                                da + dy + dv
+             Decoder
+                                               Output size                                   da + dy
+                                               Gradient reversal coefficient (λ)             1.0
+                                               Random search iterations                      50
+                                               Input size (C)                                da + dy + dx + dv
+                                               Output size                                   dy + dx
+G-Net        —
+                                               MC samples (M )                               50
+                                               Number of covariate groups                    1
+                                               Holdout dataset ratio (empirical residuals)   10%
+                                               Random search iterations                      50
+                                               Input size (C)                                max{da , dy , dx , dv }
+                                               Output size                                   da + dy
+CT           —
+                                               CDC coefficient (α)                           0.01
+                                               EMA of model weights (β)                      0.99
+                                               Positional encoding                           relative, trainable
+                                  Causal Transformer for Estimating Counterfactual Outcomes
+
+I. Encoder-Decoder Causal Transformer
+I.1. Overview
+Here, we summarize the Encoder-Decoder Causal Transformer (EDCT) from our ablation study, namely a single-subnetwork
+version of out CT. The EDCT consists of transformer-based encoder and decoder (see Fig. 4). The encoder builds a treatment-
+invariant sequence of representations of the history Φ̄t = (Φ1 , . . . , Φt ), balanced with a custom adversarial objective. The
+decoder subsequently uses Φ̄t as cross-attention keys and values for estimating outcomes of future treatments.
+We start by mapping the concatenated time-varying covariates, left-shifted treatments, outcomes and static covariates to a
+hidden state space of dimensionality dh via fully-connected linear layer:
+
+                                          h0t = Linear(Concat(At−1 , Yt , Xt , V)).                                            (59)
+
+In the case of decoder, we apply a similar input transformation
+
+                                             h0t = Linear(Concat(at−1 , Ŷt , V)),                                             (60)
+
+where Ŷt are autoregressively-fed model outputs.
+We then stack      of B identical encoder/decoder blocks or layers, which transform the whole sequence of hidden states
+ h01 , . . . , h0t in quadratic time, depending on sequence length t. This is given by
+                                                                   >
+                                          Hb = hb1 , . . . , hbt         ∈ Rt×dh ,                                             (61)
+                                            b                b−1
+                                          H = Blockb (H             ),       b ∈ {1, . . . , B},                               (62)
+
+where B is the total number of blocks.
+The encoder uses its hidden states to infer keys, queries, and values (thus: self-attention). In contrast, the decoder has
+both self- and cross-attentions. For later, we use keys and values, inferred from the sequence of balanced representations
+of the history. Note that the dimensionality of hidden decoder state is set such that it matches the size of the balanced
+representations of the encoder, i.e., dh = dr .
+Lastly, we take the balanced representations from the last transformer block as outputs. Here, we apply an additional
+fully-connected linear layer and exponential linear unit (ELU) non-linearity as in Eq. (10).
+We make slightly adaptations to the relative positional encoding for the cross-attention of the decoder (Eq. (66)). The
+decoder works a priori with the continuation of the same sequence. However, it is here beneficial to use the sequence for
+construction of aVij and aK
+                          ij , so that j ∈ {1, . . . , t} and i ∈ {t + 1, . . . , t + τ − 1}. Notably, relative positional encodings
+are shared neither between encoder and decoder, nor between self-attention and the cross-attention of the decoder.
+We show the EDCT in Fig. 4. We further formalize the encoder/decoder transformer blocks in the following section.
+                                      Causal Transformer for Estimating Counterfactual Outcomes
+
+
+
+
+                                                                                                                         Feed-forward
+
+
+
+                                                                                                                        Cross-attention
+
+
+  Feed-forward
+
+                                                                                                                                Masked
+    Masked                                                                                                                    self-attention
+  self-attention
+
+
+
+
+                                                                                                           Legend:
+
+                                                                                                                     Inputs / Outputs          Network layer
+                           Linear                     Linear        Linear                        Linear
+
+
+
+                                                                                                                                Concatenation
+
+                                    Patient history                          Projection horizon
+
+
+
+
+Figure 4. Architecture of the encoder-decoder causal transformer (EDCT). Residual connections with layer normalizations are omitted
+for clarity. The encoder is trained to perform one-step-ahead prediction Ŷt+1 [at ], whereas the decoder uses the pretrained balanced
+representations of history from the encoder. Based on them, the decoders makes predictions for the projection horizon τ ≥ 2 via
+Ŷt+τ [āt+1:t+τ −1 ].
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+I.2. Transformer Blocks in EDCT
+The EDCT encoder block is defined in a following way:
+                                                                            
+                          H̃b−1 = LN MHA Q(Hb−1 ), K(Hb−1 ), V (Hb−1 ) + Hb−1 ,
+                                                                      
+                                                                                                                                        (63)
+                             Hb = LN FF(H̃b−1 ) + H̃b−1 .
+                                                       
+                                                                                                                                        (64)
+
+The EDCT decoder block adds a cross-attention layer after the self-attention (i.e., between Eq. (63) and Eq. (64)). This is
+formalized by
+                                                                                         
+                        H̃b−1 = LN MHA Q(Hb−1 ), K(Hb−1 ), V (Hb−1 ) + Hb−1 ,
+                                                                                 
+                                                                                                                      (65)
+                        ˜ b−1 = LN MHA Q(H̃b−1 ), K((Φ̄ )> ), V ((Φ̄ )> ) + H̃b−1 ,
+                                                                                          
+                        H̃                                       t            t                                       (66)
+
+                           Hb = LN FF(H̃   ˜ b−1 ) + H̃
+                                                     ˜ b−1 ,                                                         (67)
+
+where Φ̄t is a sequence of the encoder representations (i.e., the encoded history H̄t ), as transformed according to Eq. (61)).
+
+I.3. Hyperparameter Tuning for EDCT
+We performed a hyperparameter selection for EDCT in a similar manner to CRN, see Appendix H. We provide hyperpa-
+rameter ranges for both encoder and decoder in Table 8. Other hyperparameters are kept fixed, the same as for CRN in
+Table 7. For the fully-synthetic dataset based on the tumor growth simulator, we add a two-layer (two-block) architecture to
+the search range. This was done to keep the number of total trainable parameters similar to other baselines. We employed
+trainable relative positional encodings. Notably, the decoder has lmax set to τmax for the self-attention and to lmax of the
+encoder for the cross-attention.
+
+Table 8. Ranges for hyperparameter tuning for EDCT across experiments. Here, we distinguish (1) data using the tumor growth (TG)
+simulator (=experiments with fully-synthetic data) and (2) semi-synthetic (SS) data. C is the input size. dr is the size of balanced
+representation (BR) or the output of LSTM (in the case of G-Net).
+
+      Model     Sub-model      Hyperparameter                                       Range (TG simulator)           Range (SS data)
+                               Transformer blocks (B)                                          1, 2                        1, 2
+                               Learning rate (η)                                                  0.01, 0.001, 0.0001
+                               Minibatch size                                             64, 128, 256                 32, 64, 128
+                               Attention heads (nh )                                             2                         2, 3
+                               Transformer units (dh )                                  1C, 2C, 3C, 4C                0.5C, 1C, 2C
+                  Encoder
+                               BR size (dr )                                         0.5C, 1C, 2C, 3C, 4C             0.5C, 1C, 2C
+                               FC hidden units (nFC )                              0.5dr , 1dr , 2dr , 3dr , 4dr    0.5dr , 1dr , 2dr
+                               Sequential dropout rate (p)                                       0.1, 0.2, 0.3, 0.4, 0.5
+                               Max positional encoding (self-attention) (lmax )                 15                          20
+                               Number of epochs (ne )                                          100                         400
+      EDCT
+                               Transformer blocks (B)                                          1, 2                       1, 2
+                               Learning rate (η)                                                  0.01, 0.001, 0.0001
+                               Minibatch size                                           256, 512, 1024               128, 256, 512
+                               Attention heads (nh )                                             2                        2, 3
+                               Transformer units (dh )                                            BR size of encoder
+                  Decoder      BR size (dr )                                         0.5C, 1C, 2C, 3C, 4C             0.5C, 1C, 2C
+                               FC hidden units (nFC )                              0.5dr , 1dr , 2dr , 3dr , 4dr    0.5dr , 1dr , 2dr
+                               Sequential dropout rate (p)                                       0.1, 0.2, 0.3, 0.4, 0.5
+                               Max positional encoding (self-attention) (lmax )                            τmax
+                               Max positional encoding (cross-attention) (lmax )                15                         20
+                               Number of epochs (ne )                                          100                        400
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+J. Details on Experiments with Synthetic Data
+J.1. Summary of Tumor Growth Simulator
+The tumor growth (TG) simulator (Geng et al., 2017) models the volume of tumor Yt+1 for t + 1 days after cancer diagnosis
+(so that the outcome is one-dimensional, i. e., dy = 1). The model has two binary treatments: (i) radiotherapy (Art ) and
+(ii) chemotherapy (Act ). These are modeled as follows: (i) Radiotherapy when assigned to a patient has an immediate effect
+d(t) on the next outcome. (ii) Chemotherapy affects several future outcomes with exponentially decaying effect C(t) via
+                                                       K                                      
+                              Yt+1 =        1 + ρ log         − βc Ct − (αr dt + βr d2t ) + εt    Yt ,                      (68)
+                                                        Yt
+
+where ρ, K, βc , αr , βr are parameters in the simulation and where εt ∼ N (0, 0.012 ) is independently sampled noise. Here,
+the parameters βc , αr , βr describe the individual response of each patient and are sampled from a mixture of truncated
+normal distributions with three mixture components. For exact values of parameters, refer to the code implementation5 . The
+indices of mixture components are considered as static covariates (dv = 1). Time-varying confounding is introduced by a
+biased treatments assignment, identical for both treatments; i. e.,
+                                                                                         
+                                                              γ
+                                Act , Art ∼ Bernoulli     σ       (D̄15 (Ȳt−1 ) − Dmax /2) ,                               (69)
+                                                             Dmax
+
+where σ(·) is a sigmoid activation, Dmax is the maximum tumor diameter, D̄15 (Ȳt−1 ) is the average tumor diameter over
+the last 15 days, and γ is a confounding parameter. We can control the level of confounding via γ. For γ = 0, the treatment
+assignment is fully randomized. For increasing values, the the amount of time-varying confounding becomes also larger.
+In our implementation, we proceed as follows. For RMSNs, we insert two binary treatments directly. For all other
+methods, we use a single-categorical treatment out of the set {(Act = 0, Art = 0), (Act = 1, Art = 0), (Act = 0, Art = 1),
+(Act = 1, Art = 1)}.
+For each patient in the test set and each time step, we simulate several counterfactual trajectories, depending on τ . For one-
+step-ahead prediction, we simulate all four combinations of one-step-ahead counterfactual outcomes Yt+1 . This corresponds
+to the tumor volume under all possible combinations of treatment assignments. For multi-step-ahead prediction, the number
+of all potential outcomes of Yt+2 , . . . , Yt+τmax growths exponentially with the projection horizon τmax . Therefore, we adopt
+two alternative schemes:
+
+  1. Single sliding treatment. To test that the correct timing of a treatment is chosen, we simulate trajectories with a single
+     treatment but where the treatments are iteratively moved over a window ranging from t to t + τmax − 1. This effectively
+     results in 2(τmax − 1) trajectories.
+
+  2. Random trajectories. Here, we simulate a fixed number of trajectories, i. e., 2 (τmax − 1), each with random treatment
+     assignments.
+
+The former setting is identical to the one in (Bica et al., 2020). We additionally included the latter setting, as it may also
+involve more diverse trajectories with multiple treatments. Thereby, we hope to make our analysis more realistic with
+respect to clinical practice.
+For each level of confounding γ, we simulate 10,000 patient trajectories for training, 1,000 for validation, and 1,000
+trajectories for testing. We limit the length for trajectories to max. 60 time steps (some patients have shorter trajectories due
+to recovery or death). Here, and in all following experiments, we apply hyperparameter tuning.
+
+J.2. Experimental Details
+Hyperparameter tuning. We perform hyperparameter tuning separately for all models as well as all the different values of
+the confounding amount γ. For this, we use the 1,000 factual patient time-series from the validation set. Details are in H.
+  5
+    Code is available online: https://github.com/Valentyn1997/CausalTransformer/blob/main/src/data/
+cancer_sim/cancer_simulation.py
+                                  Causal Transformer for Estimating Counterfactual Outcomes
+
+Performance measurement: We retrain the models on five simulated datasets with different random seeds. We then report
+the averaged root mean square error (RMSE) on the test set, that is, for hold-out data. We report a normalized RMSE, where
+we normalize by the maximum tumor volume Vmax = 1150 cm3 .
+We acknowledge that our results are slightly different from those reported in (Lim et al., 2018; Bica et al., 2020). The
+aforementioned papers calculate the test RMSE based on both counterfactual trajectories after rolling origin and historical
+factual trajectories before rolling origin. However, the latter biases evaluation towards factual performance. For that reason,
+we opted for a more challenging evaluation that directly matches our aim, namely predicting counterfactuals over time.
+Therefore, we only measure performance with respect to counterfactual outcomes after rolling origin (and thus without
+considering historical factual patient trajectories).
+
+J.3. Additional Results
+In the following, we provide additional results for one-step-ahead prediction (Table 9), τ -step-ahead prediction in a setting
+with single sliding treatment (Table 11), and τ -step-ahead prediction with random trajectories (Table 10). Note that CT
+(α = 0) uses the same model and hyperparameters as CT. The only difference is that we switched off our CDC loss.
+In the setting of random trajectories (Table 10), RMSEs become lower for increasing projection horizons. This can be
+expected as the application of treatment should decrease the tumor volume. This results in a lower error of estimation.
+Importantly, the results confirm the superiority of our Causal Transformer.
+
+
+Table 9. Normalized RMSE for one-step-ahead prediction. Shown: mean and standard deviation over five runs (lower is better). Parameter
+γ is the the amount of time-varying confounding: higher values mean larger treatment assignment bias.
+
+                                        γ=0              γ=1              γ=2              γ=3              γ=4
+               MSMs                 1.107 ± 0.113    1.222 ± 0.108    1.410 ± 0.089    1.680 ± 0.118    2.023 ± 0.230
+               RMSNs                1.037 ± 0.123    1.104 ± 0.116    1.124 ± 0.115    1.268 ± 0.116    1.399 ± 0.196
+               CRN                  0.782 ± 0.053    0.817 ± 0.050    0.887 ± 0.072    1.063 ± 0.124    1.301 ± 0.144
+               G-Net                0.832 ± 0.052    0.873 ± 0.080    1.000 ± 0.062    1.299 ± 0.303    1.375 ± 0.250
+               CT (α = 0) (ours) 0.778 ± 0.065       0.790 ± 0.081    0.869 ± 0.075    1.024 ± 0.148    1.300 ± 0.220
+               CT (ours)            0.775 ± 0.063    0.797 ± 0.066    0.859 ± 0.070    1.046 ± 0.147    1.316 ± 0.229
+               Lower = better (best in bold).
+                                  Causal Transformer for Estimating Counterfactual Outcomes
+
+
+
+
+Table 10. Normalized RMSE for τ -step-ahead prediction (here: random trajectories setting). Shown: mean and standard deviation over
+five runs (lower is better). Parameter γ is the the amount of time-varying confounding: higher values mean larger treatment assignment
+bias.
+                                                 γ=0            γ=1            γ=2           γ=3            γ=4
+                τ =2     MSMs                  1.04 ± 0.04   1.21 ± 0.13    1.50 ± 0.23    1.73 ± 0.43   1.85 ± 0.71
+                         RMSNs                 1.01 ± 0.09   1.03 ± 0.12    1.00 ± 0.10    1.13 ± 0.16   1.09 ± 0.22
+                         CRN                   0.77 ± 0.04   0.76 ± 0.05    0.81 ± 0.07    0.94 ± 0.13   1.12 ± 0.25
+                         G-Net                 0.94 ± 0.13   0.95 ± 0.09    1.01 ± 0.05    1.10 ± 0.13   1.20 ± 0.26
+                         CT (α = 0) (ours)     0.76 ± 0.06   0.76 ± 0.05    0.82 ± 0.07    0.92 ± 0.21   1.09 ± 0.28
+                         CT (ours)             0.75 ± 0.06   0.77 ± 0.06    0.81 ± 0.08    0.90 ± 0.18   1.06 ± 0.27
+                τ =3     MSMs                  1.00 ± 0.04   1.14 ± 0.12    1.38 ± 0.22    1.54 ± 0.38   1.51 ± 0.59
+                         RMSNs                 0.96 ± 0.05   1.02 ± 0.09    0.98 ± 0.10    1.11 ± 0.20   1.17 ± 0.29
+                         CRN                   0.78 ± 0.03   0.78 ± 0.06    0.83 ± 0.09    1.05 ± 0.16   1.23 ± 0.32
+                         G-Net                 1.01 ± 0.15   1.03 ± 0.12    1.07 ± 0.07    1.15 ± 0.20   1.35 ± 0.32
+                         CT (α = 0) (ours)     0.76 ± 0.04   0.78 ± 0.06    0.83 ± 0.10    0.95 ± 0.25   1.16 ± 0.37
+                         CT (ours)             0.75 ± 0.04   0.79 ± 0.06    0.83 ± 0.11    0.93 ± 0.23   1.12 ± 0.32
+                τ =4     MSMs                  0.90 ± 0.06   1.02 ± 0.11    1.22 ± 0.21    1.31 ± 0.31   1.25 ± 0.51
+                         RMSNs                 0.89 ± 0.06   0.98 ± 0.08    0.92 ± 0.10    1.06 ± 0.22   1.15 ± 0.31
+                         CRN                   0.74 ± 0.03   0.74 ± 0.07    0.80 ± 0.10    1.07 ± 0.17   1.23 ± 0.34
+                         G-Net                 0.97 ± 0.15   0.97 ± 0.13    1.01 ± 0.08    1.07 ± 0.21   1.33 ± 0.34
+                         CT (α = 0) (ours)     0.72 ± 0.03   0.75 ± 0.06    0.79 ± 0.11    0.93 ± 0.28   1.14 ± 0.39
+                         CT (ours)             0.71 ± 0.03   0.75 ± 0.06    0.80 ± 0.12    0.90 ± 0.26   1.07 ± 0.35
+                τ =5     MSMs                  0.80 ± 0.07   0.89 ± 0.10    1.06 ± 0.20    1.10 ± 0.27   1.08 ± 0.47
+                         RMSNs                 0.81 ± 0.06   0.93 ± 0.07    0.85 ± 0.10    0.99 ± 0.22   1.09 ± 0.30
+                         CRN                   0.68 ± 0.04   0.68 ± 0.07    0.75 ± 0.10    1.03 ± 0.16   1.17 ± 0.34
+                         G-Net                 0.88 ± 0.14   0.88 ± 0.14    0.92 ± 0.08    0.97 ± 0.21   1.26 ± 0.36
+                         CT (α = 0) (ours)     0.66 ± 0.03   0.69 ± 0.06    0.73 ± 0.11    0.88 ± 0.29   1.08 ± 0.38
+                         CT (ours)             0.66 ± 0.03   0.70 ± 0.06    0.74 ± 0.12    0.84 ± 0.26   1.01 ± 0.34
+                τ =6    MSMs                   0.71 ± 0.07   0.78 ± 0.09    0.91 ± 0.18    0.93 ± 0.23   0.99 ± 0.44
+                        RMSNs                  0.73 ± 0.05   0.87 ± 0.06    0.77 ± 0.09    0.90 ± 0.21   1.01 ± 0.28
+                        CRN                    0.62 ± 0.04   0.62 ± 0.07    0.70 ± 0.09    0.96 ± 0.15   1.10 ± 0.32
+                        G-Net                  0.79 ± 0.12   0.79 ± 0.13    0.82 ± 0.09    0.86 ± 0.20   1.18 ± 0.35
+                        CT (α = 0) (ours) 0.59 ± 0.02        0.63 ± 0.06    0.67 ± 0.11    0.80 ± 0.29   1.00 ± 0.36
+                        CT (ours)              0.59 ± 0.02   0.63 ± 0.06    0.67 ± 0.12    0.77 ± 0.25   0.93 ± 0.32
+                Lower = better (best in bold).
+                                   Causal Transformer for Estimating Counterfactual Outcomes
+
+
+
+
+Table 11. Normalized RMSE for τ -step-ahead prediction (here: single sliding treatment setting). Shown: mean and standard deviation over
+five runs (lower is better). Parameter γ is the the amount of time-varying confounding: higher values mean larger treatment assignment
+bias.
+                                                  γ=0            γ=1            γ=2            γ=3           γ=4
+                τ =2      MSMs                  1.33 ± 0.13   1.59 ± 0.20    1.88 ± 0.36    2.23 ± 0.63    2.51 ± 0.91
+                          RMSNs                 0.98 ± 0.12   1.10 ± 0.25    0.98 ± 0.08    1.18 ± 0.10    0.94 ± 0.09
+                          CRN                   0.71 ± 0.07   0.75 ± 0.06    0.77 ± 0.04    0.94 ± 0.14    1.11 ± 0.22
+                          G-Net                 0.99 ± 0.16   0.99 ± 0.06    1.03 ± 0.09    1.10 ± 0.08    1.18 ± 0.16
+                          CT (α = 0) (ours)     0.70 ± 0.09   0.71 ± 0.09    0.76 ± 0.08    0.90 ± 0.21    1.00 ± 0.21
+                          CT (ours)             0.70 ± 0.09   0.72 ± 0.09    0.74 ± 0.07    0.90 ± 0.13    1.01 ± 0.23
+                τ =3      MSMs                  1.61 ± 0.15   1.90 ± 0.24    2.20 ± 0.42    2.53 ± 0.72    2.64 ± 0.95
+                          RMSNs                 0.98 ± 0.10   1.16 ± 0.21    1.00 ± 0.09    1.23 ± 0.12    1.06 ± 0.14
+                          CRN                   0.73 ± 0.06   0.78 ± 0.06    0.85 ± 0.06    1.16 ± 0.26    1.34 ± 0.37
+                          G-Net                 1.15 ± 0.20   1.16 ± 0.11    1.20 ± 0.15    1.24 ± 0.12    1.47 ± 0.22
+                          CT (α = 0) (ours)     0.73 ± 0.08   0.75 ± 0.08    0.82 ± 0.09    0.99 ± 0.25    1.13 ± 0.28
+                          CT (ours)             0.73 ± 0.08   0.76 ± 0.07    0.79 ± 0.08    0.98 ± 0.19    1.12 ± 0.27
+                τ =4      MSMs                  1.79 ± 0.16   2.08 ± 0.26    2.37 ± 0.45    2.67 ± 0.76    2.62 ± 0.94
+                          RMSNs                 0.99 ± 0.10   1.18 ± 0.17    1.03 ± 0.11    1.28 ± 0.15    1.21 ± 0.19
+                          CRN                   0.76 ± 0.05   0.81 ± 0.07    0.93 ± 0.08    1.35 ± 0.38    1.55 ± 0.50
+                          G-Net                 1.25 ± 0.24   1.24 ± 0.14    1.27 ± 0.21    1.29 ± 0.14    1.64 ± 0.28
+                          CT (α = 0) (ours)     0.76 ± 0.07   0.79 ± 0.06    0.87 ± 0.11    1.06 ± 0.27    1.21 ± 0.32
+                          CT (ours)             0.76 ± 0.07   0.80 ± 0.06    0.85 ± 0.09    1.05 ± 0.22    1.21 ± 0.30
+                τ =5      MSMs                  1.88 ± 0.17   2.15 ± 0.27    2.42 ± 0.45    2.69 ± 0.75    2.54 ± 0.90
+                          RMSNs                 1.00 ± 0.10   1.19 ± 0.14    1.08 ± 0.13    1.34 ± 0.19    1.39 ± 0.31
+                          CRN                   0.79 ± 0.04   0.85 ± 0.07    1.01 ± 0.11    1.51 ± 0.47    1.72 ± 0.58
+                          G-Net                 1.29 ± 0.26   1.28 ± 0.18    1.32 ± 0.25    1.33 ± 0.15    1.76 ± 0.37
+                          CT (α = 0) (ours)     0.79 ± 0.06   0.83 ± 0.06    0.92 ± 0.12    1.12 ± 0.30    1.28 ± 0.34
+                          CT (ours)             0.79 ± 0.07   0.84 ± 0.07    0.89 ± 0.11    1.11 ± 0.24    1.26 ± 0.31
+                τ =6    MSMs                   1.89 ± 0.17    2.14 ± 0.26    2.39 ± 0.44    2.62 ± 0.73    2.41 ± 0.85
+                        RMSNs                  1.03 ± 0.10    1.21 ± 0.12    1.12 ± 0.14    1.41 ± 0.25    1.58 ± 0.45
+                        CRN                    0.82 ± 0.04    0.89 ± 0.07    1.08 ± 0.13    1.64 ± 0.54    1.83 ± 0.62
+                        G-Net                  1.33 ± 0.27    1.31 ± 0.22    1.35 ± 0.29    1.35 ± 0.16    1.86 ± 0.47
+                        CT (α = 0) (ours) 0.82 ± 0.04         0.86 ± 0.05    0.96 ± 0.12    1.19 ± 0.33    1.32 ± 0.34
+                        CT (ours)              0.82 ± 0.05    0.88 ± 0.06    0.93 ± 0.11    1.16 ± 0.25    1.29 ± 0.29
+                Lower = better (best in bold).
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+K. Details on Experiments with Semi-Synthetic Data
+K.1. Data
+We used the MIMIC-extract (Wang et al., 2020) with a standardized preprocessing pipeline of MIMIC-III dataset (Johnson
+et al., 2016). MIMIC-extract provides intensive care unit (ICU) data aggregated at hourly levels. We used forward and
+backward filling for missing values and did standard normalization of all the continuous time-varying features.
+For our semi-synthetic data, we then extract 25 different vital signs (as time-varying covariates) and 3 static covariates, i. e.,
+gender, ethnicity, and age (as static covariates). The full list of features is given in the code of our GitHub repository for
+reproducibility. We one-hot-encode all static covariates (gender, ethnicity, and age) and use them later further for generating
+noise. Altogether, this results into a 44-dimensional feature vector (dv = 44).
+Our simulation of semi-synthetic data extends the basic idea of (Schulam & Saria, 2017). As such, we first generate
+untreated trajectories of outcomes under endogeneous and exogeneous dependencies and, then, sequentially apply treatments
+to the trajectory. Dependencies between treatments, outcomes, and time-varying covariates are assumed to be sparse, so
+outcomes are influenced by only a few treatments and time-varying covariates. Treatment assignment in turn depends on a
+few outcomes and time-varying covariates.
+Our semi-synthetic simulator proceeds as follows. First, we select a cohort of 1,000 patients, which are randomly chosen
+from patients where the intensive care unit stay lasted at least 20 hours. For the selected cohort, we clip intensive care unit
+stays longer than 100 hours (so that T (i) ranges from 20 to 100).
+                                                   j,(i)
+Second, we simulate dy untreated outcomes Zt , j = 1 . . . , dy , for each patient i from the cohort. Therein, we combine
+                                                                                                                  (i)
+(1) an endogenous component (B-spline(t) and random function g j,(i) (t)); (2) an exogenous dependency fZj (Xt ) on a
+subset of current time-varying covariates; and (3) independent random noise εt . Formally, we generate the simulations via
+                                  j,(i)                                                    (i)
+                                Zt        = αSj B-spline(t) + αgj g j,(i) (t) + αfj fZj (Xt ) + εt                           (70)
+                                            |            {z                 } |       {z    } |{z}
+                                                         endogenous                exogenous         noise
+
+
+with εt ∼ N (0, 0.0052 ) and where αSj , αgj , and αfj are weight parameters. Further, B-spline(t) is sampled from a mixture
+of three cubic splines (one with rapid decline during all intensive care unit stay, one with a mild decline, and one stable);
+g j,(i) (·) is sampled independently for each patient from Gaussian process with Matérn kernel; and fZj (·) is sampled from a
+random Fourier features (RFF) approximation of an Gaussian process (Hensman et al., 2017). Here, we specifically use
+RFF as they circumvent the need for tedious Cholesky decomposition when sampling random functions at many points of
+time-varying feature space Rdx . By combining all three components, we aim to simulate outcomes, which have endogeneous
+dependencies with different resolutions (global trends of B-splines and local correlation structure of Gaussian processes)
+and arbitrarily chosen exogeneous dependencies on other time-varying features.
+Third, we sequentially simulate synthetic da binary treatments Alt , l = 1, . . . , da . We add confounding to the treatments
+by a subset of current time-varying covariates via a random function fYl (Xt ). Subsequently, we average of the subset of
+previous Tl treated outcomes ĀTl (Ȳt−1 ). Formally, we compute Alt via
+                                                                                      
+                                                  l                  l l
+                                      pAlt = σ γA   ĀTl (Ȳt−1 ) + γX fY (Xt ) + bl ,                                   (71)
+                                          l
+                                                              
+                                       At ∼ Bernoulli pAlt ,                                                             (72)
+                                       l      l
+where σ(·) is the sigmoid activation, γA and γX are confounding parameters, bl is a fixed bias, and fYl (·) is sampled from
+an RFF approximation of a Gaussian process (similar to fZj (·)).
+Fourth, we apply treatments to the untreated outcomes. For this, we set Y1 = Z1 . Each treatment l is modeled so that it has
+a long-lasting effect on some outcome j, with maximal additive effect βlj right after application. Here, we assume that the
+treatment has an effect within a time window t − wl , . . . , t. We further assume that the effect size of treatments is subject
+to an inverse-square decay over time. We also scale the effect by the probability pAlt . Afterward, the effects of multiple
+treatments are aggregated by taking the minimum across the treatment effects. Formally, we model this via
+                                                        t
+                                                        X minl=1,...,da 1[Ali =1] pAli βlj
+                                           E j (t) =                                             ,                           (73)
+                                                                       (wl − i)2
+                                                       i=t−wl
+                                Causal Transformer for Estimating Counterfactual Outcomes
+
+where βlj is the maximum effect size of treatment l. This is either constant for all the outcomes j, or zero, so that the
+treatment does not influence the outcome.
+Fifth, we combine the above. That is, we simply add the simulated treatment effect E j (t) to untreated outcome; i. e.,
+
+                                                     Ytj = Zjt + E j (t).                                                 (74)
+
+Sixth, we generate our semi-synthetic dataset based on the above simulator. For exact values of all simulation parameters,
+we refer to code implementation. After simulating three synthetic binary treatments (da = 3) and two synthetic outcomes
+(dy = 2), we split the cohort of 1,000 patients into train/validation/test subsets via a 60% / 20% / 20 % split. For one-step-
+ahead prediction, we then simulate all 23 = 8 counterfactual outcomes. For multiple-step-ahead prediction with τmax = 10,
+we sample 10 random trajectories for each patient/time step.
+
+K.2. Experimental Details
+Hyperparameter tuning. We perform hyperparameter tuning separately for all models. For this, we use the 200 factual
+patient time-series from the validation subset. Details are in Appendix H.
+Performance measurement: We retrain the models on five simulated datasets with different random seeds (random seeds
+for sampling from Gaussian processes are kept the same). We then report the averaged root mean square error (RMSE) on
+the test set, that is, for hold-out data. RMSE is calculated for standardized outcomes.
+                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+L. Details on Experiments with Real-World Data
+L.1. Data
+Similarly to the semi-synthetic data in Appendix K, we make use of the MIMIC-extract following a standardized preprocess-
+ing pipeline (Wang et al., 2020). The data gives measurements from intensive care units aggregated at hourly levels. We used
+forward and backward filling for missing values and did standard normalization of all the continuous time-varying features.
+We use the same 25 vital signs (dx = 25) and the 3 static features (also one-hot-encoded for categorical features, dv = 44)
+as in the semi-synthetic experiments. Both time-varying covariates and static features serve as potential confounders.
+We use two binary treatments (da = 2): vasopressors and mechanical ventilation. We then estimate the factual outcome
+(dy = 1): (diastolic) blood pressure. Here, it is known that this may be positively or negatively affected by vasopressors and
+mechanical ventilation, thus raising the question for clinical practitioners of how a patient trajectory may look like when
+such treatment is applied.
+For our experiments, we selected a cohort of 5,000 patients, randomly chosen from the patients with intensive care unit (ICU)
+stays of at least 30 hours. For the selected cohort, we cut off ICU stays at 60 hours. We then split the cohort of 5,000 patients
+with a ratio of 70%/15%/15% into train/validation/test subsets. We varied the implementation according to the projection
+horizon τ . (i) For the one-step-ahead prediction, we used all trajectories in the test set. (ii) For a τ -step-ahead prediction
+with τ ≥ 2, we proceed as follows. Let τmax ≥ τ denote the maximum projection horizon. In our experiments, τmax = 5.
+We then extract all sub-trajectories with a length of at least τmax + 1 with a rolling origin, where we remove vital signs from
+time steps 1, . . . , T (i) − τmax + 1, respectively. We then make predictions but where a looking-ahead is prevented due to
+masking. Later, we report only the performance for the τ -step-ahead prediction.
+
+L.2. Experimental Details
+Hyperparameter tuning. We perform hyperparameter tuning separately for all models. For this, we use the 750 factual
+patient time-series from the validation subset. Details are in Appendix H.
+Performance measurement: We retrain the models on five random sub-samples of the dataset with different random seeds.
+We then report the averaged root mean square error (RMSE) on the test set, that is, for hold-out data. RMSE is then unscaled
+to the original range with standard normalization parameters.
+                                   Causal Transformer for Estimating Counterfactual Outcomes
+
+M. Runtime and Model Size Comparison
+CT with a single-stage training also provides a decent speed up for training and inference in comparison to other methods.
+In Table 12, we compare the total runtime of experiments, averaged over all confounding levels γ = 0, . . . , 4, for synthetic
+data. Among all neural models, our CT has the smallest runtime. Hence, our transformer architecture together with a
+single-stage training procedure with CDC loss not only improves the performance of counterfactual outcomes estimations
+but also achieves a substantial computational speed-up. In Table 13, we report the total number of trainable parameters for
+different models after hyperparameter tuning. For semi-synthetic and real-world data, CT turns out to be more parsimonious,
+than LSTM-based models.
+
+Table 12. Runtime of experiments (all stages of training and inference) for both tasks of one- and τ -step-ahead prediction, averaged over
+different γ = 0, . . . , 4 (lower is better). Total runtime includes data generation. Experiments are carried out on 1× TITAN V GPU.
+
+                                    Main stages of training & inference                     Total runtime (in min)
+                       MSMs         2 logistic regressions for IPTW & linear regression       3.5    ±     0.3
+                       RMSNs        2 networks for IPTW & encoder & decoder                 109.7    ±     2.3
+                       CRN          encoder & decoder                                        75.3    ±     17.5
+                       G-Net        single network & MC sampling for inference              118.0    ±     2.0
+                       CT (ours)    single multi-input network                               13.5    ±     4.8
+
+
+
+Table 13. Total number of trainable parameters of models after hyperparameter tuning. Here, we distinguish (1) data using the tumor
+growth (TG) simulator (=experiments with fully-synthetic data), (2) data from semi-synthetic (SS) benchmark, and (3) real-world (RW)
+MIMIC-III data. The number is the sum of trainable parameters among all the sub-models for MSMs, RMSNs, and CRN.
+
+                                                     TG simulator
+                                                                                          SS data   RW data
+                                         γ=0      γ=1 γ=2 γ=3                  γ=4
+                           MSMs                             <100                           3K          1K
+                           RMSNs          20K       4K      23K        21K      22K       477K        947K
+                           CRN             4K       6K       8K         7K       8K       165K        219K
+                           G-Net           3K       2K       3K         4K       3K       151K        310K
+                           CT (ours)      11K      11K       10K       10K      10K        45K           69K
+                                                                 Causal Transformer for Estimating Counterfactual Outcomes
+
+N. Visualization of Learned Representations
+Figure 5(a,b) visualizes the t-SNE embeddings for the balanced representations of CT. Here, we use the validation set of the
+fully-synthetic data from the tumor growth simulator. Colors show the health outcome (tumor volume). As the plots show,
+we observe several regions where representations are indeed balanced, so that they appear non-predictive of the current
+treatment but expressive of the outcome. To this end, one can observe a continuous change in color (outcome). In severe
+cases, the points are colored in yellow when tumor size is comparatively large. As we can see, balancing then becomes
+challenging, as few patients with this condition receive no treatment.
+
+                                            None                                                                                                                                           2
+                                            Radiotherapy
+
+
+
+
+                                                                                                                                                                                                 Normalized tumor volume, logarithmically scaled
+                                            Chemotherapy
+                                                                                                                                                                                           0
+                                50          Both                                                                           50
+     Second t-SNE component
+
+
+
+
+                                                                                                Second t-SNE component
+                                                                                                                                                                                           −2
+
+                                 0                                                                                          0
+                                                                                                                                                                                           −4
+
+
+                                                                                                                                                                                           −6
+                              −50                                                                                        −50
+
+                                                                                                                                                                                           −8
+
+
+                              −100                                                                                       −100
+                                                                                                                                                                                           −10
+
+
+
+                                     −100   −75   −50      −25     0     25     50   75   100                                   −100   −75   −50      −25     0     25     50   75   100
+                                                        First t-SNE component                                                                      First t-SNE component
+
+     (a) t-SNE embeddings of balanced representations with                                      (b) t-SNE embeddings of balanced representations with indicated
+     indicated current treatments                                                               next outcomes
+
+Figure 5. t-SNE embeddings of the balanced representations of CT. We display N = 100 patients from the fully-synthetic data (tumor
+growth simulator). Here: representations of the validation set (γ = 4), where each patient trajectory contains 60 time steps, thus displaying
+6,000 embeddings. Note the logarithmic scale for the outcomes (in color).
+                                                       Causal Transformer for Estimating Counterfactual Outcomes
+
+O. Case Study: Importance of Subnetworks
+In the following, we provide a case study for explainability. That is, we study the importance of different subnetworks. Such
+insights may help medical practitioners to ponder about the relevance of treatments for patient outcomes, or the relevance of
+time-varying covariates for patient outcomes.
+To this end, we examine the role of using multiple cross-attention for information exchange between three subnetworks
+of CT. We informally define an importance score of subnetwork A, Y , or X as the difference in performance (e. g., with
+test RMSE) between full CT and CT with the correspondingly isolated subnetwork. Here, isolating a subnetwork means
+that we remove cross-attentions of the particular subnetwork. As such, it does not completely ignore the input sequence
+but only the interactions, as we still use sequences of all subnetworks representations at the latest stage of average pooling.
+Therefore, the importance score aims to explain how the connectivity of subnetworks via cross-attentions helps in estimating
+counterfactuals over time.
+For our case study, we use the semi-synthetic benchmark and kept the same hyperparameters, as for the original CT. Figure 6
+shows importance scores of each subnetwork for different prediction horizons τ . We observe that subnetwork processing
+time-varying covariates has the largest importance score (red bars). Interestingly, the importance score for the treatment
+subnetwork is close to zero for a small prediction horizon τ and grows only for larger prediction horizons. This thus has
+implications: it suggests long-range treatment effects.
+
+                           Subnetwork importance
+                   0.030                A
+                                        Y
+                   0.025                X
+RMSE difference
+
+
+
+
+                   0.020
+
+                   0.015
+
+                   0.010
+
+                   0.005
+
+                   0.000
+
+                  −0.005
+                                     1             2          3         4         5         6         7        8   9   10
+                                                                                       τ
+
+Figure 6. Subnetworks importance scores based on semi-synthetic benchmark (higher values correspond to higher importance of sub-
+network connectivity via cross-attentions). Shown: RMSE differences between model with isolated subnetwork and full CT, means ±
+standard errors.
+

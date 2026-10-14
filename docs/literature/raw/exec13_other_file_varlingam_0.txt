@@ -1,0 +1,209 @@
+# varlingam-rs
+
+**High-performance causal discovery for time series. 14-50x faster than Python.**
+
+Pure Rust implementation of the LiNGAM family of algorithms with Python bindings via PyO3.
+
+---
+
+## Why
+
+The Python [`lingam`](https://github.com/cdt15/lingam) library is excellent for research. But when you need to run causal discovery on production data — hundreds of variables, bootstrap confidence intervals, real-time pipelines — it's too slow.
+
+`varlingam-rs` is a ground-up Rust rewrite. Same algorithms, same accuracy, 14-50x faster.
+
+## Algorithms
+
+| Algorithm | Description | Status |
+|-----------|-------------|--------|
+| **VarLiNGAM** | Causal discovery in multivariate time series | Complete |
+| **DirectLiNGAM** | Cross-sectional causal ordering | Complete |
+| **FastICA** | Independent Component Analysis | Complete |
+| **RCD** | Latent confounders detection (Maeda & Shimizu 2020) | Complete |
+| **Scalable VarLiNGAM** | Chunked analysis for 1000+ variables | Complete |
+| **Bootstrap** | BCa confidence intervals (Efron 1987) | Complete |
+| **Validation** | Built-in cross-validation framework | Complete |
+
+## Installation
+
+### Python
+
+```bash
+pip install maturin
+git clone https://github.com/edy-os/varlingam-rs.git
+cd varlingam-rs
+maturin develop --release
+```
+
+### Rust
+
+```toml
+[dependencies]
+varlingam = { git = "https://github.com/edy-os/varlingam-rs.git" }
+```
+
+## Quick Start
+
+### Python
+
+```python
+from varlingam import CausalDiscoverer
+
+# Scikit-learn style API
+model = CausalDiscoverer(algorithm="varlingam", lags=2)
+model.fit(data, variable_names=["GDP", "Inflation", "Rates", "Unemployment"])
+
+# Explore results
+result = model.result()
+for edge in result.significant_edges():
+    print(f"{edge['source']} -> {edge['target']} (effect={edge['effect']:.3f})")
+
+# Export to Graphviz
+print(result.to_graphviz())
+
+# Bootstrap for confidence intervals
+bootstrap = model.bootstrap(data, n_resamples=500, ci_method="bca")
+for stat in bootstrap.edge_stats:
+    print(f"{stat.source}->{stat.target}: {stat.effect_mean:.3f} [{stat.ci_lower:.3f}, {stat.ci_upper:.3f}]")
+```
+
+### Rust
+
+```rust
+use varlingam::{var_lingam_core, VarLiNGAMConfig};
+use nalgebra::DMatrix;
+
+let data = DMatrix::from_row_slice(200, 3, &your_data);
+let config = VarLiNGAMConfig {
+    lags: Some(2),
+    prune: true,
+    ..Default::default()
+};
+
+let result = var_lingam_core(&data, Some(vec!["X".into(), "Y".into(), "Z".into()]), config);
+
+for edge in &result.edges {
+    if edge.significant {
+        println!("{} -> {} (effect={:.3}, lag={})",
+            edge.source, edge.target, edge.effect, edge.lag);
+    }
+}
+```
+
+## Algorithms in Detail
+
+### VarLiNGAM
+
+Discovers causal relationships in time series by exploiting non-Gaussianity:
+
+```
+X(t) = B₀X(t) + Σ Bτ X(t-τ) + e(t)
+```
+
+Where `e(t)` are non-Gaussian, mutually independent disturbances. The non-Gaussianity constraint makes the causal direction identifiable — something correlation alone cannot do.
+
+**Steps:** VAR model → residuals → DirectLiNGAM → lagged effects recovery.
+
+### RCD (Latent Confounders)
+
+Standard LiNGAM assumes no hidden common causes. RCD relaxes this assumption — it detects when two variables share a latent confounder and separates direct causation from confounding.
+
+```python
+model = CausalDiscoverer(algorithm="rcd")
+model.fit(data, variable_names=["X", "Y", "Z"])
+result = model.result()
+print(result.metadata)  # Shows confounded_pairs, latent_factors
+```
+
+### Scalable VarLiNGAM
+
+For systems with 1000+ variables, standard VarLiNGAM is O(m³n). The scalable variant uses intelligent chunking:
+
+- **Sector-based:** Group variables by domain knowledge
+- **Correlation-based:** Cluster correlated variables automatically
+- **Hierarchical:** Multi-level refinement
+
+```python
+model = CausalDiscoverer(algorithm="scalable", max_chunk_size=50)
+model.fit(data, variable_names=symbols, sector_assignments=sectors)
+```
+
+### BCa Bootstrap
+
+Bias-Corrected accelerated confidence intervals (Efron 1987) for edge coefficients. Block bootstrap preserves temporal dependence.
+
+```python
+bootstrap = model.bootstrap(
+    data,
+    n_resamples=500,
+    ci_method="bca",     # or "percentile"
+    block_size=10,       # block bootstrap for time series
+    alpha=0.05           # 95% confidence intervals
+)
+```
+
+## Numerical Robustness
+
+Every matrix inversion checks condition numbers first. Ill-conditioned systems (κ > 10¹⁰) raise explicit errors instead of producing silent garbage.
+
+```rust
+use varlingam::{ols_checked, NumericalError};
+
+match ols_checked(&X, &y) {
+    Ok(coefficients) => { /* use coefficients */ }
+    Err(NumericalError::IllConditioned { condition_number, .. }) => {
+        eprintln!("Matrix too ill-conditioned: κ = {:.2e}", condition_number);
+    }
+    Err(e) => { eprintln!("Error: {}", e); }
+}
+```
+
+Atomic counters for observability:
+
+```python
+from varlingam import py_get_sample_size_warning_count
+print(f"Sample size warnings: {py_get_sample_size_warning_count()}")
+```
+
+## Built-in Validation
+
+Run synthetic test cases to verify algorithm correctness:
+
+```python
+from varlingam import py_validate_all
+
+results = py_validate_all()
+for r in results:
+    print(f"{r.test_case}: order_match={r.causal_order_match:.2f}, "
+          f"precision={r.edge_precision:.2f}, recall={r.edge_recall:.2f}")
+```
+
+Test cases: `Chain3Var`, `Fork3Var`, `Collider3Var`, `LaggedChain`, `Mixed5Var`.
+
+## Performance
+
+Benchmarked against Python `lingam` 1.8.3 on Apple M2 Pro:
+
+| Scenario | Python lingam | varlingam-rs | Speedup |
+|----------|--------------|--------------|---------|
+| 3 vars, 200 samples | 180ms | 12ms | **15x** |
+| 5 vars, 500 samples | 850ms | 45ms | **19x** |
+| 10 vars, 1000 samples | 4.2s | 180ms | **23x** |
+| Bootstrap (100 resamples) | 42s | 1.8s | **23x** |
+| 20 vars, 2000 samples | 35s | 700ms | **50x** |
+
+## References
+
+- Shimizu, S. et al. (2006). *A Linear Non-Gaussian Acyclic Model for Causal Discovery.* JMLR, 7:2003-2030.
+- Shimizu, S. et al. (2011). *DirectLiNGAM: A direct method for learning a linear non-Gaussian structural equation model.* JMLR, 12:1225-1248.
+- Hyvärinen, A. et al. (2010). *Estimation of a Structural Vector Autoregression Model Using Non-Gaussianity.* JMLR, 11:1709-1731.
+- Maeda, T. N. & Shimizu, S. (2020). *RCD: Repetitive Causal Discovery of Linear Non-Gaussian Acyclic Models with Latent Confounders.* AISTATS.
+- Efron, B. (1987). *Better Bootstrap Confidence Intervals.* JASA, 82(397):171-185.
+
+## License
+
+Dual-licensed under MIT and Apache 2.0. Choose whichever you prefer.
+
+## Contributing
+
+Issues and PRs welcome. Run `cargo test` and `cargo clippy` before submitting.

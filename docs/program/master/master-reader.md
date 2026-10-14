@@ -1,0 +1,926 @@
+# Integrated master program for causal banking
+
+Version 11.0 · 11 October 2026 · Literature cutoff: 7 October 2026
+
+The full product is unfinished. We have a substantial author-reviewed research
+base, selected executable constructions and reproducible negative results.
+We do not yet have a generally calibrated, independently accepted, validated
+bank product. This program replaces a sequence of isolated continuations with
+one scope, one dependency graph, one evidence register and explicit decisions
+about each unresolved capability.
+
+The goal is a common causal-analysis product for a universal bank, supported by
+a connected mathematical monograph and an investment case. It must address four
+banking journeys: structural funding responses; sequential servicing decisions;
+discovery followed by an intervention query; and construction of trustworthy
+observations. Funding is one journey, not a substitute for the others.
+The six original streams remain identification and learning; dependent time
+series and panels; longitudinal and controlled-state decisions; discovery and
+uncertain observations; reusable operations and computation; and financial
+validation and economics.
+
+## What the required standard means
+
+For each claimed use, a reader must be able to follow the banking decision and
+information clock through a causal model, assumptions, identification or an
+identified set, estimation and learning, uncertainty and sensitivity, numerical
+error, and the monetary consequence. The implementation must preserve this
+meaning, including ambiguity and refusal. A working optimizer or an API response
+cannot substitute for identification or justified uncertainty.
+
+The named FinMarketing monograph supplies a standard of motivated and developed
+argument, explained notation, alternatives and substantive banking examples.
+Its length is not a target. The existing [reference comparison](../reviews/scholarship-reset-2026-10-08.md)
+also preserves the earlier BayesFilter and CIP comparisons. Their existence
+does not establish that an integration works here.
+
+Inherited results, project derivations, synthetic evidence, hypotheses and
+verified implementation must remain distinguishable. Every cited scholarly work
+requires its genuine locally saved PDF and inspected primary technical anchors;
+all cited sources require identity, version/date, hash and supported claims.
+Search coverage retains the client cutoff and recorded omissions. Financial
+examples must reproduce. A deliverable must be compiled and visually inspected.
+
+There are four separate gates:
+
+1. **Author work completed:** the question, argument, evidence and limitations
+   have been reviewed and delivered. A negative finding can satisfy this gate.
+2. **Capability qualified in a declared regime:** identification, uncertainty,
+   numerical behavior and useful output satisfy predeclared criteria for that
+   target, information and sampling law. Passing file checks is insufficient.
+3. **Authentic bank and operating acceptance:** independent review, owners,
+   assignment/audit truth, real data, interfaces and target-platform trials
+   supply evidence that this workspace cannot manufacture.
+4. **Investment and adoption:** matched decision quality and actual total costs
+   support a signed institutional decision. Local runtime is not an ROI estimate.
+
+This program gives bounded acceptance criteria for the four journeys. The
+original ambitions of general nonlinear inference, arbitrary latent graphs,
+arbitrary learners and universal semantic reconstruction remain recorded as
+research obligations. Qualifying one family does not close those unrestricted
+ambitions.
+
+## Reconciled baseline
+
+The current research reader is [259 pages](../causal_foundations_with_linked_audits_2026-10-11.pdf):
+the 245-page V10 monograph and three preserved supplements of 4, 4 and 6 pages.
+The [16-page sponsor proposal](../sponsor_reconstruction.pdf) is the V10 baseline;
+it has not been revised to claim the later supplements or the new program.
+
+The linked-outcome supplement supplies 4,800 fresh synthetic requests under a
+specified independent-origin audit law. Both linked methods returned finite
+intervals in every request. At exact rank, the augmented method covered
+559/600 requests, or 93.17%; its individual Monte Carlo interval
+[90.84%, 95.05%] includes 95%. That does not establish general calibration, or
+establish a general calibration defect. The earlier V10 small-audit failures
+remain separate evidence. Persistent-case median width is about USD 1.413
+million. No supplied bank precision threshold makes this useful by declaration.
+
+False exogeneity, wrong inclusion probabilities and noisy labels produced
+148/600, 378/600 and 528/600 covers respectively in the linked study. The
+ordinary linked design expects about 1,500 resolved origin labels across
+pilot and evaluation; the low-audit design about 600. The count comparator
+uses a different service of 3,200 correctness labels. Prices and superiority
+are unknown. These are conditional synthetic findings, not bank observations.
+Detailed anchors are in the [latest gap review](../reviews/remaining-gaps-linked-funding-2026-10-11.md)
+and [author review](../reviews/linked-funding-author-review-2026-10-11.md).
+
+Four original manifests and 7,609 unique artifact identities have been verified
+through a preserved historical control overlay. The canonical V10 tracker had
+missed all three supplements. Its global LaTeX-label scan also reported a false
+collision between two separately compiled documents and overwrote a frozen
+check receipt. The failure is retained; the original 244-byte receipt was
+reconstructed only after matching its existing SHA-256 exactly. Current
+checks use a namespace for each compiled document and do not overwrite that
+historical evidence. No research PDF or original manifest was rewritten.
+
+## Remaining gaps and whether we know a route
+
+| Gap | What remains | Knowledge of the route |
+|---|---|---|
+| D01: identity information | Singular correctness counts/mean responses do not identify an individual contrast. Linked-outcome evidence is conditional. | A known extra-information route uses truthful sampled histories. Validate inclusion/truth and precision; do not expect more old counts to create missing information. R01, R02, X02. |
+| D02: nonlinear decisions | General private-state and unknown optimal-policy uncertainty is unsupported. | Family-specific identification, numerical and policy-selection research is necessary. R03; no promised general theorem. |
+| D03: temporal graphs | A learned latent graph is not a calibrated effect confidence region. | Derive class retention, observed-law confidence and conservative effect bounds. Equivalent laws require extra restrictions or experiments. R04. |
+| D04: scientific and semantic truth | Assignment, audit truth, selection and ownership can violate declarations. | Authentic owners, randomization/instrument evidence, documented inclusion and independent gold labels are necessary. R02 and X02; code alone cannot settle truth. |
+| D05: joint dependence | Persistent maps, shared calendar shocks and shared audit errors are not qualified by the independent-origin result. | A selected pair/calendar argument exists; a coherent joint law, rates and useful finite behavior still need research. R02. |
+| D06: learners and full computation | Selected fixed-dictionary streaming does not qualify arbitrary learners or streamed linked outcomes. | Known engineering and qualification workflow; each learner needs its own rate/covariance argument. R05 and E01. |
+| D07: scale and recovery | Local memory measurements do not establish bank service levels or multi-host recovery. | Build local fault/streaming evidence, then run a frozen target-platform protocol with its operator. E01 and X03. |
+| D08: independent acceptance | Independent review, bank validation and adopted interfaces are absent. | The procedure is known, but named people and signed external outcomes are missing. X01–X03 and F01. |
+| D09: calibrated useful precision | A universal correction and decision-useful precision are not established. | Derive a specific repair or change information/design before fresh evaluation. Preserve failure as an admissible outcome. R01–R05 and bank validation. |
+| D10: economics | Bank precision targets, real prices and held-out decision value are absent. | Measure a matched full workflow using actual costs and accepted output quality. X04 and F01. |
+
+We can execute control repairs, scoped derivations, independent numerical
+references, registered synthetic comparisons, selected implementations and
+local fault trials now. We can prepare external packages now. We cannot promise
+that open research succeeds, distinguish observationally equivalent worlds
+without new information, invent audit truth, or provide independent acceptance
+on behalf of absent institutions.
+
+## One execution graph
+
+The machine contract is [state.json](state.json); its work packages contain
+steps, outputs, acceptance criteria, failure actions, owners and dependencies.
+The current dashboard is [Mission Control](../mission-control.md). The complete
+work cards are included in the PDF appendix and are available with
+`python3 tools/causal_program.py next PACKAGE`.
+
+| Wave | Packages | Dependency and resulting decision |
+|---|---|---|
+| 0: recover and govern | M00 preservation; M01 standard/contracts; M02 common evaluation/external inputs; M03 reviewed executable controls | Execute in order. Establish one trustworthy baseline before another study. |
+| 1: address scientific and engineering gaps | R01 funding calibration; R02 joint dependence; R03 nonlinear servicing; R04 graph effects; R05 dependent learning; E01 interfaces/streaming/recovery | Eligible after M03. Default local priority is this order; one blocked branch does not stop another ready branch. |
+| 2: integrate the research | I01 all four journeys, monograph and sponsor case | Requires a reviewed disposition from every Wave 1 package. Negative and inconclusive outcomes must appear in the integrated release. |
+| 3: independent and bank qualification | X01 independent review; X02 bank truth/validation; X03 platform and consumer acceptance | Final acceptance uses I01; owner/input acquisition and preliminary baseline review may begin earlier when authorized inputs arrive. |
+| 4: economics and institutional decision | X04 matched workflow/economics; F01 bounded product/investment decision | X04 needs X02/X03 acceptance. F01 requires positive scoped research, operating, independent, bank and economic gates plus a signed sponsor decision. |
+
+Eligibility permits independent work; no agents are spawned and no external
+contacts are authorized by this plan. Bank/platform dependencies cannot be
+satisfied with author-generated fixtures. The input contracts list all seven
+missing owner/input groups.
+
+The exact calendar critical path cannot be honestly dated before derivation
+outcomes, pilot runtimes, owner availability and data access are known. Work is
+scheduled by evidence dependencies. Each research package has one reviewed
+candidate/design per attempt. Derivation and fixture work precede final study
+registration. A failed candidate is retained, receives an explicit disposition,
+and can lead to a reviewed new attempt. There is no indefinite unrecorded seed,
+bandwidth or audit-size search.
+
+## Scientific execution rules
+
+R01 starts from the linked score and separates fitted-pilot/ratio error from
+calendar variance. Studentization or a changed independent pilot/evaluation
+design are candidates to justify, not known successful cures. R02 addresses
+the missing joint sampling experiment. R03 begins with a declared selected16
+extension and a policy fixed independently of evaluation; unknown optimal-value
+inference is a separate research claim. R04 begins with a finite stationary
+latent temporal class and an exact small oracle. R05 begins with a specified
+sparse learner under an explicit dependence law. These choices make work
+concrete without claiming universality.
+
+Every attempt must review the target, observation law, clock, sampling unit,
+identification, uncertainty statement, numerical error, information cost and
+substantive alternatives together. Primary sources can supply inherited
+premises, not prove the project's new composition. The [capability contracts](master/capability-contracts.md)
+and [evaluation protocol](master/evaluation-protocol.md) define the detailed gates.
+
+Before any final draw, freeze method/code/input identities, a fresh seed,
+all scenarios, repetitions, the coverage/availability/width acceptance rule
+and a fixed stopping rule. Negative and unavailable requests stay in the
+denominator. Old outcomes may motivate a new question; they cannot also serve
+as its fresh qualification data. Do not widen intervals or change windows
+after inspecting final results and call the original design successful.
+
+For a finite minimum-coverage claim, an interval merely containing the nominal
+level is insufficient. The protocol must state a justified inferential
+guarantee and its empirical qualification rule. A default finite-grid screen
+uses simultaneous lower Monte Carlo bounds at the claimed minimum, reports
+width and availability separately, and does not prove uniform validity.
+If only an asymptotic statement is justified, label it conditional/asymptotic
+and leave finite qualification open. Bank usefulness needs the bank's own
+precision/loss criteria. No tolerance is silently lowered to pass a study.
+
+E01 can improve computation for the existing independent-origin procedure
+while its calibration remains conditional. Dense equivalence and crash
+recovery do not improve its scientific status. Keep process records in this
+program and in reviews; the product narrative should explain mathematics,
+banking use, findings and limits.
+
+## Executing and resuming
+
+Run from the repository root:
+
+```text
+python3 tools/causal_program.py status
+python3 tools/causal_program.py next
+python3 tools/causal_program.py check
+python3 tools/causal_program.py baseline
+```
+
+The first two report actual evidence-based disposition and ready work. The
+ordinary check is read-only: it validates dependencies, evidence identities,
+sources, current PDF hashes and per-document labels. The baseline command
+replays the original four nested delivery verifiers through preserved
+historical controls. It is the full historical artifact check.
+
+Use `template PACKAGE` to obtain the criterion receipt schema. A research
+protocol is frozen with `register PACKAGE --spec PATH`. Complete work with
+`record PACKAGE --receipt PATH`, recording pass, negative or inconclusive
+findings against every criterion and inspected evidence hashes. External input
+uses `intake INPUT --receipt PATH`; an author's report cannot satisfy an
+external gate. The tool enforces evidence structure and identity; substantive
+correctness and authenticity still require the named reviewer.
+
+Failed or inconclusive work may be reopened with a reviewed revision using
+`reopen PACKAGE --revision PATH`. The old contract, result and registration
+are preserved. Resolved downstream work prevents a casual reopen and requires
+a reviewed program revision, so a changed premise cannot silently invalidate
+an accepted conclusion. The revision must explain the obstruction, what
+information/argument changes, and why another attempt is warranted.
+
+State changes are atomic and retain prior snapshots. Continue eligible work
+without permission checkpoints. A stream disconnection is a recovery event:
+read state, inspect saved journals and resume the existing registered attempt;
+never redraw silently. Real blockers are failed/missing scientific premises
+or unavailable external evidence. Report those precisely and continue other
+ready work.
+
+## Release and review policy
+
+The [program review](../reviews/master-program-review-2026-10-11.md) challenges
+scope, evidence gates, failed-study branches, external dependencies and the
+archive migration. It is author review, not an independent review.
+The current release delivers an executable master and its preparation wave;
+it does not assert that R01–R05 or bank qualification have already passed.
+
+After each wave, integrate findings into this single program and its canonical
+state. Do not launch an unrelated supplement as the default next action.
+A new scientific attempt must identify the gap and work package it advances,
+retain prior failures, and satisfy the common acceptance rules. A reviewed
+negative conclusion is progress; it remains an open capability gap.
+
+Historical controls are available under
+[the pre-master archive](history/pre-master-2026-10-11/docs/program/master-program.md).
+The four scientific deliveries retain their original bytes and manifests.
+Use the new canonical baseline command for their historical verification;
+running an old verifier directly against the newly active state intentionally
+mixes different versions.
+
+
+# Capability contracts and closure meaning
+
+These are work contracts for the next bounded product, not claims that it
+already passes. The six original streams map to four banking journeys and
+shared operations. The source baseline is the 259-page reader, the inherited
+four study dossiers, the V10 review and the linked-funding review. No new
+external scientific result is cited or claimed in this control document.
+
+| Journey | Target and information contract | Qualification that is still required |
+|---|---|---|
+| A: funding and structural responses | A normalized intervention, population, monetary weights, horizon and availability clock. Distinguish a panel with common shocks from a single time series. Linked focal outcomes require known positive inclusion, truthful labels and an independent invariant pilot. | R01 qualifies the selected independent-origin law; R02 separately qualifies persistent pairs/shared dates. Compare linked augmentation, pure IPW and the frozen count projection on their actual information services. Retain whole-line/disconnected answers and invalid/weak instruments. |
+| B: sequential servicing | Discounted currency value under prespecified eligible policies. Define recorded/private logger information, state dynamics, observation/censoring, overlap, state audits and policy-training sample. | R03 starts from the selected16 family and one explicit extension. Identification, likelihood, fitted value, audit rates and numerical error must describe the same experiment. Compare observed-history methods and controlled-state fitting under their own premises. Do not promote fixed-policy evaluation to unknown optimal-value inference. |
+| C: discovery to intervention | An intervention query over a declared stationary temporal model class, permitted hidden causes, finite history, background restrictions and effect horizon. | R04 needs a retained class with an observed-law uncertainty argument, followed by conservative structural effect bounds. Compare exact small-class enumeration, selected graph and retained-class conclusions. Near-unfaithfulness, hidden history and false restrictions remain adverse cases. |
+| D: observation construction | Customer, account, action, outcome and release records; alternative identity and ownership interpretations; first-availability and revision clocks; explicit audit sampling and truth. | Preserve alternatives and abstention, validate supplied inclusion/truth with owners, and propagate uncertainty into A-C. R02/X02 address persistent maps and actual semantics. Candidate grammar/ranking does not establish semantic truth or permit many-to-many ownership without a specified target. |
+| Shared operations | Typed targets, information/sampling regimes, result sets, provenance, qualifiers, numerical failures and immutable request identity. | E01 passes complete consumer, streaming and local recovery tests; X03 supplies actual interface/platform acceptance. A timeout, unsupported adapter or numerical rank failure is distinguished from scientific nonidentification. |
+
+S1 (identification/learning) serves A-C and R05; S2 (time-series/panels) serves
+A, R02 and R05; S3 serves B; S4 serves C-D; S5 supplies the shared operations;
+S6 assesses all four journeys financially. Every integrated release must
+address every row, including an explicit negative/unqualified disposition.
+
+## Required result fields
+
+Each scientific result must preserve the versioned target, units and financial
+weights; observed information and availability clock; model/sampling/assignment/
+audit assumptions; identification status; fitted method and training selection;
+interval or set topology; uncertainty type and scope; sensitivity/diagnostics;
+numerical tolerances and failures; provenance; and capability disposition.
+The independent pilot belongs in input identity. Unknown truth cannot become a
+boolean assertion merely because an input validator accepts its shape.
+
+Separate statuses are required for: conditional point estimate; justified
+confidence set; whole-line/disconnected ambiguity; unsupported scientific
+regime; unavailable numerical output; and operational failure. A consumer
+must not change monetary units, discard qualifiers or relabel every successful
+serialization as a supported causal answer.
+
+## Evidence at acceptance
+
+Author work requires the connected derivation, primary-source/claim audit,
+independent reference calculation, reproducible banking example, substantive
+challenger, adverse cases and reviewed PDF. Capability qualification additionally
+requires the scoped scientific and empirical rules in the evaluation protocol.
+Bank acceptance requires X01-X03; economic usefulness requires X04/F01.
+
+No table or test count closes an unrestricted research question. The current
+gap rows in state.json retain a remaining_generalization field even when all
+bounded closure tasks pass. The executable tracker reports bounded acceptance
+separately from unrestricted_product_claim, which remains false.
+
+For D01 and D04, unchanged observations sometimes admit incompatible effects or
+meanings. The program must either obtain new information, return the identified
+set, or explicitly propose a changed target with the lost banking use explained.
+For D02/D03/D05/D06, a specified model/learner extension is executable research;
+a promise covering arbitrary families is not an honest acceptance contract.
+
+
+# Common scientific evaluation and resumption protocol
+
+The master governs every new R01-R05 attempt. Existing final requests remain
+baseline evidence. They are never relabeled fresh evaluation data. The
+protocols and journals already delivered stay frozen.
+
+## Argument before draws
+
+1. State target, units, clock, observation law, assignment/audit law, sampling
+   unit, model class and exact uncertainty claim. Define what extra information
+   is required and who could supply it.
+2. Derive identification, influence/error terms, nuisance rates, dependence
+   and numerical error for that same experiment. Inspect relevant primary
+   technical anchors; retain source identity/version/hash/claim records and
+   unavailable-source omissions.
+3. Implement an independent small reference: enumeration, analytic moments,
+   dense algebra, high-accuracy likelihood or certified structural bounds.
+   Exercise misleading declarations and invalid/unavailable outputs.
+4. Review the derivation and reference before choosing a final procedure.
+   Record a failure or unresolved theorem as such; no final study is required
+   to disguise an unresolved identification problem.
+5. Freeze a protocol and all substantive input/code hashes using the canonical
+   register command. The protocol must contain task_id, task_contract_sha256,
+   target, model, observation_law, sampling_unit, method, assumptions,
+   uncertainty_claim, alternatives, adverse_cases, metrics, acceptance_rules,
+   replications, seed, stopping_rule, derivation_review and input_sha256.
+   The derivation_review is a path/hash/inspected-anchor record.
+
+The registered stopping_rule is fixed_design_no_outcome_stopping. Replications
+and seed are integers. Compute repetition requirements from the exact binomial
+Monte Carlo precision and multiplicity family before final draws. The program
+does not prescribe another arbitrary 600-request study. Freeze a tolerated
+Monte Carlo error for the actual claim, justify the finite count and report
+the realized intervals even when the target precision is missed.
+
+## Acceptance dimensions
+
+For a claim of minimum finite coverage c (normally 0.95), require a scoped
+scientific argument and a prespecified empirical rule. The default empirical
+screen requires a simultaneous one-sided exact-binomial lower bound at least
+c in every claimed valid-law cell. State the multiplicity family and confidence
+level before draws. A bound merely containing c, or conditional coverage among
+the few finite outputs, is insufficient. This screen can be inconclusive for
+a procedure whose true coverage is exactly nominal; such a result is not a
+proof of failure. It does not establish uniform validity between grid cells.
+
+An asymptotic argument can justify a conditional research output while finite
+qualification remains open. Do not silently replace the finite claim with
+asymptotic wording and mark the original gap closed. A predeclared scientific
+scope revision needs a separate reviewed attempt.
+
+Report all-request coverage; conditional coverage; finite/disconnected/
+whole-line/unavailable counts; width and its distribution; point bias;
+reported SE versus empirical SD; sensitivity; actual labels and history rows;
+complete runtime, peak memory, serialization and recovery; and information
+acquisition assumptions. Report paired differences with their sampling
+uncertainty when methods share requests. Keep oracle diagnostics separate from
+deployable methods.
+
+Coverage alone does not establish a useful product. Whole-line answers can be
+correct and useless. Availability and width criteria must be frozen for the
+declared research task. Bank width/loss/risk thresholds and actual costs are
+external inputs, not values invented to obtain acceptance. No precision
+tolerance is lowered after results. Calendar variance floors must appear in
+audit design and economics.
+
+## Journals, failures and evidence
+
+Before evaluation, write a launch record referencing the registered protocol
+hash and actual start time. A final receipt references that registration, a
+hash-bound complete journal and explicit retention of failed/unavailable
+requests. The engine rejects a final experiment whose stated start predates
+registration. Clock/identity checks are auditable controls, not independent
+proof of when a person ran a computation.
+
+Use immutable request IDs from design/version/seed/cell/repetition, bounded
+batches and atomic result publication. On disconnect, inspect the journal and
+resume missing IDs under the existing registration. Never replace an old
+partial run, silently change a seed or count retries as fresh requests.
+Reconstruct saved summaries from request rows before qualification.
+
+Preserve implementation failures and their effect on qualification. If code
+or inferential design changes after final draws begin, disposition that attempt,
+retain its protocol/code/journals, and reopen a reviewed successor with a fresh
+registration. Unchanged source-only reporting corrections require substantive
+review; they do not automatically require expensive simulations again.
+
+## Disposition and continuation
+
+Every work-package criterion receives pass, fail or inconclusive plus an
+inspected path/hash/anchor and a substantive finding. A passing research
+package requires a registered evaluation and all promised outputs. A negative
+or inconclusive package may end at a reviewed analytical obstruction without
+fabricated results. Its scientific capability remains open.
+
+Every non-control receipt also contains gap_dispositions for all its assigned
+gaps: qualified_in_declared_scope, conditional_progress, unresolved or
+external_pending. A passing package with conditional progress does not qualify
+that gap. Negative/inconclusive work cannot qualify a gap. The final decision
+gate requires the explicit qualification dispositions from all required
+predecessors, in addition to their package outcomes.
+
+The engine retains the prior contract/result/registration on reopen, and
+rejects reopening underneath resolved dependent work. A reviewed whole-program
+revision is required in that case. Other ready branches proceed without a
+permission checkpoint. Revision is warranted by a new argument, corrected
+defect or changed information, not by disappointment with an honest result.
+
+A reopen revision contains task_id, prior_contract_sha256, reason,
+new_information_or_argument, a hash-bound review, and new_contract. Retain the
+same task ID, kind and gap obligations, but use new versioned output paths.
+Old inputs, journals and reviews remain immutable and are still checked.
+
+
+# External input contracts and exact resumption
+
+All seven input groups below are missing; named owners are unassigned. This
+preparation neither contacts anyone nor creates acceptance. Preserve the
+[V8 protocol](external-validation-v8.md) and [V9 delta](external-validation-v9.md).
+They supply fuller trial details, supplemented by the current linked-audit
+information contract.
+
+| Input ID | Required participants and evidence | Reject or defer when |
+|---|---|---|
+| independent_review | Independent causal/dependent-data reviewer; identity/conflicts; original signed claim-by-claim report, reconstruction and unresolved findings, scoped to exact assessed release. | Reviewer is an author, evidence concerns a different release, or material findings remain unresolved. |
+| bank_truth | Bank question sponsor, assignment-system owner, source/clock owner, independent audit-truth owner and custodian. Frozen target, availability/revision calendar, assignment mechanism, sampling frame/probabilities, audit ledger, independently sampled gold labels, ownership meaning and adjudication failures. | Exogeneity/instrument or experiment is unjustified; inclusion/truth is unknown/selected; ownership is undefined; data are unauthentic or incompatible with the claimed model. |
+| pilot_and_prices | Independent history owner and acquisition/finance owner. Invariant independent pilot lineage; actual linked-history, count-label, gold-label and history costs; precision/loss/risk thresholds; independent design-pilot variance inputs. | Overlapping evaluation histories are called independent, prices are planning guesses, or attainable precision cannot meet the question. |
+| platform | Operator and recovery lead. A manifest of hardware, software, storage, network and concurrency; agreed service thresholds; frozen whole-workload and fault schedule; original logs, hashes and costs. | Local single-host evidence substitutes for target operation, a partial result is exposed, or recovery/data integrity/service objectives fail. |
+| consumers | Standalone and application maintainers. Accepted operation/version/units/qualifiers; actual executed valid/refusal/whole-line/changed-input fixtures; signed acceptance. | Source inspection or author-owned adapters are presented as adopted integration; qualifiers/units are lost. |
+| workflow | Independent evaluator, workflow lead and analysts. Prespecified matched task/order and quality grading; active labor, rework/defects, elapsed time, labels/history, training/review and infrastructure costs; held-out value evidence. | Fit time is reported as analyst savings; unsuccessful tasks or quality differences disappear. |
+| sponsor_decision | Institutional investment sponsor and operating owner. Agreed release scope; risk/cost/value criteria; original signed accept/reject/defer decision and operating obligations. | Author approval is substituted for the institution or qualification failures are silently excluded. |
+
+Start data/owner preparation when its authorized input arrives; X01-X03 final
+dispositions reference the integrated I01 release. An independent reviewer may
+challenge the frozen baseline earlier. If a later release changes claims, that
+challenge is not automatically acceptance of the changed claims.
+
+## Intake format
+
+Run: python3 tools/causal_program.py intake INPUT_ID --receipt PATH
+
+The JSON receipt must identify input_id, origin = external, owner name/role/
+organization, scope, agreed_criteria, baseline_manifest_sha256, a signed_evidence
+path/sha256/anchor and nonempty input_sha256. Use the current baseline manifest
+identity from state.json. Include the assessed I01 release identity when final
+acceptance is sought; the historical baseline hash alone is insufficient.
+
+A local evidence reference must point to an authorized owner-provided
+attestation or reviewed manifest. Bank data stay in approved custody; no raw
+customer identifiers or confidential datasets belong in the public research
+archive. The receipt can bind a custody manifest without copying bank data.
+The script checks shape and identities, not signature authenticity, scientific
+truth or legal access. The named owner/reviewer must substantiate those facts.
+
+A final X/F receipt must use independent or external_owner review kind and
+reference original signed evidence. X01 specifically requires independent
+review. Its signed_evidence and assessed_release fields are path/hash/anchor
+records; assessed_release must identify the I01 delivery manifest. Merely
+inventing a person or choosing a different string is not
+acceptance. Missing owners remain blockers, not author tasks to mark complete.
+
+## Resumption and handoff
+
+Supply the relevant owner and frozen evidence, record intake, and run next.
+Complete required prerequisites before the final acceptance trial. Use the
+registered rejection criteria, retain the original signed findings even when
+negative, and record the decision against the exact package contract. No new
+user approval checkpoint is needed for already authorized local preparation.
+External messaging, access grants and actual institutional deployment require
+their own authorization.
+
+
+# Work-package execution cards
+
+These cards are generated from the canonical machine contracts. Live dispositions are in Mission Control. A positive package result does not automatically close its assigned gaps; each has a separate reviewed disposition.
+
+## M00: Recover and preserve all deliveries
+
+Owner: Authorized local research agent. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: none.
+
+Execution:
+
+1. Archive the seven mutable controls and retain the overwritten-check failure.
+2. Verify the reconstructed historical receipt against its existing digest.
+3. Run the unchanged nested delivery verifier through the historical overlay.
+
+Acceptance:
+
+- M00-C1: All four manifests and 7,609 unique artifact identities pass original gates through the preserved controls.
+- M00-C2: Original scientific PDFs/manifests remain byte-identical; the checker failure and exact-byte repair are retained.
+
+Outputs:
+
+- docs/program/master/baseline.json
+- docs/program/master/baseline-verification.json
+- docs/reviews/master-recovery-checker-failure.json
+
+Failure or inconclusive result: Stop migration if any unexpected identity differs; recover original evidence, never refresh a manifest to hide drift.
+
+## M01: Fix the standard and capability contracts
+
+Owner: Authorized local research agent. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: M00 (pass).
+
+Execution:
+
+1. Reconcile original six streams and four worked banking journeys with V10 and all three supplements.
+2. Map every D01-D10 gap to observed evidence, known/unknown route, exact acceptance and responsible package.
+3. Define bounded product goals while retaining all general research obligations.
+
+Acceptance:
+
+- M01-C1: All ten gaps and all six original streams are represented; funding does not substitute for servicing/discovery/observation.
+- M01-C2: Scholarship, conditional reference, useful capability and external adoption have separate gates.
+- M01-C3: The current 259-page reader and adverse findings are reconciled without claims of general or bank calibration.
+
+Outputs:
+
+- docs/program/master-program.md
+- docs/program/master/capability-contracts.md
+
+Failure or inconclusive result: Repair missing scope/claims before registering new studies; narrower capability cannot erase an original obligation.
+
+## M02: Prepare common evaluation and external input contracts
+
+Owner: Authorized local research agent. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: M01 (pass).
+
+Execution:
+
+1. Specify argument-before-study, source trace, fixed registration, failure preservation and common outcome reporting.
+2. Provide bank, reviewer, platform, consumer and economic input contracts with owners explicitly unassigned.
+3. Define bank truth diagnostics separately from synthetic known-truth coverage.
+
+Acceptance:
+
+- M02-C1: No final study may precede an identified target, derivation review, independent fixture and frozen procedure.
+- M02-C2: Every external dependency has required owner, evidence, rejection criteria and resumption action.
+- M02-C3: Calibration, availability, width, monetary meaning, computational and acquisition costs are separate acceptance dimensions.
+
+Outputs:
+
+- docs/program/master/evaluation-protocol.md
+- docs/program/master/external-inputs.md
+
+Failure or inconclusive result: Record missing scientific or institutional information; do not fabricate owners, costs, audit truth or acceptance.
+
+## M03: Review and qualify the executable program controls
+
+Owner: Authorized local research agent. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: M02 (pass).
+
+Execution:
+
+1. Implement current status, next, check, registration, evidence intake and work-package disposition.
+2. Exercise stale evidence, cycles, failed prerequisites, false external completion and per-document LaTeX namespaces.
+3. Review the full program, compile its PDF, inspect it and reconcile canonical entrypoints.
+
+Acceptance:
+
+- M03-C1: Dependency/evidence regression tests and the active-source checker pass; status reflects all four deliveries.
+- M03-C2: Plan review repairs scope, selection, information, negative-result and archive hazards.
+- M03-C3: The master PDF is compiled and visually inspected; README, Mission Control and canonical commands lead here.
+
+Outputs:
+
+- tools/master_control.py
+- tools/causal_program.py
+- tests/test_master_control.py
+- docs/reviews/master-control-tests.json
+- docs/reviews/master-program-review-2026-10-11.md
+- docs/program/master-program.pdf
+- docs/reviews/master-program-visual.json
+
+Failure or inconclusive result: Repair control defects before scientific continuation; retain each failed verification in the review log.
+
+## R01: Derive and test usable funding calibration
+
+Owner: Authorized local research agent. Gaps: D01, D09, D10.
+
+Prerequisites: M03 (pass).
+
+Execution:
+
+1. Reconstruct linked-outcome score and finite pilot/ratio/calendar variance errors from frozen evidence; do not select a correction using final old outcomes.
+2. Compare a justified studentization/small-sample correction with a changed independent pilot/evaluation design; reject any candidate lacking a covariance/rate argument.
+3. After derivation and independent numeric fixtures, freeze code, seeds, fixed repetitions and all valid/adverse cells using register R01.
+4. Run fresh paired requests with all-request coverage, availability, widths, bias, SE/SD, labels/history and complete local cost; reconstruct journals.
+5. Adjudicate the exact inference claim and width/cost frontier, retaining a negative or inconclusive result.
+
+Acceptance:
+
+- R01-C1: The correction or changed design has a scoped argument covering audit, fitted-pilot and calendar contributions; no universal correction is asserted.
+- R01-C2: Frozen independent fixtures and fresh preregistered evidence retain baseline, small T, low q, near/exact rank, persistence, false exogeneity, wrong inclusion and label errors.
+- R01-C3: All valid-law cells meet the explicit claim-specific rule in the registered protocol; adverse-law failures remain visible.
+- R01-C4: Report monetary width and total information requirements separately; no bank usefulness/ROI assertion without external thresholds and prices.
+
+Outputs:
+
+- docs/program/master/work/R01/derivation.md
+- docs/program/master/work/R01/protocol.json
+- docs/program/master/work/R01/results.json
+- docs/program/master/work/R01/review.md
+
+Failure or inconclusive result: A failed derivation or unresolved calibration yields a negative/inconclusive receipt and an unsupported regime. Preserve evidence, propose a reviewed changed-information successor, and continue the other ready branches.
+
+## R02: Qualify persistent maps, audits and common calendars
+
+Owner: Authorized local research agent. Gaps: D01, D04, D05, D09.
+
+Prerequisites: M03 (pass).
+
+Execution:
+
+1. Start from the inherited iid-pair/mixing-calendar projection, retaining its adverse finite case.
+2. Define a single joint experiment with persistent pair identity, common date shocks, sampled histories and independent gold labels; specify pair/date/gold growth and exclude endogenous maps initially.
+3. Derive projection/cross-date/audit-error terms and boundary/degeneracy behavior; compare analytic enumerations to the inherited independent-origin limit.
+4. Register fresh pair/date/gold-ratio, persistent-audit, weak-boundary and covariance-window comparisons after the argument passes review.
+
+Acceptance:
+
+- R02-C1: One explicit joint sampling law accounts for all pair/date/gold cross terms and rates.
+- R02-C2: Independent-origin and complete-truth limiting cases match separate references.
+- R02-C3: Fresh registered evidence meets its scoped uncertainty rule and retains the earlier undercoverage and new failure cases.
+- R02-C4: Endogenous maps and unknown/noisy selection remain refused without identified new information.
+
+Outputs:
+
+- docs/program/master/work/R02/derivation.md
+- docs/program/master/work/R02/protocol.json
+- docs/program/master/work/R02/results.json
+- docs/program/master/work/R02/review.md
+
+Failure or inconclusive result: Do not compose the independent-origin horizon result with persistent maps by analogy. If no valid projection/rate argument exists, retain separate operations and publish the obstruction.
+
+## R03: Extend nonlinear servicing and policy-value inference
+
+Owner: Authorized local research agent. Gaps: D02, D04, D09.
+
+Prerequisites: M03 (pass).
+
+Execution:
+
+1. Specify one extension of the inherited selected16 action-variance/private-state servicing family; begin with independently selected policy and representative truthful state audits.
+2. Write the state/measurement/logger likelihood and intervention value on the same clock; prove identifiability for that family or exhibit observational equivalence.
+3. Bound quadrature/filter/optimization error against an independent high-accuracy likelihood, score and value reference; state local/global and boundary limits.
+4. Register weak emission, audit scarcity, poor overlap, policy leakage and misspecification tests; propagate fitting, audit and numerical uncertainty.
+5. Analyze unknown optimal-value selection separately; qualify it only with its own uniform or selection-aware argument.
+
+Acceptance:
+
+- R03-C1: Identification matches the fitted likelihood and available audit/logger information.
+- R03-C2: Numerical errors are bounded or transparently qualified at the inferential scale; refinement alone is not a global certificate.
+- R03-C3: Fresh registered policy-value evidence meets the declared uncertainty target and rejects leakage/unsupported regimes.
+- R03-C4: Fixed-policy evaluation and unknown optimal-policy inference have separate dispositions; the latter stays open without an argument.
+
+Outputs:
+
+- docs/program/master/work/R03/derivation.md
+- docs/program/master/work/R03/protocol.json
+- docs/program/master/work/R03/results.json
+- docs/program/master/work/R03/review.md
+
+Failure or inconclusive result: A nonidentified family returns a value set or a named missing-information requirement. A local optimizer/refinement result cannot be promoted to certified general POMDP inference.
+
+## R04: Connect learned temporal graph classes to effect uncertainty
+
+Owner: Authorized local research agent. Gaps: D03, D04, D09.
+
+Prerequisites: M03 (pass).
+
+Execution:
+
+1. Choose one finite stationary latent temporal class extending the supplied-information Gaussian reference; freeze horizon, history, hidden variables and scientific restrictions.
+2. Derive joint observed-law uncertainty and graph-class retention; propagate all retained graphs to the intervention target.
+3. Implement a small exact enumeration oracle and conservative structural optimization bounds before any large graph claim.
+4. Register near-unfaithfulness, hidden history, selection, weak rank and false restrictions; compare class/effect retention, width and compute.
+
+Acceptance:
+
+- R04-C1: Graph-class retention and effect-set coverage are argued jointly; a selected graph is not called a confidence region.
+- R04-C2: Certified bounds contain the exact small-class oracle; numerical timeout is distinguished from nonidentification.
+- R04-C3: Fresh registered evidence meets scoped retention/effect rules and retains unrestricted/disconnected effects.
+- R04-C4: Experimental/scientific exclusions are required for observationally equivalent effects; arbitrary PAG confidence remains an explicit generalization.
+
+Outputs:
+
+- docs/program/master/work/R04/derivation.md
+- docs/program/master/work/R04/protocol.json
+- docs/program/master/work/R04/results.json
+- docs/program/master/work/R04/review.md
+
+Failure or inconclusive result: If retained graphs imply unrestricted effects, report that set and the information that would separate them. Reduce computation only with valid outer bounds, never by silently deleting inconvenient graphs.
+
+## R05: Qualify one dependent learner beyond the fixed dictionary
+
+Owner: Authorized local research agent. Gaps: D06, D09.
+
+Prerequisites: M03 (pass).
+
+Execution:
+
+1. Choose one prespecified sparse linear nuisance family under a declared mixing law; retain the fixed-dictionary pilot as challenger.
+2. Derive approximation, nuisance-product, tuning/separation and fitted-score covariance requirements before implementation.
+3. Verify full tuning/refit/prediction/uncertainty against a separate dense implementation.
+4. Register misspecification, weak design, inadequate separation and changing persistence; evaluate both inferential and complete workload outcomes.
+
+Acceptance:
+
+- R05-C1: Learner-specific rates, covariance and temporal separation match the actual fitted procedure.
+- R05-C2: Independent numerical checks cover selection boundaries and complete fitting/inference.
+- R05-C3: Registered valid/adverse evidence meets the stated inference rule; prediction gains alone do not qualify it.
+- R05-C4: Approximation and scale limits remain attached to every output; no arbitrary-learner guarantee.
+
+Outputs:
+
+- docs/program/master/work/R05/derivation.md
+- docs/program/master/work/R05/protocol.json
+- docs/program/master/work/R05/results.json
+- docs/program/master/work/R05/review.md
+
+Failure or inconclusive result: If rates or covariance cannot be justified, expose the learner as exploratory only and retain the qualified fixed-dictionary route; do not label the general learner gap closed.
+
+## E01: Implement shared results, linked streaming and local recovery
+
+Owner: Authorized local research agent. Gaps: D01, D06, D07, D08.
+
+Prerequisites: M03 (pass).
+
+Execution:
+
+1. Build versioned common result contracts for all four journeys; preserve identification/set topology, assumptions, units and capability disposition.
+2. Stream linked-outcome construction, chronological pilot tuning/refit and covariance without materializing all pseudo-outcomes; qualify only the existing independent-origin law.
+3. Compare dense and streamed complete requests at small/adverse boundaries and increasing sizes; measure memory, elapsed time and serialization.
+4. Inject local interruption during fit, checkpoint and result publication; prove idempotent replay, immutable input checks and no partially published result.
+
+Acceptance:
+
+- E01-C1: Consumer fixtures preserve all qualifiers, refusals, set topology and monetary units across A-D journeys.
+- E01-C2: Selected linked dense/streamed outputs agree under declared numerical tolerance and whole-workload measurements retain no-gain cases.
+- E01-C3: Local fault injection verifies request identity, recovery and atomic publication without claiming multi-host service levels.
+- E01-C4: Engineering evidence does not change scientific capability labels or require unapproved sibling edits.
+
+Outputs:
+
+- docs/program/master/work/E01/contract.md
+- docs/program/master/work/E01/checks.json
+- docs/program/master/work/E01/workloads.json
+- docs/program/master/work/E01/recovery.json
+- docs/program/master/work/E01/review.md
+
+Failure or inconclusive result: Repair reproducibility/data-integrity defects first. A slower or larger method remains a losing result; retain dense fallback and keep platform qualification external.
+
+## I01: Integrate all four banking journeys and dispositions
+
+Owner: Authorized local research agent. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: R01 (pass/negative/inconclusive); R02 (pass/negative/inconclusive); R03 (pass/negative/inconclusive); R04 (pass/negative/inconclusive); R05 (pass/negative/inconclusive); E01 (pass/negative/inconclusive).
+
+Execution:
+
+1. Adjudicate every branch, including failures, against A-D contracts and D01-D10; update the connected target-to-financial argument.
+2. Integrate supported results and unresolved arguments in a new versioned monograph and sponsor case, retaining source/claim distinctions.
+3. Reconstruct substantive derivations and adverse examples; verify citation PDFs/anchors and compile/inspect final PDFs.
+4. Publish one release manifest and update canonical reader/status without discarding predecessors.
+
+Acceptance:
+
+- I01-C1: Every branch has a substantive disposition, including negative/inconclusive results, and all four journeys remain visible.
+- I01-C2: A connected source-audited argument and reproducible examples support each retained capability.
+- I01-C3: Final PDFs and immutable delivery identities are verified and actually visually inspected.
+- I01-C4: A completed author release is never relabeled independent acceptance or closure of failed capabilities.
+
+Outputs:
+
+- docs/program/master/work/I01/review.md
+- docs/program/master/work/I01/gap-dispositions.json
+- docs/program/master/work/I01/delivery-manifest.json
+
+Failure or inconclusive result: An integrated negative or conditional research conclusion is deliverable; product gates remain blocked. Repair any unsupported statement before author delivery.
+
+## X01: Obtain independent scientific acceptance
+
+Owner: External owner required; unassigned. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: I01 (pass).
+
+External inputs: independent_review.
+
+Execution:
+
+1. Prepare reviewer access to all manifests, derivations, journals and negative evidence; preliminary challenge of the current baseline may begin as soon as reviewer input arrives.
+2. Obtain conflict/independence statement, per-claim reconstruction and signed findings scoped to the final I01 delivery.
+3. Resolve material findings with versioned evidence and re-review affected claims.
+
+Acceptance:
+
+- X01-C1: A named independent reviewer assesses all four journeys and the actual proposed capability envelope.
+- X01-C2: Original signed findings and conflicts are preserved; no unresolved material misstatement remains in accepted scope.
+
+Outputs:
+
+- docs/program/master/work/X01/signed-review.json
+- docs/program/master/work/X01/disposition.md
+
+Failure or inconclusive result: Retain rejection or disagreement, reopen the affected research package under review, and narrow unsupported outputs without claiming acceptance.
+
+## X02: Validate authentic bank questions, records and audits
+
+Owner: External owner required; unassigned. Gaps: D01, D02, D03, D04, D05, D09.
+
+Prerequisites: I01 (pass).
+
+External inputs: bank_truth, pilot_and_prices.
+
+Execution:
+
+1. Freeze owner-approved targets, assignment mechanism, clocks, population and genuine sampling/audit truth in approved bank custody.
+2. Verify model eligibility for each claimed journey, independent pilot feasibility and predeclared decision precision before fitting.
+3. Run held-out authentic evidence with assignment checks, placebo/sensitivity/error diagnostics and accounting reconciliation; causal truth is not assumed known.
+
+Acceptance:
+
+- X02-C1: Named bank/source/assignment/audit owners supply versioned authentic evidence and validate the actual inclusion/truth mechanisms.
+- X02-C2: Held-out precision and diagnostics meet owner-agreed criteria in every claimed bank use case.
+- X02-C3: No synthetic coverage statistic is presented as observed bank truth; ineligible questions are rejected or require new design.
+
+Outputs:
+
+- docs/program/master/work/X02/bank-protocol.json
+- docs/program/master/work/X02/validation.json
+- docs/program/master/work/X02/signed-acceptance.json
+
+Failure or inconclusive result: Failed exogeneity, inclusion, truth, invariant pilot or attainable precision blocks bank capability. Request a justified experiment, instrument, error law or changed target from the responsible owner.
+
+## X03: Qualify target platform and accepted interfaces
+
+Owner: External owner required; unassigned. Gaps: D06, D07, D08.
+
+Prerequisites: E01 (pass); I01 (pass).
+
+External inputs: platform, consumers.
+
+Execution:
+
+1. Freeze target hardware, storage, concurrency, service objectives and matched end-to-end workload.
+2. Execute host/partition/coordinator loss, restart and result integrity tests on the actual platform.
+3. Obtain executed real consumer fixtures and signed interface/version acceptance; record total operating cost.
+
+Acceptance:
+
+- X03-C1: Actual operator-run complete workloads satisfy predeclared service/recovery/data-integrity criteria.
+- X03-C2: Actual consumer maintainers execute accepted interfaces including unsupported/whole-line/changed-input cases.
+- X03-C3: Costs include storage, I/O, concurrency, acquisition obligations and operations; local author fixtures are not substituted.
+
+Outputs:
+
+- docs/program/master/work/X03/platform-results.json
+- docs/program/master/work/X03/interface-acceptance.json
+- docs/program/master/work/X03/signed-acceptance.json
+
+Failure or inconclusive result: Preserve no-gain or failing target trials, repair the specific component and rerun affected matched cases; do not infer platform scale from local dense equivalence.
+
+## X04: Measure decision value and full economics
+
+Owner: External owner required; unassigned. Gaps: D08, D10.
+
+Prerequisites: X02 (pass); X03 (pass).
+
+External inputs: workflow, pilot_and_prices.
+
+Execution:
+
+1. Freeze matched analyst tasks, output-quality grading and full-cost definitions with an independent evaluator.
+2. Compare accepted existing-library/warehouse workflow against the proposed system on held-out tasks, including failures, active labor, review/rework, labels/history and infrastructure.
+3. Quantify decision-value and cost uncertainty against bank width/risk/return thresholds; report unfavorable cases.
+
+Acceptance:
+
+- X04-C1: Real linked/count/gold/history prices and decision thresholds replace planning assumptions.
+- X04-C2: Repeated matched held-out tasks achieve accepted quality and measured total-cost/decision-value criteria.
+- X04-C3: Economic uncertainty and losing tasks are retained; runtime is not called labor savings or ROI.
+
+Outputs:
+
+- docs/program/master/work/X04/workflow-results.json
+- docs/program/master/work/X04/economic-analysis.json
+- docs/program/master/work/X04/signed-evaluation.json
+
+Failure or inconclusive result: If no useful or economical frontier exists, recommend against investment for that use case and retain the evidence; do not relabel wider tolerances as success.
+
+## F01: Make the bounded product and investment decision
+
+Owner: External owner required; unassigned. Gaps: D01, D02, D03, D04, D05, D06, D07, D08, D09, D10.
+
+Prerequisites: R01 (pass); R02 (pass); R03 (pass); R04 (pass); R05 (pass); E01 (pass); I01 (pass); X01 (pass); X02 (pass); X03 (pass); X04 (pass).
+
+External inputs: sponsor_decision.
+
+Execution:
+
+1. Reconcile all qualification gates and remaining generalizations against the agreed bounded product contract.
+2. Obtain the sponsor's signed accept/reject/defer decision, operating owner and approved release scope.
+3. Deliver a final integrated technical and sponsor PDF with exact evidence identities and any rejected uses.
+
+Acceptance:
+
+- F01-C1: All bounded capability, independent, bank, platform/interface and economic gates pass for the claimed scope.
+- F01-C2: The sponsor's institutional decision and operating obligations are signed; unrestricted universal inference is not asserted.
+
+Outputs:
+
+- docs/program/master/work/F01/signed-decision.json
+- docs/program/master/work/F01/final-delivery.json
+
+Failure or inconclusive result: A rejected or deferred investment is an honest institutional outcome, not a deployed product. Do not erase failed gap gates to obtain a positive decision.

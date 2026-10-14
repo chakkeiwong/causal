@@ -1,0 +1,156 @@
+    def run_lpcmci(self,
+                    link_assumptions = None,
+                    tau_min = 0,
+                    tau_max = 1, 
+                    pc_alpha = 0.05,
+                    n_preliminary_iterations = 1,
+                    max_cond_px = 0,
+                    max_p_global = np.inf,
+                    max_p_non_ancestral = np.inf,
+                    max_q_global = np.inf,
+                    max_pds_set = np.inf,
+                    prelim_with_collider_rules = True,
+                    parents_of_lagged = True,
+                    prelim_only = False,
+                    break_once_separated = True,
+                    no_non_ancestral_phase = False,     
+                    use_a_pds_t_for_majority = True,
+                    orient_contemp = 1,
+                    update_middle_marks = True,
+                    prelim_rules = 1,
+                    fix_all_edges_before_final_orientation = True,
+                    auto_first = True,
+                    remember_only_parents = True,
+                    no_apr = 0):
+        """Run LPCMCI on the dataset and with the conditional independence test passed to the class constructor and with the
+        options passed to this function."""
+
+        #######################################################################################################################
+        #######################################################################################################################
+        # Step 0: Initializations
+        self._initialize(link_assumptions, tau_min, tau_max, pc_alpha, n_preliminary_iterations, max_cond_px, max_p_global,
+            max_p_non_ancestral, max_q_global, max_pds_set, prelim_with_collider_rules, parents_of_lagged, prelim_only,
+            break_once_separated, no_non_ancestral_phase, use_a_pds_t_for_majority, orient_contemp, update_middle_marks,
+            prelim_rules, fix_all_edges_before_final_orientation, auto_first, remember_only_parents, no_apr)
+
+        #######################################################################################################################
+        #######################################################################################################################
+        # Step 1: Preliminary phases
+        for i in range(self.n_preliminary_iterations):
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\n=======================================================")
+                print("=======================================================")
+                print("Starting preliminary phase {:2}".format(i + 1))
+
+            # In the preliminary phases, auto-lag links are tested with first priority. Among the auto-lag links, different lags are
+            # not distinguished. All other links have lower priority, among which those which shorter lags have higher priority
+            self._run_ancestral_removal_phase(prelim = True)
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\nPreliminary phase {:2} complete".format(i + 1))
+                print("\nGraph:\n--------------------------------")
+                self._print_graph_dict()
+                print("--------------------------------")
+
+            # When the option self.prelim_only is chosen, do not re-initialize in the last iteration
+            if i == self.n_preliminary_iterations - 1 and self.prelim_only:
+                break
+
+            # Remember ancestorships, re-initialize and re-apply the remembered ancestorships
+            def_ancs = self.def_ancs
+
+            if self.remember_only_parents:
+                smaller_def_ancs = dict()
+                for j in range(self.N):
+                    smaller_def_ancs[j] = {(i, lag_i) for (i, lag_i) in def_ancs[j] if self._get_link((i, lag_i), (j, 0)) != ""}
+                def_ancs = smaller_def_ancs
+
+            self._initialize_run_memory()
+            self._apply_new_ancestral_information(None, def_ancs)
+
+        #######################################################################################################################
+        #######################################################################################################################
+        # Step 2: Full ancestral phase
+        if not self.prelim_only:
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\n=======================================================")
+                print("=======================================================")
+                print("Starting final ancestral phase")
+
+            # In the standard ancestral phase, links are prioritized in the same as in the preliminary phases
+            self._run_ancestral_removal_phase()
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\nFinal ancestral phase complete")
+                print("\nGraph:\n--------------------------------")
+                self._print_graph_dict()
+                print("--------------------------------")
+
+        #######################################################################################################################
+        #######################################################################################################################
+        # Step 3: Non-ancestral phase
+        if (not self.prelim_only) and (not self.no_non_ancestral_phase):
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\n=======================================================")
+                print("=======================================================")
+                print("Starting non-ancestral phase")
+
+            # In the non-ancestral phase, large lags are prioritized
+            self._run_non_ancestral_removal_phase()
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\nNon-ancestral phase complete")
+                print("\nGraph:\n--------------------------------")
+                self._print_graph_dict()
+                print("--------------------------------")
+
+        if self.fix_all_edges_before_final_orientation:
+
+            # Verbose output
+            if self.verbosity >= 1:
+                print("\n=======================================================")
+                print("=======================================================")
+                print("Final rule application phase")
+                print("\nSetting all middle marks to '-'")
+
+            self._fix_all_edges()
+            self._run_orientation_phase(rule_list = self._rules_all, only_lagged = False)
+
+        #######################################################################################################################
+        #######################################################################################################################
+
+        # Verbose output
+        if self.verbosity >= 1:
+            print("\n=======================================================")
+            print("=======================================================")
+            print("\nLPCMCI has converged")
+            print("\nFinal graph:\n--------------------------------")
+            print("--------------------------------")
+            self._print_graph_dict()
+            print("--------------------------------")
+            print("--------------------------------\n")
+
+            print("Max search set: {}".format(self.max_na_search_set_found))
+            print("Max na-pds set: {}\n".format(self.max_na_pds_set_found))
+
+        # Post processing
+        self._fix_all_edges()
+        self.graph = self._dict2graph()
+        self.pval_max_matrix = self._dict_to_matrix(self.pval_max, self.tau_max, self.N, default = 0)
+        self.val_min_matrix = self._dict_to_matrix(self.pval_max_val, self.tau_max, self.N, default = 0)
+        self.cardinality_matrix = self._dict_to_matrix(self.pval_max_card, self.tau_max, self.N, default = 0)
+
+        # Build and return the return dictionariy
+        return_dict = {"graph": self.graph,
+                       "p_matrix": self.pval_max_matrix,
+                       "val_matrix": self.val_min_matrix}
+        return return_dict

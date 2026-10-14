@@ -1,0 +1,1069 @@
+                                           LUCID: Learning Under Confounding for Inference and Discovery in Time
+                                                                        Series
+
+
+                                                                                            Mohammad Fesanghary 1
+
+
+                                                                   Abstract                                  et al., 2000). A pervasive obstacle is latent confounding—
+                                              Unobserved common causes are pervasive in real-                when observed variables are driven by unrecorded common
+                                              world time series and can induce spurious asso-                causes: unmeasured regional rainfall might affect multi-
+arXiv:2609.31315v1 [cs.LG] 25 Sep 2026
+
+
+
+
+                                              ciations that causal discovery methods mistake                 ple river gauges, a macroeconomic shock might move dis-
+                                              for direct edges. We propose LUCID (Learning                   parate assets, or a shared environment could regulate several
+                                              Under Confounding for Inference and Discovery),                genes. These hidden drivers induce spurious associations
+                                              a regime-adaptive deconfounding layer that first               that mimic direct causal effects, so discovery algorithms that
+                                              estimates the confounding regime from data us-                 ignore them systematically over-connect the causal graph.
+                                              ing a Marčenko–Pastur spectral router, then ap-               Latent confounding lacks a universal statistical signature,
+                                              plies a deconfounding strategy matched to that                 so no single correction handles all of its forms. Under per-
+                                              regime. When the spectrum indicates pervasive                  vasive confounding, a few latent factors affect large subsets
+                                              factor confounding, LUCID attenuates factor-                   of the observed variables, which leaves two exploitable
+                                              dominated variation and recovers contempora-                   traces: a low-rank component in the covariance, whose lead-
+                                              neous (lag-0) structure from the resulting inno-               ing eigenvalues separate from the bulk, and algebraic rank
+                                              vations, with edge selection calibrated against a              constraints among the many observed children of each fac-
+                                              data-driven edge-free null. Rather than being tied             tor. Spectral and factor-adjustment methods (Ćevid et al.,
+                                              to a particular discovery algorithm, it can wrap               2020) use the former, while rank- and tetrad-based meth-
+                                              existing discovery engines; we demonstrate con-                ods (Spirtes et al., 2000; Dong et al., 2024) use the latter.
+                                              sistent improvements across three such methods.                Under sparse confounding, hidden causes are localized, for
+                                              On a diverse synthetic out-of-distribution bench-              example a single latent fork driving only two or three vari-
+                                              mark spanning changes in confounder strength                   ables. Such a fork need not produce a separated eigenvalue,
+                                              and sparsity, loading density, lag structure, volatil-         and may provide too few observed children for informative
+                                              ity dynamics, edge heterogeneity, persistence, in-             rank constraints, so the signals these corrections rely on
+                                              termittency, and tail behavior, LUCID achieves                 can be weak or absent and genuine edges risk being pruned.
+                                              the best family-weighted directed, lag-resolved                Corrections optimized for one regime often degrade the
+                                              graph F1 (0.60), improving over the strongest                  other, so a robust algorithm must first detect which regime
+                                              baseline by 0.19 absolute (≈ 46% relative). Its                is present.
+                                              advantage widens relative to looser lag-collapsed
+                                              scoring, and remains robust under intermittent
+                                              and heavy-tailed confounding. Code reproducing                 Our approach. Rather than proposing a new discovery
+                                              the method, the benchmark generators, and ev-                  engine, LUCID is a regime-adaptive deconfounding layer:
+                                              ery reported experiment is available at https:                 it infers from the observed data whether confounding is
+                                              //github.com/bloomberg/causal-ts.                              sparse or pervasive, then routes each dataset to a correction
+                                                                                                             appropriate for that regime. The routing decision is based
+                                                                                                             on a Marčenko–Pastur spectral statistic (Marčenko & Pastur,
+                                         1. Introduction                                                     1967) whose threshold is derived from the data dimension
+                                                                                                             and length rather than tuned per dataset. On the pervasive
+                                         Causal discovery from multivariate time series is critical          branch, the contemporaneous edges that a shared factor
+                                         across climate science, finance, neuroscience, and industrial       would otherwise smear into a dense clique are recovered by
+                                         monitoring (Peters et al., 2017; Runge et al., 2019; Spirtes        a spectral low-rank-plus-sparse step with a self-calibrating
+                                           1                                                                 threshold. Because the router and the recovery step both
+                                             Bloomberg L.P. Correspondence to: Mohammad Fesanghary
+                                         <mfesanghary1@bloomberg.net>.                                       act on the data and on the returned graph—never on the
+                                                                                                             internals of the search—LUCID can wrap different discov-
+                                         Preprint. Copyright 2026 by the author(s).                          ery engines rather than replacing them. We demonstrate
+
+                                                                                                         1
+                                   LUCID: Learning Under Confounding in Time Series
+
+this with CDNOTS (Sadeghi et al., 2025) (our default),              et al., 2024) infer predictive causal structure with nonlinear
+PCMCI+ (Runge, 2020), and NTS-NOTEARS (Sun et al.,                  function classes. These methods differ substantially in their
+2023) alike.                                                        search procedures and assumptions, making them useful test
+                                                                    beds for our central goal: a deconfounding layer that can
+Contributions.                                                      improve an existing discovery engine without modifying its
+                                                                    internal search.
+ 1. A regime router for latent confounding grounded in the
+    Marčenko–Pastur null distribution (Section 4.1). Its           Discovery in the presence of latent confounders. A
+    threshold is derived from d and T rather than tuned,            separate line of work relaxes causal sufficiency explicitly.
+    and it recovers most of the value of an oracle that picks       FCI (Spirtes et al., 2000) and RFCI (Colombo et al., 2012),
+    the branch per dataset (regret 0.007; Section 5.3). Its         together with time-series extensions including tsFCI (Entner
+    role is robustness: committing to the always-sparse             & Hoyer, 2010), SVAR-FCI (Malinsky & Spirtes, 2018),
+    branch costs 0.26 family-weighted F1 relative to rout-          LPCMCI (Gerhardus & Runge, 2020), and TS-ICD (Ro-
+    ing, while LUCID avoids that loss without knowing               hekar et al., 2023), reason about latent common causes
+    the confounding regime in advance.                              through partial ancestral graphs and edge marks that en-
+                                                                    code causal ambiguity. These methods therefore address
+ 2. A spectral low-rank-plus-sparse (S−L) recovery of
+                                                                    latent confounding by changing the graphical object being
+    the contemporaneous (lag-0) slice on the pervasive
+                                                                    recovered. Rank-based approaches take a different route:
+    branch (Section 4.3). The procedure attenuates factor-
+                                                                    methods such as RLCD (Dong et al., 2024) exploit rank con-
+    dominated variation and reconstructs sparse contem-
+                                                                    straints and vanishing tetrads to infer latent structure directly
+    poraneous candidates, calibrating its edge threshold
+                                                                    from observed covariances. A third route recovers the latent
+    against an edge-free null built from the data rather than
+                                                                    components themselves and enlarges the observed system
+    a hand-tuned amplitude constant. A persistence gate
+                                                                    with them: LCCI (Aghaei et al., 2026) applies time-delay
+    further suppresses the co-parent (moralization) edges
+                                                                    embedding and independent component analysis to extract
+    that a precision-matrix support would otherwise admit.
+                                                                    latent causal components, retains those with system-wide
+ 3. An evaluation suite of ten confounding families span-           influence, and appends them to the observed series before an
+    ning the axes listed above, together with a case                unmodified downstream discovery algorithm is run. These
+    study whose confounding dynamics are calibrated to              paradigms aim to represent or reconstruct hidden causal
+    a real credit-default-swap panel (Section 5.4). Scored          structure, whereas LUCID targets a different objective: re-
+    throughout with the strict directed, lag-resolved F1 ,          covering a directed, lag-resolved graph over the observed
+    LUCID reaches 0.601 against 0.411 for the strongest             variables while treating latent confounding as a nuisance
+    baseline (Table 1); its margin grows under lag-resolved         that must be detected and corrected around the underlying
+    rather than lag-collapsed scoring, and the layer trans-         discovery engine.
+    fers: wrapped around PCMCI+ or NTS-NOTEARS
+    instead of CDNOTS, it improves each of them.                    Factor, rank, and low-rank deconfounding. The clos-
+                                                                    est methodological relatives of LUCID are methods that
+2. Related Work                                                     exploit the statistical signature left by pervasive latent fac-
+                                                                    tors. When a small number of hidden variables affect many
+Time-series causal discovery. A broad class of meth-                observed variables, their contribution can appear as low-
+ods learns temporal causal structure under versions of              rank structure in the covariance or precision matrix. Rank-
+causal sufficiency. Constraint-based approaches such as             and tetrad-based methods exploit the resulting algebraic
+PC and its time-series extensions (Spirtes et al., 2000),           constraints (Dong et al., 2024), while factor-adjustment
+PCMCI/PCMCI+ (Runge et al., 2019; Runge, 2020), and                 methods estimate latent components and condition on them
+CDNOTS (Sadeghi et al., 2025) construct a candidate graph           before downstream inference (Wang & Blei, 2019). Low-
+and prune it using conditional-independence tests before            rank-plus-sparse formulations instead decompose observed
+orienting the remaining edges. Score-based and continuous-          dependence into a shared low-rank component and a sparse
+optimization approaches instead search for a graph that op-         graphical component (Chandrasekaran et al., 2012; Frot
+timizes a global objective: DYNOTEARS (Pamfil et al.,               et al., 2019). Closest to the spectral step used here, Ćevid
+2020) and NTS-NOTEARS (Sun et al., 2023) extend                     et al. (2020) deconfound by transforming the singular values
+NOTEARS-style optimization to temporal structure, while             of the design matrix before fitting a Lasso, and DeCAM-
+VARLiNGAM (Hyvärinen et al., 2010) exploits non-                   Founder (Agrawal et al., 2023) uses spectral decomposition
+Gaussianity to identify a linear structural ordering. Neural        for causal discovery under pervasive latent variables; both
+approaches such as Neural Granger Causality (Tank et al.,           target i.i.d. observations rather than time series, and the
+2021), NAVAR (Bussmann et al., 2021), and CUTS+ (Cheng              former estimates regression coefficients rather than graph
+
+                                                                2
+                                       LUCID: Learning Under Confounding in Time Series
+
+structure. LUCID builds on this lineage: on the pervasive                latent cause affects only a few variables, need not produce
+branch, its S−L procedure recovers contemporaneous struc-                such a spectral signature. LUCID routes between these
+ture rather than discarding the lag-0 slice, though it does              regimes using this distinction (Section 4).
+so with a cheaper spectral procedure than the convex low-
+rank-plus-sparse program it is inspired by (Section 4.3). The            4. Method
+limitation of applying such corrections universally motivates
+our router. Their identifying signal is strongest when latent            LUCID is a three-stage layer (Figure 1): (i) infer the con-
+confounding is sufficiently pervasive to create a detectable             founding regime from the observed data; (ii) run the same
+spectral or rank signature; a sparse latent fork affecting only          base discovery engine on either branch and apply the cor-
+a few observed variables need not do so, and factor-style                responding post-hoc correction; and (iii) on the pervasive
+correction can then remove genuine dependence.                           branch, replace the contemporaneous slice with S−L re-
+                                                                         covery. All hyperparameters are fixed across datasets and
+Positioning LUCID. LUCID builds on the low-rank                          experiments; Section 4.4 gives their specification and selec-
+view of pervasive latent confounding, but changes both                   tion.
+when and how that structure is used. Existing factor-based
+corrections typically commit to a factor-confounding model               4.1. Regime routing via the Marčenko–Pastur null
+before downstream inference. LUCID first tests whether
+the observed spectrum supports that assumption and invokes               We first fit a VAR(1) and form the correlation matrix of its
+factor-style correction only in the pervasive regime. Within             residuals. Let λ1 ≥ λ2 ≥ · · · ≥ λd denote its eigenvalues
+that branch, S−L attenuates rather than removes the dom-                 and define
+                                                                                                      λ1 + λ2
+inant factor directions, then reconstructs lag-0 candidates                                      R=            ,
+                                                                                                          d
+using a data-calibrated edge-free null and marginal corrob-
+                                                                         the fraction of residual variance captured by the top two
+oration (Section 4.3). This preserves potentially genuine
+                                                                         spectral directions. Pervasive factor confounding concen-
+contemporaneous signal while suppressing both factor foot-
+                                                                         trates variance in a few directions and increases R, whereas
+print and conditioning-induced co-parent associations. The
+                                                                         sparse local confounding need not produce such a spectral
+result is a separation between deconfounding and causal
+                                                                         spike.
+search: LUCID adapts the former to the observed regime
+while leaving the underlying discovery engine interchange-               Rather than use a dataset-independent cutoff, we calibrate
+able.                                                                    R against the Marčenko–Pastur no-factor benchmark. With
+                                                                         Teff = pT − 1 residual samples, the upper spectral edge
+                                                                         is (1 + d/Teff )2 (Marčenko & Pastur, 1967; Johnstone,
+3. Background and Notation
+                                                                         2001). We therefore route using
+We observe a stationary multivariate time series xt =                                                  p       2
+(x1t , . . . , xdt ) ∈ Rd , t = 1, . . . , T , and seek the lagged                              k 1 + d/Teff
+                                                                                         τ =γ                     ,             (1)
+causal graph G ∈ {0, 1}d×d×(L+1) , where G[c, e, ℓ] = 1                                                 d
+denotes a direct effect xct−ℓ → xet at lag ℓ ∈ {0, . . . , L}.           with k = 2 to match the two eigenvalues entering R and
+Our primary metric is the directed, lag-resolved F1 -score               a fixed margin γ = 1.3 (Table 4). If R ≤ τ , LUCID
+(F1dir ), under which an edge is correct only if its cause,              selects the sparse branch; otherwise it selects the pervasive
+effect, and lag all match the ground truth. We exclude same-             branch. Thus the cutoff adapts automatically to d and T ,
+variable autoregressive edges from scoring because they are              while k and γ remain fixed across datasets. Under sufficient
+recovered reliably by all methods in our experiments and                 conditions the spectral statistic separates the two regimes
+would obscure errors in the cross-variable structure. For                asymptotically; a full statement and proof are given in the
+completeness, Appendix A.2 reports the pair-level F1pair ,               extended version.
+which collapses across lags and therefore credits the correct
+variable pair even when its delay is wrong.                              4.2. Regime-specific discovery and filters
+
+Latent confounding. Under pervasive confounding, a                       Our default base engine is CDNOTS (Sadeghi et al., 2025)
+small number of latent factors affect many observed vari-                with a partial-correlation CI test. Importantly, LUCID runs
+ables (Bernanke et al., 2005; Stock & Watson, 2002):                     the same single-phase PC-style skeleton search on both
+            X                                                            branches; the regime affects only the subsequent decon-
+      xit =   λik ftk + (sparse causal effects) + εit .                  founding step. This isolates the contribution of routing and
+              k                                                          correction from changes to the underlying causal search.
+This induces a detectable low-rank component in the depen-               On the sparse branch, all candidate edges—
+dence structure. Sparse (local-fork) confounding, where a                contemporaneous ones included—are filtered using a post-
+
+                                                                     3
+                                    LUCID: Learning Under Confounding in Time Series
+
+                                                      sparse
+                                                                      discovery engine
+                                                                      + PDS edge filter
+
+               Observed                       MP
+                x1:T                         router                                                            Ĝ
+
+                                                                       discovery engine
+                                                  pervasive          + S−L lag-0 recovery
+
+Figure 1: LUCID pipeline. An MP spectral router selects a sparse or pervasive deconfounding branch. Both use the same
+base discovery engine; the sparse branch applies the PDS edge filter to every candidate edge, while the pervasive branch
+recovers the lag-0 slice with S−L. We use CDNOTS by default and also wrap PCMCI+ and NTS-NOTEARS.
+
+
+double-selection (PDS) edge filter (Belloni et al., 2014): a          tailored to lag-0 recovery.
+Granger-style test at lags ℓ ≥ 1, and the corresponding con-
+temporaneous partial regression at ℓ = 0 (Appendix A.7).              P U be⊤the centered VAR residuals with SVD U =
+                                                                      Let
+On the pervasive branch, lagged edges are retained from the              i σi ui vi . We estimate the factor count k̂ using the
+                                                                      Marčenko–Pastur rule in Appendix A.5 and cap the leading
+base engine and the lag-0 slice is instead reconstructed by
+                                                                      singular values at σk̂+1 :
+S−L (Section 4.3). Additional pervasive-branch lag filters
+and tetrad-based alternatives are evaluated as baselines and                                                 X
+                                                                               σ̃i = min(σi , σk̂+1 ), Ũ =     σ̃i ui vi⊤ .
+ablations in Section 5.
+                                                                                                                    i
+
+                                                                      This is the Trim transform of Ćevid et al. (2020), applied
+Novel vs. adopted components. The Marčenko–Pastur                    here with a different cap: they trim at a fixed quantile (the
+law and the low-rank-plus-sparse view of latent confound-             median singular value) to fit a Lasso under dense confound-
+ing are established tools; our contribution is their use in a         ing in the i.i.d. setting, whereas we reuse the factor count k̂
+regime-adaptive causal discovery layer. Specifically, new             already estimated for routing and feed the trimmed residuals
+in LUCID are the MP-based routing rule and, within S−L                to contemporaneous structure recovery rather than to a re-
+(Section 4.3), the edge-free-null calibration and the persis-         gression. Trimming suppresses factor-dominated directions
+tence gate. The lag-0 orientation step is a heuristic we adopt        without discarding them entirely. From S̃ = Cov(Ũ) we
+for the directed evaluation rather than a contribution of this        compute
+work (Appendix A.6). The low-rank-plus-sparse formula-
+tion (Chandrasekaran et al., 2012) that S−L is inspired by,                   Θ̂ = (S̃ + ρI)−1 ,       ρ = 10−3 tr(S̃)/d,
+the spectral trimming operator itself (Ćevid et al., 2020),
+the base engine (CDNOTS (Sadeghi et al., 2025)), and the
+                                                                      and theq corresponding partial correlations ρ̂ij            =
+PDS edge filter (Belloni et al., 2014) are adopted from prior         −Θ̂ij / Θ̂ii Θ̂jj .
+work.
+                                                                      Persistence gate. Partial correlation alone does not iden-
+4.3. Contemporaneous recovery via spectral                            tify the contemporaneous skeleton. In a linear structural
+     deconfounding                                                    model, conditioning can induce nonzero precision entries
+                                                                      between co-parents of a collider even when no direct edge
+Pervasive same-period factors are especially damaging at              connects them. We therefore require marginal corrobo-
+lag 0: they induce dense cross-sectional dependence among             ration in addition to conditional association. Let mij =
+the innovations that can be mistaken for instantaneous edges.         | Spearman(ũi , ũj )| and define
+Dropping the entire slice removes this footprint but also ev-                                              
+                                                                                                          2
+ery genuine contemporaneous edge, which costs substantial                   sij = |ρ̂ij | 1 − e−(mij /τg ) ,    τg = 0.15. (2)
+accuracy where such edges exist (Appendix A.8). LUCID
+instead attenuates the dominant factor directions and recov-          The multiplier approaches one for pairs with strong marginal
+ers sparse conditional-dependence candidates from the resid-          support and suppresses conditional associations with little
+ual innovations. This S−L step is inspired by latent-variable         marginal evidence. Spearman correlation reduces sensitiv-
+Gaussian graphical model selection (Chandrasekaran et al.,            ity to heavy tails, and the same score is used for both the
+2012), where marginalizing latent variables induces sparse            observed data and the null calibration below. This gate is
+and low-rank structure in the observed concentration ma-              deliberately heuristic: co-parents that are also marginally
+trix. We do not solve the corresponding convex program or             associated can survive, so S−L produces a lag-0 skeleton
+inherit its guarantees; S−L is a cheaper spectral procedure           candidate rather than an identification guarantee (Section 6).
+
+                                                                 4
+                                       LUCID: Learning Under Confounding in Time Series
+
+Edge-free null calibration. Rather than choose an ampli-              benchmark (Section 5.4). Our constraint-based compar-
+tude cutoff for sij , we calibrate
+                              P it against a null constructed         isons isolate the vanishing-tetrad deconfounding filter as
+from the data. Write Uk̂ = i≤k̂ σi ui vi⊤ for the estimated           a design choice on top of the single-phase, PC-style CD-
+factor component and E = U − Uk̂ for the remainder. For               NOTS skeleton engine. Table 1 includes CDNOTS and
+each of B null draws, we independently circularly shift               CDNOTS+tetrad. We additionally compare with VAR-
+every column of E and recombine it with the unchanged                 LiNGAM (Hyvärinen et al., 2010), DYNOTEARS (Pam-
+factor component. This destroys contemporaneous align-                fil et al., 2020), NTS-NOTEARS (Sun et al., 2023),
+ment among the idiosyncratic coordinates while preserving             PCMCI+ (Runge, 2020), and the latent-confounder-aware
+the factor component and each coordinate’s serial structure.          LPCMCI (Gerhardus & Runge, 2020) and TS-ICD (Rohekar
+                                                                      et al., 2023). All methods observe the same data and are
+For each draw we rerun S−L and compute the maximum
+                                                                      scored using the directed, lag-resolved F1dir . Unless noted,
+null score maxi<j sij . The (1−α) quantile of these maxima
+                                                                      synthetic results use 50 seeds and a partial-correlation CI
+defines ηα , and we retain (i, j) only if sij > ηα . Thus the
+                                                                      test where applicable. Pair-level, lag-collapsed results are
+threshold is a data-driven max statistic rather than a tuned
+                                                                      reported separately in Appendix A.2.
+edge-amplitude constant. Under the complete edge-free null
+and the shift-exchangeability assumption, the corresponding
+randomization null targets family-wise error level α; we use          5.1. Out-of-distribution generalization
+α = 0.05 and B = 200. This is a complete-null statement               We evaluate across ten confounding families, weighted
+only: it does not exclude moralization errors once genuine            equally to reward robustness rather than specialization to
+lag-0 edges are present. Strong conditional heteroskedas-             a single generator. Three families vary the topology of
+ticity can also violate shift exchangeability; for that setting       sparse local confounding (Erdős–Rényi, scale-free, and
+we provide a more conservative stationary block-bootstrap             small-world), while seven pervasive families vary volatil-
+null (Politis & Romano, 1994).                                        ity dynamics, structural effects, GARCH behavior, loading
+                                                                      density, lag structure, edge-weight heterogeneity, and factor
+Orientation. Recovered lag-0 adjacencies are oriented                 persistence (Appendix A.1). The dense-loading family is a
+using lead-lag asymmetry in the observed series. For a                deliberate stress test: strong factor footprint coexists with
+candidate pair (a, b), define                                         a substantial number of genuine contemporaneous edges,
+                  | corr(at , bt+1 )| − | corr(bt , at+1 )|           making indiscriminate lag-0 removal particularly costly.
+      A(a, b) =                                             .
+                  | corr(at , bt+1 )| + | corr(bt , at+1 )|           Table 1 gives the main result. The default LUCID layer
+                                                                      wrapped around CDNOTS reaches family-weighted F1dir =
+We orient a → b when A(a, b) > 0 and reverse the direction
+                                                                      0.601±0.025, compared with 0.411 for the strongest un-
+when A(a, b) < 0. The heuristic exploits temporal persis-
+                                                                      wrapped baselines, an absolute gain of 0.19 (≈ 46% rela-
+tence following an instantaneous effect and, unlike pairwise
+                                                                      tive). The improvement is not specific to CDNOTS: wrap-
+LiNGAM (Hyvärinen et al., 2010), does not require non-
+                                                                      ping PCMCI+ yields 0.596±0.025, while wrapping NTS-
+Gaussian residuals. Appendix A.6 states how the rule was
+                                                                      NOTEARS yields 0.538±0.023. More importantly, each
+selected and what it does not establish.
+                                                                      wrapped engine improves on its own unwrapped counterpart
+                                                                      in Overall score and in 27 of the 30 engine×family com-
+4.4. Fixed hyperparameters                                            parisons. The three exceptions are PCMCI+ on pervasive-
+Table 4 lists all LUCID hyperparameters. They are fixed               mixedlag (0.273 → 0.266) and NTS-NOTEARS on Sparse-
+across datasets, benchmarks, and the CDS case study; no               ER (0.840 → 0.804) and Sparse-SW (0.834 → 0.829).
+dataset-specific tuning is performed. The S−L edge thresh-            The advantage also strengthens under the stricter lag-
+old is calibrated from the edge-free null above and therefore         resolved metric. Relative to the lag-collapsed pair-level
+introduces no edge-amplitude parameter. The only empir-               score, LUCID drops only 0.018 (from 0.619), whereas the
+ically selected amplitude constant is the persistence width           baselines lose 0.04–0.08, including 0.082 for LPCMCI and
+τg , chosen on lag-0 generators excluded from the evalua-             0.075 for PCMCI+ (Appendix A.2). Thus the gain is not
+tion suite. Appendix B.2 sweeps the PDS level, S−L null               merely in identifying the correct variable pair: LUCID
+level, and τg , while Table 12 varies the router margin γ; the        more often places the edge at the correct lag.
+reported results are stable across the tested ranges and the
+defaults are not selected to maximize evaluation F1 .                 The improvement is also not explained by the choice of
+                                                                      base skeleton or by family weighting. Applying the tetrad
+                                                                      correction to the same single-phase skeleton leaves Overall
+5. Experiments                                                        at 0.411, while the default LUCID reaches 0.601; through-
+Setup. We evaluate on synthetic generators with known                 out, the baseline set excludes variants built on enhanced
+ground truth and a market-calibrated semi-synthetic CDS               versions of our own base engine. Its sparse- and pervasive-
+
+                                                                  5
+                                     LUCID: Learning Under Confounding in Time Series
+
+regime macro-averages are 0.746 and 0.538, respectively,               14.0), lower than every other baseline in Table 1. It is com-
+giving 0.642 under equal weighting of the two regimes,                 petitive only on the volatility- and structural-confounding
+against 0.515 for the strongest unwrapped baseline (NTS-               families (pervasive-vol 0.352, GARCH 0.317, pervasive-
+NOTEARS) under the same weighting. The method is not                   struct 0.240) and close to non-detection on the sparse topolo-
+uniformly best: NTS-NOTEARS remains stronger on some                   gies (Sparse-SF 0.007), where its output is mostly <->. We
+sparse topologies, and dense, mixed-lag, and near-unit-root            view both comparisons cautiously: they reflect the operating
+pervasive confounding remain difficult for every method.               regime and our binary lag-resolved evaluation, which is not
+The largest gains occur where pervasive confounding is                 the native output space of PAG-based discovery.
+most damaging: on the structural family and the GARCH
+reference configuration, LUCID reaches 0.781 and 0.878,                5.3. Router diagnostics
+versus 0.372 and 0.429 for the strongest baselines. Figure 2
+gives the full per-family profile.                                     End-to-end performance does not reveal whether the router
+                                                                       selects the intended regime. We therefore evaluate it sepa-
+Table 2 shows that the gain is primarily precision-driven.             rately on a fixed diagnostic battery of 30 sparse-regime and
+The three LUCID variants attain precision 0.491–0.614 at               25 pervasive-regime datasets (d = 15), without retuning
+recall 0.571–0.615, while the non-PAG baselines have pre-              γ (Appendix B.1). At the default γ = 1.3, the router de-
+cision 0.130–0.287 at slightly higher recall (0.596–0.721):            tects all 25 pervasive cases (false-negative rate 0/25) while
+LUCID trades a little recall for a large gain in precision.            routing 10/30 sparse cases to the pervasive branch.
+The same pattern appears in structural Hamming distance,
+where LUCID reaches 13.4–14.5 against 27.1–67.1 for                    Classification error need not translate directly into graph
+those baselines. The two PAG-based methods are excep-                  error because the two branches can perform similarly on
+tions, for opposite reasons. LPCMCI reaches SHD 22.6 at                some datasets. On a separate 20-seed rerun of the full OOD
+high recall (0.671) but low precision (0.233), whereas TS-             suite, forcing all datasets through the sparse or pervasive
+ICD attains SHD 14.0—within the LUCID range—at recall                  branch gives family-weighted F1 of 0.337 and 0.576, re-
+0.123, reflecting a far sparser recovered graph. SHD alone             spectively, compared with 0.592 under automatic routing.
+therefore rewards a conservative output, whereas directed F1           A per-dataset oracle that selects the better branch reaches
+registers the structure such an output fails to recover. This is       0.600, leaving only 0.007 regret for the router. Branch
+consistent with the failure mode expected under unobserved             choice nevertheless matters: the two fixed branches differ
+common causes: methods can retain substantial recall while             by as much as 0.63 on an individual family.
+adding many confounder-induced false edges.                            The router is therefore most useful as protection against
+                                                                       regime misspecification. Relative to the better fixed strategy
+5.2. LPCMCI and TS-ICD: latent-confounder-aware                        (always pervasive), routing gains 0.017 overall, with most
+     baselines                                                         of the improvement on Sparse-ER (0.655 → 0.795); Sparse-
+                                                                       SF (0.577 → 0.593) and Sparse-SW (0.832 → 0.843) are
+LPCMCI (Gerhardus & Runge, 2020) and TS-ICD (Rohekar
+                                                                       nearly unchanged. More importantly, routing avoids the
+et al., 2023) are the baselines closest in intent to LUCID:
+                                                                       much larger failure of committing to the wrong branch—
+both model latent confounders explicitly and return a partial
+                                                                       0.337 for the always-sparse strategy—without knowing the
+ancestral graph (PAG) over lagged and contemporaneous
+                                                                       regime in advance.
+edges. Projecting a PAG onto the binary, lag-resolved edge
+set scored here discards information both methods are de-
+signed to preserve, so neither F1 should be read as a com-             Why LUCID does not filter lags ℓ ≥ 1. We compare
+plete assessment. We use the same projection rule for both,            the default, which leaves pervasive-branch lagged edges
+so they are scored identically: an edge counts iff the mark            unchanged, with unconditional application of the volatility-
+at the effect is an arrowhead and the mark at the cause is not         based lag filters (Appendix A.9). On the full OOD suite
+(--> or o->; <-> is excluded).                                         (20 seeds), unconditional filtering reduces family-weighted
+                                                                       F1 from 0.592 to 0.451, with particularly large losses on
+Both are computationally demanding here (Appendix A.3).                homoskedastic families. We therefore restrict the pervasive
+For LPCMCI, even with the possible-d-separating set                    correction to the lag-0 slice.
+capped at max pds set=10, orientation over the near-
+complete PAG on pervasive-dense (d = 24) exceeds our
+10 GB memory budget; we therefore report it on the remain-             Transient confounding and noise robustness. Two ad-
+ing nine families, where it reaches F1dir = 0.355 (precision           ditional sweeps relax assumptions held fixed in the main
+0.233, recall 0.671, SHD 22.6) against PCMCI+’s 0.376 on               benchmark. First, we vary a latent factor’s duty cycle from
+the same nine. TS-ICD has no analogous cap and is run on               persistent to bursty using a two-state Markov switch (Ap-
+all ten, reaching 0.133 (precision 0.168, recall 0.123, SHD            pendix A.10). LUCID leads at four of five duty cycles
+                                                                       and improves from 0.623 under full persistence to 0.818
+
+                                                                   6
+                                                LUCID: Learning Under Confounding in Time Series
+
+Table 1: Out-of-distribution directed, lag-resolved graph F1dir , family-weighted over ten confounding families and 50 seeds.
+Overall reports mean±std. The three sparse topologies are treated as separate families rather than collapsed into one. Each
+LUCID row is placed beneath its corresponding base engine. Bold marks the best method in each column and methods not
+significantly worse than it (one-sided paired Wilcoxon signed-rank test, α = 0.05). Pair-level results are in Appendix A.2.
+
+    Method                     Overall     Sparse-ER   Sparse-SF   Sparse-SW   Perv-vol    Perv-struct   GARCH   Perv-dense   Perv-mixedlag   Perv-heterog   Perv-nearunit
+    CDNOTS                    0.331±.019     0.619       0.486       0.796      0.186        0.239       0.273     0.146         0.247           0.217          0.104
+    CDNOTS + tetrad           0.411±.021     0.621       0.541       0.797      0.355        0.352       0.340     0.148         0.329           0.375          0.254
+    LUCID (CDNOTS, default)   0.601±.025     0.810       0.586       0.843      0.626        0.781       0.878     0.345         0.330           0.465          0.344
+    VARLiNGAM                 0.341±.020     0.397       0.276       0.635      0.381        0.372       0.429     0.168         0.131           0.426          0.197
+    LPCMCI†                   0.355±.023     0.546       0.403      0.707      0.287         0.288       0.301       —           0.274           0.247          0.146
+    TS-ICD‡                   0.133±.024     0.046       0.007      0.049      0.352         0.240       0.317     0.005         0.045           0.143          0.121
+    PCMCI+                    0.360±.017     0.486       0.451      0.655      0.275         0.317       0.374     0.216         0.273           0.353          0.199
+    LUCID (PCMCI+)            0.596±.025     0.820       0.556      0.861      0.649         0.767       0.829     0.391         0.266           0.472          0.354
+    DYNOTEARS                 0.222±.010     0.233       0.147       0.211      0.267        0.306       0.367     0.189         0.244           0.181          0.079
+    NTS-NOTEARS               0.411±.019    0.840       0.653        0.834      0.251        0.280       0.284     0.212         0.263           0.308          0.186
+    LUCID (NTS-NOTEARS)       0.538±.023    0.804       0.690        0.829      0.497        0.579       0.538     0.318         0.332           0.424          0.371
+†
+    LPCMCI is not run on pervasive-dense (d = 24; see Section 5.2); its Overall score is family-weighted over the remaining nine families.
+                               ‡
+                                 TS-ICD’s PAG is projected with the same rule as LPCMCI’s (Section 5.2).
+
+
+Table 2: Precision, recall, and SHD underlying the OOD                                  observational data provide realistic dynamics but no known
+results, pooled over all datasets and 50 seeds. LUCID’s                                 causal graph. We bridge the two with a calibrate-then-
+gain is primarily precision-driven, at slightly lower recall                            simulate design (Appendix A.4): we estimate the parame-
+than the baselines. Since F1 is computed per dataset and                                ters of a factor-GARCH model from a real market panel,
+then averaged, these pooled precision and recall values do                              simulate new series from the fitted model, inject known lag-
+not reproduce Table 1 algebraically.                                                    1 edges, and score their recovery. Thus the causal ground
+                                                                                        truth remains synthetic, while the confounding dynamics
+     Method                                Precision Recall SHD                         are calibrated to real data.
+     LUCID (CDNOTS)                           0.614        0.571       13.4             We calibrate to the 11-bank CDS panel taken from Fesang-
+     LUCID (PCMCI+)                           0.593        0.615       14.5             hary & Gopal (2025), using daily spreads over 2004–2008.
+     LUCID (NTS-NOTEARS)                      0.491        0.601       13.6             The fitted model uses k̂ = 3 latent factors and GARCH(1,1)-
+     LPCMCI†                                  0.233        0.671       22.6             t dynamics, motivated by the strong heavy tails in the em-
+     TS-ICD                                   0.168        0.123       14.0             pirical residuals (excess kurtosis 20–30 under a Gaussian
+     PCMCI+                                   0.220        0.641       31.2             fit). We inject two lag-1 edges per confounded group with
+     NTS-NOTEARS                              0.287        0.638       29.5             weight 0.4 and evaluate at T = 242, matching the weekly-
+     VARLiNGAM                                0.213        0.703       45.8             sampled panel length (10 seeds), and at T = 1000 for higher
+     CDNOTS + tetrad                          0.277        0.596       32.5             statistical power (50 seeds).
+     CDNOTS                                   0.198        0.600       41.2               The LUCID layer leads at both sample sizes and improves
+     DYNOTEARS                                0.130        0.721       67.1               both engines it wraps (Table 3). The strongest unwrapped
+       †
+           LPCMCI is evaluated over the nine non-dense families                           baseline is PCMCI+ (0.093 at T = 1000); wrapping it
+                             (Section 5.2).                                               yields 0.441 (paired Wilcoxon p = 4 × 10−9 ) at un-
+                                                                                          changed recall, raising precision 0.050 → 0.404 and cut-
+                                                                                          ting SHD 25.1 → 4.6, while wrapping CDNOTS yields
+                                                                                          0.080 → 0.428 (p = 2 × 10−8 ). The two wrapped engines
+at duty cycle 0.05, where its margin over the fixed tetrad                                are indistinguishable (p = 0.29), consistent with the layer
+filter reaches +0.22. Second, we resimulate a confounded                                  rather than the base engine driving the gain. Seed variance
+generator under eight idiosyncratic noise distributions (Ap-                              is substantial, so we rely on the paired tests rather than on
+pendix A.11). LUCID leads across all tested distributions.                                any single mean gap.
+The lower-share setting is the more informative test of noise
+shape, since a dominant Gaussian factor can mask the id-
+iosyncratic distribution in the observed series.                                          6. Conclusion
+                                                                                          Latent confounding does not have a single statistical form,
+5.4. A market-calibrated semi-synthetic case study                                        and correcting for the wrong form can be as damaging as
+Purely synthetic benchmarks provide ground truth but risk                                 ignoring confounding altogether. LUCID addresses this
+depending on hand-specified confounding dynamics; real                                    with a regime-adaptive deconfounding layer: a Marčenko–
+
+                                                                                  7
+                                                   LUCID: Learning Under Confounding in Time Series
+
+
+                         CDNOTS                   DYNOTEARS                PCMCI+          VARLiNGAM          NTS-NOTEARS           LUCID
+              1.0   Sparse confounding                                                        Pervasive confounding
+
+              0.8
+
+              0.6
+graph F1dir
+
+
+
+
+              0.4
+
+              0.2
+
+              0.0
+                    ER                 SF            SW              vol          struct    GARCH dense mixed-lag heterog near-unit
+
+Figure 2: Per-family out-of-distribution directed, lag-resolved graph-F1dir (50 seeds, mean±std), split by confounding
+regime. LUCID is the only method strong in both: the baselines competitive on the sparse topologies fall to ≤ 0.43 on every
+pervasive family, while LUCID leads or ties the best of them on all seven, including the dense-loading stress case. Values
+are those of Table 1.
+
+
+Table 3: CDS-calibrated semi-synthetic benchmark. Di-                                  a market-calibrated semi-synthetic study, with all defaults
+rected, lag-resolved F1dir (mean±std) measures recovery of                             fixed. These results suggest adaptive deconfounding is a use-
+injected lag-1 edges from a 3-factor GARCH(1,1)-t model                                ful layer around causal discovery rather than a replacement
+calibrated to a real 11-bank CDS panel. T = 242 matches                                for it.
+the weekly-sampled panel length; T = 1000 provides
+greater statistical power. Precision (P), recall (R), and SHD
+are reported at T = 1000. Each LUCID row is placed                                     Limitations. LUCID inherits the limits of spectral decon-
+beneath its corresponding base engine; bold marks the best                             founding. When genuine lag-0 structure overlaps strongly
+entry per column.                                                                      with factor-dominated directions, spectral trimming can at-
+                                                                                       tenuate causal signal together with confounding, as in the
+                          T = 242           T = 1000       P       R       SHD         difficult pervasive-dense family. The persistence gate
+                          (10 seeds)         (50 seeds)                                reduces but cannot eliminate moralization, so S−L returns a
+ CDNOTS                  0.094±.048         0.080±.052    0.044   0.530    24.0        skeleton candidate rather than an identified skeleton, and its
+ LUCID (CDNOTS)          0.502±.224         0.428±.322    0.442   0.530     4.4
+                                                                                       orientation rule is heuristic: the lead-lag asymmetry weak-
+ PCMCI+                  0.099±.055         0.093±.056    0.050   0.610    25.1
+ LUCID (PCMCI+)          0.538±.263         0.441±.303    0.404   0.610    4.6
+                                                                                       ens without sufficient temporal persistence. The router relies
+                                                                                       on second-order spectral structure. Nonlinear factor mixing,
+                                                                                       or factors too weak to produce a separated spectral spike,
+                                                                                       can therefore be misclassified (Appendix B.2). Heavy-tailed
+Pastur router determines whether the data support pervasive
+                                                                                       idiosyncratic noise also reduces accuracy: under Student-t3
+factor structure, and only then invokes spectral deconfound-
+                                                                                       innovations, LUCID loses 0.050 relative to the Gaussian
+ing and lag-0 recovery; otherwise the sparse branch avoids
+                                                                                       setting (Appendix A.11). Finally, our evaluation remains
+an inappropriate low-rank correction. Because this logic is
+                                                                                       synthetic or semi-synthetic—even in the CDS study the
+separated from the causal search itself, the same layer can
+                                                                                       scored series and edges are simulated—so validation against
+wrap different discovery engines.
+                                                                                       real-world causal ground truth remains future work.
+Across ten out-of-distribution confounding families, the
+default LUCID reaches family-weighted directed, lag-                                   Impact Statement
+resolved F1 = 0.596, versus 0.404 for the strongest
+unwrapped baseline, and improves PCMCI+ and NTS-                                       LUCID infers causal structure from observational time se-
+NOTEARS when wrapped around them as well. The gains                                    ries, and like all such methods it delivers a graph only under
+persist under transient and heavy-tailed confounding and in                            assumptions—here, that latent confounding is either sparse
+
+                                                                                   8
+                                    LUCID: Learning Under Confounding in Time Series
+
+and local or well approximated by a low-rank factor struc-          Chandrasekaran, V., Parrilo, P. A., and Willsky, A. S. Latent
+ture, and that the relevant dynamics are captured at the              variable graphical model selection via convex optimiza-
+analysis lag horizon. When those assumptions do not hold,             tion. The Annals of Statistics, 40(4):1935–1967, 2012.
+the output remains a graph and carries no indication that
+it has ceased to be a causal one. Discovered edges should           Cheng, Y., Li, L., Xiao, T., Li, Z., Suo, J., He, K., and
+therefore be treated as hypotheses to be corroborated with            Zhong, Q. CUTS+: High-dimensional causal discovery
+domain knowledge, sensitivity analysis, or interventional             from irregular time-series. In Proceedings of the AAAI
+evidence before being used to support a causal claim, partic-         Conference on Artificial Intelligence, 2024.
+ularly in settings where such claims inform consequential           Colombo, D., Maathuis, M. H., Kalisch, M., and Richard-
+decisions.                                                            son, T. S. Learning high-dimensional directed acyclic
+                                                                      graphs with latent and selection variables. The Annals of
+References                                                            Statistics, 40(1):294–321, 2012.
+Aghaei, A., Cai, F., and Wu, T. Uncovering latent causal            Dong, X., Huang, B., Ng, I., Song, X., Zheng, Y., Jin, S.,
+  components: An enhanced approach to granger-based                   Legaspi, R., Spirtes, P., and Zhang, K. A versatile causal
+  time-series causal discovery. Knowledge-Based Systems,              discovery framework to allow causally-related hidden
+  pp. 116737, 2026.                                                  variables. In International Conference on Learning Rep-
+                                                                      resentations (ICLR), 2024.
+Agrawal, R., Squires, C., Prasad, N., and Uhler, C. The
+  DeCAMFounder: Nonlinear causal discovery in the pres-             Entner, D. and Hoyer, P. O. On causal discovery from time
+  ence of hidden variables. Journal of the Royal Statistical          series data using FCI. In Proceedings of the 5th European
+ Society Series B: Statistical Methodology, 85(5):1639–               Workshop on Probabilistic Graphical Models (PGM), pp.
+ 1658, 2023.                                                          121–128, 2010.
+
+Ahn, S. C. and Horenstein, A. R. Eigenvalue ratio test for          Fesanghary, M. Causal-TS: A Python library for causal
+  the number of factors. Econometrica, 81(3):1203–1227,               discovery in high-dimensional and nonstationary time se-
+  2013.                                                               ries, 2026. URL https://arxiv.org/abs/2607.
+                                                                      24673.
+Bai, J. and Ng, S. Determining the number of factors in             Fesanghary, M. and Gopal, A. Efficient causal discovery
+  approximate factor models. Econometrica, 70(1):191–                 for autoregressive time series, 2025. URL https://
+  221, 2002.                                                          arxiv.org/abs/2507.07898.
+Baik, J., Ben Arous, G., and Péché, S. Phase transition           Frot, B., Nandy, P., and Maathuis, M. H. Robust causal
+  of the largest eigenvalue for nonnull complex sample                structure learning with some hidden variables. Journal
+  covariance matrices. The Annals of Probability, 33(5):              of the Royal Statistical Society: Series B, 81(3):459–487,
+  1643–1697, 2005.                                                    2019.
+
+Belloni, A., Chernozhukov, V., and Hansen, C. Inference on          Gerhardus, A. and Runge, J. High-recall causal discovery
+  treatment effects after selection among high-dimensional            for autocorrelated time series with latent confounders.
+  controls. The Review of Economic Studies, 81(2):608–                In Advances in Neural Information Processing Systems,
+  650, 2014.                                                          volume 33, pp. 12615–12625, 2020.
+
+                                                                    Hyvärinen, A., Zhang, K., Shimizu, S., and Hoyer, P. O.
+Bernanke, B. S., Boivin, J., and Eliasz, P. Measuring the
+                                                                      Estimation of a structural vector autoregression model
+  effects of monetary policy: A factor-augmented vector
+                                                                      using non-gaussianity. Journal of Machine Learning
+  autoregressive (FAVAR) approach. The Quarterly Journal
+                                                                     Research, 11:1709–1731, 2010.
+  of Economics, 120(1):387–422, 2005.
+                                                                    Johnstone, I. M. On the distribution of the largest eigenvalue
+Bussmann, B., Nys, J., and Latré, S. Neural additive vector          in principal components analysis. The Annals of Statistics,
+  autoregression models for causal discovery in time series.          29(2):295–327, 2001.
+  In International Conference on Discovery Science, pp.
+  446–460. Springer, 2021.                                          Malinsky, D. and Spirtes, P. Causal structure learning from
+                                                                     multivariate time series in settings with unmeasured con-
+Ćevid, D., Bühlmann, P., and Meinshausen, N. Spectral de-          founding. In Proceedings of the 2018 ACM SIGKDD
+   confounding via perturbed sparse linear models. Journal           Workshop on Causal Discovery, volume 92 of PMLR, pp.
+   of Machine Learning Research, 21(232):1–41, 2020.                 23–47, 2018.
+
+                                                                9
+                                    LUCID: Learning Under Confounding in Time Series
+
+Marčenko, V. A. and Pastur, L. A. Distribution of eigenval-          Tank, A., Covert, I., Foti, N., Shojaie, A., and Fox, E. B.
+ ues for some sets of random matrices. Mathematics of                   Neural Granger causality. IEEE Transactions on Pattern
+ the USSR-Sbornik, 1(4):457–483, 1967.                                  Analysis and Machine Intelligence, 44(8):4267–4279,
+                                                                        2021.
+Onatski, A. Determining the number of factors from empiri-
+  cal distribution of eigenvalues. The Review of Economics            Wang, Y. and Blei, D. M. The blessings of multiple causes.
+  and Statistics, 92(4):1004–1016, 2010.                               Journal of the American Statistical Association, 114(528):
+                                                                       1574–1596, 2019.
+Pamfil, R., Sriwattanaworachai, N., Desai, S., Pilgerstor-
+  fer, P., Georgatzis, K., Beaumont, P., and Aragam, B.
+  DYNOTEARS: Structure learning from time-series data.
+  In International Conference on Artificial Intelligence and
+  Statistics, pp. 1595–1605. PMLR, 2020.
+
+Peters, J., Janzing, D., and Schölkopf, B. Elements of Causal
+  Inference: Foundations and Learning Algorithms. MIT
+  Press, 2017.
+
+Politis, D. N. and Romano, J. P. The stationary bootstrap.
+  Journal of the American Statistical Association, 89(428):
+  1303–1313, 1994.
+
+Rohekar, R. Y., Nisimov, S., Gurwicz, Y., and Novik, G.
+  From temporal to contemporaneous iterative causal dis-
+  covery in the presence of latent confounders. In Proceed-
+  ings of the 40th International Conference on Machine
+  Learning, 2023.
+
+Runge, J. Discovering contemporaneous and lagged causal
+  relations in autocorrelated nonlinear time series datasets.
+  In Proceedings of the 36th Conference on Uncertainty
+  in Artificial Intelligence (UAI), pp. 1388–1397. PMLR,
+  2020.
+
+Runge, J., Nowack, P., Kretschmer, M., Flaxman, S., and
+  Sejdinovic, D. Detecting and quantifying causal asso-
+  ciations in large nonlinear time series datasets. Science
+  Advances, 5(11):eaau4996, 2019.
+
+Sadeghi, A., Gopal, A., and Fesanghary, M. Causal discov-
+  ery from nonstationary time series. International Journal
+  of Data Science and Analytics, 19:33–59, 2025. doi:
+  10.1007/s41060-024-00679-7.
+
+Spirtes, P., Glymour, C. N., and Scheines, R. Causation,
+  Prediction, and Search. MIT Press, 2nd edition, 2000.
+
+Stock, J. H. and Watson, M. W. Forecasting using principal
+  components from a large number of predictors. Journal of
+  the American Statistical Association, 97(460):1167–1179,
+  2002.
+
+Sun, X., Schulte, O., Liu, G., and Poupart, P. NTS-
+  NOTEARS: Learning nonparametric dbns with prior
+  knowledge. In International Conference on Artificial
+  Intelligence and Statistics (AISTATS), 2023.
+
+                                                                 10
+                                                        LUCID: Learning Under Confounding in Time Series
+
+A. Additional Method and Experimental Details
+This appendix specifies the hyperparameters, benchmark families, implementation details, and supporting ablations used in
+the main paper. All settings are fixed across the evaluation suite unless explicitly stated otherwise.
+
+Table 4: Hyperparameters used by LUCID. L is a standard lag-horizon input; all remaining values are fixed across datasets
+and experiments. The persistence width τg is the only value selected empirically, using generators excluded from the
+ten-family OOD benchmark.
+
+   Symbol                                          Role                                                                                  Value               Source
+   L                                               analysis lag horizon                                                                  dataset-dep.        required input
+   CDNOTS CI α                                     skeleton-discovery significance                                                       0.05                conventional
+   S−L level α                                     lag-0 edge-free-null level (§4.3)                                                     0.05                conventional
+   S−L draws B                                     null draws for S−L calibration                                                        200                 fixed
+   τg (Eq. 2)                                      persistence-gate width (§4.3)                                                         0.15                held-out selection
+   Orientation lag window                          lag used by lead-lag asymmetry (§4.3)                                                 1                   structural
+   k                                               number of top eigenvalues in router statistic R                                       2                   structural
+   γ (Eq. 1)                                       MP-router margin                                                                      1.3                 fixed
+   PDS α (sparse)                                  PDS significance level                                                                10−10               fixed
+   HAC lag                                         Newey–West lag                                                                        2                   fixed
+   Max. selected controls                          cap on Lasso-selected controls                                                        20                  fixed
+   Factor-count margin                             multiple of λ+ (Eq. 3)                                                                1.02                fixed
+
+
+A.1. Out-of-distribution family definitions
+The OOD benchmark contains ten equally weighted confounding families. Three sparse families use Erdős–Rényi, scale-
+free, and small-world observed graphs with local latent forks, spanning a range of sizes and confounding densities. Seven
+pervasive families vary distinct properties of the latent process: pervasive-vol varies factor volatility through stochastic-
+volatility, regime-switching, static, and AR factors; pervasive-struct varies overlapping, signed, nonlinear, and heavy-tailed
+loading structures; garch uses the GARCH(1,1) reference process; pervasive-dense uses dense factor loadings at d = 24,
+T = 2000; pervasive-mixedlag varies mixed and delayed lag structure; pervasive-heterog varies factor-loading magnitudes;
+and pervasive-nearunitroot tests highly persistent latent dynamics.
+Table 5 summarizes each family’s configuration. It is derived from the same problem registry in the supplementary code
+that produced the reported results, which additionally fixes the noise distributions and seeds. Note that d is the observed
+dimension: on the sparse families the latent fork variables are excluded from the panel, so d is smaller than the nominal size
+in the configuration name.
+
+A.2. Pair-level evaluation
+Prior time-series causal-discovery work often collapses predictions across lags and scores an ordered variable pair as
+recovered whenever an edge is placed at any lag. We therefore re-score the same predictions using this more permissive
+pair-level metric F1pair . Self-loops remain excluded exactly as in the lag-resolved evaluation.
+
+
+Table 5: Data-generating configuration of the ten out-of-distribution families. Ranges span the configurations within a
+family (“cfg” counts them); L is the ground-truth maximum lag and d the observed dimension. Loadings are drawn i.i.d. per
+entry. Only pervasive-dense and pervasive-mixedlag contain ground-truth lag-0 edges (158 and 9 respectively
+at seed 0); the other eight families have none.
+
+Family           d         T        L     cfg       k         Loadings                                              Factor dynamics                                     Confounding strength
+Sparse-ER        9–21    600–1500   3     4     local forks   —                                                     —                                                   confounded fraction 0.3–0.5
+Sparse-SF       12–16   1000–1500   3     2     local forks   —                                                     —                                                   confounded fraction 0.5
+Sparse-SW       11–14     600–800   3     2     local forks   —                                                     —                                                   confounded fraction 0.3–0.4
+Perv-vol         12       1000       1    4         3         U(0.5, 1.5), block-disjoint                           stoch. vol / regime-switch / static / AR            w = 0.4, 2 edges/group, ρobs = 0.3
+Perv-struct      12       1000       1    6         3         as above; overlap / signed / nonlinear / heavy-tail   static                                              as above
+GARCH            12       1000       1    1         3         U(0.5, 1.5), block-disjoint                           GARCH(1,1)                                          as above
+Perv-dense       24       2000       1    8         4         ±U(0.30, 0.60), dense (all d)                         AR(2) / GJR-GARCH / HMM break / nonlinear / drift   per-edge 0.16–0.35
+Perv-mixedlag    15       2000      3–4   4         3         U(0.5, 1.5), block-disjoint                           static / GARCH / AR                                 w = 0.4; lags {1, 2, 4}, delay ≤ 3
+Perv-heterog     15       2000       1    3         3         U(0.5, 1.5); 30% weak, 50% moderate                   static / GARCH / regime-switch                      cancellation δ = 0.05
+Perv-nearunit    15       2000       1    5         3         U(0.5, 1.5), block-disjoint                           AR, ρobs , ρf ∈ {0.3, 0.95, 0.99}                   w = 0.4, 2 edges/group
+
+
+
+
+                                                                                                   11
+                                                  LUCID: Learning Under Confounding in Time Series
+
+Table 6: OOD graph F1pair under lag-collapsed scoring, using the same runs as Table 1 (50 seeds; mean±std for Overall). An
+ordered pair is credited when an edge is predicted at any lag. Bolding follows the same significance procedure as Table 1.
+
+    Method                       Overall     Sparse-ER   Sparse-SF   Sparse-SW   Perv-vol   Perv-struct   GARCH   Perv-dense   Perv-mixedlag   Perv-heterog   Perv-nearunit
+    CDNOTS                     0.400±.017      0.635       0.527       0.822      0.370       0.362       0.376     0.162         0.277           0.280          0.186
+    CDNOTS + tetrad            0.462±.020      0.637       0.578       0.822      0.458       0.426       0.428     0.164         0.366           0.419          0.316
+    LUCID (CDNOTS, default)    0.619±.025      0.812       0.623       0.844      0.626       0.783       0.878     0.359         0.382           0.544          0.344
+    VARLiNGAM                   0.402±.019     0.641       0.360       0.775      0.381       0.372       0.429     0.222         0.218           0.426          0.197
+    LPCMCI†                    0.437±.025      0.571       0.493      0.747      0.441        0.394       0.398       —           0.354           0.333          0.200
+    TS-ICD‡                    0.200±.026      0.058       0.009      0.066      0.534        0.401       0.481     0.006         0.082           0.189          0.173
+    PCMCI+                     0.435±.016      0.510       0.526      0.698      0.432        0.397       0.436     0.233         0.333           0.503          0.282
+    LUCID (PCMCI+)             0.622±.024      0.822       0.623      0.869      0.649        0.767       0.829     0.401         0.360           0.545          0.354
+    DYNOTEARS                   0.292±.013     0.309       0.232       0.298      0.376       0.363       0.410     0.209         0.291           0.252          0.183
+    NTS-NOTEARS                 0.461±.016    0.852       0.682       0.861       0.341       0.363       0.413     0.219         0.298           0.379          0.199
+    LUCID (NTS-NOTEARS)         0.552±.022    0.805       0.712       0.832       0.497       0.579       0.538     0.320         0.380           0.485          0.371
+†
+    LPCMCI is not run on pervasive-dense (d = 24); its Overall score is family-weighted over the remaining nine families, where PCMCI+
+                        scores 0.458. ‡ TS-ICD’s PAG is projected with the same rule as LPCMCI’s (Section 5.2).
+
+
+Table 7: Per-dataset runtime in seconds, pooled over the ten scored families and 50 seeds. “+ LUCID layer” rows give
+the cost of the layer alone: each reuses its base engine’s stored skeleton, so base discovery is excluded. All runs used
+identical machines (10-core CPU, one core per dataset, NVIDIA L4). CDNOTS and NTS-NOTEARS are GPU-backed; the
+remaining methods, and the LUCID layer itself, are CPU-only, so differences between engines reflect implementation as
+well as algorithm.
+
+                                                 Method                        Median Mean                p95      Max
+                                                 CDNOTS                            1.1         8.0 59.6             161
+                                                   + LUCID layer                   0.7         0.7   1.3            2.5
+                                                 PCMCI+                            3.3        61.6 424.7           1206
+                                                   + LUCID layer                   0.7         0.7   1.4            3.5
+                                                 NTS-NOTEARS                      31.4        47.6 140.3            507
+                                                   + LUCID layer                   0.6         0.7   1.3            1.8
+                                                 LPCMCI†                            8.0 63.0 48.2 14,621
+                                                 TS-ICD                             2.7 223.9 342.5 51,875
+                                                 DYNOTEARS                          2.9 13.6 82.7      201
+                                                 VARLiNGAM                          0.9   1.4   3.6    4.3
+                          †
+                              LPCMCI is not run on pervasive-dense, so its figures cover 1,550 datasets rather than 1,950.
+
+
+
+The qualitative conclusion is unchanged (Table 6), but collapsing lag information reduces the separation between LUCID
+and the baselines. The default LUCID changes from 0.596 lag-resolved to 0.614 pair-level, a gain of only 0.018, whereas
+the unwrapped baselines gain 0.043–0.082. Against the strongest unwrapped baseline, the margin is therefore +0.16
+pair-level versus +0.19 when the predicted lag must also be correct.
+
+A.3. Computational cost
+LUCID adds modest computational overhead relative to the wrapped discovery engine. Across the three engine configura-
+tions in Table 7, the layer alone has median runtime 0.6–0.7 s and maximum runtime 1.8–3.5 s, against base-engine medians
+of 1.1 to 31.4 s. On the dense stress case (d = 24, T = 2000) its median cost is 1.2 s, compared with 17.4 s for CDNOTS,
+104.2 s for NTS-NOTEARS and 143.2 s for PCMCI+. The B = 200 edge-free-null draws account for most of this overhead.
+The layer is implemented in NumPy and runs on a single CPU core, requiring no accelerator even when the wrapped engine
+uses a GPU.
+Its runtime distribution is also substantially narrower than those of the discovery engines and the latent-aware PAG baselines:
+the layer stays below 3.5 s in every reported run, whereas the slowest LPCMCI and TS-ICD instances take 4.1 and 14.4
+hours. The additional cost of regime selection and deconfounding is therefore small relative to causal search itself on the
+problems evaluated here.
+
+                                                                                   12
+                                    LUCID: Learning Under Confounding in Time Series
+
+A.4. CDS calibrate-then-simulate procedure
+For the CDS case study (Section 5.4), we use the observed market panel to calibrate a simulation model. We VAR(1)-
+residualize the series, extract latent factors by PCA of the residual correlation matrix, and fit GARCH(1,1)-t and AR(1)+noise
+models to the factor and idiosyncratic components, respectively. We then simulate new panels and inject known lag-1 causal
+edges, providing ground truth for evaluating causal recovery under market-calibrated dynamics.
+
+A.5. Spectral factor-count estimation
+Let C ∈ Rd×d be the correlation matrix of the VAR(1) innovations, and let λ1 ≥ · · · ≥ λd denote its eigenvalues. For
+q = d/Teff , the Marčenko–Pastur upper edge under the no-factor reference is
+
+                                                                     √
+                                                       λ+ = (1 +         q)2 .
+
+We estimate the number of pervasive spectral factors as
+
+                                                   k̂ = |{i : λi > 1.02 λ+ }| ,                                             (3)
+
+where the 1.02 margin avoids counting eigenvalues immediately above the estimated bulk edge. On the pervasive branch,
+the trim count is floored at one, so at least one direction is suppressed whenever a dataset is routed to that branch.
+This is a simple spectral factor-count estimator in the spirit of the factor-number literature (Bai & Ng, 2002; Onatski, 2010;
+Ahn & Horenstein, 2013), specialized to the MP edge. On the pervasive branch, k̂ determines the number of leading singular
+directions trimmed by S−L (Section 4.3).
+
+A.6. Lag-0 orientation
+The S−L stage recovers undirected lag-0 candidates, which must be oriented for directed evaluation. Pairwise
+LiNGAM (Hyvärinen et al., 2010) provides one possible rule by exploiting non-Gaussian asymmetry, but does not
+identify direction in the Gaussian case. Because several benchmark families are Gaussian by construction, we instead use
+the lead-lag statistic from Section 4.3,
+
+                                                   | corr(at , bt+1 )| − | corr(bt , at+1 )|
+                                       A(a, b) =                                             .
+                                                   | corr(at , bt+1 )| + | corr(bt , at+1 )|
+
+For a candidate pair, A(a, b) > 0 gives a → b and A(a, b) < 0 gives b → a.
+The motivation is specific to a persistent structural time-series model: an instantaneous effect entering the target at time t
+can propagate through the target’s own dynamics, creating a directional lag-1 asymmetry even under Gaussian innovations.
+This is a heuristic, not a general orientation result. With little temporal persistence, the propagated signal can vanish; more
+generally, predictive lead-lag asymmetry alone does not establish causal direction outside the assumed SVAR setting.
+The rule was selected on a separate battery of structural generators with contemporaneous edges inserted inside the recursion.
+None of those datasets is part of the reported OOD evaluation.
+
+A.7. PDS edge filter
+For a candidate edge (c, e, ℓ) surviving skeleton discovery, at any lag ℓ ∈ {0, . . . , L}, let Z ∈ R(T −L)×dL contain lags
+1, . . . , L of all observed variables except the candidate regressor, aligned with the target Y = xeL+1:T . We run two Lasso
+regressions with BIC-selected regularization: one of Y on Z, and one of the candidate xct−ℓ on Z. The union of selected
+controls, capped at 20, defines Zsel . We then fit
+
+                                            xet = β0 + β1 xct−ℓ + β ⊤ Zsel,t + ut                                           (4)
+
+by OLS with Newey–West standard errors (HAC lag 2) and test H0 : β1 = 0. The edge is removed when p ≥ α, with
+α = 10−10 (Table 4). PDS is applied only on the sparse branch; pervasive-branch edges at ℓ ≥ 1 are returned unchanged. If
+the regression fails numerically, for example because of collinear selected controls, the filter abstains and retains the edge.
+
+                                                                13
+                                       LUCID: Learning Under Confounding in Time Series
+
+We use PDS as a conservative post-selection edge filter, not as a general identification procedure for latent confounding. For
+ℓ ≥ 1, (4) is a Granger-style test over a high-dimensional observed information set; for ℓ = 0, the same double-selection
+construction gives a contemporaneous partial-regression test with lagged controls. In both cases, the controls are observed.
+The post-double-selection framework of Belloni et al. (2014) relies on approximate sparsity among relevant observed
+controls; our time-series use is therefore a filtering adaptation, not a claim that latent forks are identified. In particular, a
+latent fork Ht → xct , Ht → xet is not blocked by conditioning on observed lags. The filter’s narrower role is to remove
+candidate edges that do not survive adjustment for a sparse set of observed predictors; behavior under genuinely unblocked
+local forks remains an empirical question.
+
+A.8. Lag-0 recovery ablation
+This experiment isolates the value of recovering, rather than discarding, contemporaneous structure. We inject genuine
+directed lag-0 edges into a pervasive-factor generator and compare three policies: blanket drop, which removes the entire
+lag-0 slice; keep all, which retains every unresolved contemporaneous edge from the base skeleton; and S−L recovery
+(Section 4.3). Injected edges are placed across factor groups to avoid the more ambiguous case in which a direct edge and its
+shared factor act on exactly the same group.
+
+Table 8: Lag-0 handling ablation on injected genuine contemporaneous edges (20 seeds, averaged across five factor
+processes). F1 is directed and lag-resolved; lag-0 recall is computed only over the injected contemporaneous edges.
+
+                                      Contamination           Arm           F1    Lag-0 recall
+                                      Low (0.2)            Blanket drop   0.658      0.000
+                                                             Keep all     0.163      0.732
+                                                              S−L         0.776      0.980
+                                      High (0.5)           Blanket drop   0.458      0.000
+                                                             Keep all     0.148      0.563
+                                                              S−L         0.719      0.948
+
+
+Table 8 shows the tradeoff directly. Blanket removal yields zero lag-0 recall. Keeping the unresolved slice recovers many
+genuine edges but also retains the factor footprint, giving the lowest overall F1 . S−L attains the highest lag-0 recall (0.980
+and 0.948) and the highest overall F1 (0.776 and 0.719) at the two contamination levels.
+S−L can recover more genuine lag-0 edges than the keep-all arm because the candidate sets differ: keep-all is limited to
+edges proposed by the original skeleton, whereas S−L constructs candidates from the deconfounded precision matrix.
+The generators used here, together with an overlapping-loading variant, were also used to select the persistence width
+τg . Table 8 should therefore be interpreted as a mechanism/development ablation rather than held-out evidence for that
+hyperparameter. The ten-family OOD benchmark and the sensitivity analysis in Appendix B.2 provide the corresponding
+out-of-sample evaluation.
+
+A.9. Lag-ℓ ≥ 1 filter ablation
+We test whether pervasive-branch lagged edges benefit from additional volatility-specific filtering. Table 9 compares LUCID
+as shipped, which retains pervasive-branch lagged edges from the base engine, with a variant that applies the volatility-based
+filters unconditionally. On the full ten-family suite, filtering reduces family-weighted F1 from 0.592 to 0.451; restricted to
+the seven pervasive families, the corresponding averages are 0.528 and 0.323. We therefore leave lags ℓ ≥ 1 unchanged on
+the pervasive branch.
+
+Table 9: Ablation of pervasive-branch lag-ℓ ≥ 1 filtering on the full ten-family OOD suite (20 seeds). Overall is the
+ten-family weighted mean; the seven pervasive-family columns are shown individually.
+
+                                       Overall     P-vol   P-struct GARCH P-dense P-mixedlag P-heterog P-nearunit
+          LUCID (as shipped)           0.592      0.600    0.761    0.877    0.342    0.317       0.456      0.341
+          + unconditional filtering    0.451      0.244    0.387    0.575    0.150    0.249       0.424      0.233
+
+
+                                                                   14
+                                   LUCID: Learning Under Confounding in Time Series
+
+A.10. Robustness to transient confounding
+To test intermittent confounding, we modulate a latent factor with a two-state Markov process and vary its active duty cycle
+from persistent (1.0) to highly transient (0.05). Each dataset has d = 15 and T = 1500, with 20 seeds per duty cycle.
+LUCID has the highest F1 at four of the five duty cycles (Table 10) and reaches its highest score at the most intermittent
+setting, increasing from 0.623 at duty 1.0 to 0.818 at duty 0.05. At duty 0.25, the routed tetrad configuration performs best
+(0.715 versus 0.599 for LUCID). The comparison therefore does not show uniform dominance, but neither does it show
+systematic degradation as confounding becomes more intermittent.
+
+Table 10: Directed, lag-resolved F1 under transient factor confounding (d = 15, T = 1500, 20 seeds) as a function of
+factor duty cycle. “Routed (tetrad base)” uses the routed pipeline with tetrad-based pervasive correction and no S−L lag-0
+recovery. Best per column is bold.
+
+                           duty cycle               1.00         0.50       0.25          0.10      0.05
+                           CDNOTS                  0.161     0.160         0.130      0.149         0.177
+                           Tetrad filter           0.487     0.586         0.660      0.615         0.596
+                           Routed (tetrad base)    0.496     0.649         0.715      0.697         0.701
+                           LUCID                   0.623     0.683         0.599      0.705         0.818
+
+
+A.11. Robustness to the noise distribution
+The main OOD generators use Gaussian idiosyncratic innovations. To isolate sensitivity to the noise distribution, we hold
+one pervasive-factor generator fixed (d = 12, T = 1000, homoskedastic factor, injected lag-1 edges) and resimulate it
+under eight idiosyncratic noise models: Gaussian, Laplace, Student-t with ν = 3, uniform, exponential, heteroscedastic
+location-scale, ARCH-type history-dependent, and post-nonlinear noise.
+Because the observed innovation combines common-factor and idiosyncratic components, a dominant Gaussian factor can
+mask non-Gaussian idiosyncratic behavior. We therefore set the factor communality to c = 0.3, so the noise distribution
+remains visible in the observed data. Table 11 reports directed, lag-resolved F1 over 50 seeds.
+
+Table 11: Robustness to idiosyncratic noise distribution on a fixed pervasive-factor generator (d = 12, T = 1000, 50 seeds,
+communality c = 0.3). t3 denotes Student-t noise with ν = 3; Het. is heteroscedastic location-scale, Hist. is ARCH-type
+history dependence, and PNL is post-nonlinear noise. Best per column is bold.
+
+                  Method              Gaussian Laplace      t3      Uniform        Exp.      Het.     Hist.   PNL
+                  CDNOTS                0.269     0.272    0.266        0.269   0.270 0.264 0.268 0.288
+                  CDNOTS + tetrad       0.280     0.280    0.279        0.282   0.280 0.285 0.286 0.291
+                  DYNOTEARS             0.282     0.283    0.282        0.285   0.285 0.296 0.294 0.179
+                  PCMCI+                0.336     0.337    0.331        0.336   0.332 0.344 0.350 0.342
+                  LPCMCI                0.250     0.247    0.271        0.270   0.282 0.290 0.298 0.354
+                  VARLiNGAM             0.380     0.362    0.360        0.367   0.366 0.353 0.333 0.335
+                  NTS-NOTEARS           0.287     0.286    0.283        0.285   0.284 0.275 0.277 0.272
+                  LUCID (PCMCI+)        0.481     0.476    0.430        0.473   0.469 0.481 0.488 0.485
+                  LUCID                 0.489     0.485    0.438        0.488   0.479 0.511 0.515 0.487
+
+
+
+LUCID has the highest F1 in all eight noise conditions, with margins of 0.078–0.144 over the strongest non-LUCID
+baseline in each column. Heavy-tailed Student-t3 noise produces the largest degradation relative to the Gaussian condition:
+LUCID decreases from 0.489 to 0.438, consistent with the limitation discussed in Section 6.
+
+B. Reproducibility
+All methods described in this paper are implemented in the open-source causal-ts library (Fesanghary, 2026), available
+at https://github.com/bloomberg/causal-ts.
+
+                                                             15
+                                       LUCID: Learning Under Confounding in Time Series
+
+B.1. Router diagnostics and sensitivity
+The router diagnostic of Section 5.3 contains 30 sparse-regime datasets (three graph topologies, with and without local latent
+forks; 5 seeds each) and 25 pervasive-regime datasets (five factor processes, 5 seeds each), at d = 15. The 15 unconfounded
+and all pervasive datasets use T = 2000, while the 15 sparse-confounded datasets use T = 1000. Sparse datasets are
+negatives and pervasive datasets positives, so FPR denotes routing a sparse dataset to the pervasive branch and FNR the
+converse. No value of γ is retuned on this battery.
+At the default γ = 1.3, the router detects all pervasive cases (FNR = 0) and misroutes 10/30 sparse cases (FPR = 0.333).
+In the separate 20-seed OOD routing ablation, moving from always-pervasive to automatic routing changes Sparse-ER from
+0.655 to 0.795, Sparse-SF from 0.577 to 0.593, and Sparse-SW from 0.832 to 0.843, while the seven pervasive families are
+essentially unchanged. This is consistent with the asymmetric cost reported in Section 5.3: missing pervasive confounding
+can be more damaging than applying the pervasive branch to some sparse datasets. The default margin therefore favors
+sensitivity to pervasive factors over classification accuracy on this diagnostic battery alone.
+Table 12 examines the router margin and its dependence on dimension and sample size. Within this battery and the tested
+grid, larger γ improves balanced accuracy: FPR reaches 0 by γ = 2.2 while FNR remains 0. Thus, γ = 1.3 is not the
+balanced-accuracy-maximizing choice on this diagnostic. It is a fixed margin over the MP edge that was set independently
+of this battery; reselecting it at 2.2 from these 55 datasets would instead tune to the diagnostic. Retaining the smaller default
+also preserves sensitivity to weaker factors: in the factor-strength sweep, FNR remains zero through loading range (0.3, 0.6)
+and rises as factors weaken further.
+The bottom panel uses only the 15 unconfounded sparse datasets as negatives (and garch/static as positives), so its
+(15, 2000) entry of 0.33 is computed on a different, smaller negative set than the 0.33 default-γ FPR of the full 30-dataset
+battery above. The two coincide numerically here but are not directly comparable.
+This is the expected difficulty for eigenvalue-based detection as a factor spike approaches the noise bulk, consistent with
+spectral phase-transition behavior (Baik et al., 2005). The main OOD benchmark uses the stronger loading range (0.5, 1.5);
+weak factors outside this regime are therefore a documented limitation rather than part of the headline benchmark.
+
+
+
+
+Table 12: Router diagnostics. Top: FPR and balanced accuracy versus the MP margin γ; the default γ = 1.3 is marked by ∗ .
+Bottom: FPR across dimension and sample-size settings at γ = 1.3. FNR is zero for all configurations shown.
+
+                                   γ               0.8   1.0   1.15 1.3∗      1.5   1.8    2.2
+                                   FPR           1.00 0.77 0.43 0.33 0.17 0.03 0.00
+                                   Balanced acc. 0.50 0.62 0.78 0.83 0.92 0.98 1.00
+                        (d, T ) (10, 500) (10, 2000) (15, 2000) (25, 1000) (25, 3000) (30, 1000)
+                        FPR        0.07        0.13        0.33        0.20         0.27         0.27
+
+
+
+
+Number of top eigenvalues k. The statistic and its threshold both sum over the top k eigenvalues, so under the no-factor
+null each additional eigenvalue contributes approximately λ+ to both, and the ratio R/τ is nearly invariant to k. The
+asymptotic separation result likewise requires only that k be fixed, not that it equal 2. Table 13 sweeps k over the same
+battery. At the benchmark loading range, FNR is 0 for every k, while FPR falls monotonically from 0.40 at k = 1 to 0.13 at
+k = 4. Thus, the shipped k = 2 is not the balanced-accuracy-maximizing choice on this battery; both k = 3 and k = 4
+attain lower FPR at the same FNR. We retain k = 2 because it was fixed before this diagnostic existed rather than selecting
+it on the diagnostic. A tradeoff appears at weaker factor strength: at loading range (0.2, 0.4), k = 4 begins to miss pervasive
+structure while k ≤ 3 still detects all of it.
+
+                                                               16
+                                      LUCID: Learning Under Confounding in Time Series
+
+Table 13: Router sensitivity to the number of top eigenvalues k, on the same 55-dataset battery as Table 12 (γ = 1.3; every
+dataset is scored at every k, so the comparison is paired). The k = 2∗ column reproduces the γ = 1.3 entries of Table 12.
+The last row reports FNR at the weak loading range (0.2, 0.4); all other rows use the benchmark range (0.5, 1.5).
+
+                                      k                         1      2∗      3       4
+                                      FPR                       0.40 0.33 0.20 0.13
+                                      FNR                       0.00 0.00 0.00 0.00
+                                      Balanced acc.            0.800 0.833 0.900 0.933
+                                      FNR, loadings (0.2, 0.4) 0.00 0.00 0.00 0.16
+
+
+
+
+B.2. Sensitivity to fixed constants
+We next vary the three downstream constants most likely to affect the reported results: the sparse-branch PDS level, the S−L
+edge-free-null level, and the persistence-gate width τg . Because all three act after skeleton discovery, each sweep reuses the
+same cached base skeleton and reruns the corresponding deconfounding step. The router margin γ is studied separately
+above.
+Table 14 shows limited sensitivity to all three choices. The PDS sweep ranges from 10−12 to a conventional 0.05. Family-
+weighted F1dir remains stable from 10−12 through 10−3 (0.588–0.598) and declines modestly at conventional testing levels,
+to 0.585 at 10−2 and 0.573 at 0.05, as precision falls from 0.659 to 0.602 and recall rises from 0.606 to 0.641. The stringent
+default is therefore best viewed as a conservative edge-inclusion criterion rather than a conventional hypothesis-testing level
+(Appendix A.7). At α = 0.05, the layer still reaches 0.573, above the 0.411 of the strongest unwrapped baseline, so the
+overall performance advantage persists without the stringent default. Varying the S−L null level from 0.01 to 0.2 changes
+F1 by only 0.002. Neither default was selected to maximize OOD performance: PDS α = 10−4 scores marginally higher
+(0.598) than the shipped 10−10 (0.592).
+The persistence width is similarly insensitive: sweeping τg from 0 (gate off) to 0.40 changes family-weighted F1 from 0.596
+to 0.589, with 0.592 at the default τg = 0.15. Thus, the OOD result is not materially sensitive to the empirically selected
+gate width. This sweep is a robustness check rather than evidence for the gate’s benefit: collider-induced moralization is
+uncommon in this broad OOD suite, so the errors targeted by the gate are rare there.
+We therefore evaluate the gate on a collider generator where its target error is common, using disjoint triples (X, Y, Z)
+and Zt = w(Xt + Yt ) + εt , so X and Y are co-parents with no direct edge (d=12, T =120). Scoring the recovered lag-0
+skeleton by thresholded F1 —so surviving co-parents count as false positives—the shipped gate gives F1 = 1.000 against
+0.957 with the gate disabled (paired +0.043; 13 wins, 0 losses, 7 ties; Wilcoxon p = 6.3 × 10−4 over 20 seeds), and admits
+0.00 co-parent false edges per dataset against 0.75. This is a mechanism check rather than held-out validation: the generator
+was one cell of the battery used to select τg , and only the seeds here are disjoint from selection. On this generator, the gate
+removes the errors it targets; its near-zero effect on the OOD suite is consistent with those errors being rare there.
+
+                                                              17
+                                  LUCID: Learning Under Confounding in Time Series
+
+Table 14: Sensitivity of LUCID to downstream fixed constants (family-weighted directed, lag-resolved F1 ; 20 seeds). One
+constant is varied at a time with all others fixed at their defaults (∗ ). τg = 0 disables the persistence gate.
+
+                                       Value          F1        Precision   Recall
+                                                 Sparse-branch PDS α
+                                       10−12         0.588    0.659         0.606
+                                       10−10,∗       0.592    0.657         0.613
+                                       10−8          0.596    0.655         0.621
+                                       10−6          0.597    0.652         0.627
+                                       10−4          0.598    0.646         0.634
+                                       10−3          0.596    0.639         0.638
+                                       10−2          0.585    0.618         0.641
+                                       0.05          0.573    0.602         0.641
+                                                 S−L edge-free-null α
+                                       0.01         0.594     0.661         0.612
+                                       0.025        0.593     0.659         0.613
+                                       0.05,∗       0.592     0.657         0.613
+                                       0.1          0.592     0.655         0.614
+                                       0.2          0.592     0.653         0.616
+                                               Persistence-gate width τg
+                                       0 (no gate) 0.596       0.659        0.617
+                                       0.05          0.596     0.659        0.616
+                                       0.10          0.594     0.658        0.615
+                                       0.15,∗        0.592     0.657        0.613
+                                       0.25          0.590     0.655        0.613
+                                       0.40          0.589     0.652        0.612
+
+
+
+
+                                                           18
+

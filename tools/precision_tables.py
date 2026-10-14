@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Generate the V10 comparison tables from retained request summaries."""
+import json
+from precision_common import ROOT, save
+
+
+def main():
+    study=json.loads((ROOT/'docs/studies/precision-final-results.json').read_text())
+    workload=json.loads((ROOT/'docs/studies/precision-workloads-results.json').read_text())
+    labels=['Original','Baseline','Longer history','Small audit','Large audit','Persistent','Near rank','False exogeneity']
+    methods=['joint_horizon','pilot4_horizon','pilot8_horizon']
+    lines=[r'\begin{table}[htbp]',r'\centering\small',r'\begin{tabular}{lrrrrrr}',
+           r'\toprule',r'Design & $T$ & Audit & Joint & $4T$ & $8T$ & Available\\',r'\midrule']
+    for label,row in zip(labels,study['results']):
+        s=row['summary']['methods'];d=row['design']
+        assert len({s[m]['available'] for m in methods})==1
+        lines.append(label+' & '+str(d['dates'])+' & '+str(d['audit'])+' & '+' & '.join(f"{s[m]['covered']/2000:.4f}" for m in methods)+f" & {s[methods[0]]['available']}/2000"+r'\\')
+    lines += [r'\bottomrule',r'\end{tabular}',r'\caption{All-request coverage in 2,000 fresh requests per design. Audit is the independent count per stratum. The persistent case has $\rho=.96$; near-rank probabilities are .55 and .515. Pilot arms use nested independent histories; unavailable requests count as noncoverage. These are synthetic selected-law results.}',r'\label{tab:v10:coverage}',r'\end{table}',
+    r'''At 720 dates the joint procedure covers .9340 and the pilot procedures
+cover .9400 and .9405. The ordinary exact binomial interval for .9400 only
+slightly excludes .95; the adjusted interval includes it. With 200 audit
+observations per stratum at 1200 dates, coverage is .9270/.9330/.9340. All
+three exact simultaneous intervals end below .95 (upper endpoints
+.94372/.94900/.94988), so the small-audit shortfall persists after accounting
+for all 24 marginal comparisons. The last endpoint is close to .95; its
+significance should not be enlarged into a large economic distinction.
+Mean SE divided by empirical SD in that design is about .939--.944.
+
+At 4800 dates, coverage is .9495/.9520/.9520, with all ordinary and adjusted
+intervals containing .95. This is evidence for this selected design, not a
+uniform theorem. The high-persistence case remains .9325/.9400/.9395; the
+joint procedure's exact adjusted upper endpoint is .94856. In the near-rank
+case only 451 of 2,000 requests return intervals. The pilot arms cover 442
+of those available requests, yet all-request coverage is only .2210. The
+conditional figure .9800 does not qualify a broadly available operation.
+False exogeneity gives coverage .2290/.2055/.2085 despite all requests being
+numerically available.
+
+Paired pilot-minus-joint coverage differences at the baseline are .0110 and
+.0125. An exact conditional binomial test of equal coverage gives Bonferroni
+adjusted two-sided $p$ values .0394 and .00408 across the 24 paired tests.
+Thus there is selected-design evidence favoring the pilots over joint
+regression. The conservative simultaneous intervals for the difference,
+constructed by separate gain/loss bounds, still include zero; these bounds
+are looser than the exact conditional test and are not its inversion.
+Neither result establishes general superiority. Every conservative interval
+for eightfold minus fourfold pilot coverage includes zero. Even at 4800 dates
+the two pilot arms have identical covering counts; doubling pilot history
+has no demonstrated coverage advantage here.
+
+The initial normal approximation gives a zero-width paired interval when
+both discordance counts are zero. That is not population certainty. Exact
+binomial inversion for gain and loss probabilities, followed by a union
+bound, gives a conservative difference interval $[L_g-U_l,U_g-L_l]$.
+For the near-rank pilot comparison with no observed discordance, the ordinary
+conservative interval is $[-.00219,.00219]$, and the simultaneous interval
+is $[-.00377,.00377]$. This reporting repair leaves the procedures and draws
+unchanged and retains the original approximations. Exact marginal simultaneous
+intervals use error .05/24 per cell. Paired simultaneous bounds use .05/48
+for each of the two binomial proportions in 24 comparisons. Each family is
+controlled separately; no combined .95 guarantee across both families is
+claimed. The binomial count inversion is the elementary construction in
+Section~\ref{s61:binomial-inversion} applied to independent simulation requests.
+''',r'\begin{table}[htbp]',r'\centering\small',r'\begin{tabular}{rrrrr}',r'\toprule',
+    r'Evaluation dates & Pilot dates & Repeat & Memory ratio & Time ratio\\',r'\midrule']
+    for row in workload['comparisons']:
+        lines.append(f"{row['dates']:,} & {row['pilot_dates']:,} & {row['repeat']+1} & {row['memory_ratio']:.3f} & {row['time_ratio']:.3f}"+r'\\')
+    lines += [r'\bottomrule',r'\end{tabular}',r'\caption{Streaming/dense ratios for complete local pilot tuning, refit and inference. Each route includes imports, input hashing, output persistence and read-back. Input acquisition is excluded equally; resident mapped pages count in peak memory. Order reverses between repeats.}',r'\label{tab:v10:workload}',r'\end{table}',
+    r'''Independent dense numerical comparisons cover both covariance choices,
+chronological split boundaries and chunks of 1, 5, 37 and 4096 rows. The
+largest scaled difference is $1.6\times10^{-14}$ in those checks and
+$3.3\times10^{-14}$ in the complete workloads. Audit rank/boundary refusals
+and invalid histories retain their meaning. At 120,000 evaluation dates and
+480,000 pilot dates, memory ratios are .544 and .599. Elapsed ratios .906 and
+1.071 show no consistent speed advantage. The smaller case has only modest
+memory differences, because imports and other fixed costs matter. These
+four paired comparisons (eight fresh worker runs) establish a local selected memory benefit;
+two repeats are too few to characterize a broad performance distribution.
+No partial-fit recovery or bank-platform service level follows.
+
+The financial precision account remains material. At the baseline the
+fourfold pilot's median interval width is about USD\,498,000; at 4800 dates
+it is about USD\,252,000. These values belong to the stipulated 48-branch
+synthetic population. They are neither bank estimates nor a stated acceptable
+decision width. Extra audit information cannot be assigned a causal cost benefit
+from these unpaired design cells; the comparative pilot arms are paired within
+each cell. A bank precision target and prices for independent histories and
+gold audits are still needed before claiming economic advantage.
+''']
+    path='docs/derivations/precision_tables.tex'
+    (ROOT/path).write_text('\n'.join(lines)+'\n')
+    save('docs/reviews/precision-table-generation.json',dict(status='pass',scope='Tables generated from retained V10 summaries, with quantitative interpretation reviewed separately.'),['tools/precision_tables.py','docs/studies/precision-final-results.json','docs/studies/precision-workloads-results.json','docs/reviews/precision-interval-review.json',path])
+    print('Generated V10 tables and retained limitations.')
+
+
+if __name__=='__main__':main()

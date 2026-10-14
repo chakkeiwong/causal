@@ -1,0 +1,1949 @@
+                                               D ISCOVERING CONTEMPORANEOUS AND LAGGED CAUSAL
+                                              RELATIONS IN AUTOCORRELATED NONLINEAR TIME SERIES
+                                                                  DATASETS
+
+                                                                                                 A P REPRINT
+
+
+                                                                                                Jakob Runge
+arXiv:2003.03685v2 [stat.ME] 5 Jan 2022
+
+
+
+
+                                                                                         German Aerospace Center
+                                                                                          Institute of Data Science
+                                                                                            07745 Jena, Germany
+                                                                                                      and
+                                                                                        Technische Universität Berlin
+                                                                                           10623 Berlin, Germany
+
+
+
+                                                                                                 July 6, 2022
+
+                                                                                                A BSTRACT
+                                                   The paper introduces a novel conditional independence (CI) based method for linear and nonlin-
+                                                   ear, lagged and contemporaneous causal discovery from observational time series in the causally
+                                                   sufficient case. Existing CI-based methods such as the PC algorithm and also common methods
+                                                   from other frameworks suffer from low recall and partially inflated false positives for strong auto-
+                                                   correlation which is an ubiquitous challenge in time series. The novel method, PCMCI+ , extends
+                                                   PCMCI [Runge et al., 2019b] to include discovery of contemporaneous links. PCMCI+ improves
+                                                   the reliability of CI tests by optimizing the choice of conditioning sets and even benefits from au-
+                                                   tocorrelation. The method is order-independent and consistent in the oracle case. A broad range of
+                                                   numerical experiments demonstrates that PCMCI+ has higher adjacency detection power and espe-
+                                                   cially more contemporaneous orientation recall compared to other methods while better controlling
+                                                   false positives. Optimized conditioning sets also lead to much shorter runtimes than the PC algo-
+                                                   rithm. PCMCI+ can be of considerable use in many real world application scenarios where often
+                                                   time resolutions are too coarse to resolve time delays and strong autocorrelation is present.
+
+
+                                          1   INTRODUCTION
+
+                                          A number of frameworks address the problem of causal discovery from observational data utilizing differ-
+                                          ent assumptions. Next to Bayesian score-based methods [Chickering, 2002], classical Granger causality (GC)
+                                          [Granger, 1969], and the more recent restricted structural causal models (SCM) framework [Peters et al., 2017,
+                                          Spirtes and Zhang, 2016], conditional independence (CI) based network learning algorithms [Spirtes et al., 2000] form
+                                          a main pillar. A main representative of the CI framework in the causally sufficient case (no unobserved common
+                                          drivers) is the PC algorithm [Spirtes and Glymour, 1991]. Its advantages lie, firstly, in the flexibility of utilizing a wide
+                                          and growing class of CI tests, from linear partial correlation (ParCorr) and non-parametric residual-based approaches
+                                          [Ramsey, 2014, Runge et al., 2019b] to Kernel measures [Zhang et al., 2011], tests based on conditional mutual infor-
+                                          mation [Runge, 2018b], and neural networks [Sen et al., 2017]. Secondly, the PC algorithm utilizes sparsity making
+                                          it applicable also to large numbers of variables while score- and SCM-based methods are more difficult to adapt to
+                                          nonlinear high-dimensional causal discovery.
+                                          Causal discovery in the time series case is partially less and partially more challenging [Runge et al., 2019a]. Obvi-
+                                          ously, time-order greatly helps in identifying causal directions for lagged links (causes precede effects). This forms
+                                          the basis of GC which, however, cannot deal with contemporaneous links and suffers from the curse of dimensional-
+                                          ity [Runge et al., 2019b]. SCM-based methods such as LiNGAM [Hyvärinen et al., 2010] and also CI-based methods
+                                                                                           A PREPRINT - J ULY 6, 2022
+
+
+[Runge et al., 2019b, Entner and Hoyer, 2010, Malinsky and Spirtes, 2018] have been adapted to the time series case.
+In [Moneta et al., 2011] GC is augmented by the PC algorithm. However, properties such as non-stationarity and
+especially autocorrelation can make causal discovery much less reliable.
+Here I show that autocorrelation, an ubiquitous property of time series (e.g., temperature data), is especially detri-
+mental and propose a novel CI-based method, PCMCI+ , that extends the PCMCI method from [Runge et al., 2019b]
+to also include discovery of contemporaneous links, which requires substantial changes. PCMCI+ is based on two
+central ideas that deviate from the PC algorithm and the time-series adaptations of FCI in [Entner and Hoyer, 2010,
+Malinsky and Spirtes, 2018]: First, an edge removal phase is conducted separately for lagged and contemporaneous
+conditioning sets and the lagged phase uses much fewer CI tests. Secondly, and more importantly, PCMCI+ optimizes
+the choice of conditioning sets for the individual CI tests to make them better calibrated under autocorrelation and
+increase detection power by utilizing the momentary conditional independence idea [Runge et al., 2019b]. The paper
+is structured as follows. Section 2 briefly introduces the problem and Sect. 3 describes the method and states theo-
+retical results. Numerical experiments in Sect. 4 show that PCMCI+ benefits from strong autocorrelation and yields
+much more adjacency detection power and especially more orientation recall for contemporaneous links while better
+controlling false positives at much shorter runtimes than the PC algorithm. A Supplementary Material (SM) contains
+proofs and further numerical experiments.
+
+2     TIME SERIES CAUSAL DISCOVERY
+2.1   PRELIMINARIES
+
+We are interested in discovering time series graphs (e.g., [Runge, 2018a]) that can represent the temporal dependency
+structure underlying complex dynamical systems. Consider an underlying discrete-time structural causal process
+Xt = (Xt1 , . . . , XtN ) with
+                                                                     
+                                                Xtj = fj P(Xtj ), ηtj                                              (1)
+
+where fj are arbitrary measurable functions with non-trivial dependencies on their arguments and ηtj represents mutu-
+ally (i 6= j) and serially (t0 6= t) independent dynamical noise. The nodes in a time series graph G (example in Fig. 1)
+represent the variables Xtj at different lag-times and the set of variables that Xtj depends on defines the causal parents
+P(Xtj ) ⊂ X−                                j                                  −     j          j     −
+                t+1 = (Xt , Xt−1 , . . .)\{Xt }. We denote lagged parents by Pt (Xt ) = P(Xt ) ∩ Xt . A lagged (τ > 0)
+or contemporaneous (τ = 0) causal link Xt−τ     i
+                                                    → Xtj exists if Xt−τ
+                                                                     i
+                                                                          ∈ P(Xtj ). Throughout this work the graph G is
+assumed acyclic and the causal links stationary meaning that if Xt−τ → Xtj for some t, then Xti0 −τ → Xtj0 for all
+                                                                        i
+
+t0 6= t. Then we can always fix one variable at t and take τ ≥ 0. Note that the stationarity assumption may be relaxed.
+The graph is actually infinite in time, but in practice only considered up to some maximum time lag τmax . We define
+the set of adjacencies A(Xtj ) of a variable Xtj to include all Xt−τ
+                                                                   i
+                                                                       for τ ≥ 0 that have a (lagged or contemporaneous)
+link with Xt in G. We define contemporaneous adjacencies as At (Xtj ) = A(Xtj ) ∩ Xt . A sequence of m contempo-
+              j
+
+raneous links is called a directed contemporaneous path if for all k ∈ {1, . . . , m} the link Xti+k−1 → Xti+k occurs.
+We call Xti a contemporaneous ancestor of Xtj if there is a directed contemporaneous path from Xti to Xtj and we
+denote the set of all contemporaneous ancestors as Ct (Xtj ) (which excludes Xtj itself). We denote separation in the
+graph by ./, see [Runge, 2018a] for further notation details.
+
+2.2   PC ALGORITHM
+
+The PC algorithm is the most wide-spread CI-based causal discovery algorithm for the causally sufficient case and
+utilizes the Markov and Faithfulness assumptions as formally defined in Sect. S1. Adapted to time series (analo-
+gously to the methods for the latent case in [Entner and Hoyer, 2010, Malinsky and Spirtes, 2018]), it consists of three
+phases: First, a skeleton of adjacencies is learned based on iteratively testing which pairs of variables (at different
+time lags) are conditionally independent at some significance level αPC (Alg. 2 with the PC option). For lagged
+links, time-order automatically provides orientations, while for contemporaneous links a collider phase (Alg. S2)
+and rule phase (Alg. S3) determine the orientation of links. CI-based discovery algorithms can identify the con-
+temporaneous graph structure only up to a Markov equivalence class represented as a completed partially directed
+acyclic graph (CPDAG). We denote links for which more than one orientation occurs in the Markov equivalence
+class by Xti ◦−◦Xtj . Here we consider a modification of PC that removes an undesired dependence on the order
+of variables, called PC-stable [Colombo and Maathuis, 2014]. These modifications also include either the major-
+ity or conservative [Ramsey et al., 2006] rule for handling ambiguous triples where separating sets are inconsistent,
+
+
+                                                            2
+                                                                                                A PREPRINT - J ULY 6, 2022
+
+
+              PC                     PCMCI+(Alg. 1 only)                     PCMCI+0                          PCMCI+
+                                                  *
+
+
+
+
+Figure 1: The curse and blessing of autocorrelation. Linear example of model (3) with ground truth links shown for the
+PCMCI+ case (right panel). All autodependency coefficients are 0.95 (except 0.475 for X 5,6 ) and all cross-coupling
+coefficients are 0.4 (± indicated by red/blue links). The graphs show true and false link detection rates as the link
+width (if > 0.06) for true (color indicating ParCorr) and incorrect links (grey) for the PC algorithm, Alg. 1, and the
+variants PCMCI+ and PCMCI+     0 as explained in the text (detection rates based on 500 realizations run at αPC = 0.01
+for T = 500).
+
+
+
+and conflicting links where different triples in the collider or orientation phase lead to conflicting link orientations.
+With the conservative rule the PC algorithm is consistent already under the weaker Adjacency Faithfulness condition
+[Ramsey et al., 2006]. Another approach for the time series case (considered in the numerical experiments) is to com-
+bine vector-autoregressive modeling to identify lagged links with the PC algorithm for the contemporaneous causal
+structure [Moneta et al., 2011].
+
+
+2.3   AUTOCORRELATION
+
+To illustrate the challenge of autocorrelation, in Fig. 1 we consider a linear example with lagged and contemporaneous
+ground truth links shown for the PCMCI+ case (right panel). The PC algorithm (Alg. 2 with ParCorr CI test) starts
+by testing all unconditional independencies (p = 0). Here the coupled pairs (X 5 , X 6 ) as well as (X 7 , X 8 ) are
+independent of the other variables and removed from each others adjacency sets, which shows how PC exploits sparsity
+and reduces the estimation dimension compared to fitting a full model on the whole past as in the GC framework. Due
+to the strong autocorrelation the remaining variables, on the other hand, are almost all adjacent to each other at multiple
+time lags in this iteration. In the next iteration, CI for all remaining links is tested conditional on all one-dimensional
+                                                                                               1
+(p = 1) conditioning sets. Here the PC algorithm removes the true lagged link Xt−1                  → Xt0 (black dots) due to
+                           1            0     1
+the incorrect CI result Xt−1 ⊥   ⊥ Xt |Xt−2 (condition marked by blue box). Later this then leads to the false positive
+   1
+Xt−2   → Xt0 (grey link) since Xt−1 1                                                              1
+                                          is not conditioned on. In a similar way the true link Xt−2   → Xt3 is missed leading
+to the false positive Xt−1 → Xt . Further, the true contemporaneous link Xt ◦−◦Xt (similarly Xt3 ◦−◦Xt4 ) is removed
+                         0         3                                                2      3
+                                  4         3
+when conditioning on S = (Xt−1        , Xt−1    ) (blue boxes), which leads to the false positive autodependencies at lag 2 for
+   2    4                                          3
+Xt , Xt , while the false autodependency Xt−2          → Xt3 is due to missing Xt−21
+                                                                                        → Xt3 . This illustrates the pattern of a
+cascade of false negative errors (missing links) leading to false positives in later stages of the PC algorithm.
+What determines the removal of a true link in the finite sample case? Detection power depends on sample size, the
+significance level αPC , the CI test dimension (p+2), and effect size, e.g., the absolute ParCorr (population) value, here
+denoted I(Xt−τi
+                 ; Xtj |S) for some conditioning set S. Within each p-iteration the sample size, αPC , and the dimension
+                                                i
+are the same and a link will be removed if I(Xt−τ   ; Xtj |S) falls below the αPC -threshold for any considered S. Hence,
+the overall minimum effect size minS [I(Xt−τ ; Xtj |S)] determines whether a link is removed. The PC algorithm will
+                                             i
+
+iterate through all subsets of adjacencies such that this minimum can become very small. Low effect size can be
+                                                                 1
+understood as a low (causal) signal-to-noise ratio: Here I(Xt−1      ; Xt0 |Xt−2
+                                                                             1                                1
+                                                                                 ) is small since the signal Xt−1 is reduced
+                                           1                           0
+by conditioning on its autodependency Xt−2 and the ‘noise’ in Xt is large due to its strong autocorrelation.
+But autocorrelation can also be a blessing. The contemporaneously coupled pair (X 7 , X 8 ) illustrates a case where
+autocorrelation helps to identify the orientation of the link. Without autocorrelation the output of PC would be an
+unoriented link to indicate the Markov equivalence class. On the other hand, the detection rate here is rather weak
+since, as above, the signal (link from Xt8 ) is small compared to the noise (autocorrelation in X 7 ).
+
+
+                                                               3
+                                                                                                   A PREPRINT - J ULY 6, 2022
+
+
+                    PC1 lagged skeleton phase                     Contemp. + lagged MCI skeleton phase        Orientation phase
+             p=0                  p=1                  p=2                       p=0               p=1
+      t −2   t −1   t      t −2   t −1   t      t −2   t −1   t           t −2   t −1   t   t −2   t −1   t     t −2   t −1   t
+X                                                                     X
+
+Y                                                                     Y
+
+Z                                                                     Z
+
+
+Figure 2: Schematic of PCMCI+ . Note that for ease of visualization repeating edges due to stationarity are only
+partially shown.
+
+
+This illustrates the curse and blessing of autocorrelation. In summary, the PC algorithm often results in false negatives
+(low recall) and these then lead to false positives. Another reason for false positives are ill-calibrated tests: To correctly
+model the null distribution, each individual CI test would need to account for autocorrelation, which is difficult in a
+complex multivariate and potentially nonlinear setting [Runge, 2018a]. In the experiments we will see that the PC
+algorithm features inflated false positives.
+As a side comment, the pair (X 5 , X 6 ) depicts a feedback cycle. These often occur in real data and the example shows
+that time series graphs allow to resolve time-delayed feedbacks while an aggregated summary graph would contain a
+cyclic dependency and summary graph-based methods assuming acyclic graphs would not work. The orientation of
+the contemporaneous link Xt6 → Xt5 is achieved via rule R1 in the orientation phase of PC (Alg. S3).
+
+3     PCMCI+
+3.1   ALGORITHM
+
+The goal of PCMCI+ is to optimize the choice of conditioning sets in CI tests in order to increase detection power and
+at the same time maintain well-calibrated tests. The approach is based on two central ideas, (1) separating the skeleton
+edge removal phase into a lagged and contemporaneous conditioning phase with much fewer CI tests and (2) utilizing
+the momentary conditional independence (MCI) test [Runge et al., 2019b] idea in the contemporaneous conditioning
+phase. Below, I explain the reasoning behind. Figure 2 illustrates the steps.
+First, the goal of PC’s skeleton phase is to remove all those adjacencies that are due to indirect paths and common
+causes by conditioning on subsets S of the variables’ neighboring adjacencies in each iteration. Consider a variable
+Xtj . If we test lagged adjacencies from nodes Xt−τ i
+                                                         ∈ X−                                                 −
+                                                              t conditional on the whole past, i.e., S = Xt \ {Xt−τ },
+                                                                                                                       i
+                                                                                                     j
+the only indirect adjacencies remaining are due to paths through contemporaneous parents of Xt . This is in contrast
+to conditioning sets on contemporaneous adjacencies which can also open up paths Xtj → Xtk ← Xt−τ             i
+                                                                                                                    if Xtk is
+conditioned on. One reason why the PC algorithm tests all combinations of subsets S is to avoid opening up such
+collider paths. Therefore, one approach would be to start by S = X−             i
+                                                                        t \ {Xt−τ } and then iterate through contempo-
+raneous conditions. A similar idea lies behind the combination of GC and the PC algorithm in [Moneta et al., 2011].
+However, conditioning on large-dimensional conditioning sets strongly affects detection power [Runge et al., 2019b].
+To avoid this, the lagged conditioning phase of PCMCI+ (Alg. 1, see Fig. 2 left panels) tests all pairs (Xt−τ      i
+                                                                                                                       , Xtj )
+for τ > 0 conditional on only the strongest p adjacencies of Xtj in each p-iteration without going through all p-
+dimensional subsets of adjacencies. This choice (i) improves the causal signal-to-noise ratio and recall since for a
+              i
+given test Xt−τ    ⊥ Xtj | S the ‘noise’ in Xtj due to other lagged adjacencies is conditioned out, (ii) leads to fewer
+                   ⊥
+CI tests further improving recall, and (iii) speeds up the skeleton phase. We denote the lagged adjacency set resulting
+from Alg. 1 as Bbt− (Xtj ). Lemma 1 in Sect. 3.2 states that the only remaining indirect adjacencies in Bbt− (Xtj ) are then
+due to paths passing through contemporaneous parents of Xtj . In the schematic in Fig. 2 this is the link Yt−1 → Xt .
+Secondly, in Alg. 2 (Fig. 2 center panels) the graph G is initialized with all contemporaneous adjacencies plus all
+lagged adjacencies from Bbt− (Xtj ) for all Xtj . Algorithm 2 tests all (unordered lagged and ordered contemporaneous)
+                 i
+adjacent pairs (Xt−τ , Xtj ) and iterates through contemporaneous conditions S ⊆ At (Xtj ) with the MCI test
+                                          i
+                                         Xt−τ ⊥Xtj | S, Bbt− (Xtj )\{Xt−τ
+                                              ⊥                       i        −
+                                                                          }, Bbt−τ   i
+                                                                                   (Xt−τ ).                                   (2)
+
+
+                                                                  4
+                                                                                              A PREPRINT - J ULY 6, 2022
+
+
+In the schematic in Fig. 2 the condition on S                     = Yt , as part of the full conditioning set
+S, Bbt− (Xtj )\{Xt−τ
+                 i        −
+                     }, Bbt−τ   i
+                              (Xt−τ ), removes the link Xt ◦−◦Zt . The condition on Bbt− (Xtj ) blocks paths through lagged
+                                                                −       i
+parents and the advantage of the additional conditioning on Bbt−τ   (Xt−τ ) is discussed in the following. We denote the
+                                      −       i              +
+variant without the condition on Bbt−τ (Xt−τ ) as PCMCI0 . Both versions are followed by the collider orientation
+phase (Alg. S2) and rule orientation phase (Alg. S3) which are deferred to the SM since they are equivalent to the PC
+algorithm with the modification that the additional CI tests in the collider phase for the conservative or majority rule
+are also based on the test (2) (Fig. 2 right panel).
+We now discuss PCMCI+                        +                                                  1        0
+                           0 and PCMCI on the example in Fig. 1. Algorithm 1 tests Xt−1 → Xt conditional on
+          0                              0      1
+S = {Xt−1 } for p = 1 and S = {Xt−1 , Xt−2 } for p = 2 as the two strongest adjacencies (as determined by the test
+statistic value, see pseudo-code). In both of these tests the effect size I (causal signal-to-noise ratio) is much larger
+                                      1                                      1
+than for the condition on S = {Xt−2        } which lead to the removal of Xt−1    → Xt0 in the PC algorithm. In Sect. 3.2
+                                                                   −
+we elaborate more rigorously on effect size. In the example Bbt (Xt2 ) is indicated as blue boxes in the second panel
+and contains lagged parents as well as adjacencies due to paths passing through contemporaneous parents of Xt2 . One
+false positive, likely due to an ill-calibrated test caused by autocorrelation, is marked by a star.
+Based on these lagged adjacencies, Alg. 2 with the PCMCI+      0 option then recovers all lagged links (3rd panel), but it
+still the misses contemporaneous adjacencies Xt2 ◦−◦Xt3 and Xt3 ◦−◦Xt4 and we also see strong lagged false positives
+from X 3 to X 2 and X 4 . What happened here? The problem are now tests on contemporaneous links: The CI test
+for PCMCI+   0 in the p = 0 loop, like the original PC algorithm, will test ordered contemporaneous pairs. Hence, first
+Xt ◦−◦Xt conditional on Bbt− (Xt3 ) and, if the link is not removed, Xt3 ◦−◦Xt2 conditional on Bbt− (Xt2 ). Here Xt2 ◦−◦Xt3
+   2       3
+
+is removed conditional on Bbt− (Xt3 ) (indicated by blue boxes in the panel) because I(Xt2 ; Xt3 |Bbt− (Xt3 )) falls below the
+significance threshold.
+The second central idea of PCMCI+ is to improve the effect size of CI tests for contemporaneous links by conditioning
+on both lagged adjacencies Bbt− in the CI test (2) (see blue and red boxes in Fig. 1 right panel). At least for the initial
+phase p = 0 one can prove that for non-empty Bbt− the effect size of the PCMCI+ CI test is always strictly larger than
+that of the PCMCI+                                                                      +
+                    0 test (Thm. 4). I conjecture that this similarly holds for PCMCI vs. the PC algorithm. Higher
+                                               +
+effect size leads to higher recall and PCMCI now recovers all lagged as well as contemporaneous links and also
+correctly removes the lagged false positives that PCMCI+  0 obtains. Also the contemporaneous coupled pair (X , X )
+                                                                                                                   7     8
+
+is now much better detected since the MCI effect size I(Xt7 ; Xt8 |Xt−1 7
+                                                                           ) is larger than I(Xt7 ; Xt8 ), one of the two
+PCMCI+   0 and PC algorithm effect sizes tested here.
+Another advantage, discussed in [Runge et al., 2019b] is that PCMCI+ CI tests are better calibrated, in contrast to
+PCMCI+  0 and PC algorithm tests, since the condition on both parents removes autocorrelation effects. Note that
+for lagged links the effect size of PCMCI+ is generally smaller than that of PCMCI+        0 since the extra condition on
+  −      i
+Bbt−τ (Xt−τ ) can only reduce effect size (see [Runge et al., 2012]). This is the cost of avoiding inflated false positives.
+In summary, the central PCMCI+ idea is to increase effect size in individual CI tests to achieve higher detection
+power and at the same time maintain well-controlled false positives also for high autocorrelation. Correct adjacency
+information then leads to better orientation recall in Alg. S2, S3. The other advantage of PCMCI+ compared to the
+PC algorithm is a much faster and, as numerical examples show, also much less variable runtime.
+The full algorithm is detailed in pseudo-code Algorithms 1,2,S2,S3 with differences to PC and PCMCI+           0 indicated.
+                   i
+Note that pairs (Xt−τ  , Xtj ) in lines 5 and 6 of Alg. 2 are ordered for τ = 0 and unordered for τ > 0. One can construct
+(rather conservative) p-values for the skeleton adjacencies (Xt−τ  i
+                                                                      , Xtj ) by taking the maximum p-value over all CI tests
+conducted in Alg. 2. A link strength can be defined corresponding to the test statistic value of the maximum p-value.
+Based on the PC stable variant, PCMCI+ is fully order-independent. Here shown is the majority-rule implementation
+of the collider phase, the version without handling ambiguous triples and for the conservative rule are detailed in
+Alg. S2. Note that the tests in the collider phase also use the CI tests (2).
+Like other CI-based methods, PCMCI+ has the free parameters αPC , τmax , and the choice of the CI test. αPC can be
+chosen based on cross-validation or an information criterion (implemented in tigramite). τmax should be larger
+or equal to the maximum true time lag of any parent and can in practice also be chosen based on model selection.
+However, the numerical experiments indicate that, in contrast to GC, a too large τmax does not degrade performance
+much and τmax can also be chosen based on the lagged dependence functions, see [Runge et al., 2019b]. PCMCI+ can
+flexibly be combined with different CI tests for nonlinear causal discovery, and for different variable types (discrete or
+continuous, univariate or multivariate).
+
+
+
+                                                              5
+                                                                                           A PREPRINT - J ULY 6, 2022
+
+
+The computational complexity of PCMCI+ strongly depends on the network structure. The sparser the causal depen-
+dencies, the faster the convergence. Compared to the original PC algorithm with worst-case exponential complexity,
+the complexity is much reduced since Alg. 1 only has polynomial complexity [Runge et al., 2019b] and Alg. 2 only
+iterates through contemporaneous conditioning sets, hence the worst-case exponential complexity only applies to N
+and not to N τmax .
+
+Algorithm 1 (PCMCI+ / PCMCI+
+                           0 lagged skeleton phase)
+Require: Time series dataset X = (X 1 , . . . , X N ), max. time lag τmax , significance threshold αPC , CI test
+    CI(X, Y, Z) returning p-value and test statistic value I
+               j
+ 1: for all Xt in Xt do
+ 2:     Initialize Bbt− (Xtj )=X−  t =(Xt−1 , . . . , Xt−τmax ) and I
+                                                                           min    i
+                                                                               (Xt−τ , Xtj ) = ∞ ∀ Xt−τ  i
+                                                                                                            ∈ Bbt− (Xtj )
+ 3:     Let p = 0
+ 4:     while any Xt−τ  i
+                            ∈ Bbt− (Xtj ) satisfies |Bbt− (Xtj )\{Xt−τ i
+                                                                            }| ≥ p do
+                        i         −     j                  −     j        i
+ 5:         for all Xt−τ    in Bbt (Xt ) satisfying |Bbt (Xt )\{Xt−τ          }| ≥ p do
+                                               −     j         i
+ 6:              S = first p variables in Bt (Xt ) \ {Xt−τ }
+                                             b
+ 7:              (p-value, I) ← CI(Xt−τ    i
+                                               , Xtj , S)
+ 8:              I min (Xt−τ
+                          i
+                               , Xtj ) = min(|I|, I min (Xt−τi
+                                                                   , Xtj ))
+                                                       i
+ 9:              if p-value > αPC then mark Xt−τ for removal
+10:         Remove non-significant entries and sort Bbt− (Xtj ) by I min (Xt−τ        i
+                                                                                          , Xtj ) from largest to smallest
+11:         Let p = p + 1
+12: return B bt− (Xtj ) for all Xtj in Xt
+
+
+
+Algorithm 2 (PCMCI+ / PCMCI+
+                           0 contemporaneous skeleton phase / PC full skeleton phase)
+Require: Time series dataset X = (X 1 , . . . , X N ), max. time lag τmax , significance threshold αPC , CI(X, Y, Z),
+    PCMCI+ / PCMCI+            b− j                      j
+                          0 : Bt (Xt ) for all Xt in Xt
+ 1: PCMCI+ / PCMCI+                                                                         b− j              j
+                          0 : Form time series graph G with lagged links from Bt (Xt ) for all Xt in Xt and fully connect
+    all contemporaneous variables, i.e., add Xti ◦−◦Xtj for all Xti 6= Xtj ∈ Xt
+    PC: Form fully connected time series graph G with lagged and contemporaneous links
+ 2: PCMCI+ / PCMCI+                                                                     b j                 j   i j
+                            0 : Initialize contemporaneous adjacencies A(Xt ) := At (Xt ) = {Xt 6=Xt ∈ Xt :
+                                                                                                        b
+       i       j
+    Xt ◦−◦Xt in G}
+    PC: Initialize full adjacencies A(X   b tj ) for all (lagged and contemporaneous) links in G
+                                 j
+ 3: Initialize I min (Xt−τ
+                        i
+                             , Xt ) = ∞ for all links in G
+ 4: Let p = 0
+ 5: while any adjacent pairs (Xt−τ   i
+                                           , Xtj ) for τ ≥ 0 in G satisfy |A(X     b tj )\{Xt−τ
+                                                                                              i
+                                                                                                   }| ≥ p do
+                                            i         j                                  j       i
+ 6:      Select new adjacent pair (Xt−τ , Xt ) for τ ≥ 0 satisfying |A(Xt )\{Xt−τ    b               }| ≥ p
+                    i       j                                                      j      i
+ 7:      while (Xt−τ , Xt ) are adjacent in G and not all S ⊆ A(Xt )\{Xt−τ } with |S| = p have been considered do
+                                                                             b
+ 8:          Choose new S⊆A(X     b tj )\{Xt−τ   i
+                                                       } with |S|=p
+                      +                   −       j         i        −       i
+ 9:          PCMCI : Set Z=(S, Bt (Xt )\{Xt−τ
+                                         b                      }, Bbt−τ  (Xt−τ   ))
+                      +                   −       j        i
+             PCMCI0 : Set Z=(S, Bt (Xt )\{Xt−τ })
+                                         b
+             PC: Set Z=S
+10:          (p-value, I) ← CI(Xt−τ    i
+                                              , Xtj , Z)
+11:          I min (Xt−τ
+                      i
+                          , Xtj ) = min(|I|, I min (Xt−τ      i
+                                                                  , Xtj ))
+12:          if p-value > αPC then
+13:              Delete link Xt−τ  i
+                                       → Xtj for τ > 0 (or Xti ◦−◦Xtj for τ = 0) from G
+14:              Store (unordered) sepset(Xt−τ         i
+                                                           , Xtj ) = S
+15:      Let p = p + 1
+16:      Re-compute A(X b tj ) from G and sort by I min (Xt−τ          i
+                                                                           , Xtj ) from largest to smallest
+17: return G, sepset
+
+
+
+
+                                                            6
+                                                                                              A PREPRINT - J ULY 6, 2022
+
+
+3.2   THEORETICAL RESULTS
+
+This section states asymptotic consistency, finite sample order-independence, and further results regarding effect size
+and false positive control. The consistency of network learning algorithms is separated into soundness, i.e., the returned
+graph has correct adjacencies, and completeness, i.e., the returned graph is also maximally informative (links are
+oriented as much as possible). We start with the following assumptions.
+Assumptions 1 (Asymptotic case). Throughout this paper we assume Causal Sufficiency, the Causal Markov Condi-
+tion, the Adjacency Faithfulness Conditions, and consistent CI tests (oracle). In the present time series context we also
+                                                                               P            P
+assume stationarity and time-order and that the maximum time lag τmax ≥ τmax       , where τmax is the maximum time lag
+of any parent in the SCM (1). Furthermore, we rule out selection variables and measurement error.
+
+Definitions of these assumptions, adapted from [Spirtes et al., 2000] to the time series context, are in Sect. S1 and all
+proofs are in Sect. S2. We start with the following lemma.
+Lemma 1. Under Assumptions 1 Alg. 1 returns a set that always contains the parents of Xtj and, at most, the lagged
+parents of all contemporaneous ancestors of Xtj , i.e., Bbt− (Xtj ) = X i ∈{X j }∪Ct (X j ) Pt− (Xti ).
+                                                                     S
+                                                                          t    t        t
+
+
+Bbt− (Xtj ) contains all lagged parents of all contemporaneous ancestors if the weaker Adjacency Faithfulness assump-
+tion is replaced by standard Faithfulness.
+This establishes that the conditions Bbt− (Xtj ) estimated in the first phase of PCMCI+ will suffice to block all lagged
+confounding paths that do not go through contemporaneous links. This enables to prove the soundness of Alg. 2, even
+though Alg. 2 is a variant of the PC algorithm that only iterates through contemporaneous conditioning sets.
+Theorem 1 (Soundness of PCMCI+ ). Algorithm 2 returns the correct adjacencies under Assumptions 1, i.e., G    c∗ = G ∗ ,
+            ∗
+where the G denotes the skeleton of the time series graph.
+
+To prove the completeness of PCMCI+ , we start with the following observation.
+Lemma 2. Due to time-order and the stationarity assumption, the considered triples in the collider phase (Alg. S2)
+and rule orientation phase (Alg. S3) can be restricted as follows: In the collider orientation phase only unshielded
+          i
+triples Xt−τ   → Xtk ◦−◦Xtj (for τ > 0) or Xti ◦−◦Xtk ◦−◦Xtj (for τ = 0) in G where (Xt−τ  i
+                                                                                              , Xtj ) are not adjacent
+                                                i       k       j          i      j
+are relevant. For orientation rule R1 triples Xt−τ → Xt ◦−◦Xt where (Xt−τ , Xt ) are not adjacent, for orientation
+rule R2 triples Xti → Xtk → Xtj with Xti ◦−◦Xtj , and for orientation rule R3 pairs of triples Xti ◦−◦Xtk → Xtj and
+Xti ◦−◦Xtl → Xtj where (Xtk , Xtl ) are not adjacent and Xti ◦−◦Xtj are relevant. These restrictions imply that only
+contemporaneous parts of separating sets are relevant for the collider phase.
+Theorem 2 (PCMCI+ is complete). PCMCI+ (Algorithms 1,2,S2,S3) when used with the conservative rule for orient-
+ing colliders in Alg. S2 returns the correct CPDAG under Assumptions 1. Under standard Faithfulness also PCMCI+
+when used with the majority rule or the standard orientation rule is complete.
+
+Also the proof of order-independence follows straightforwardly from the proof in [Colombo and Maathuis, 2014]. Of
+course, order independence does not apply to time-order.
+Theorem 3 (Order independence). Under Assumptions 1 PCMCI+ with the conservative or majority rule in Alg. S2
+is independent of the order of variables (X 1 , . . . , X N ).
+
+Next, we consider effect size. The toy example showed that a major problem of PCMCI+                0 (and also PC) is lack
+of detection power for contemporaneous links. A main factor of statistical detection power is effect size, i.e., the
+population value of the test statistic considered (e.g., absolute partial correlation). In the following, I will base my
+argument in an information-theoretic framework and consider the conditional mutual information as a general test
+                                                                                                  j
+statistic, denoted I. In Alg. 2 PCMCI+                                                   i
+                                            0 will test a contemporaneous dependency Xt ◦−◦Xt first with the test statistic
+           j    −    j                                                          j   −
+I(Xti ; Xt |Bbt (Xt )), and, if that test was positive, secondly with I(Xti ; Xt |Bbt (Xti ))). If either of these tests finds
+(conditional) independence, the adjacency is removed. Therefore, the minimum test statistic value determines the
+relevant effect size. On the other hand, PCMCI+ treats both cases symmetrically since the test statistic is always
+I(Xti ; Xtj |Bbt− (Xtj ), Bbt− (Xti )).
+Theorem 4 (Effect size of MCI tests for p = 0). Under Assumptions 1 the PCMCI+ oracle case CI tests in Alg. 2
+for p = 0 for contemporaneous true links Xti → Xtj ∈ G have an effect size that is always greater than that of the
+                                        j b−   j   b− i                      j b−     j              j b−
+PCMCI+                               i                                   i                      i             i
+          0 CI tests, i.e., I(Xt ; Xt |Bt (Xt ), Bt (Xt )) > min(I(Xt ; Xt |Bt (Xt )), I(Xt ; Xt |Bt (Xt ))) if both Xt
+                                                                                                                             i
+        j
+and Xt have parents that are not shared with the other.
+
+
+                                                              7
+                                                                                          A PREPRINT - J ULY 6, 2022
+
+
+I conjecture that this result holds similarly for p > 0 and also that PCMCI+ has greater effect sizes than the PC
+algorithm since the latter iterates over all subsets of adjacencies and, hence, the minimum is taken generally over an
+even larger set leading to even smaller effect sizes. For lagged links the effect size of the PCMCI+ tests is always
+smaller (or equal) than that of the PCMCI+  0 tests (see [Runge et al., 2012]).
+Last, we discuss false positive control. While the effect size result regards detection power, in the following I give
+a mathematical intuition why the MCI tests are better calibrated than the PC algorithm CI tests and control false
+positives below the expected significance level. Lemma 1 implies that even though Alg. 1 does not aim to estimate
+the contemporaneous parents, it still yields a set of conditions that shields Xtj from the ‘infinite’ past X−  t , either
+by blocking the parents of Xtj or by blocking indirect contemporaneous paths through contemporaneous ancestors
+of Xtj . Blocking paths from the infinite past, I conjecture, is key to achieve well-calibrated CI tests in Alg. 2. The
+authors in [Runge et al., 2019b] showed that under certain model assumptions the MCI tests reduce to CI tests among
+the noise terms η from model (1) which are assumed to be i.i.d. and help to achieve well-calibrated CI tests. In the
+numerical experiments below we can see that the PC algorithm has inflated false positive for high autocorrelation,
+while PCMCI+ well controls false positives, but a formal proof of correct false positive control for this challenging
+nonlinear, high-dimensional setting is beyond the scope of this paper.
+
+4   NUMERICAL EXPERIMENTS
+We consider a number of typical challenges [Runge et al., 2019a], contemporaneous and time lagged causal depen-
+dencies, strong autocorrelation, large number of variables and considered time lags, different noise distributions and
+nonlinearity, in the following additive variant of model (1):
+                                                    j
+                                         Xtj = aj Xt−1              i
+                                                                          ) + ηtj
+                                                           P
+                                                        + i ci fi (Xt−τ i
+                                                                                                                    (3)
+for j ∈ {1, . . . , N }. Autocorrelations aj are uniformly drawn from [max(0, a − 0.3), a] for a as indicated in Fig. 3
+and η j is i.i.d. and follows a zero-mean Gaussian N or Weibull W (scale parameter 2) distribution (depending on
+setup) with standard deviation drawn from [0.5, 2]. In addition to autodependency links, for each model L = b1.5 · N c
+(except for N = 2 with L = 1) cross-links are chosen whose functional dependencies are linear or fi (x) = f (2) (x) =
+              2
+(1 + 5xe−x /20 )x (depending on setup), with f (2) designed to yield more stationary dynamics. Coefficients ci are
+drawn uniformly from ±[0.1, 0.5]. 30% of the links are contemporaneous (τi = 0) and the remaining τi are drawn
+from [1, 5]. Only stationary models are considered. We have an average cross-in-degree of d = 1.5 for all network
+sizes (plus an auto-dependency) implying that models become sparser for larger N . We consider several model setups:
+linear Gaussian, linear mixed noise (among the N variables: 50% Gaussian, 50% Weibull), and nonlinear mixed noise
+(50% linear, 50% f (2) (x); 66% Gaussian, 34% Weibull).
+For the linear model setups we consider the PC algorithm and PCMCI+ in the majority-rule variant with ParCorr and
+compare these with GCresPC [Moneta et al., 2011], a combination of GC with PC applied to residuals, and a autore-
+gressive model version of LiNGAM [Hyvärinen et al., 2010], a representative of the SCM framework (implementation
+details in Sect. S4). For the LiNGAM implementation I could not find a way to set a significance level and used the
+LASSO option which prunes ‘non-active’ links to zero. Both GCresPC and LiNGAM assume linear dependencies
+and LiNGAM also non-Gaussianity. For the nonlinear setup the PC algorithm and PCMCI+ are implemented with
+the GPDC test [Runge et al., 2019b] that is based on Gaussian process regression and a distance correlation test on the
+residuals, which is suitable for a large class of nonlinear dependencies with additive noise.
+Performance is evaluated as follows: True (TPR) and false positive rates (FPR, shown to evaluate false positive con-
+trol, not applicable to LiNGAM) for adjacencies are distinguished between lagged cross-links (i 6= j), contempora-
+neous, and autodependency links. Due to time order, lagged links (and autodependencies) are automatically oriented.
+Contemporaneous orientation precision is measured as the fraction of correctly oriented links (◦−◦ or →) among
+all estimated adjacencies, and recall as the fraction of correct orientations among all true contemporaneous links.
+Further shown is the fraction of conflicting links among all detected contemporaneous adjacencies (not applicable
+to LiNGAM). All metrics (and their std. errors) are computed across all estimated graphs from 500 realizations of
+model (3) at time series length T . The average runtimes were evaluated on Intel Xeon Platinum 8260. In Fig. 3 results
+for the linear Gaussian setup with default model parameters N = 5, T = 500, a = 0.95 and method parameters
+τmax = 5 and α = 0.01 (not applicable to LiNGAM) are shown. Each of the four panels shows results for varying
+one of a, N, T, τmax . The insets show ANOVA statistics r ± ∆r  ¯ [per unit], where r is the performance metric at the
+                                                                    ¯ denotes the average change per parameter unit.
+leftmost parameter on the x-axis (a, N, T, τmax , respectively) and ∆r
+In the adjacency subplots the statistics refer to lagged links.
+Figure 3A demonstrates that the TPR of PCMCI+ and GCresPC for contemporaneous links is stable even under high
+autocorrelation while PC and LiNGAM show strong declines. Since LiNGAM has no αPC for FPR-control we focus
+
+
+                                                           8
+                                                                                                                                                                                                             A PREPRINT - J ULY 6, 2022
+
+
+                                                                                                             d = 1.5: N = 5, T = 500                                                                                                          d = 1.5: T = 500, a = 0.95
+A              GCresPC                 LiNGAM              PC           PCMCI +                          ParCorr, α = 0.01, τmax = 5
+                                                                                                                                              B            GCresPC                LiNGAM            PC       PCMCI +                          ParCorr, α = 0.01, τmax = 5
+
+                    Adj. TPR                          Contemp. orient. recall                                  Runtime [s]                                     Adj. TPR                        Contemp. orient. recall                             Runtime [s]
+100%                                          100%                                                                                            100%                                     100%
+                                                      41+25/1                                       0.22+0.28/1                                                                                75-2/1                                    0.06+0.52/1
+                                                      43-14/1                                       0.24+1.31/1                                                                                45-7/1                            2000    0.15+5.75/1
+                                                                                               6
+80%                                           80%     39+0/1                                        0.18-0.00/1                               80%                                      80%     46-3/1                                    0.04+0.31/1
+                                                      14-1/1                                        0.09+0.12/1                                                                                0+2/1                             1500    0.02+0.07/1
+60%                                           60%                                              4                                              60%                                      60%
+                                                                                                                                                                                                                                 1000
+40%                                           40%                                                                                             40%                                      40%
+        78-11/1                                                                                                                                      82-6/1
+                                                                                               2
+        79-33/1                                                                                                                                      60-9/1                                                                       500
+20%     81-7/1                                20%                                                                                             20%    85-4/1                            20%
+        77-11/1                                                                                                                                      80-5/1
+                                                                                               0                                                                                                                                    0
+ 0%                                            0%                                                                                              0%                                       0%
+
+
+                    Adj. FPR                         Contemp. orient. precision                                 Conflicts                                      Adj. FPR                       Contemp. orient. precision                            Conflicts
+100%                                          100%                                          100%                                              100%                                     100%                                      100%
+        0.4-0.1/1                                     51+32/1                                                                                        0.3+0.1/1                                 89-1/1
+        0.4+0.8/1                                     55+19/1                                              Lagged              Auto.                 3.0+0.0/1                                 91-5/1                                          Lagged             Auto.
+        1.2+3.3/1                             80%     43+13/1                               80%
+                                                                                                           Contemp.                                  5.7+0.4/1                         80%     65-1/1                            80%
+                                                                                                                                                                                                                                               Contemp.
+        0.3+0.4/1                                     18-1/1                                                                                         1.7+0.0/1                                 0+3/1
+10%                                                                                                                                           10%
+                                              60%                                           60%                                                                                        60%                                       60%
+
+                                              40%                                           40%                                                                                        40%                                       40%
+
+ 1%                                           20%                                           20%                                                1%                                      20%                                       20%
+
+ 0%                                            0%                                            0%                                                0%                                       0%                                        0%
+       0.0   0.4    0.6   0.9    0.98 0.999          0.0   0.4    0.6   0.9    0.98 0.999          0.0   0.4    0.6   0.9    0.98 0.999               2    3   5   10   20   30   40            2    3   5   10   20   30   40            2    3    5   10   20   30   40
+
+                                                       Autocorrelation a                                                                                                                   Number of variables N
+                                                                                                            d = 1.5: N = 5, a = 0.95                                                                                                   d = 1.5: N = 5, T = 500, a = 0.95
+C              GCresPC                 LiNGAM              PC           PCMCI +                          ParCorr, α = 0.01, τmax = 5
+                                                                                                                                              D            GCresPC                LiNGAM            PC       PCMCI +                                    ParCorr, α = 0.01
+
+                    Adj. TPR                          Contemp. orient. recall                                  Runtime [s]                                     Adj. TPR                        Contemp. orient. recall                             Runtime [s]
+100%                                          100%                                             8                                              100%                                     100%
+                                                      47+5/100                                      0.41+0.03/100                                                                              70-1/10                             80    0.52+0.69/10
+                                                      7+1/100                                       1.05+0.24/100                                                                              14+0/10                                   1.87+5.88/10
+80%                                           80%     22+2/100                                 6
+                                                                                                    0.14+0.01/100                             80%                                      80%     32-1/10                             60
+                                                                                                                                                                                                                                         0.18+0.21/10
+                                                      8+1/100                                       0.09+0.01/100                                                                              13+0/10                                   0.14+0.12/10
+60%                                           60%                                                                                             60%                                      60%
+                                                                                               4                                                                                                                                   40
+40%                                           40%                                                                                             40%                                      40%
+        43+4/100                                                                                                                                     60-1/10
+        17+2/100                                                                               2                                                     24-5/10                                                                       20
+20%     46+4/100                              20%                                                                                             20%    63-2/10                           20%
+        41+4/100                                                                                                                                     59-4/10
+                                                                                               0                                                                                                                                    0
+ 0%                                            0%                                                                                              0%                                       0%
+
+
+                    Adj. FPR                         Contemp. orient. precision                                 Conflicts                                      Adj. FPR                       Contemp. orient. precision                            Conflicts
+100%                                          100%                                          100%                                              100%                                     100%                                      100%
+        0.3+0.0/100                                   76+2/100                                                                                       0.3-0.1/10                                87+0/10
+        1.7+0.0/100                                   63+2/100                                             Lagged              Auto.                 2.0-1.0/10                                73+1/10                                         Lagged             Auto.
+        3.1+0.3/100                           80%     60+0/100                              80%
+                                                                                                           Contemp.                                  3.9-1.9/10                        80%     59+0/10                           80%
+                                                                                                                                                                                                                                               Contemp.
+        0.9+0.1/100                                   13+1/100                                                                                       1.2-0.6/10                                17+0/10
+10%                                                                                                                                           10%
+                                              60%                                           60%                                                                                        60%                                       60%
+
+                                              40%                                           40%                                                                                        40%                                       40%
+
+ 1%                                           20%                                           20%                                                1%                                      20%                                       20%
+
+ 0%                                            0%                                            0%                                                0%                                       0%                                        0%
+       200         500          1000                 200         500          1000                 200         500          1000                     5    10 15 20 25 30 35 40                  5   10 15 20 25 30 35 40                  5   10 15 20 25 30 35 40
+
+                                                           Sample size T                                                                                                                            Time lag τmax
+
+
+Figure 3: Numerical experiments with linear Gaussian setup for varying (A) autocorrelation strength a (B) number
+of variables N (C) sample size T and (D) maximum time lag τmax . All remaining setup parameters indicated in the
+top right. Errorbars show std. errors or the 90% range (for runtime). The insets show ANOVA statistics.
+
+
+
+
+on its relative changes rather than absolute performance. Lagged TPR decreases strongly for PC while the other
+methods are more robust. FPR is well-controlled for PCMCI+ while PC and slightly also GCresPC show inflated
+lagged FPR for high autocorrelation. LiNGAM features a strong increase of lagged FPR. These adjacency results
+translate into higher contemporaneous orientation recall for PCMCI+ which increases with autocorrelation, while it
+decreases for all other methods. GCresPC has steady low recall since it does not use lagged links in the orientation
+phase. Except for GCresPC, all methods have increasing precision with PCMCI+ and PC outperforming LiNGAM.
+PCMCI+ shows almost no conflicts while PC’s conflicts increase with autocorrelation until low power reduces them
+again. Finally, runtimes are almost constant for GCresPC and LiNGAM, while they increase for PCMCI+ and much
+stronger for PC.
+Figure 3B shows that PCMCI+ and GCresPC have the highest TPR for increasing number of variables N , especially
+for contemporaneous links. FPR is well controlled only for PCMCI+ while PC has false positives for small N where
+model connectivity is denser and false negatives are more likely leading to false positives. For high N PC has false
+positives only regarding autodependencies while inflated FPR appears for GCresPC. PCMCI+ has more than twice
+as much contemporaneous recall compared to the other methods and is almost not affected by higher N . Orientation
+precision is decreasing for all methods (except PC) with a higher decrease for PCMCI+ . Runtime is increasing at a
+much smaller rate for PCMCI+ compared to PC, which also has a very high runtime variability across the different
+model realizations. LiNGAM and especially GCresPC are fastest.
+PCMCI+ , GCresPC, and LiNGAM benefit similarly and PC less so for increasing sample size regarding TPR
+(Fig. 3C). FPR is still not controlled for PC for large sample sizes, lagged FPR increases for GCresPC. PCMCI+
+shows the highest increases in contemporaneous recall and precision. Runtime increases are moderate compared to
+PC, conflicts decrease.
+Last, Fig. 3D shows that all methods are relatively robust to large maximum time lags τmax (beyond the true max.
+time lag 5) for the considered sample size T = 500. Contemporaneous FPR and runtime increase for PC.
+
+
+                                                                                                                                          9
+                                                                                           A PREPRINT - J ULY 6, 2022
+
+
+In the SM further results are shown. For too large N τmax (relative to T ) GCresPC and LiNGAM (despite LASSO-
+regularization) sharply drop in performance. For the linear mixed noise setup (Fig. S2) results are almost unchanged for
+all methods except for LiNGAM for which recall and precision rise, as expected. Recall is then higher than PCMCI+
+for low autocorrelation, but still much lower for high autocorrelation and large N or τmax , at similar precision.
+In the nonlinear mixed noise setup (Fig. S3), the difference between PC and PCMCI+ is similar. We observe slight
+FPR inflation for high autocorrelation. GPDC seems to not work well in high-dimensional, highly autocorrelated
+settings. Runtime for GPDC compared to ParCorr is orders of magnitude longer, especially for PC. Further figures
+in the SM show many combinations of a, N, T, τmax and αPC for the model setups and demonstrate that the above
+findings are robust.
+
+5   CONCLUSIONS
+PCMCI+ improves the reliability of CI tests by optimizing the choice of conditioning sets and yields much higher
+recall, well-controlled false positives, and faster runtime than the original PC algorithm for highly autocorrelated
+time series, while maintaining similar performance for low autocorrelation. The algorithm well exploits sparsity in
+high-dimensional settings and can flexibly be combined with different CI tests for nonlinear causal discovery, and for
+different variable types (discrete or continuous, univariate or multivariate). Autocorrelation is actually key to increase
+contemporaneous orientation recall since it creates triples Xt−1 i
+                                                                     → Xti ◦−◦Xtj that can often be oriented while an
+                       j
+isolated link Xti ◦−◦Xt stays undirected in the Markov equivalence class, a drawback of CI-based methods. If the data
+is at least non-Gaussian, a SCM method like LiNGAM can exploit this property and recover directionality in such
+cases. Still, we saw that LiNGAM suffers from large autocorrelation. PCMCI+ is available as part of the tigramite
+Python package at https://github.com/jakobrunge/tigramite. A next step will be to extend the present
+ideas to an algorithm accounting for latent confounders and to explore combinations between SCM-based methods
+and PCMCI+ . The numerical results will be contributed to the causality benchmark platform www.causeme.net
+[Runge et al., 2019a] to facilitate a further expanded method evaluation.
+
+Acknowledgments
+DKRZ provided computational resources (grant no. 1083). I thank Andreas Gerhardus for helpful comments.
+
+
+
+
+                                                           10
+                                                                                            A PREPRINT - J ULY 6, 2022
+
+
+References
+
+[Chickering, 2002] Chickering, D. M. (2002). Learning Equivalence Classes of Bayesian-Network Structures. J.
+      Mach. Learn. Res., 2:445–498.
+[Colombo and Maathuis, 2014] Colombo, D. and Maathuis, M. H. (2014). Order-Independent Constraint-Based
+      Causal Structure Learning. J. Mach. Learn. Res., 15:3921–3962.
+[Entner and Hoyer, 2010] Entner, D. and Hoyer, P. O. (2010). On causal discovery from time series data using FCI.
+      In Proc. Fifth Eur. Work. Probabilistic Graph. Model., pages 121–128.
+[Granger, 1969] Granger, C. W. J. (1969). Investigating causal relations by econometric models and cross-spectral
+      methods. Econometrica, 37(3):424–438.
+[Hyvärinen et al., 2010] Hyvärinen, A., Zhang, K., Shimizu, S., and Hoyer, P. O. (2010). Estimation of a structural
+      vector autoregression model using non-gaussianity. J. Mach. Learn. Res., 11:1709–1731.
+[Malinsky and Spirtes, 2018] Malinsky, D. and Spirtes, P. (2018). Causal structure learning from multivariate time
+      series in settings with unmeasured confounding. In Proc. of 2018 ACM SIGKDD Work. on Causal Discovery,
+      pages 23–47.
+[Moneta et al., 2011] Moneta, A., Chlaß, N., Entner, D., and Hoyer, P. (2011). Causal search in structural vector
+      autoregressive models. In NIPS Mini-Symp. on Causality in Time Series, pages 95–114.
+[Peters et al., 2017] Peters, J., Janzing, D., and Schölkopf, B. (2017). Elements of causal inference: foundations and
+      learning algorithms. MIT Press, Cambridge, MA.
+[Ramsey et al., 2006] Ramsey, J., Spirtes, P., and Zhang, J. (2006). Adjacency-faithfulness and conservative causal
+      inference. In Proc. 22nd Conf. on Uncertainty in Art. Int., pages 401–408.
+[Ramsey, 2014] Ramsey, J. D. (2014). A Scalable Conditional Independence Test for Nonlinear, Non-Gaussian Data.
+      https://arxiv.org/abs/1401.5031.
+[Runge, 2018a] Runge, J. (2018a). Causal network reconstruction from time series: From theoretical assumptions to
+      practical estimation. Chaos: An Interdiscip. J. Nonlinear Sci., 28(7):075310.
+[Runge, 2018b] Runge, J. (2018b). Conditional independence testing based on a nearest-neighbor estimator of con-
+      ditional mutual information. In Storkey, A. & Perez-Cruz, F., editor, Proc. 21st Int. Conf. Artif. Intell. Stat. Playa
+      Blanca, Lanzarote, Canary Islands: PMLR.
+[Runge et al., 2019a] Runge, J., Bathiany, S., Bollt, E., Camps-Valls, G., Coumou, D., Deyle, E., Glymour, C.,
+      Kretschmer, M., Mahecha, M. D., Muñoz-Marı́, J., van Nes, E. H., Peters, J., Quax, R., Reichstein, M., Scheffer,
+      M., Schölkopf, B., Spirtes, P., Sugihara, G., Sun, J., Zhang, K., and Zscheischler, J. (2019a). Inferring causation
+      from time series in earth system sciences. Nature Comm., 10(1):2553.
+[Runge et al., 2012] Runge, J., Heitzig, J., Marwan, N., and Kurths, J. (2012). Quantifying causal coupling strength:
+      A lag-specific measure for multivariate time series related to transfer entropy. Phys. Rev. E, 86(6):061121.
+[Runge et al., 2019b] Runge, J., Nowack, P., Kretschmer, M., Flaxman, S., and Sejdinovic, D. (2019b). Detecting and
+      quantifying causal associations in large nonlinear time series datasets. Science Advances, eaau4996(5).
+[Sen et al., 2017] Sen, R., Suresh, A. T., Shanmugam, K., Dimakis, A. G., and Shakkottai, S. (2017). Model-Powered
+      Conditional Independence Test. In Proc. 30th Conf. Adv. Neural Inf. Process. Syst., pages 2955–2965.
+[Spirtes and Glymour, 1991] Spirtes, P. and Glymour, C. (1991). An Algorithm for Fast Recovery of Sparse Causal
+      Graphs. Soc. Sci. Comput. Rev., 9(1):62–72.
+[Spirtes et al., 2000] Spirtes, P., Glymour, C., and Scheines, R. (2000). Causation, Prediction, and Search. MIT
+      Press, Boston, MA.
+[Spirtes and Zhang, 2016] Spirtes, P. and Zhang, K. (2016). Causal discovery and inference: concepts and recent
+      methodological advances. Appl. Informatics, 3(1):3.
+[Zhang et al., 2011] Zhang, K., Peters, J., Janzing, D., and Schölkopf, B. (2011). Kernel-based Conditional Indepen-
+      dence Test and Application in Causal Discovery. In Proc. 27th Conf. Uncertain. Artif. Intell., pages 804–813.
+
+
+
+
+                                                            11
+                                                                                               A PREPRINT - J ULY 6, 2022
+
+
+S1     Definitions
+The following definitions are adaptations of the standard assumptions of causal discovery to the time series case.
+Here we consider the causally sufficient case and assume that all variables X = (X 1 , . . . , X N ) of the underlying
+                                                                                                   P            P
+SCM (1) are observed. Additionally, we assume that the maximum PCMCI+ time lag τmax ≥ τmax             , where τmax  is
+the maximum time lag of any parent in the SCM (1).
+Definition S1 (Causal Markov Condition). The joint distribution of a process X whose causal structure can be repre-
+sented in a time series graph G fulfills the Causal Markov Condition iff for all Xtj ∈ Xt every non-descendent of Xtj
+in G is independent of Xtj given the parents P(Xtj ). In particular, X−        j
+                                                                      t \P(Xt ) ⊥ ⊥ Xtj | P(Xtj ) since all variables in
+  −                            j
+Xt are non-descendants of Xt by time-order.
+
+Note that for the SCM (1) with independent noise terms the Causal Markov Condition is automatically fulfilled.
+Definition S2 (Adjacency and standard faithfulness Condition). The joint distribution of a process X whose causal
+structure can be represented in a time series graph G fulfills the Adjacency Faithfulness Condition iff for all disjoint
+   i
+Xt−τ  , Xtj , S ∈ X−
+                   t+1 with τ > 0
+
+                                  i
+                                 Xt−τ ⊥ Xtj | S ⇒ Xt−τ
+                                      ⊥            i
+                                                       → Xtj ∈
+                                                             /G
+                                  i
+                                 Xt−τ → Xtj ∈ G ⇒ Xt−τ
+                                                   i
+                                                       ⊥Xtj | S (contrapositive)
+                                                       ⊥
+                                                       
+                                                       
+and with τ = 0
+                                       ⊥ Xtj | S ⇒ Xti ◦−◦Xtj ∈
+                                   Xti ⊥                      /G
+                                   Xti ◦−◦Xtj ∈ G ⇒ Xti
+                                                       ⊥Xtj | S (contrapositive) .
+                                                       ⊥
+                                                       
+Furthermore, the variables fulfill the (standard) Faithfulness Condition iff for τ ≥ 0
+                                   i
+                                  Xt−τ ⊥ Xtj | S ⇒ Xt−τ
+                                       ⊥            i
+                                                        ./ Xtj | S
+                                   i
+                                  Xt−τ ./Xtj | S ⇒ Xt−τ
+                                       
+                                                    i
+                                                        ⊥Xtj | S (contrapositive) .
+                                                        ⊥
+                                                        
+                                                        
+
+S2     Proofs
+S2.1   Proof of Lemma 1
+
+We first consider the following Lemma:
+Lemma S1. Algorithm 1 returns a superset of lagged parents under Assumptions 1, i.e., Pt− (Xtj ) ⊆ Bbt− (Xtj ) for all
+Xtj in Xt .
+
+Proof. We need to show that for arbitrary (Xt−τi
+                                                   , Xtj ) with τ > 0 we have Xt−τ
+                                                                                 i
+                                                                                     ∈/ Bbt− (Xtj ) ⇒ Xt−τ  i
+                                                                                                                ∈/ Pt− (Xtj ).
+                      i
+Algorithm 1 removes Xt−τ  from Bbt− (Xtj ) iff Xt−τ
+                                                 i
+                                                      ⊥⊥ Xtj | S for some S ⊆ Bbt− (Xtj )\{Xt−τ
+                                                                                              i
+                                                                                                  } in the iterative CI tests.
+                                                                              j
+                                                       i
+Then Adjacency Faithfulness directly implies that Xt−τ is not adjacent to Xt and in particular Xt−τ    i
+                                                                                                           ∈/ Pt− (Xtj ).
+
+With this step we can prove Lemma 1.
+
+Proof. The lemma states that under Assumptions 1 with Adjacency Faithfulness replaced by standard Faithfulness
+Alg. 1 for all Xtj ∈ Xt returns Bbt− (Xtj ) = X i ∈{X j }∪Ct (X j ) Pt− (Xti ) where Ct (Xtj ) denotes the contemporaneous
+                                              S
+                                                  t     t        t
+
+ancestors of Xtj . We need to show that for arbitrary Xt−τi
+                                                             , Xtj ∈ X−                          i
+                                                                        t+1 with τ > 0: (1) Xt−τ ∈    / Bbt− (Xtj ) ⇒ Xt−τ
+                                                                                                                       i
+                                                                                                                           ∈
+                                                                                                                           /
+S                     −    i             i      −    j           i
+                                                                        S                      −    i
+   i     j        j P   (X   ) and (2) X    ∈ B
+                                              b   (X   )   ⇒   X     ∈       i   j       j P     (X   ).
+  Xt ∈{Xt }∪Ct (Xt )  t   t             t−τ     t    t          t−τ       Xt ∈{Xt }∪Ct (Xt )   t   t
+
+Ad 1) Algorithm 1 removes Xt−τ i
+                                   from Bbt− (Xtj ) iff Xt−τ
+                                                         i
+                                                             ⊥⊥ Xtj | S for some S ⊆ Bbt− (Xtj )\{Xt−τ
+                                                                                                     i
+                                                                                                         } in the iterative
+                                                     i        j                     i          −   j
+CI tests. Then standard Faithfulness implies that Xt−τ ./ Xt | S and in particular Xt−τ ∈ / Pt (Xt ), as proven already
+                                                                                    i
+                                                                                          / X i ∈{X j }∪Ct (X j ) Pt− (Xti )
+                                                                                            S
+in Lemma S1 under the weaker Adjacency Faithfulness Condition. To show that Xt−τ         ∈
+                                                                                                 t     t       t
+
+we note that S ⊆ Bbt− (Xtj )\{Xt−τi
+                                      } does not include any contemporaneous conditions and, hence, all contem-
+poraneous directed paths from contemporaneous ancestors of Xtj are open and also paths from parents of those
+
+
+                                                             12
+                                                                                               A PREPRINT - J ULY 6, 2022
+
+
+                        i
+                                      S                 −   i
+ancestors are open. If Xt−τ ∈           Xti ∈Ct (Xtj ) Pt (Xt ), by the contraposition of standard Faithfulness we should
+observe Xt−τ  i
+                  ⊥
+                  
+                  ⊥Xtj | S.   Then the fact that on the contrary we observe Xt−τ    i
+                                                                                         ⊥⊥ Xtj | S implies that Xt−τ
+                                                                                                                   i
+                                                                                                                       ∈/
+S                 −   i
+  X i ∈Ct (X j ) Pt (Xt ).
+    t      t
+
+
+Ad 2) Now we have Xt−τi
+                            ∈ Bbt− (Xtj ) which implies that Xt−τi
+                                                                    ⊥Xtj | Bbt− (Xtj )\{Xt−τ
+                                                                    ⊥
+                                                                    
+                                                                                        i
+                                                                                             } in the last iteration
+                           −    j                   S                    −    i
+step of Alg. 1. By (1), Bt (Xt ) is a superset of X i ∈{X j }∪Ct (X j ) Pt (Xt ). Define the lagged extra condi-
+                          b
+                                                        t      t     t
+
+tions as Wt− = Bbt− (Xtj ) \ {                    −    i      i
+                                                                           Wt− is lagged, it is a non-descendant
+                               S
+                                  i    j      j P   (X   ), X    }.  Since
+                                                  t
+                                     Xt ∈{Xt }∪Ct (Xt )       t       t−τ
+of Xtj or Sany Xtk ∈ Ct (Xtj ). We now proceed by a proof by contradiction. Suppose to the contrary that
+  i
+Xt−τ   / X i ∈{X j }∪Ct (X j ) Pt− (Xti ). The Causal Markov Condition applies to both Xt−τ
+       ∈                                                                                      i
+                                                                                                  and Wt− and implies
+               t    t      t
+        i
+            , Wt− ) ⊥⊥ Xtj | X i ∈{X j }∪Ct (X j ) Pt− (Xti ). From the weak union property of conditional independence
+                              S
+that (Xt−τ
+                                  t     t       t
+          i
+                 ⊥ Xtj | X i ∈{X j }∪Ct (X j ) Pt− (Xti ), Wt− which is equivalent to Xt−τ
+                                                                                       i
+                                                                                           ⊥⊥ Xtj | Bbt− (Xtj ) \ {Xt−τ
+                                                                                                                    i
+                        S
+we get Xt−τ     ⊥                                                                                                       },
+                             t      t      t S
+                                        i                            −   i
+contrary to the assumption, hence Xt−τ ∈ X i ∈{X j }∪Ct (X j ) Pt (Xt ).
+                                                   t      t       t
+
+
+
+S2.2    Proof of Theorem 1
+
+Proof. The theorem states that under Assumptions 1 G c∗ = G ∗ , where the G ∗ denotes the skeleton of the time series
+graph. We denote the two types of skeleton links → and ◦−◦ here generically as ?−? and can assume τmax ≥ τ ≥
+                                         i
+0. We need to show that for arbitrary Xt−τ    , Xtj ∈ X−           i         j
+                                                        t+1 : (1) Xt−τ ?−?Xt ∈
+                                                                                  c∗ ⇒ Xt−τ
+                                                                                / G            i
+                                                                                                  ?−?Xtj ∈ / G ∗ and
+     i
+(2) Xt−τ ?−?Xtj ∈
+                / G ∗ ⇒ Xt−τi
+                                ?−?Xtj ∈
+                                       /Gc∗ .
+
+Ad (1): Algorithm 2 deletes a link Xt−τ i
+                                           ?−?Xtj from G          i
+                                                         c∗ iff Xt−τ   ⊥⊥ Xtj | S, Bbt− (Xtj )\{Xt−τ
+                                                                                                   i       −
+                                                                                                      }, Bbt−τ   i
+                                                                                                               (Xt−τ ) for
+                j                                   −   j                              j
+some S ⊆ Abt (Xt ) in the iterative CI tests with Bbt (Xt ) estimated in Alg. 1. Abt (Xt ) denotes the contemporaneous
+adjacencies. Then Adjacency Faithfulness directly implies that Xt−τ i
+                                                                       is not adjacent to Xtj : Xt−τ
+                                                                                                 i
+                                                                                                     ?−?Xtj ∈ / G∗.
+Ad (2): By Lemma 1 we know that Bbt− (Xtj ) is a superset of the lagged parents of Xtj . Denote the lagged, extra
+conditions occurring in the CI tests of Alg. 2 as Wt− = (Bbt− (Xtj ) \ {Xt−τ    i        −
+                                                                                   }, Bbt−τ     i
+                                                                                            (Xt−τ  )) \ P(Xtj ). Wt− does not
+                        j                                  i                           j
+contain parents of Xt and by the assumption also Xt−τ is not a parent of Xt . We further assume that for τ = 0
+Xti is also not a descendant of Xtj since that case is covered if we exchange Xti and Xtj . Then the Causal Markov
+Condition implies (Xt−τ  i
+                                      ⊥ Xtj | P(Xtj ). By the weak union property of conditional independence this leads
+                              , Wt− ) ⊥
+                 j         j
+      i
+to Xt−τ      ⊥                    −
+             ⊥ Xt | P(Xt ), Wt which is equivalent to Xt−τ    i
+                                                                  ⊥⊥ Xtj | P(Xtj ), Bbt− (Xtj ) \ {Xt−τ
+                                                                                                     i         −
+                                                                                                          }, Bbt−τ   i
+                                                                                                                   (Xt−τ ). Now
+                              i         j       −    j        i       −       i                         j
+Alg. 2 iteratively tests Xt−τ ⊥    ⊥ Xt | S, Bt (Xt ) \ {Xt−τ }, Bt−τ (Xt−τ ) for all S ⊆ At (Xt ). By the first part of
+                                               b                     b                            c
+this proof, the estimated contemporaneous adjacencies are always a superset of the true contemporaneous adjacencies,
+i.e., At (Xtj ) ⊆ Act (Xtj ), and by Lemma 1 Bbt− (Xtj ) is a superset of the lagged parents. Hence, at some iteration step
+               j
+S = Pt (Xt ) and Alg. 2 will find Xt−τ    i
+                                              ⊥ Xtj | P(Xtj ), Bbt− (Xtj ) \ {Xt−τ
+                                              ⊥                                 i        −
+                                                                                   }, Bbt−τ     i
+                                                                                            (Xt−τ  ) and remove Xt−τ  i
+                                                                                                                         ?−?Xtj
+from G  c∗ .
+
+For empty conditioning sets S (p = 0), Alg. 2 is equivalent to the MCI algorithm [Runge et al., 2019b] with the
+slight change that the latter is initialized with a fully connected (lagged) graph, which has no effect asymptotically. In
+[Runge et al., 2019b] the authors prove the consistency of PCMCI assuming no contemporaneous causal links under
+the standard Faithfulness Condition. The proof above implies that PCMCI is already consistent under the weaker
+Adjacency Faithfulness Condition.
+
+S2.3    Proof of Lemma 2
+
+Proof. Time order and stationarity can be used to constrain the four cases as follows. Let us first consider a generic
+triple Xtii ?−?Xtkk ?−?Xtjj . By stationarity we can fix t = tj . We only need to consider cases with ti , tk ≤ t. If tk > tj ,
+the triple is oriented already by time order and the case ti > tj is symmetric.
+The possible triples in the collider phase of the original PC algorithm are Xtii ?−?Xtkk ?−?Xtj where (Xtii , Xtj ) are not
+adjacent. For tk < t the time-order constraint automatically orients Xtkk → Xtj and hence Xtkk is a parent of Xtj and
+must always be in the separating set that makes Xtii and Xtj independent. Hence we only need to consider tk = t
+and can set τ = t − ti (τmax ≥ τ ≥ 0), leaving the two cases of unshielded triples Xt−τ    i
+                                                                                              → Xtk ◦−◦Xtj (for τ > 0)
+
+
+                                                              13
+                                                                                                A PREPRINT - J ULY 6, 2022
+
+
+or Xti ◦−◦Xtk ◦−◦Xtj (for τ = 0) in G where (Xt−τ
+                                               i
+                                                   , Xtj ) are not adjacent. Since Xtk is contemporaneous to Xtj , this
+restriction implies that only contemporaneous parts of separating sets are relevant for the collider orientation phase.
+                                                                                                     i
+For rule R1 in the orientation phase the original PC algorithm considers the remaining triples with Xt−τ → Xtk that
+                                                                         i        k      j
+were not oriented by the collider phase (or by time order). This leaves Xt−τ → Xt ◦−◦Xt where τmax ≥ τ ≥ 0.
+For rule R2 the original PC algorithm considers Xtii → Xtkk → Xtj with Xtii ◦−◦Xtj . The latter type of link leads to
+ti = t and time order restricts the triples to Xti → Xtk → Xtj with Xti ◦−◦Xtj .
+For rule R3 the original PC algorithm considers Xtii ◦−◦Xtkk → Xtj and Xtii ◦−◦Xtll → Xtj where (Xtkk , Xtll ) are not
+adjacent and Xtii ◦−◦Xtj . The latter constraint leads to ti = t and Xtii ◦−◦Xtkk and Xtii ◦−◦Xtkl imply tk = tl = t.
+Hence we only need to check triples Xti ◦−◦Xtk → Xtj and Xti ◦−◦Xtl → Xtj where (Xtk , Xtl ) are not adjacent and
+Xti ◦−◦Xtj .
+
+S2.4   Proof of Theorem 2
+
+Proof. We first consider the case under Assumptions 1 with Adjacency Faithfulness and PCMCI+ in conjunction
+with the conservative collider orientation rule in Alg. S2. We need to show that all separating sets estimated in
+Alg. S2 during the conservative orientation rule are correct. From the soundness (Theorem 1) and correctness of the
+separating sets follows the correctness of the collider orientation phase and the rule orientation phase which implies
+the completeness.
+By Lemma 2 we only need to prove that in Alg. S2 for unshielded triples Xt−τ         i
+                                                                                          → Xtk ◦−◦Xtj (for τ > 0) or
+Xt ◦−◦Xt ◦−◦Xt (for τ = 0) the separating sets among subsets of contemporaneous neighbors of Xtj and, if τ = 0, of
+   i       k       j
+
+                                       i
+Xti , are correct. Algorithm S2 tests Xt−τ ⊥ Xtj | S, Bbt− (Xtj )\{Xt−τ
+                                           ⊥                        i        −
+                                                                        }, Bbt−τ   i
+                                                                                 (Xt−τ ) for all S⊆Abt (Xtj )\{Xt−τ
+                                                                                                                i
+                                                                                                                    } and
+                    i     j                          +
+for all S⊆At (Xt )\{Xt } (if τ = 0). Since PCMCI is sound, all adjacency information is correct and since all CI
+             b
+tests are assumed correct, all information on separating sets is correct. Furthermore, with the conservative rule those
+triples where only Adjacency Faithfulness, but not standard Faithfulness, holds will be correctly marked as ambiguous
+triples.
+Under standard Faithfulness the completeness requires to prove that PCMCI+ without the conservative orientation
+rule yields correct separating set information. By Lemma 2 also here we need to consider only separating sets among
+subsets of contemporaneous neighbors of Xtj . Algorithm 2 tests Xt−τ  i
+                                                                           ⊥⊥ Xtj | S, Bbt− (Xtj )\{Xt−τ
+                                                                                                     i        −
+                                                                                                         }, Bbt−τ   i
+                                                                                                                  (Xt−τ )
+                 j      i                               +
+for all S⊆At (Xt )\{Xt−τ }. And again, since PCMCI is sound, all adjacency information is correct and since all
+            b
+CI tests are assumed correct, all information on separating sets is correct, from which the completeness for this case
+follows.
+
+S2.5   Proof of Theorem 3
+
+Proof. Order-independence follows straightforwardly from sticking to the PC algorithm version in
+[Colombo and Maathuis, 2014]. In particular, Alg. 1 and Alg. 2 are order-independent since they are based on
+PC stable where adjacencies are removed only after each loop over conditions of cardinality p. Furthermore,
+the collider phase (Alg. S2) and rule orientation phase (Alg. S3) are order-independent by marking triples with
+inconsistent separating sets as ambiguous and consistently marking conflicting link orientations by x−x.
+
+S2.6   Proof of Theorem 4
+
+Proof. The theorem states that under Assumptions 1 the effect size for the PCMCI+ oracle case CI tests in Alg. 2 for
+p = 0 for contemporaneous true links Xti → Xtj ∈ G is greater than that of PCMCI+                    i    j b−    j   b− i
+                                                                                             0 : I(Xt ; Xt |Bt (Xt ), Bt (Xt )) >
+min(I(Xti ; Xtj |Bbt− (Xtj )), I(Xti ; Xtj |Bbt− (Xti ))) if both Xti and Xtj have parents that are not shared with the other. We
+will use an information-theoretic framework here and consider the conditional mutual information.
+To prove this statement, we denote by Bi = Bbt− (Xti ) \ Bbt− (Xtj ) the lagged conditions of Xti that are not already
+contained in those of Xtj and, correspondingly, Bj = Bbt− (Xtj ) \ Bbt− (Xti ). Since both Xti and Xtj have parents that
+are not shared with the other and we assume the oracle case, both these sets are non-empty. Further, we denote the
+common lagged conditions as Bij = Bbt− (Xtj ) ∩ Bbt− (Xti ) and make use of the following conditional independencies,
+which hold by the Markov assumption: (1) Bi ⊥⊥ Xtj |Bj , Bij , Xti and (2) Bj ⊥⊥ Xti |Bi , Bij . We first prove that, given
+a contemporaneous true link Xti → Xtj ∈ G, I(Xti ; Xtj |Bij , Bj ) > I(Xti ; Xtj |Bij , Bi ) by using the following two
+
+
+                                                               14
+                                                                                                    A PREPRINT - J ULY 6, 2022
+
+
+ways to apply the chain rule of conditional mutual information:
+                                     I(Xti , Bi ; Xtj , Bj |Bij ) =
+                                      = I(Xti , Bi ; Bj |Bij ) + I(Xti , Bi ; Xtj |Bij Bj )
+                                      = I(Bi ; Bj |Bij ) + I(Xti ; Bj |Bij , Bi )
+                                                           |        {z         }
+                                                                  =0 (Markov)
+
+                                        + I(Xti ; Xtj |Bij , Bj ) + I(Bi ; Xtj |Bij , Bj , Xti )                              (S1)
+                                                                       |           {z           }
+                                                                               =0 (Markov)
+
+and
+                                     I(Xti , Bi ; Xtj , Bj |Bij ) =
+                                      = I(Bi ; Xtj , Bj |Bij ) + I(Xti ; Xtj , Bj |Bij Bi )
+                                      = I(Bi ; Bj |Bij ) + I(Bi ; Xtj |Bij , Bj )
+                                                           |       {z          }
+                                                              >0 since Xti → Xtj
+
+                                        + I(Xti ; Xtj |Bij , Bi ) + I(Xti ; Bj |Bij , Bi , Xtj )                              (S2)
+                                                                    |           {z            }
+                                                                           >0 since Xti → Xtj
+
+where (S1) and (S2) denote two different applications of the chain rule. From this is follows that I(Xti ; Xtj |Bij , Bj ) >
+I(Xti ; Xtj |Bij , Bi ).
+Hence, it remains to prove that I(Xti ; Xtj |Bij , Bj , Bi ) > I(Xti ; Xtj |Bij , Bi ), which we also do by the chain rule:
+
+                                      I(Xti ; Xtj , Bj |Bij , Bi ) =
+                                       = I(Xti ; Xtj |Bij , Bi ) + I(Xti ; Bj |Bij , Bi , Xtj )                               (S3)
+                                                                   |           {z            }
+                                                                           >0 since Xti → Xtj
+
+                                       = I(Xti ; Bj |Bij , Bi ) +I(Xti ; Xtj |Bij , Bi , Bj )                                 (S4)
+                                          |        {z         }
+                                              =0 (Markov)
+
+
+
+
+S3    Further pseudo code
+
+Algorithms S2 and S3 detail the pseudo-code for the PCMCI+ / PCMCI+
+                                                                  0 / PC collider phase with different collider
+rules and the orientation phase.
+
+
+
+
+                                                                  15
+                                                                                                    A PREPRINT - J ULY 6, 2022
+
+
+
+
+Algorithm S2 (Detailed PCMCI+ / PCMCI+                 0 / PC collider phase with different collider rules)
+Require: G and sepset from Alg. 2, rule = {’none’, ’conservative’, ’majority’}, time series dataset X =
+    (X 1 , . . . , X N ), significance threshold αPC , CI(X, Y, Z), PCMCI+ / PCMCI+                b− j               j
+                                                                                               0 : Bt (Xt ) for all Xt in Xt
+                                                            j                               j
+                                       i             k                       i     k
+ 1: for all unshielded triples Xt−τ → Xt ◦−◦Xt (τ > 0) or Xt ◦−◦Xt ◦−◦Xt (τ = 0) in G where (Xt−τ                      i
+                                                                                                                           , Xtj ) are
+    not adjacent do
+ 2:      if rule = ’none’ then
+ 3:           if Xtk is not in sepset(Xt−τ i
+                                                , Xtj ) then
+ 4:                Orient Xt−τi
+                                  → Xtk ◦−◦Xtj (τ > 0) or Xt−τ       i
+                                                                        ◦−◦Xtk ◦−◦Xtj (τ = 0) as Xt−τ
+                                                                                                    i
+                                                                                                        → Xtk ← Xtj
+ 5:      else
+              PCMCI+ / PCMCI+                                                          b j               j          i    j
+ 6:                                   0 : Define contemporaneous adjacencies A(Xt ) = At (Xt ) = {Xt 6=Xt ∈ Xt :
+                                                                                                   b
+                j
+    Xti ◦−◦Xt in G}
+              PC: Define full adjacencies A(X    b tj ) for all (lagged and contemporaneous) links in G
+                                         j         i                      b ti )\{Xtj } (if τ = 0) do
+ 7:           for all for all S⊆A(Xt )\{Xt−τ
+                                   b                   } and for all S⊆A(X
+                                    i        j
+ 8:                Evaluate CI(Xt−τ      , Xt , Z) with
+ 9:                PCMCI : Z=(S, Bbt− (Xtj )\{Xt−τ
+                             +                            i        −
+                                                              }, Bbt−τ    i
+                                                                       (Xt−τ ))
+                            +              −      j       i
+                   PCMCI0 : Z=(S, Bbt (Xt )\{Xt−τ             })
+                   PC: Z=S
+10:                Store all subsets S with p-value > αPC as separating subsets
+11:           if no separating subsets are found then
+12:                Mark triple as ambiguous
+13:           else
+14:                Compute fraction nk of separating subsets that contain Xtk
+15:                if rule = ’conservative’ then
+16:                     Orient triple as collider if nk =0, leave unoriented if nk =1, and mark as ambiguous if 0<nk <1
+17:                else if rule = ’majority’ then
+18:                     Orient triple as collider if nk <0.5, leave unoriented if nk >0.5, and mark as ambiguous if nk =0.5
+19:                Mark links in G with conflicting orientations as x−x
+20: return G, sepset, ambiguous triples, conflicting links
+
+
+
+
+Algorithm S3 (Detailed PCMCI+ / PCMCI+       0 / PC rule orientation phase)
+Require: G, ambiguous triples, conflicting links
+ 1: while any unambiguous triples suitable for rules R1-R3 are remaining do
+ 2:     Apply rule R1 (orient unshielded triples that are not colliders):
+ 3:                                   i
+        for all unambiguous triples Xt−τ   → Xtk ◦−◦Xtj where (Xt−τ i
+                                                                        , Xtj ) are not adjacent do
+                         i       k       j
+ 4:         Orient as Xt−τ → Xt → Xt
+ 5:         Mark links with conflicting orientations as x−x
+ 6:     Apply rule R2 (avoid cycles):
+ 7:     for all unambiguous triples Xti → Xtk → Xtj with Xti ◦−◦Xtj do
+ 8:         Orient as Xti → Xtj
+ 9:         Mark links with conflicting orientations as x−x
+10:     Apply rule R3 (orient unshielded triples that are not colliders and avoid cycles):
+11:     for all pairs of unambiguous triples Xti ◦−◦Xtk → Xtj and Xti ◦−◦Xtl → Xtj where (Xtk , Xtl ) are not adjacent
+    and Xti ◦−◦Xtj do
+12:         Orient as Xti → Xtj
+13:         Mark links with conflicting orientations as x−x
+14: return G, conflicting links
+
+
+
+
+                                                                 16
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+S4     Implementation details
+In the linear and nonlinear numerical experiments PCMCI+ is compared with the PC algorithm, both implemented
+with the appropriate CI test (ParCorr for the linear case, GPDC for the nonlinear case). For the linear numerical exper-
+iments we additionally consider representatives from two further frameworks: GCresPC, a combination of GC with
+PC applied to residuals, and an autoregressive model version of LiNGAM [Hyvärinen et al., 2010], a representative of
+the SCM framework. Their implementations are as follows.
+
+S4.1   LiNGAM
+
+For LiNGAM the code was taken from https://github.com/cdt15/lingam which provides a class
+VARLiNGAM. The method was called follows:
+Input: data, tau_max
+
+model = lingam.VARLiNGAM(lags=tau_max, criterion=None, prune=True)
+model.fit(data)
+val_matrix = model.adjacency_matrices_.transpose(2,1,0)
+graph = (val_matrix != 0.).astype(’int’)
+
+Output: graph
+The causal graph graph encodes the causal relations in an array of shape (N, N, tau_max + 1). The option
+criterion=None just ignores the optional automatic selection of lags, which is here set to the same tau_max for
+all methods. I could not find a way to obtain p-values in the VARLiNGAM implementation, but with the parameter set-
+ting prune=True the resulting adjacency matrices are regularized with an adaptive LASSO approach using the BIC
+criterion to find the optimal regularization hyper-parameter (sklearn.LassoLarsIC(criterion=’bic’)).
+Non-zero adjacencies were then evaluated as causal links. Note that all other methods can be intercompared at different
+αPC levels while for comparison against LiNGAM we focus on its relative changes rather than absolute performance.
+
+S4.2   GCresPC
+
+There was no code available for the method proposed in [Moneta et al., 2011]. The present implementation first fits
+a VAR model up to τmax and applies the PC algorithm on the residuals. To remove spurious lagged links (due to
+contemporaneous paths), the PC algorithm was additionally run on significant lagged and contemporaneous links, but
+the orientation phase was restricted to contemporaneous links, as proposed in [Moneta et al., 2011]. The following
+Python pseudo-code utilizes functionality from the tigramite package, numpy, and statsmodels:
+Input: data, tau_max, alpha
+import functions/classes ParCorr, PCMCI, DataFrame from tigramite
+
+graph = np.zeros((N, N, tau_max + 1))
+
+# 1. Estimate lagged adjacencies (to be updated in step 3.)
+tsamodel = tsa.var.var_model.VAR(data)
+results = tsamodel.fit(maxlags=tau_max, trend=’nc’)
+pvalues = results.pvalues
+values = results.coefs
+residuals = results.resid
+
+lagged_parents = significant lagged links at alpha
+
+# 2. Run PC algorithm on residuals (with tau_max=0)
+pcmci = PCMCI(dataframe=DataFrame(residuals), cond_ind_test=ParCorr())
+pcmcires = pcmci.run_pcalg(pc_alpha=alpha,
+                           tau_min=0,
+                           tau_max=0)
+
+# Update contemporaneous graph
+graph[:,:,0] = pcmcires[’graph’][:,:,0]
+
+
+                                                          17
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+# 3. Run PC algorithm on significant lagged and contemporaneous adjacencies
+# to remove spurious lagged links due to contemporaneous parents
+
+selected_links = lagged_parents + significant contemporaneous adjacencies
+pcmci = PCMCI(dataframe=DataFrame(data), cond_ind_test=ParCorr())
+pcmcires = pcmci.run_pcalg(selected_links=selected_links,
+                           pc_alpha=alpha,
+                           tau_min=0,
+                           tau_max=tau_max)
+
+# Update lagged part of graph
+graph[:,:,1:] = pcmcires[’graph’][:,:,1:]
+
+Output: graph
+
+Note that the contemporaneous graph structure in graph comes only from applying the PC algorithm to the residuals
+and, hence, does not utilize triples containing lagged adjacencies. Step 3 is necessary to remove spurious lagged links
+due to contemporaneous parents. The output of GCresPC depends on αPC as for PCMCI+ and the PC algorithm.
+
+S5    Further numerical experiments
+Next to repeating the overview figure for the linear Gaussian model setup from the main text in Fig. S1, in Fig. S2
+we show the linear mixed noise setup, and in Fig. S3 the nonlinear mixed noise setup. The remaining pages contain
+results of further numerical experiments that evaluate different a, N, T, τmax and αPC for the linear model setups. All
+results and more will be contributed to the causality benchmark platform www.causeme.net [Runge et al., 2019a]
+to facilitate a further expanded method evaluation.
+
+
+
+
+                                                          18
+                                                                                                                                                                                                             A PREPRINT - J ULY 6, 2022
+
+
+
+
+                                                                                                             d = 1.5: N = 5, T = 500                                                                                                          d = 1.5: T = 500, a = 0.95
+A              GCresPC                 LiNGAM              PC           PCMCI +                          ParCorr, α = 0.01, τmax = 5
+                                                                                                                                           B               GCresPC                LiNGAM            PC       PCMCI +                          ParCorr, α = 0.01, τmax = 5
+
+                    Adj. TPR                          Contemp. orient. recall                                  Runtime [s]                                     Adj. TPR                        Contemp. orient. recall                             Runtime [s]
+100%                                          100%                                                                                         100%                                        100%
+                                                      41+25/1                                       0.22+0.28/1                                                                                75-2/1                                    0.06+0.52/1
+                                                      43-14/1                                       0.24+1.31/1                                                                                45-7/1                            2000    0.15+5.75/1
+                                                                                               6
+80%                                           80%     39+0/1                                        0.18-0.00/1                                80%                                     80%     46-3/1                                    0.04+0.31/1
+                                                      14-1/1                                        0.09+0.12/1                                                                                0+2/1                             1500    0.02+0.07/1
+60%                                           60%                                              4                                               60%                                     60%
+                                                                                                                                                                                                                                 1000
+40%                                           40%                                                                                              40%                                     40%
+        78-11/1                                                                                                                                      82-6/1
+                                                                                               2
+        79-33/1                                                                                                                                      60-9/1                                                                       500
+20%     81-7/1                                20%                                                                                              20%   85-4/1                            20%
+        77-11/1                                                                                                                                      80-5/1
+                                                                                               0                                                                                                                                    0
+ 0%                                            0%                                                                                              0%                                       0%
+
+
+                    Adj. FPR                         Contemp. orient. precision                                 Conflicts                                      Adj. FPR                       Contemp. orient. precision                            Conflicts
+100%                                          100%                                          100%                                           100%                                        100%                                      100%
+        0.4-0.1/1                                     51+32/1                                                                                        0.3+0.1/1                                 89-1/1
+        0.4+0.8/1                                     55+19/1                                              Lagged              Auto.                 3.0+0.0/1                                 91-5/1                                          Lagged             Auto.
+        1.2+3.3/1                             80%     43+13/1                               80%
+                                                                                                           Contemp.                                  5.7+0.4/1                         80%     65-1/1                            80%
+                                                                                                                                                                                                                                               Contemp.
+        0.3+0.4/1                                     18-1/1                                                                                         1.7+0.0/1                                 0+3/1
+10%                                                                                                                                            10%
+                                              60%                                           60%                                                                                        60%                                       60%
+
+                                              40%                                           40%                                                                                        40%                                       40%
+
+ 1%                                           20%                                           20%                                                1%                                      20%                                       20%
+
+ 0%                                            0%                                            0%                                                0%                                       0%                                        0%
+       0.0   0.4    0.6   0.9    0.98 0.999          0.0   0.4    0.6   0.9    0.98 0.999          0.0   0.4    0.6   0.9    0.98 0.999               2    3   5   10   20   30   40            2    3   5   10   20   30   40            2    3    5   10   20   30   40
+
+                                                       Autocorrelation a                                                                                                                   Number of variables N
+                                                                                                            d = 1.5: N = 5, a = 0.95                                                                                                   d = 1.5: N = 5, T = 500, a = 0.95
+C              GCresPC                 LiNGAM              PC           PCMCI +                          ParCorr, α = 0.01, τmax = 5
+                                                                                                                                           D               GCresPC                LiNGAM            PC       PCMCI +                                    ParCorr, α = 0.01
+
+                    Adj. TPR                          Contemp. orient. recall                                  Runtime [s]                                     Adj. TPR                        Contemp. orient. recall                             Runtime [s]
+100%                                          100%                                             8                                           100%                                        100%
+                                                      47+5/100                                      0.41+0.03/100                                                                              70-1/10                             80    0.52+0.69/10
+                                                      7+1/100                                       1.05+0.24/100                                                                              14+0/10                                   1.87+5.88/10
+80%                                           80%     22+2/100                                 6
+                                                                                                    0.14+0.01/100                              80%                                     80%     32-1/10                             60
+                                                                                                                                                                                                                                         0.18+0.21/10
+                                                      8+1/100                                       0.09+0.01/100                                                                              13+0/10                                   0.14+0.12/10
+60%                                           60%                                                                                              60%                                     60%
+                                                                                               4                                                                                                                                   40
+40%                                           40%                                                                                              40%                                     40%
+        43+4/100                                                                                                                                     60-1/10
+        17+2/100                                                                               2                                                     24-5/10                                                                       20
+20%     46+4/100                              20%                                                                                              20%   63-2/10                           20%
+        41+4/100                                                                                                                                     59-4/10
+                                                                                               0                                                                                                                                    0
+ 0%                                            0%                                                                                              0%                                       0%
+
+
+                    Adj. FPR                         Contemp. orient. precision                                 Conflicts                                      Adj. FPR                       Contemp. orient. precision                            Conflicts
+100%                                          100%                                          100%                                           100%                                        100%                                      100%
+        0.3+0.0/100                                   76+2/100                                                                                       0.3-0.1/10                                87+0/10
+        1.7+0.0/100                                   63+2/100                                             Lagged              Auto.                 2.0-1.0/10                                73+1/10                                         Lagged             Auto.
+        3.1+0.3/100                           80%     60+0/100                              80%
+                                                                                                           Contemp.                                  3.9-1.9/10                        80%     59+0/10                           80%
+                                                                                                                                                                                                                                               Contemp.
+        0.9+0.1/100                                   13+1/100                                                                                       1.2-0.6/10                                17+0/10
+10%                                                                                                                                            10%
+                                              60%                                           60%                                                                                        60%                                       60%
+
+                                              40%                                           40%                                                                                        40%                                       40%
+
+ 1%                                           20%                                           20%                                                1%                                      20%                                       20%
+
+ 0%                                            0%                                            0%                                                0%                                       0%                                        0%
+       200         500          1000                 200         500          1000                 200         500          1000                     5    10 15 20 25 30 35 40                  5   10 15 20 25 30 35 40                  5   10 15 20 25 30 35 40
+
+                                                           Sample size T                                                                                                                            Time lag τmax
+
+
+Figure S1: Numerical experiments with linear Gaussian setup for varying (A) autocorrelation strength a (B) number
+of variables N (C) sample size T and (D) maximum time lag τmax . All remaining setup parameters indicated in the
+top right. Errorbars show std. errors or the 90% range (for runtime). The insets show ANOVA statistics.
+
+
+
+
+                                                                                                                                          19
+                                                                                                                                                                                                             A PREPRINT - J ULY 6, 2022
+
+
+
+
+                                                                                                          −d = 1.5: N = 5, T = 500                                                                                                     −d = 1.5: T = 500, a = 0.95
+A              GCresPC                 LiNGAM              PC           PCMCI +                          ParCorr, α = 0.01, τmax = 5
+                                                                                                                                           B               GCresPC                LiNGAM            PC       PCMCI +                      ParCorr, α = 0.01, τmax = 5
+
+                    Adj. TPR                          Contemp. orient. recall                                  Runtime [s]                                     Adj. TPR                        Contemp. orient. recall                            Runtime [s]
+100%                                          100%                                                                                         100%                                        100%                                      2500
+                                                      39+30/1                                  6    0.22+0.29/1                                                                                72-1/1                                   0.06+0.53/1
+                                                      42-12/1                                       0.25+1.26/1                                                                                42-7/1                                   0.16+6.09/1
+80%                                           80%     63-8/1                                   5    0.17+0.00/1                                80%                                     80%     65-3/1                            2000   0.04+0.32/1
+                                                      13+0/1                                        0.08+0.12/1                                                                                0+2/1                                    0.03+0.06/1
+                                                                                               4                                                                                                                                 1500
+60%                                           60%                                                                                              60%                                     60%
+                                                                                               3
+40%                                           40%                                                                                              40%                                     40%                                       1000
+        80-13/1                                                                                2                                                     79-5/1
+        80-36/1                                                                                                                                      56-8/1                                                                       500
+20%     82-9/1                                20%                                              1                                               20%   83-4/1                            20%
+        79-15/1                                                                                                                                      76-5/1
+                                                                                               0                                                                                                                                    0
+ 0%                                            0%                                                                                              0%                                       0%
+
+
+                    Adj. FPR                         Contemp. orient. precision                                 Conflicts                                      Adj. FPR                       Contemp. orient. precision                           Conflicts
+100%                                          100%                                          100%                                           100%                                        100%                                      100%
+        0.4-0.1/1                                     49+36/1                                                                                        0.3+0.1/1                                 90-1/1
+        0.4+0.8/1                                     53+22/1                                              Lagged              Auto.                 3.1-0.0/1                                 90-5/1                                         Lagged             Auto.
+        1.0+2.5/1                             80%     74+3/1                                80%
+                                                                                                           Contemp.                                  4.4+0.4/1                         80%     88-1/1                            80%
+                                                                                                                                                                                                                                              Contemp.
+        0.3+0.5/1                                     16+0/1                                                                                         1.7+0.0/1                                 0+3/1
+10%                                                                                                                                            10%
+                                              60%                                           60%                                                                                        60%                                       60%
+
+                                              40%                                           40%                                                                                        40%                                       40%
+
+ 1%                                           20%                                           20%                                                1%                                      20%                                       20%
+
+ 0%                                            0%                                            0%                                                0%                                       0%                                        0%
+       0.0   0.4    0.6   0.9    0.98 0.999          0.0   0.4    0.6   0.9    0.98 0.999          0.0   0.4    0.6   0.9    0.98 0.999               2    3   5   10   20   30   40            2    3   5   10   20   30   40           2    3    5   10   20   30   40
+
+                                                       Autocorrelation a                                                                                                                   Number of variables N
+                                                                                                         −d = 1.5: N = 5, a = 0.95                                                                                              −d = 1.5: N = 5, T = 500, a = 0.95
+C              GCresPC                 LiNGAM              PC           PCMCI +                          ParCorr, α = 0.01, τmax = 5
+                                                                                                                                           D               GCresPC                LiNGAM            PC       PCMCI +                                ParCorr, α = 0.01
+
+                    Adj. TPR                          Contemp. orient. recall                                  Runtime [s]                                     Adj. TPR                        Contemp. orient. recall                            Runtime [s]
+100%                                          100%                                                                                         100%                                        100%
+                                                      50+5/100                                      0.41+0.04/100                                                                              69+0/10                                  0.53+0.68/10
+                                                      7+2/100                                       1.08+0.22/100                                                                              15+0/10                                  1.80+5.59/10
+                                                                                                                                                                                                                                   60
+80%                                           80%     31+4/100                                 6    0.14+0.02/100                              80%                                     80%     48-3/10                                  0.18+0.19/10
+                                                      7+1/100                                       0.09+0.02/100                                                                              13+0/10                                  0.14+0.13/10
+60%                                           60%                                                                                              60%                                     60%                                         40
+                                                                                               4
+40%                                           40%                                                                                              40%                                     40%
+        42+4/100                                                                                                                                     60-1/10
+        16+2/100                                                                               2                                                     24-5/10                                                                       20
+20%     47+4/100                              20%                                                                                              20%   66-3/10                           20%
+        41+4/100                                                                                                                                     59-3/10
+                                                                                               0                                                                                                                                    0
+ 0%                                            0%                                                                                              0%                                       0%
+
+
+                    Adj. FPR                         Contemp. orient. precision                                 Conflicts                                      Adj. FPR                       Contemp. orient. precision                           Conflicts
+100%                                          100%                                          100%                                           100%                                        100%                                      100%
+        0.4+0.0/100                                   78+1/100                                                                                       0.4-0.2/10                                86+0/10
+        1.7+0.0/100                                   68+2/100                                             Lagged              Auto.                 1.9-0.9/10                                77-2/10                                        Lagged             Auto.
+        2.8+0.1/100                           80%     74+1/100                              80%
+                                                                                                           Contemp.                                  3.1-1.5/10                        80%     80+0/10                           80%
+                                                                                                                                                                                                                                              Contemp.
+        0.9+0.1/100                                   12+1/100                                                                                       1.1-0.5/10                                16+0/10
+10%                                                                                                                                            10%
+                                              60%                                           60%                                                                                        60%                                       60%
+
+                                              40%                                           40%                                                                                        40%                                       40%
+
+ 1%                                           20%                                           20%                                                1%                                      20%                                       20%
+
+ 0%                                            0%                                            0%                                                0%                                       0%                                        0%
+       200         500          1000                 200         500          1000                 200         500          1000                     5    10 15 20 25 30 35 40                  5   10 15 20 25 30 35 40                5    10 15 20 25 30 35 40
+
+                                                           Sample size T                                                                                                                            Time lag τmax
+
+
+Figure S2: Numerical experiments with linear mixed noise setup for varying (A) autocorrelation strength a (B)
+number of variables N (C) sample size T and (D) maximum time lag τmax . All remaining setup parameters indicated
+in the top right. Errorbars show std. errors or the 90% range (for runtime). The insets show ANOVA statistics.
+
+
+
+
+                                                                                                                                          20
+                                                                                                                                                                                                                A PREPRINT - J ULY 6, 2022
+
+
+
+
+                                                                                                        −2 d = 1.5: N = 5, T = 200                                                                                                       −2 d = 1.5: T = 200, a = 0.95
+A              PC              PCMCI +                                                                   GPDC, α = 0.01, τmax = 5
+                                                                                                                                          B               PC            PCMCI +                                                               GPDC, α = 0.01, τmax = 5
+                   Adj. TPR                           Contemp. orient. recall                                 Runtime [s]                                     Adj. TPR                         Contemp. orient. recall                           Runtime [s]
+100%                                          100%                                                                                        100%                                         100%                                         4000
+                                                      17+15/1                               500    6.54+29.60/1                                                                                33+0/1                                      6.26+16.66/1
+80%                                           80%     20-8/1                                400    6.16+79.29/1                               80%                                      80%     16-4/1                               3000   10.96+50.31/1
+
+60%                                           60%                                           300                                               60%                                      60%
+                                                                                                                                                                                                                                    2000
+40%                                           40%                                           200                                               40%                                      40%
+        55-12/1                                                                                                                                     59-7/1
+                                                                                                                                                                                                                                    1000
+                                                                                            100
+20%     58-29/1                               20%                                                                                             20%   32-6/1                             20%
+
+                                                                                              0                                                                                                                                        0
+ 0%                                            0%                                                                                             0%                                        0%
+
+
+                   Adj. FPR                          Contemp. orient. precision                                Conflicts                                      Adj. FPR                        Contemp. orient. precision                             Conflicts
+100%                                          100%                                         100%                                           100%                                         100%                                         100%
+        0.3+0.3/1                                     28+30/1                                                                                       0.4+0.3/1                                  49+4/1
+                                                                                                          Lagged             Auto.                                                                                                               Lagged                 Auto.
+        0.2+1.2/1                             80%     40+9/1                               80%
+                                                                                                          Contemp.                                  1.5+0.4/1                          80%     75-10/1                              80%
+                                                                                                                                                                                                                                                 Contemp.
+10%                                                                                                                                           10%
+                                              60%                                          60%                                                                                         60%                                          60%
+
+                                              40%                                          40%                                                                                         40%                                          40%
+
+ 1%                                           20%                                          20%                                                1%                                       20%                                          20%
+
+ 0%                                            0%                                           0%                                                0%                                        0%                                           0%
+       0.0   0.4   0.6    0.9    0.98 0.999          0.0   0.4   0.6    0.9   0.98 0.999          0.0   0.4    0.6    0.9   0.98 0.999               2    3        5        10    20             2     3        5        10    20           2    3        5        10    20
+
+                                                       Autocorrelation a                                                                                                                  Number of variables N
+                                                                                                        −2 d = 1.5: N = 5, a = 0.95                                                                                               −2 d = 1.5: N = 5, T = 200, a = 0.95
+C              PC              PCMCI +                                                                    GPDC, α = 0.01, τmax = 5
+                                                                                                                                          D               PC            PCMCI +                                                                           GPDC, α = 0.01
+                   Adj. TPR                           Contemp. orient. recall                                 Runtime [s]                                     Adj. TPR                         Contemp. orient. recall                           Runtime [s]
+100%                                          100%                                                                                        100%                                         100%
+                                                      31+6/100                             5000    47.42+127.23/100                                                                            31-1/10                                     47.42-0.22/10
+                                                                                                                                                                                                                                     600
+80%                                           80%     3+0/100                              4000    135.96+509.98/100                          80%                                      80%     3+0/10                                      135.96+57.60/10
+                                                                                                                                                                                                                                     500
+
+60%                                           60%                                          3000                                               60%                                      60%                                           400
+
+                                                                                                                                                                                                                                     300
+40%                                           40%                                          2000                                               40%                                      40%
+        34+6/100                                                                                                                                    34-2/10
+                                                                                                                                                                                                                                     200
+20%     10+1/100                              20%                                          1000                                               20%   10-5/10                            20%
+                                                                                                                                                                                                                                     100
+                                                                                              0                                                                                                                                        0
+ 0%                                            0%                                                                                             0%                                        0%
+
+
+                   Adj. FPR                          Contemp. orient. precision                                Conflicts                                      Adj. FPR                        Contemp. orient. precision                             Conflicts
+100%                                          100%                                         100%                                           100%                                         100%                                         100%
+        0.6-0.0/100                                   59+3/100                                                                                      0.6-0.3/10                                 59+0/10
+                                                                                                          Lagged             Auto.                                                                                                               Lagged                 Auto.
+        1.5-0.0/100                           80%     50+4/100                             80%
+                                                                                                          Contemp.                                  1.5-0.9/10                         80%     50+3/10                              80%
+                                                                                                                                                                                                                                                 Contemp.
+10%                                                                                                                                           10%
+                                              60%                                          60%                                                                                         60%                                          60%
+
+                                              40%                                          40%                                                                                         40%                                          40%
+
+ 1%                                           20%                                          20%                                                1%                                       20%                                          20%
+
+ 0%                                            0%                                           0%                                                0%                                        0%                                           0%
+       200               500                         200               500                        200                500                              5       10       15        20              5         10       15        20             5       10       15        20
+
+                                                           Sample size T                                                                                                                             Time lag τmax
+
+
+Figure S3: Numerical experiments with nonlinear mixed noise setup for varying (A) autocorrelation strength a (B)
+number of variables N (C) sample size T and (D) maximum time lag τmax . All remaining setup parameters indicated
+in the top right. Errorbars show std. errors or the 90% range (for runtime). The insets show ANOVA statistics.
+
+
+
+
+                                                                                                                                         21
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S4: Numerical experiments with linear Gaussian setup for varying autocorrelation a and T = 200 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for N = 2, 3, 5, 10
+(top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        22
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S5: Numerical experiments with linear Gaussian setup for varying autocorrelation a and T = 500 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for N = 2, 3, 5, 10
+(top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        23
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S6: Numerical experiments with linear Gaussian setup for varying autocorrelation a and T = 1000 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for N = 2, 3, 5, 10
+(top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        24
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S7: Numerical experiments with linear Gaussian setup for varying number of variables N and T = 200 . The
+left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        25
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S8: Numerical experiments with linear Gaussian setup for varying number of variables N and T = 500 . The
+left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        26
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S9: Numerical experiments with linear Gaussian setup for varying number of variables N and T = 1000 . The
+left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        27
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S10: Numerical experiments with linear Gaussian setup for varying sample size T for N = 5 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        28
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S11: Numerical experiments with linear Gaussian setup for varying sample size T for N = 10 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        29
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S12: Numerical experiments with linear Gaussian setup for varying sample size T for N = 20 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        30
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S13: Numerical experiments with linear Gaussian setup for varying maximum time lag τmax and T = 200 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          31
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S14: Numerical experiments with linear Gaussian setup for varying maximum time lag τmax and T = 500 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          32
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S15: Numerical experiments with linear Gaussian setup for varying maximum time lag τmax and T = 1000 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          33
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S16: Numerical experiments with linear mixed noise setup for varying autocorrelation a and T = 200 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for N = 2, 3, 5, 10
+(top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        34
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S17: Numerical experiments with linear mixed noise setup for varying autocorrelation a and T = 500 . The left
+(right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for N = 2, 3, 5, 10
+(top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        35
+                                                                                   A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S18: Numerical experiments with linear mixed noise setup for varying autocorrelation a and T = 1000
+. The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for
+N = 2, 3, 5, 10 (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                      36
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S19: Numerical experiments with linear mixed noise setup for varying number of variables N and T = 200 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          37
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S20: Numerical experiments with linear mixed noise setup for varying number of variables N and T = 500 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          38
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S21: Numerical experiments with linear mixed noise setup for varying number of variables N and T = 1000 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          39
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S22: Numerical experiments with linear mixed noise setup for varying sample size T for N = 5 . The
+left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        40
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S23: Numerical experiments with linear mixed noise setup for varying sample size T for N = 10 . The
+left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        41
+                                                                                      A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S24: Numerical experiments with linear mixed noise setup for varying sample size T for N = 20 . The
+left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                        42
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S25: Numerical experiments with linear mixed noise setup for varying maximum time lag τmax and T = 200 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          43
+                                                                                         A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S26: Numerical experiments with linear mixed noise setup for varying maximum time lag τmax and T = 500 .
+The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for increasing
+autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of each panel.
+
+
+
+                                                          44
+                                                                                     A PREPRINT - J ULY 6, 2022
+
+
+
+
+Figure S27: Numerical experiments with linear mixed noise setup for varying maximum time lag τmax and T = 1000
+. The left (right) column shows results for significance level α = 0.01 (α = 0.05). The rows depict results for
+increasing autocorrelations a (top to bottom). All model and method parameters are indicated in the upper right of
+each panel.
+
+
+                                                       45
+

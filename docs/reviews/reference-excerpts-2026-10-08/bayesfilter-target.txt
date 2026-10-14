@@ -1,0 +1,235 @@
+\chapter{DPF HMC Target Correctness and Structural-Model Suitability}
+\label{ch:bf-dpf-hmc-target-suitability}
+
+The preceding particle, transport, and learned-surrogate chapters built a ladder
+of increasingly differentiable filtering constructions: raw particle-flow
+proposals, proposal-corrected PF-PF, soft differentiable resampling,
+deterministic OT equal-weighting, entropic optimal-transport relaxation with
+Sinkhorn, custom-gradient LEDH-PFPF-OT differentiation for the declared finite
+value path, retained-teacher learned transport acceleration, and broader
+learned-map or dynamic-transport surrogates.
+This chapter asks a narrower and more severe
+question.  If one of those constructions is used inside Hamiltonian Monte Carlo
+for a nonlinear DSGE or MacroFinance model, what target is the Markov chain
+intended to leave invariant?
+
+The answer cannot be inferred from the label ``differentiable particle
+filter.''  HMC is a target-specific algorithm.  Its mathematical interpretation
+depends on the scalar log target used for accept/reject decisions, the gradient
+used by the numerical integrator, and the correction mechanism, if any
+\citep{neal2011mcmc,betancourt2017conceptual}.  Particle MCMC adds a separate
+target logic: an unbiased, nonnegative likelihood estimator can define a
+corrected extended-space chain under pseudo-marginal assumptions, but that is
+not the same object as a smooth surrogate likelihood differentiated by HMC
+\citep{andrieu2009pseudo,andrieu2010particle}.  The DPF ladder must therefore
+separate three questions:
+\begin{enumerate}[label=(\roman*)]
+  \item whether the scalar value supplied to HMC is the intended posterior
+    value, an unbiased estimator inside a corrected construction, or a
+    deliberately approximate value;
+  \item whether the gradient supplied to the integrator is the derivative of
+    that same scalar value;
+  \item whether the evidence is strong enough for exploratory, research, or
+    broader external claims.
+\end{enumerate}
+
+\section{Objects in the HMC target contract}
+\label{sec:bf-dpf-hmc-contract}
+
+Let $\theta\in\Theta$ be the structural parameter and let
+$u\in\mathbb{R}^{d_\theta}$ be the unconstrained parameter used by the sampler,
+with transform $\theta=T(u)$.  Let
+\[
+  \ell(u)
+  =
+  \log p(T(u))+\log L(y_{1:T}\mid T(u))+\log\left|\det DT(u)\right|
+\]
+denote the scalar log target in unconstrained coordinates when the filtering
+likelihood is exact.  This expression assumes that the transform is
+differentiable on the sampler-valid region and that $DT(u)$ is the square
+Jacobian relevant to the change of variables, or the appropriate constrained-
+to-unconstrained volume term if the parameterization is more general.  In a DPF
+construction the likelihood term may be replaced by a particle, relaxed, or
+learned object.  The HMC contract is therefore stated for the actual scalar
+value $\ell_\star(u)$ used by the sampler, not for the method family name.
+
+\begin{longtable}{@{}p{0.18\textwidth} p{0.38\textwidth} p{0.36\textwidth}@{}}
+\caption{Objects that must be named before a DPF construction can be called an
+HMC target.}
+\label{tab:bf-dpf-hmc-object-inventory}\\
+\toprule
+Object & Mathematical role & Reviewer audit question \\
+\midrule
+\endfirsthead
+\toprule
+Object & Mathematical role & Reviewer audit question \\
+\midrule
+\endhead
+Parameter $u$ and transform $T$ &
+Coordinates integrated by HMC and the map back to structural parameters. &
+Are support constraints, Jacobian terms, and invalid parameter regions included
+in the scalar target? \\
+Scalar log target $\ell_\star(u)$ &
+The value whose density $\pi_\star(u)\propto\exp\{\ell_\star(u)\}$ is claimed
+as the invariant target. &
+Is $\ell_\star$ exact, pseudo-marginal extended-space, relaxed, or learned? \\
+Potential $U_\star(u)$ &
+$U_\star(u)=-\ell_\star(u)$, up to an irrelevant additive constant. &
+Is the sign convention consistent between value, gradient, and accept/reject? \\
+Momentum $p$ and mass $M$ &
+Auxiliary Gaussian momentum $p\sim\mathcal{N}(0,M)$ used to define Hamiltonian
+dynamics. &
+Is $M$ fixed or adapted under a declared warmup policy, and is it positive
+definite? \\
+Hamiltonian $H_\star(u,p)$ &
+$H_\star(u,p)=U_\star(u)+\frac{1}{2}p^\top M^{-1}p$ in ordinary separable HMC. &
+Does the accept/reject step evaluate this same $H_\star$? \\
+Integrator $\Phi_{\epsilon,L}$ &
+Numerical map used to propose $(u',p')$ after $L$ steps of size $\epsilon$. &
+Is the proposal reversible and volume preserving for the stated correction, or
+is a different Metropolis ratio supplied? \\
+Gradient $g(u)$ &
+Vector supplied to the integrator in place of $\nabla_u\ell_\star(u)$. &
+Is $g(u)=\nabla_u\ell_\star(u)$ for the same scalar value, or is the mismatch
+explicitly corrected and diagnosed? \\
+Accept/reject value &
+Scalar value used in the Metropolis correction. &
+Does the correction use the intended target, the relaxed target, or a learned
+surrogate? \\
+Target-status category &
+Label attached to the resulting chain. &
+Does the label distinguish exact, pseudo-marginal, relaxed, learned, and
+diagnostic-only use? \\
+\bottomrule
+\end{longtable}
+
+Assume that $\ell_\star:\mathbb{R}^{d_\theta}\to\mathbb{R}$ is differentiable
+on the interior of the sampler's valid region, and that
+$g:\mathbb{R}^{d_\theta}\to\mathbb{R}^{d_\theta}$ is the vector field supplied
+to the integrator in the same coordinates.  The mass matrix $M$ in the ordinary
+separable Hamiltonian is a symmetric positive-definite
+$d_\theta\times d_\theta$ matrix, so $p^\top M^{-1}p$ is well defined.  The
+minimum value-gradient consistency condition is
+\begin{equation}
+\label{eq:bf-dpf-hmc-contract}
+  g(u) = \nabla_u \ell_\star(u).
+\end{equation}
+Equation~\eqref{eq:bf-dpf-hmc-contract} is not a claim that
+$\ell_\star$ is the exact nonlinear filtering likelihood.  It is a claim that
+the gradient used by the integrator and the value used by the target
+interpretation are the same mathematical object.
+
+If the value is $\ell_\star$ but the integrator uses a vector field
+$g\ne\nabla\ell_\star$, the usual leapfrog derivation no longer describes the
+Hamiltonian flow of $H_\star$.  A Metropolis correction may still be valid for
+an arbitrary proposal only after reversibility, volume preservation, and the
+correct acceptance ratio have been established.  Without that separate
+proposal-level proof, a smooth chain with mismatched value and gradient is not
+evidence of correct HMC.  If both value and gradient are changed to a relaxed
+or learned scalar, then the chain may be internally coherent, but the target has
+changed to $\pi_\star$.
+
+\section{Target-status taxonomy}
+\label{sec:bf-dpf-hmc-taxonomy}
+
+The DPF chapters use the following target-status categories.  The categories
+are deliberately conservative because a reviewer should be able to tell exactly
+what posterior, extended posterior, or surrogate posterior is being discussed.
+
+\begin{description}[leftmargin=0.18\textwidth, style=nextline]
+  \item[Exact-likelihood HMC]
+  HMC evaluates a deterministic scalar log posterior and its exact or audited
+  derivative.  Numerical integration error is corrected by the standard
+  Metropolis step, provided the implemented proposal satisfies the usual
+  HMC reversibility and volume-preservation assumptions.
+
+  \item[Pseudo-marginal MCMC]
+  A random nonnegative likelihood estimator is included as part of an
+  extended-space target.  The claim is not that the estimator is a smooth
+  likelihood surrogate.  The claim is that marginal correctness follows from
+  the pseudo-marginal construction under its assumptions
+  \citep{andrieu2009pseudo,andrieu2010particle}.
+
+  \item[Noisy-gradient method]
+  A stochastic or approximate gradient is used to move the chain.  This is not
+  exact HMC unless a valid correction theory is stated.  It may be useful as an
+  optimization, adaptation, or diagnostic device, but that usefulness does not
+  by itself identify the invariant posterior.
+
+  \item[Delayed-acceptance or surrogate-corrected MCMC]
+  A surrogate or particle object proposes, screens, or accelerates moves, but a
+  later correction evaluates the intended target.  The target claim belongs to
+  the corrected chain, not to the surrogate alone.
+
+  \item[Relaxed-target HMC]
+  The scalar log target deliberately replaces a discontinuous or discrete
+  filtering operation by a smooth relaxed operation, such as soft resampling or
+  entropic OT.  HMC can be coherent for this scalar if
+  Equation~\eqref{eq:bf-dpf-hmc-contract} holds, but the posterior is the
+  relaxed posterior.
+
+  \item[Learned-surrogate HMC]
+  A neural or amortized map defines part of the scalar value.  The chain targets
+  the learned scalar only if value and gradient are consistent.  It targets the
+  original or teacher posterior only after a separate correction or error-bound
+  argument strong enough for that claim.
+\end{description}
+
+\section{Rung-by-rung target analysis}
+\label{sec:bf-dpf-hmc-rung-analysis}
+
+\subsection{EDH and LEDH flow proposals}
+
+At the raw EDH or LEDH rung, the value object is a flow-based approximate
+filtering quantity.  The flow is derived from Gaussian closure or local
+linearization assumptions and is integrated numerically.  If HMC differentiates
+the same scalar flow object that it evaluates, then the construction can satisfy
+value-gradient consistency for that scalar.  Its target status is nevertheless
+limited:
+\begin{itemize}
+  \item exact-target HMC only in recovery cases where the flow construction
+    equals the exact filtering likelihood, such as the linear-Gaussian
+    benchmark;
+  \item approximate-target or value-side benchmark HMC outside those recovery
+    cases;
+  \item diagnostic-only use if the implementation differentiates a path that
+    differs from the scalar value used for accept/reject.
+\end{itemize}
+Smoothness of the flow ODE, by itself, does not upgrade a closure-based
+filtering approximation into an exact nonlinear posterior target.
+
+\subsection{PF-PF proposal correction}
+
+At the PF-PF rung, the flow is used as a proposal and the scalar value includes
+the proposal-to-target correction through importance weights and
+change-of-variables terms.  This is the first rung in the BayesFilter DPF ladder
+with an explicit proposal-correction interpretation.  That statement is not a
+production or validation claim.  It means only that the value-side target story
+is more defensible than raw flow transport because the proposal density,
+Jacobian or log determinant, and particle weight enter the same scalar object.
+The improvement is proposal-accounting clarity for the stated one-step
+conditional construction in Chapter~\ref{ch:bf-dpf-pfpf}; it is not evidence, by
+itself, of multi-step posterior fidelity, finite-particle stability, or HMC
+correctness.
+
+For HMC, the required scalar is the corrected particle objective actually used
+by the sampler.  The required gradient is the derivative of that same corrected
+objective, including every differentiable term in the proposal density,
+transition density, measurement density, flow map, and log determinant.  The
+remaining evidence burden is substantial:
+\begin{itemize}
+  \item finite-particle variability must be measured rather than hidden by a
+    deterministic seed;
+  \item log-determinant and Jacobian paths must be audited against the same
+    value path;
+  \item flow discretization error must be separated from Monte Carlo error;
+  \item compiled repeated evaluation must remain finite and reproducible on the
+    structural model class being claimed;
+  \item if randomness enters the HMC target, the construction must state
+    whether it is pseudo-marginal extended-space MCMC, a fixed-randomness
+    deterministic approximation, or a noisy-gradient diagnostic.
+\end{itemize}
+Thus PF-PF is a plausible first research rung for DPF-HMC experiments, not a
+full HMC-validity theorem and not by itself a stronger external claim.
+
+\subsection{Soft differentiable resampling}

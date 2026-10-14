@@ -1,0 +1,426 @@
+/****************************************************************************
+ *   This file is part of the aGrUM/pyAgrum library.                        *
+ *                                                                          *
+ *   Copyright (c) 2005-2026 by                                             *
+ *       - Pierre-Henri WUILLEMIN(_at_LIP6)                                 *
+ *       - Christophe GONZALES(_at_AMU)                                     *
+ *                                                                          *
+ *   The aGrUM/pyAgrum library is free software; you can redistribute it    *
+ *   and/or modify it under the terms of either :                           *
+ *                                                                          *
+ *    - the GNU Lesser General Public License as published by               *
+ *      the Free Software Foundation, either version 3 of the License,      *
+ *      or (at your option) any later version,                              *
+ *    - the MIT license (MIT),                                              *
+ *    - or both in dual license, as here.                                   *
+ *                                                                          *
+ *   (see https://agrum.gitlab.io/articles/dual-licenses-lgplv3mit.html)    *
+ *                                                                          *
+ *   This aGrUM/pyAgrum library is distributed in the hope that it will be  *
+ *   useful, but WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,          *
+ *   INCLUDING BUT NOT LIMITED TO THE WARRANTIES MERCHANTABILITY or FITNESS *
+ *   FOR A PARTICULAR PURPOSE  AND NONINFRINGEMENT. IN NO EVENT SHALL THE   *
+ *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,        *
+ *   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR  *
+ *   OTHER DEALINGS IN THE SOFTWARE.                                        *
+ *                                                                          *
+ *   See LICENCES for more details.                                         *
+ *                                                                          *
+ *   SPDX-FileCopyrightText: Copyright 2005-2026                            *
+ *       - Pierre-Henri WUILLEMIN(_at_LIP6)                                 *
+ *       - Christophe GONZALES(_at_AMU)                                     *
+ *   SPDX-License-Identifier: LGPL-3.0-or-later OR MIT                      *
+ *                                                                          *
+ *   Contact  : info_at_agrum_dot_org                                       *
+ *   homepage : http://agrum.gitlab.io                                      *
+ *   gitlab   : https://gitlab.com/agrumery/agrum                           *
+ *                                                                          *
+ ****************************************************************************/
+
+
+#pragma once
+
+#include <algorithm>
+
+#include <agrum/CM/causalImpact.h>
+
+namespace gum {
+  // ---------- helpers ----------
+
+  inline std::string _formatVarsForSentence_(const Set< std::string >& vars) {
+    std::vector< std::string > names;
+    for (const auto& v: vars) {
+      names.push_back(v);
+    }
+    std::ranges::sort(names);
+
+    if (names.empty()) { return ""; }
+    if (names.size() == 1) { return names[0]; }
+    if (names.size() == 2) { return names[0] + " and " + names[1]; }
+
+    std::string os;
+    for (size_t i = 0; i < names.size(); ++i) {
+      if (i > 0) { os += (i + 1 == names.size() ? ", and " : ", "); }
+      os += names[i];
+    }
+    return os;
+  }
+
+  inline std::string _dsepExplanation_(const Set< std::string >& on,
+                                       const Set< std::string >& doing,
+                                       const Set< std::string >& knowing) {
+    std::string os = std::format("No causal effect of {} on {} because they are d-separated "
+                                 "after removing incoming edges into {}",
+                                 _formatVarsForSentence_(doing),
+                                 _formatVarsForSentence_(on),
+                                 _formatVarsForSentence_(doing));
+    if (!knowing.empty()) {
+      os += std::format(" and conditioning on {}", _formatVarsForSentence_(knowing));
+    }
+    os += ".";
+    return os;
+  }
+
+  inline DAG _removeIncomingIntoLocal_(const DAG& g, const NodeSet& xset) {
+    DAG out(g);
+    for (const auto x: xset) {
+      const auto parents = out.parents(x);
+      for (const auto p: parents)
+        out.eraseArc(Arc(p, x));
+    }
+    return out;
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::string _formatNodeSetNames_(const CausalModel< GUM_SCALAR >& cm, const NodeSet& zset) {
+    std::vector< std::string > names;
+    for (auto id: zset) {
+      names.push_back(cm.nameFromId(id));
+    }
+    std::ranges::sort(names);
+    std::string out = "[";
+    for (size_t i = 0; i < names.size(); ++i) {
+      if (i > 0) out += ", ";
+      out += "'" + names[i] + "'";
+    }
+    out += "]";
+    return out;
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  typename gum::Set< std::string >
+      CausalImpact< GUM_SCALAR >::_idsToNames_(const CausalModel< GUM_SCALAR >& cm,
+                                               const NodeSet&                   ids) {
+    Set< std::string > out;
+    for (auto id: ids)
+      out.insert(cm.nameFromId(id));
+    return out;
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  typename gum::NodeSet
+      CausalImpact< GUM_SCALAR >::_namesToIds_(const CausalModel< GUM_SCALAR >& cm,
+                                               const Set< std::string >&        names) {
+    NodeSet out;
+    for (const auto& n: names)
+      out.insert(cm.idFromName(n));
+    return out;
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  bool CausalImpact< GUM_SCALAR >::_disjoint_(const Set< std::string >& a,
+                                              const Set< std::string >& b,
+                                              const Set< std::string >& c) {
+    if (std::any_of(a.begin(), a.end(), [&b, &c](const auto& x) {
+          return b.contains(x) || c.contains(x);
+        })) {
+      return false;
+    }
+    if (std::any_of(b.begin(), b.end(), [&c](const auto& x) { return c.contains(x); })) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // ---------- ctors (initializer-list builds) ----------
+
+
+  template < GUM_Numeric GUM_SCALAR >
+  CausalImpact< GUM_SCALAR >::CausalImpact(const CausalModel< GUM_SCALAR >& cm,
+                                           const Set< std::string >&        on,
+                                           const Set< std::string >&        doing,
+                                           const Set< std::string >&        knowing,
+                                           bool                             directDoCalculus) :
+      _directDoCalculus_{directDoCalculus},
+      _resultFormula_(_buildFromNames_(cm, on, doing, knowing, directDoCalculus)) {}
+
+  template < GUM_Numeric GUM_SCALAR >
+  CausalImpact< GUM_SCALAR >::CausalImpact(const CausalModel< GUM_SCALAR >& cm,
+                                           const NodeSet&                   on,
+                                           const NodeSet&                   doing,
+                                           const NodeSet&                   knowing,
+                                           bool                             directDoCalculus) :
+      _directDoCalculus_{directDoCalculus},
+      _resultFormula_(_buildFromIds_(cm, on, doing, knowing, directDoCalculus)) {}
+
+  // ---------- builders ----------
+
+  template < GUM_Numeric GUM_SCALAR >
+  CausalFormula< GUM_SCALAR >
+      CausalImpact< GUM_SCALAR >::_buildFromNames_(const CausalModel< GUM_SCALAR >& cm,
+                                                   const Set< std::string >&        on,
+                                                   const Set< std::string >&        doing,
+                                                   const Set< std::string >&        knowing,
+                                                   bool directDoCalculus) {
+    if (!_disjoint_(on, doing, knowing)) {
+      GUM_ERROR(InvalidArgument,
+                "The 3 parts of the query (on, doing, knowing) must be pairwise disjoint.");
+    }
+
+    const NodeSet i_on      = _namesToIds_(cm, on);
+    const NodeSet i_doing   = _namesToIds_(cm, doing);
+    const NodeSet i_knowing = _namesToIds_(cm, knowing);
+
+    NodeSet cond = i_knowing;
+
+    if (!directDoCalculus) {
+      // single-X, single-Y, empty-K: try BACKDOOR then FRONTDOOR
+      if (doing.size() == 1 && on.size() == 1 && knowing.empty()) {
+        const auto& Xname = *doing.begin();
+        const auto& Yname = *on.begin();
+        const auto  Xid   = cm.idFromName(Xname);
+        const auto  Yid   = cm.idFromName(Yname);
+
+        // --- Backdoor (Z may be empty; validate in G_{\underline X}) ---
+        {
+          auto optZ = cm.backDoor(Xid, Yid);   // nullopt = no set found
+          if (optZ.has_value()
+              && Separation::isBackdoorSeparated(cm.causalDAG(),
+                                                 NodeSet{Xid},
+                                                 NodeSet{Yid},
+                                                 *optZ)) {
+            NodeSet                  Z = *optZ;
+            DoCalculus< GUM_SCALAR > dc(cm);
+            auto                     ast = dc.getBackDoorTree(Xid, Yid, Z);
+            return CausalFormula< GUM_SCALAR >(cm,
+                                               std::move(ast),
+                                               on,
+                                               doing,
+                                               knowing,
+                                               std::string("backdoor ")
+                                                   + _formatNodeSetNames_(cm, Z) + " found.");
+          }
+        }
+
+        // --- Frontdoor (no trivial FD; require non-empty mediator set) ---
+        {
+          auto optZ = cm.frontDoor(Xid, Yid);
+          if (optZ.has_value() && !optZ->empty()) {
+            NodeSet                  Z = *optZ;
+            DoCalculus< GUM_SCALAR > dc(cm);
+            auto                     ast = dc.getFrontDoorTree(Xid, Yid, Z);
+            return CausalFormula< GUM_SCALAR >(cm,
+                                               std::move(ast),
+                                               on,
+                                               doing,
+                                               knowing,
+                                               std::string("frontdoor ")
+                                                   + _formatNodeSetNames_(cm, Z) + " found.");
+          }
+        }
+      }
+
+      // fallback: no causal effect in G_bar(X)
+      const DAG gXbar = _removeIncomingIntoLocal_(cm.causalDAG(), i_doing);
+      if (Separation::isDSeparated(gXbar, i_doing, i_on, cond)) {
+        // P(Y | K) in the observational BN
+        auto ast = std::make_unique< ASTposteriorProba< GUM_SCALAR > >(
+            cm.causalDAG(),
+            cm.id2name(/*includeLatentVariables=*/false),
+            on,
+            knowing);
+        return CausalFormula< GUM_SCALAR >(cm,
+                                           std::move(ast),
+                                           on,
+                                           doing,
+                                           knowing,
+                                           _dsepExplanation_(on, doing, knowing));
+      }
+    }
+
+    // general do-calculus (when available in your DoCalculus)
+    try {
+      DoCalculus< GUM_SCALAR >                 dc(cm);
+      std::unique_ptr< ASTtree< GUM_SCALAR > > ast
+          = knowing.empty()
+              ? dc.doCalculus(i_on, i_doing)                              // NodeSet overload
+              : dc.doCalculusWithObservation(i_on, i_doing, i_knowing);   // NodeSet overload
+
+      return CausalFormula< GUM_SCALAR >(cm,
+                                         std::move(ast),
+                                         on,
+                                         doing,
+                                         knowing,
+                                         "Identified via do-calculus (ID/IDC).");
+    } catch (const NotImplementedYet&) {
+      // Not identifiable with current methods: return a “null-AST” formula with a message.
+      return CausalFormula< GUM_SCALAR >(
+          cm,
+          std::unique_ptr< ASTtree< GUM_SCALAR > >{},
+          on,
+          doing,
+          knowing,
+          "Effect not identifiable with available methods (do-calculus not yet implemented).");
+    } catch (const HedgeException& e) {
+      return CausalFormula< GUM_SCALAR >(cm,
+                                         std::unique_ptr< ASTtree< GUM_SCALAR > >{},
+                                         on,
+                                         doing,
+                                         knowing,
+                                         std::string("Effect not identifiable: ") + e.what());
+    }
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  CausalFormula< GUM_SCALAR >
+      CausalImpact< GUM_SCALAR >::_buildFromIds_(const CausalModel< GUM_SCALAR >& cm,
+                                                 const NodeSet&                   on,
+                                                 const NodeSet&                   doing,
+                                                 const NodeSet&                   knowing,
+                                                 bool directDoCalculus) {
+    // Reuse the names path to share logic/explanations
+    const auto onN      = _idsToNames_(cm, on);
+    const auto doingN   = _idsToNames_(cm, doing);
+    const auto knowingN = _idsToNames_(cm, knowing);
+    return _buildFromNames_(cm, onN, doingN, knowingN, directDoCalculus);
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  Instantiation makeInstantiationFromValues(const Tensor< GUM_SCALAR >&                  tensor,
+                                            const HashTable< std::string, std::string >& values) {
+    Instantiation I;   // start empty (partial instantiation)
+
+    for (const auto& [k, v]: values) {
+      try {
+        const auto&    var = tensor.variable(k);   // skip if not in tensor
+        const gum::Idx idx = var.index(v);         // skip if label unknown
+        I.add(var);                                // add this dim only
+        I.chgVal(var, idx);                        // fix its value
+      } catch (const gum::NotFound&) {
+        // variable or label not found: ignore (non-strict)
+        continue;
+      } catch (...) {
+        // any other issue: ignore
+        continue;
+      }
+    }
+    return I;
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::tuple< CausalImpact< GUM_SCALAR >, Tensor< GUM_SCALAR >, std::string >
+      causalImpact(const CausalModel< GUM_SCALAR >&             cm,
+                   const Set< std::string >&                    on,
+                   const Set< std::string >&                    doing,
+                   const Set< std::string >&                    knowing,
+                   const HashTable< std::string, std::string >& values) {
+    // Delegate to the dedicated class.
+    CausalImpact< GUM_SCALAR > ci(cm, on, doing, knowing);
+
+    // Numeric value: empty tensor if not identifiable
+    Tensor< GUM_SCALAR > numeric;
+    if (ci.isIdentified()) { numeric = ci.eval(); }
+
+    // If specific values were provided, strictly slice the tensor to those values
+    if (!values.empty() && numeric.nbrDim() > 0) {
+      const auto I
+          = makeInstantiationFromValues(numeric, values);   // throws if any key/label is invalid
+      numeric = numeric.extract(I);   // keep only remaining free dimensions (if any)
+    }
+
+    // Always return the explanation the class computed
+    // Capture before moving ci: explanation() returns a const ref into ci internals
+    std::string expl = ci.explanation();
+    return std::make_tuple(std::move(ci), std::move(numeric), std::move(expl));
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  Tensor< GUM_SCALAR > CausalImpact< GUM_SCALAR >::eval() const {
+    return _resultFormula_.eval();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::string CausalImpact< GUM_SCALAR >::toString() const {
+    return _resultFormula_.toString();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::string CausalImpact< GUM_SCALAR >::toLatex(std::string_view doOperatorPrefix,
+                                                  std::string_view doOperatorSuffix) const {
+    return _resultFormula_.toLatex(doOperatorPrefix, doOperatorSuffix);
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::string CausalImpact< GUM_SCALAR >::latexQuery(std::string_view doOperatorPrefix,
+                                                     std::string_view doOperatorSuffix) const {
+    return _resultFormula_.latexQuery(doOperatorPrefix, doOperatorSuffix);
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  bool CausalImpact< GUM_SCALAR >::isIdentified() const noexcept {
+    return _resultFormula_.isIdentified();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const ASTtree< GUM_SCALAR >& CausalImpact< GUM_SCALAR >::root() const {
+    return _resultFormula_.root();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const CausalFormula< GUM_SCALAR >& CausalImpact< GUM_SCALAR >::getResult() const {
+    return _resultFormula_;
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const CausalModel< GUM_SCALAR >& CausalImpact< GUM_SCALAR >::cm() const {
+    return _resultFormula_.cm();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const NodeSet& CausalImpact< GUM_SCALAR >::on() const {
+    return _resultFormula_.on();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const NodeSet& CausalImpact< GUM_SCALAR >::doing() const {
+    return _resultFormula_.doing();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const NodeSet& CausalImpact< GUM_SCALAR >::knowing() const {
+    return _resultFormula_.knowing();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  const std::string& CausalImpact< GUM_SCALAR >::explanation() const {
+    return _resultFormula_.explanation();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::vector< std::string > CausalImpact< GUM_SCALAR >::onNames() const {
+    return _resultFormula_.onNames();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::vector< std::string > CausalImpact< GUM_SCALAR >::doingNames() const {
+    return _resultFormula_.doingNames();
+  }
+
+  template < GUM_Numeric GUM_SCALAR >
+  std::vector< std::string > CausalImpact< GUM_SCALAR >::knowingNames() const {
+    return _resultFormula_.knowingNames();
+  }
+
+}   // namespace gum

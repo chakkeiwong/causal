@@ -1,0 +1,211 @@
+# A Java discovery boundary that retains the question
+\label{exec13:java-adapter}
+
+The Java comparison motivates a concrete first integration: a pinned Tetrad
+process for a restricted PC discovery request, with a separate admission path
+for FGES. The initial request concerns complete continuous observations under
+an explicitly assumed IID linear Gaussian model with causal sufficiency,
+acyclicity, faithfulness and no unmodeled selection. These restrictions identify
+a reviewable prototype. They do not imply that a table of banking observations
+satisfies them. Clustered customers, repeated account histories, missing-data
+correction, latent-variable discovery and background-knowledge constraints
+require other profiles. The adapter is a proposal contract; no Java engine
+or new transport endpoint has been implemented here.
+\citep{exec13_java_adapter_contract,exec13_java_tetrad}
+
+The request retains the downstream target even though discovery does not
+compute it. A funding analyst's population, treatment contrast, outcome,
+time horizon, units and sampling declarations remain attached to the graph.
+They prevent a later identification step from silently changing the question.
+The generic operation contract already provides these fields for effect
+operations. The Java discovery profile deliberately requires that context as
+well. A standalone graph request without a downstream treatment and outcome
+needs its own reviewed context extension; inserting arbitrary variable names
+would create a fictitious causal question.
+\citep{exec13_java_adapter_contract}
+
+The logical interface is the same across the proposed library invocation,
+\texttt{causalbank operation graph.discover} command and
+\texttt{causal\_graph\_discover} MCP tool. Each transports a versioned
+canonical request and receives the same typed result. A complete scientific
+context digest accompanies a broader request digest containing input hashes,
+engine revision, algorithm settings, adapter version and resource limits.
+An interface that changes USD into thousands of USD, reverses the treatment
+contrast, changes the sampling law or orients an ambiguous edge has changed
+the scientific request, even if its JSON remains valid. The reference
+serialization examples demonstrate those identity changes on local objects;
+they are not executions of a server or MCP client.
+\citep{exec13_java_adapter_contract,exec13_java_adapter_oracles}
+
+## The graph object preserves a class of possible interventions
+
+Use opaque variable identifiers and a bijection into engine symbols. Store the
+original column order and its permutation separately from the engine's order.
+Every variable, including an isolated node, travels through the conversion.
+Human-readable labels, availability times and units remain metadata with
+their own scientific meaning; names do not supply an orientation rule.
+For every pair, retain its two endpoint marks. When the serialization orders
+the pair lexically, it swaps the marks with the nodes. Thus
+\(R\to B\), expressed as a tail at \(R\) and an arrowhead
+at \(B\), agrees with the reversed pair representation having an arrowhead
+at \(B\) and a tail at \(R\). Reversing only the node order changes the graph.
+\citep{exec13_java_tetrad,exec13_java_adapter_oracles}
+
+A Gaussian example illustrates why an unoriented link must survive this
+boundary. Consider three standardized variables \(X,Y,Z\) with covariance
+\[
+ \Sigma=\begin{pmatrix}
+ 1&4/5&2/5\\
+ 4/5&1&1/2\\
+ 2/5&1/2&1
+ \end{pmatrix}.
+\]
+For a banking interpretation, \(X\) can denote a rate concession, \(Y\) a
+balance response and \(Z\) a funding outcome, all in stipulated standardized
+units. The covariance obeys \(X\perp Z\mid Y\). The undirected path
+\(X-Y-Z\) represents three acyclic orientations without an unshielded
+collider. The orientation \(X\to Y\leftarrow Z\) is excluded because it
+would require a different independence pattern under faithfulness.
+\citep{exec13_java_adapter_oracles}
+
+For each retained orientation, regress a variable on its proposed parents
+using the same \(\Sigma\), and assign the residual variance as its independent
+Gaussian noise variance. In matrix notation, if \(W_{ij}\) is the coefficient
+from source \(i\) to target \(j\), then
+\[
+ \Sigma=(I-W^{\mathsf T})^{-1}\Omega(I-W)^{-1},
+\]
+where \(\Omega\) is the diagonal noise covariance. The exact reference
+calculation verifies this equality for all three models. In the forward chain,
+the coefficients are \(4/5\) and \(1/2\); intervening on \(X\) changes
+\(Z\) by \(2/5\) per unit. In the fork and the reverse chain, \(X\) has no
+directed path to \(Z\), so the effect is zero. The same observational covariance
+therefore supports the effect multiset \(\{2/5,0,0\}\).
+\citep{exec13_java_adapter_oracles}
+
+Returning the forward chain alone would select the positive effect by an
+unrecorded convention. Returning the interval \([0,2/5]\) would introduce
+values such as \(1/5\) that none of these three specified linear Gaussian
+models produces. That interval is a hull, not the discrete effect set, and
+neither object is a confidence set without a separate statistical construction.
+The discovery response consequently retains the CPDAG and returns no effect
+estimate, effect region or uncertainty level. A later identification operation
+must state how it handles the whole class and the additional functional
+assumptions.
+\citep{exec13_java_adapter_contract,exec13_java_adapter_oracles}
+
+Checking endpoint syntax is insufficient to award the CPDAG label. A graph
+can contain only tails and arrows and still fail to represent a completed
+Markov equivalence class. The existing reference validator does not recognize
+all such cases. The proposed Java boundary therefore requires an independently
+reviewed graph-class check before publishing a completed CPDAG. A circle,
+bidirected conflict or invalid completion in the initial route is an
+invalid-engine-output failure, with the raw graph retained for diagnosis.
+It is not silently coerced into a DAG. Background knowledge is initially
+excluded because orienting an observational CPDAG using additional restrictions
+requires an appropriate constrained-graph representation and provenance.
+\citep{exec13_java_adapter_contract}
+
+## Admission must cover the failure path as well as the constructor
+
+The proposed PC profile sets the conditioning depth to the inspected
+unbounded value, enables the stable skeleton option, selects the separating-set
+collider rule, disallows bidirected conflicts, and prevents directed cycles.
+It supplies empty background knowledge and a caller-declared test level.
+These choices make the attempted operation explicit. A user-requested depth
+cap is initially unsupported; exhausting a runtime budget returns an incomplete
+job, not a graph advertised as the result of the completed search.
+\citep{exec13_java_adapter_contract,exec13_java_adapter_source}
+
+The numerical test profile is equally specific: complete data, no shrinkage,
+zero ridge and no pseudoinverse fallback, with all settings frozen before
+search. The inspected Fisher-Z source exposes these alternatives separately.
+Automatically activating regularization after a singularity would change the
+test while keeping the same apparent method name. That may be useful in a
+different profile, but it needs a separate calibration argument. The initial
+profile requires at least \(n\geq p+2\) complete observations for \(p\)
+variables so that even the largest possible conditioning set has positive
+Fisher-Z degrees of freedom. This is only an arithmetic prerequisite; it
+does not guarantee useful power or stable covariance inversion.
+\citep{exec13_java_adapter_contract,exec13_java_adapter_source}
+
+As the Java comparison showed, the inspected
+\texttt{checkIndependence} path converts a singular-matrix exception into a
+dependence result with \(p=0\). The proposed wrapper instead uses the
+exception-preserving \texttt{getResult} path and derives a decision only from
+a valid result. Every invocation receives a query identity and a terminal
+record. Before propagating an exception, the wrapper sets a job-level failure
+flag. Publication then checks that every issued call has a valid terminal
+record and that the flag is clear. This matters because search code may catch
+interruptions internally: receiving a graph object alone does not prove that
+all its requested tests completed.
+\citep{exec13_java_tetrad,exec13_java_adapter_source,exec13_java_adapter_contract}
+
+That wrapper remains an implementation prerequisite. Its full independence-test
+interface, ancillary methods and interaction with the search implementation
+must be inspected and compiled; calling one method in a design document is
+not sufficient. Numerical rank checks before dispatch help detect duplicate
+accounting columns, but per-query records remain necessary for failures that
+arise during the search. A zero test probability cannot be reinterpreted as
+maximal causal confidence. If the required failure provenance cannot be
+obtained, the route is unavailable in this runtime.
+\citep{exec13_java_adapter_contract}
+
+Parallelism and deadlines also belong to admission. The stable FAS path uses
+a parallel stream and requires thread-safe records. FGES's separate worker
+setting does not control that path. The inspected PC search delegates the
+skeleton phase to FAS without demonstrating an end-to-end deadline guarantee
+from PC's timeout setting alone. The proposed parent process therefore enforces
+the whole-job deadline, memory and output budget. An engine's cooperative
+timeout is supplementary. A cancellation or a process death preserves the
+attempt's failure record and withholds its graph.
+\citep{exec13_java_adapter_source,exec13_java_adapter_contract}
+
+## Units, unsupported requests and the next executable comparison
+
+The signed funding model in the Java survey provides a useful independent
+conversion reference. If \(x'_i=d_i x_i\), the source-row coefficients must
+transform as \(W'_{ij}=d_jW_{ij}/d_i\). Rescaling the rate by 100, balances
+by 1000 and cost by 10, then applying the correspondingly rescaled rate
+intervention, must recover the original responses after converting units
+back. The exact reference does so. It also verifies that an unchanged absolute
+coefficient threshold can select a different graph after rescaling. This
+does not give coefficients to the PC adapter, whose result is graph-only;
+it supplies an admission example for any later weighted route.
+\citep{exec13_java_adapter_oracles,exec13_java_examples}
+
+A valid request outside the initial scientific scope receives a completed
+unsupported response with its context preserved and a specific alternative.
+Repeated account observations point toward a separately reviewed temporal or
+cluster profile; latent-variable assumptions point toward an appropriate
+PAG route; missing values require an explicit observation mechanism and
+correction profile. An uninstalled or unqualified runtime receives an
+unavailable response. Neither condition is called nonidentification, which
+would be a stronger scientific conclusion about an effect under a model.
+Malformed inputs and failed computations carry structured errors, with no
+effect or graph result masquerading as a completed calculation.
+\citep{exec13_java_adapter_contract}
+
+The first prototype should use a fixed local Java process so its dependency
+and runtime identity can be measured. The process boundary does not remove
+the inspected GPL conditions. The actual compiler target, runtime vendor and
+version, dependency artifacts, operating system and thread configuration must
+be locked for the chosen route; the source's compiler setting and bridge
+README cannot substitute for that environment check. Result publication is
+atomic after validation. A crashed search is restarted as a new retained
+attempt under the same immutable request, with no promise of resuming an
+internal search state. If completion wins a cancellation race, the immutable
+published result remains the observed outcome.
+\citep{exec13_java_tetrad,exec13_java_adapter_contract}
+
+The executable comparison begins with independent oracles: the three-model
+Gaussian class, a collider and an isolated node, the depth-three separator,
+signed matrices and unit changes, singular input, and injected failures.
+Only after these pass should a prospectively specified generated-sample study
+estimate graph error and resource use under the declared assumptions and
+their violations. It should retain every attempted request, including
+timeouts and refusals, and compare a matched baseline under the same budgets.
+These steps test whether the proposed boundary deserves a prototype claim.
+Expensive bank experiments become relevant when that bounded evidence exposes
+a decision-relevant uncertainty that public or generated data cannot settle.
+\label{exec13:java-adapter-end}

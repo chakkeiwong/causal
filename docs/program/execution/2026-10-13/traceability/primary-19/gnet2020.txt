@@ -1,0 +1,722 @@
+                                              G-Net: A Deep Learning Approach to G-computation for Counterfactual
+                                                     Outcome Prediction Under Dynamic Treatment Regimes
+
+
+
+
+                                                                 Rui Li∗1 , Zach Shahn∗2,3 , Jun Li1 , Mingyu Lu1 , Prithwish Chakraborty2,3 ,
+                                                                            Daby Sow2,3 , Mohamed Ghalwash2,3 , Li-wei Lehman1
+                                                                                    1
+                                                                                      Massachusetts Institute of Technology
+arXiv:2003.10551v1 [cs.LG] 23 Mar 2020
+
+
+
+
+                                                                                 2
+                                                                                   IBM Research, 3 MIT-IBM Watson AI Lab
+
+                                                                  Abstract                                and promote blood perfusion through organs in septic pa-
+                                                                                                          tients. However, such strategies can lead to fluid overload,
+                                              Counterfactual prediction is a fundamental task             which can have serious adverse downstream effects such as
+                                              in decision-making. G-computation is a method               pulmonary edema. Fluid administration strategies are time
+                                              for estimating expected counterfactual outcomes             varying and dynamic because at each time point physi-
+                                              under dynamic time-varying treatment strate-                cians decide the volume of fluid to administer based on
+                                              gies. Existing G-computation implementations                observed patient history (e.g. blood pressure and volume
+                                              have mostly employed classical regression mod-              of fluid already administered) up to that time point. To aid
+                                              els with limited capacity to capture complex tem-           in the choice between alternative dynamic fluid adminis-
+                                              poral and nonlinear dependence structures. This             tration strategies, it would be desirable to obtain counter-
+                                              paper introduces G-Net, a novel sequential deep             factual predictions of a patient’s probability of developing
+                                              learning framework for G-computation that can               fluid overload (and other outcomes of interest) were they to
+                                              handle complex time series data while impos-                follow each alternative strategy going forward given their
+                                              ing minimal modeling assumptions and provide                observed covariate history up to the current time.
+                                              estimates of individual or population-level time-           Counterfactual prediction is an inherently causal task in
+                                              varying treatment effects. We evaluate alterna-             that it must account for the causal effects of following dif-
+                                              tive G-Net implementations using realistically              ferent treatment strategies. When treatment strategies of in-
+                                              complex temporal simulated data obtained from               terest are time-varying, so-called “g-methods” [2, 3] are
+                                              CVSim, a mechanistic model of the cardiovascu-              required to estimate their effects. G-methods include g-
+                                              lar system.                                                 computation [4–6], structural nested models [7, 8], and
+                                                                                                          marginal structural models [9, 10]. Of these methods, g-
+                                                                                                          computation is best suited for estimating effects of general
+                                         1   Introduction                                                 dynamic treatment strategies conditional on high dimen-
+                                                                                                          sional patient histories [11].
+                                         Counterfactual prediction is a fundamental task in decision-
+                                                                                                          G-computation works by estimating the conditional dis-
+                                         making. It entails the estimation of expected future trajecto-
+                                                                                                          tribution of relevant covariates given covariate and treat-
+                                         ries of variables of interest under alternative courses of ac-
+                                                                                                          ment history at each time point, then producing Monte
+                                         tion (or treatment strategies) given observed history. Treat-
+                                                                                                          Carlo estimates of counterfactual outcomes by simulating
+                                         ment strategies of interest are usually time varying (mean-
+                                                                                                          forward patient trajectories under treatment strategies of
+                                         ing they comprise decisions at multiple time points) and dy-
+                                                                                                          interest. Regression model(s) for the covariates and out-
+                                         namic (meaning the treatment decision at each time point
+                                                                                                          comes at each time point conditional on observed history
+                                         is a function of history up to that time point).
+                                                                                                          are a critical component of this method. While any regres-
+                                         As an example, consider the problem of fluid administra-         sion models could in theory be input to the G-computation
+                                         tion in Intensive Care Units (ICUs) [1]. It is frequently        algorithm, most existing G-computation implementations
+                                         necessary for physicians to adopt strategies that admin-         have employed simple regression models with limited ca-
+                                         ister large volumes of fluids to increase blood pressure         pacity to capture complex temporal and nonlinear depen-
+                                                                                                          dence structures. In recent years, sequential deep learning
+                                                                                                          methods such as Recurrent Neural Networks (RNNs) have
+                                         * Co-first authors. Correspondence to: Li-wei Lehman             achieved state of the art performance in predictive model-
+                                         (lilehman@mit.edu), Zach Shahn (zach.shahn@ibm.com).
+                                                                                                          ing of complex time series data while imposing minimal
+                                         Copyright c 2020 by the authors.
+modeling assumptions. In this paper, we propose G-Net, a         given patient history under the (dynamic) treatment strat-
+sequential deep learning framework for G-computation. G-         egy “each hour for the next 3 hours, if blood pressure
+Net admits the use of recurrent networks such as LSTMs to        is less than 65 then give 1 liter fluids, otherwise give 0
+model covariates in a manner suitable for G-computation.         liters”. History adjusted MSMs cannot estimate effects of
+The G-Net framework is flexible and allows for various           time-varying treatment strategies that respond to changes
+configurations depending on the problem at hand. To the          in the patient’s health history, but g-computation can. Fur-
+best of our knowledge, this is the first work to investigate a   ther, g-computation is able to straightforwardly estimate
+RNN based approach to G-computation.                             the distribution of a counterfactual outcome under a time-
+                                                                 varying treatment strategy. This is not straightforward to do
+Unfortunately, it is impossible to reliably evaluate coun-
+                                                                 with history adjusted MSMs.
+terfactual predictions on real data, since only the outcomes
+corresponding to treatment strategies that were actually fol-    Schulam and Saria [22] propose Counterfactual Gaus-
+lowed can be observed. Consequently, to explore and eval-        sian Processes, an implementation of continuous time g-
+uate various implementations of G-Net, we used simulated         computation, and like us apply their method to ICU data.
+data in which counterfactual ground truth can be known.          They only consider static time-varying treatment strate-
+We used CVSim [12], a well established mechanistic model         gies, though it appears that their method might straightfor-
+of the cardiovascular system, to estimate counterfactual         wardly be extended to handle dynamic strategies as well.
+simulated patient trajectories under various fluid and vaso-     An advantage of Gaussian processes is interpretable un-
+pressor administration strategies. These experiments pro-        certainty quantification. However, GPs are intractable for
+vide a template for causal model evaluation using complex        large datasets since they have time complexity of O(N 3 ),
+and physiologically realistic simulated longitudinal data.       where N is the number of observations [23]. Sparse GPs,
+                                                                 which introduce M inducing points, have at least O(M 2 N )
+2   Related Work                                                 [23] time complexity. RNNs are more scalable. Recurrent
+                                                                 dropout can also be employed in RNN based implemen-
+Several recent works have proposed a deep learning frame-        tations to produce uncertainty estimates that approximate
+work for counterfactual prediction from observational data,      posterior distributions from a Gaussian process [24].
+including [13–15]. However, these works have mostly fo-
+cused on learning point exposure as opposed to time-             3     G-computation for counterfactual
+varying treatment effects, which are the focus of this paper.          prediction
+G-computation for estimating time-varying treatment ef-
+fects was first proposed by Robins [4]. Illustrative appli-      Our goal is to predict patient outcomes under various future
+cations of the general approach are provided in [6, 16],         treatment strategies given observed patient histories. Let:
+and summaries of g-computation (and other “g-methods”
+                                                                     • t ∈ {0, . . . , K} denote time, assumed discrete, with
+for estimating time-varying treatment effects) can be found
+                                                                       K being the end of followup;
+in [2, 3]. The g-computation algorithm takes arbitrary re-
+                                                                     • At denote the observed treatment action at time t;
+gression models as inputs. While most applications (e.g. [6,
+                                                                     • Yt denote the observed value of the outcome at time t
+16]) have thus far employed classical generalized linear
+                                                                     • Lt denote a vector of covariates at time t that may
+models, there is no conceptual barrier to using more com-
+                                                                       influence treatment decisions or be associated with the
+plex machine learning regression models. RNNs, and in
+                                                                       outcome;
+particular LSTMs, have achieved state of the art perfor-
+                                                                     • X̄t denote the history X0 , . . . , Xt and X t denote the
+mance on a wide variety of time series regression tasks,
+                                                                       future Xt , . . . , XK for arbitrary time varying vari-
+including healthcare related tasks [17–19]. However, de-
+                                                                       able X.
+spite the popularity and success of RNNs for time series
+regression, we have not seen in the literature any “deep”        At each time point, we assume the causal ordering
+implementation of g-computation.                                 (Lt , At , Yt ). Let Ht ≡ (L̄t , Āt−1 ) denote patient history
+                                                                 preceding treatment at time t. A dynamic treatment strat-
+Recently, Lim et al. [20] plugged RNN regression mod-
+                                                                 egy g is a collection of functions {g0 , . . . , gK }, one per
+els into history adjusted marginal structural models
+                                                                 time point, such that gt maps Ht onto a treatment action at
+(MSM) [21] to make counterfactual predictions. However,
+                                                                 time t. A simple dynamic strategy for fluid volume might
+these MSMs can only make counterfactual predictions un-
+                                                                 be gt (Ht ) = .5 × 1{bpt < 65}, i.e. give .5 liters of fluid if
+der static time-varying treatment strategies that do not de-
+                                                                 mean arterial blood pressure is less than 65 at time t.
+pend on recent covariate history. For example, a history
+adjusted MSM [20] could estimate the probability of fluid        Let Yt (g) denote the counterfactual outcome that would
+overload given patient history under the (static) treatment      be observed at time t had, possibly contrary to fact, treat-
+strategy “give 1 liter fluid each hour for the next 3 hours”,    ment strategy g been followed from baseline [4]. Further,
+but it could not estimate the probability of fluid overload      let Yt (Ām−1 , g m ) with t ≥ m denote the counterfactual
+outcome that would be observed had the patient received
+their observed treatments Ām−1 through time m − 1 then
+followed strategy g from time m onward.
+In counterfactual point prediction, our goal is to estimate
+expected counterfactual patient outcome trajectories
+
+             {E[Yt (Ām−1 , g m )|Hm ], t ≥ m}             (1)
+
+given observed patient history through time m for any m           Figure 1: A causal DAG representing a data generating process
+and any specified treatment strategy g. We might also be          in which Assumption 2 (sequential exchangeability) holds. This
+interested in estimating the counterfactual outcome distri-       DAG represents a simple two time step process where the out-
+butions at future time points                                     come is measured only after the final time step. However, its
+                                                                  salient property is that all variables influencing treatment (i.e.
+                                                                  with arrows directly into treatment) and associated with future
+             {p(Yt (Ām−1 , g m )|Hm ), t ≥ m}.            (2)    outcomes are measured.
+
+If we do not condition on anything in Hm , then (1) is an         p(Yt (Ām−1 , g m ) = y|Hm )
+expectation (and (2) a distribution) over the full population.       Z
+If we condition on a small subset of variables contained in        =         p(Yt = y|Hm , Lm+1:t = lm+1:t , Am:t = g(Hm:t ))
+                                                                       lm+1:t
+patient history, then (1) is an expectation (and (2) a distri-
+                                                                                  t
+bution) over a sub-population. If we condition on all ele-                        Y
+                                                                             ×           p(Lj = lj |Hm , Lm+1:j−1 = lm+1:j−1 ,
+ments of a patient history, then (1) is still technically only                   j=m+1
+an expectation (and (2) a distribution) over a hypothetical
+                                                                                      Am,j−1 = g(Hm , lm+1:j−1 )).               (4)
+sub-population with the exact patient history conditioned
+on, but in this case (1) and (2) practically amount to what
+is usually meant by personalized prediction.                      It is not generally possible to compute this integral in
+                                                                  closed form, but it could be approximated through Monte-
+Under the below standard assumptions, we can estimate (1)         Carlo simulation. We repeat the recursive process shown in
+and (2) through g-computation [4].                                Algorithm 1 M times. (Here the outcome Yt is without loss
+1. Consistency: ȲK (ĀK ) = ȲK                                  of generality deemed to be a variable in the vector Lt+1 .)
+2. Sequential Exchangeability: Y t ⊥
+                                   ⊥ At |Ht ∀t                    At the end of this process, we have M simulated draws of
+                                                                  the counterfactual outcome for each time t = {m, . . . , K}.
+3. Positivity: P (At = gt (Ht )) > 0 ∀{Ht : P (Ht ) > 0}
+                                                                  For each t, the empirical distribution of these draws con-
+Assumption 1 states that the observed outcome is equal to         stitutes a Monte-Carlo approximation of the counterfac-
+the counterfactual outcome corresponding to the observed          tual outcome distribution (2). The sample averages of the
+treatment. Assumption 2 states that there is no unobserved        draws at each time t are an estimate of the conditional
+confounding of treatment at any time and any future out-          expectations (1) and can serve as point predictions for
+come. Assumption 2 would hold, for example, under the             Yt (Ām−1 , g m ) in a patient with history Hm .
+conditions depicted in Figure 1. Positivity states that the
+                                                                  Key to the g-computation algorithm is the ability to simu-
+counterfactual treatment strategy of interest has some non-
+                                                                  late from joint conditional distributions p(Lt |L̄t−1 , Āt−1 )
+zero probability of actually being followed. Under the as-
+                                                                  of the covariates given patient history at time t. Of course,
+sumption that we specify certain predictive models cor-
+                                                                  in practice we do not have prior knowledge of these condi-
+rectly such that their predictions extrapolate to parts of a
+                                                                  tional distributions and need to estimate them from data.
+joint distribution that they were not trained on, positivity is
+                                                                  Most implementations use generalized linear regression
+not strictly necessary.
+                                                                  models to estimate the conditional distributions of the co-
+Under assumptions 1-3, for t = m we have simply that              variates. Often, these models do not capture temporal de-
+                                                                  pendencies present in the patient data. We propose the G-
+  p(Ym (Ām−1 , gm )|Hm ) = p(Ym |Hm , Am = gm (Hm )), (3)
+                                                                  Net for this task.
+i.e. the conditional distribution of the counterfactual is sim-
+ply the conditional distribution of the observed outcome          4    G-Net Design
+given patient history and given that treatment follows the
+strategy of interest. For t > m, things are slightly more         The proposed G-Net framework depicted in Figure 2 en-
+complex because we need to adjust for time-varying con-           ables the use of sequential deep learning models to esti-
+founding. With Xi:j = Xi , . . . , Xj for any random vari-        mate conditional distributions p(L̄t |L̄t−1 , Āt−1 ) of covari-
+able X, under Assumptions 1-3 the g-formula yields                ates given history at each time point and perform the G-
+                                    Figure 2: The G-Net: A flexible sequential deep learning framework for g-computation.
+
+
+    Algorithm 1: G-Computation (One simulation)                                       compute the conditional distributions. One could set p = 1
+                                                                                      and model all covariates simultaneously or at the other ex-
+1 Set a∗m = gm (Hm )
+                       ∗                        ∗                                     treme set p to be the total number of variables.
+2 Simulate and record ym from p(Ym |Hm , Am = am )
+            ∗                               ∗
+3 Simulate lm+1 from p(Lm+1 |Hm , Am = am )                                           The sequential model used in G-Net provides
+        ∗               ∗     ∗
+4 Set am+1 = gm (Hm , lm+1 , am )                                                     us with estimates of the conditional expectations
+                       ∗
+5 Simulate and record ym+1 from                                                       E[Ljt |L̄t−1 , L0t , . . . , Lj−1
+                                                                                                                    t   , Āt−1 ] for all t and j. To
+   p(Ym+1 |Hm , Lm+1 = lm+1∗
+                              , Am = a∗m , Am+1 = a∗m+1 )                             simulate from p(Ljt |L̄t−1 , L0t , . . . , Lj−1t , Āt−1 ), we pro-
+            ∗                                 ∗
+6 Simulate lm+2 from p(Lm+2 |Hm , Lm+1 = lm+1 , Am =                                  ceed as follows. If Ljt is multinomial, its conditional
+    ∗             ∗
+   am , Am+1 = am+1 )                                                                 expectation defines its conditional density. If Ljt has a
+7 Continue simulations through time K                                                 continuous density, there are various approaches we might
+                                                                                      take to simulate from its conditional distribution. Without
+                                                                                      making parametric assumptions, we could simulate from
+    computation algorithm described in Algorithm 1 to sim-
+    ulate covariates under various treatment strategies. In this                           Ljt |L0t , . . . , Lj−1
+                                                                                                               t   , L̄t−1 , Āt−1 ∼
+    setting, without loss of generality, we set Yt as one of the                                      Ê[Ljt |L0t , . . . , Lj−1
+                                                                                                                             t   , L̄t−1 , Āt−1 ] + jt   (5)
+    co-variates in L for notational simplicity.
+                                                                                      where jt is a draw from the empirical distribution of the
+    Let L0t , . . . , Lp−1 denote p components of the
+                       t                                                              residuals Ljt − L̂jt in a holdout set not used to fit the
+    vector Lt , where each component Ljt could be
+                                                                                      model parameters used to generate L̂jt as an estimate of
+    multivariate. We impose an arbitrary ordering
+                                                                                      E[Ljt |L0t , . . . , Lj−1
+                                                                                                            t   , L̄t−1 , Āt−1 ]. This method makes the
+    L01 , L11 , L21 , . . . , Lp−1
+                               1   , A1 , . . . , L0K , L1K , L2K , . . . , Lp−1
+                                                                             K , Ak
+                                                                                      simplifying assumption that the covariate error distribution
+    and estimate the conditional distributions of each Ljt given
+                                                                                      does not depend on patient history. This is the approach
+    all variables preceding it in this ordering. At simulation
+                                                                                      we take in the experiments in this paper, and is depicted
+    time, we exploit the basic probability identity
+                                                                                      in the simulation noise nodes at the top of Figure 2. Al-
+    p(Lt |L̄t−1 , Āt−1 ) = p(L0t |L̄t−1 , Āt−1 ) × p(L1t |L0t , L̄t−1 , Āt−1 )     ternatively, we might specify a parametric distribution for
+                             × · · · × p(Lp−1 |L0t , . . . , Lp−2 , L̄t−1 , Āt−1 )   Ljt −E[Ljt |L0t , . . . , Lj−1
+                                                                                                                  t   , L̄t−1 , Āt−1 ], e.g. a Gaussian, and
+                                          t                   t
+                                                                                      directly estimate its parameters by maximum likelihood.
+    to simulate from p(Lt |L̄t−1 , Āt−1 ) by sequentially sim-
+    ulating each Ljt from p(Ljt |L0t , . . . , Lj−1  , L̄t−1 , Āt−1 ).               To obtain the estimates for the conditional distribution of
+                                                 t
+    There are at least two reasons to allow for subdivision of                        covariates, G-Net admits sequential modeling of patients’
+    the covariates. First, if covariates are of different types (e.g.                 data using the group decomposition and arbitrary ordering
+    continuous, categorical, count, etc.), it is difficult to simul-                  outlined before. As shown in the yellow boxes in Figure 2,
+    taneously simulate from their joint distribution. Second,                         at each time t, a representation Rt of the patient history can
+    customizing models for each covariate component can po-                           be computed as
+    tentially lead to better performance. Figure 2 illustrates this                                          Rt = rt (L̄t , Āt ; Θ)                       (6)
+    decomposition where at each time point the components
+    are depicted via ordered (grey shaded) boxes that are re-                         where Θ represents model parameters learned during train-
+    sponsible for the estimation of the various terms needed to                       ing. In its simplest form, rt may just be an identity func-
+                                                                     Arterial Pressure
+tion passing the covariates. In other configurations (e.g.                               150
+using the selector in Figure 2), rt can be used to provide                               100
+abstractions of histories using sequential learning architec-                            50
+                                                                                               0   10   20   30      40   50     60
+tures such as RNN. This formulation of rt allows for a great
+                                                                                         30
+deal of flexibility in how information is shared across vari-
+                                                                                         20
+
+
+
+
+                                                                     CVP
+ables and time.                                                                          10
+                                                                                               0   10   20   30      40   50     60
+Estimates from each of the p covariate groups can then be                                                     Time
+obtained, as shown in Figure 2, by successive estimation
+
+
+
+
+                                                                     Fluid Bolus
+of conditional expectations of covariates. Specifically, the                        2000
+
+conditional expectation of each Ljt+1 , 0 ≤ j < p given the                               0
+                                                                                               0   10   20   30      40   50     60
+representation of patient history Rt and the other variables
+
+
+
+
+                                                                     vasopressor
+from time t + 1 that precede it in the arbitrary predefined                               5
+ordering is estimated by the functions ftj . The complete
+                                                                                          0
+sequence can be given as follows:                                                              0   10   20   30      40   50     60
+
+           L0t+1 = ft0 (Rt ; Λ0 )                                         Figure 3: Covariates trajectories for the same patient (i.e. the
+           L1t+1 = ft1 (Rt , L0t+1 ; Λ1 )                                 same random seed) under two different treatments go (blue) and
+                                                                          gc (red). After the treatment strategies diverge at middle of tra-
+            ···                                                           jectory, t = 34 (black dashed line), gc delivers a large fluid dose
+                                                                          while go does not, temporarily pushing AP and CVP higher under
+           Ljt+1 = ftj (Rt , [L1t+1 , . . . , Lj−1
+                                               t+1 ]; Λj )                the gc regime than the go regime.
+            ···                                               (7)
+
+where, each of the ftj represents the specialized estimation              Therefore, the Monte Carlo simulations obtained from
+function for group j and Λj are the learnable parameters                  g-computation incorporating dropout (i.e. adding step 0 as
+for the same. Depending on modeling choices, ftj can                      above) approximate draws from the posterior predictive
+be sequential models specialized for group j or models                    distribution of the counterfactual outcome.
+focusing only on the time step t (e.g. linear models).
+                                                                          The parameters, Θ and Λ, are learned by optimizing a loss
+                                                                          function forcing the G-Net to accurately estimate covari-
+Given G-Net parameters, the distribution of the Monte
+                                                                          ates Lt at each time point t using standard gradient de-
+Carlo simulations produced by G-computation Algorithm
+                                                                          scent techniques. It is to be noted that it is necessary to
+1 constitute an estimate of uncertainty about a counter-
+                                                                          use teacher-forcing (using observed values of Ljt+t as ar-
+factual prediction. But this estimate ignores uncertainty
+                                                                          guments to ft in equation ) to obtain unbiased estimates of
+about the G-Net parameter estimates themselves. One way
+                                                                          ft , as shown in Figure 2.
+to incorporate such model uncertainty would be to fit a
+Bayesian model and, before each Monte Carlo trajectory
+simulation in G-computation, draw new network parame-                     5               Simulation Experiments Using CVSim
+ters from their posterior distribution. These Monte Carlo
+draws would be from the posterior predictive distribution
+                                                                          To evaluate counterfactual predictions, it is necessary to
+of the counterfactual outcome. Bayesian deep learning
+                                                                          use simulated data in which counterfactual ground truth for
+can be prohibitively computationally intensive, but can be
+                                                                          outcomes under alternative treatment strategies is known.
+approximated through dropout [24]. First, we fit the RNN
+                                                                          To this end, we performed experiments on data generated
+component of the G-Net using recurrent dropout, with
+                                                                          by CVSim [25], a program that simulates the dynamics of
+dropout masks at each layer held constant across time as
+                                                                          the human cardiovascular system.
+described in [24]. Let M denote a dropout mask constant
+across time for each layer of the RNN, Θ̂(M ) denote                      Data Generation: We generated an ‘observational’ dataset
+estimated RNN parameters with mask M applied, and pM                      Do under treatment regime go and two ‘counterfactual’
+denote the distribution from which M was sampled during                   datasets Dc1 and Dc2 under treatment regimes gc1 and gc2 .
+training. Then, during g-computation, we add step 0 to the                The data generating processes producing Do and Dcj were
+beginning of Algorithm 1 before each simulation:                          the same except for the treatment assignment rules. For
+                                                                          each j, gcj was identical to go for the first m − 1 simu-
+           Step 0 (dropout) : Sample D∗ ∼ pD                              lation time steps before diverging to a different treatment
+and       compute              all        simulations     plugging        rule for time steps m to K as illustrated in Figure 3.
+ÊΘ(D) [Ljt |L1t , . . . , Lj−1
+                            t   , L̄t−1 , Āt−1 ] into (5). Then          A CVSim 6-compartment circulatory model takes as inputs
+draws of Θ̂(D) are from an approximation to the posterior                 28 variables that together govern a hemodynamic system.
+distribution of Θ under a particular Gaussian Process prior.              It then deterministically simulates forward in time a set of
+25 output variables according to a collection of differential
+                                                                 Table 1: Experimental Model Setup Grid: Each cell summarizes
+equations (parameterized by the input variables) modeling        the instantiations: M1 (Linear ), M2 (LSTM ), M3 (LSTM ),
+hemodynamics. Important variables in CVSim include ar-           and M4 (LSTM )), of G-Net used in our experiments.
+terial pressure (AP), central venous pressure (CVP), total
+blood volume (TBV), and total peripheral resistance (TPR).
+                                                                              With pass thru rt              With sequential rt
+In real patients, physicians observe AP and CVP and seek
+to keep them above a clinically safe threshold. They do this                  M1 (Linear )                   M2 (LSTM )
+by intervening on TBV (through fluid administration) and           fi :LR     • rt : identity                • rt : LSTM
+                                                                              •p=2                           •p=2
+TPR (through vasopressors).                                                   • (f0 , f1 ): linear layers.   • (f0 , f1 ): linear layers.
+We defined simulated treatment interventions that were de-                    M3 (LSTM )                     M4 (LSTM )
+signed to mimic the impact of fluids and vasopressors.            fi :RNN     • rt : identity                • rt : LSTM
+These simulated interventions alter the natural course of                     •p=2                           •p=2
+the simulation by increasing either TBV (in the case of the                   • (f0 , f1 ): LSTMs.           • (f0 , f1 ): LSTMs
+simulated fluids intervention) or TPR (in the case of the
+simulated vasopressor intervention). We generated patients
+by randomly initiating baseline inputs (which we hid from
+our G-Nets to make this a stochastic modeling problem)
+within plausible physiologic ranges, then using CVSim to
+simulate covariates forward, intervening according to the
+relevant treatment strategy at each timestep. Full details of
+the simulation process can be found in the Appendix.
+Under (stochastic) observational treatment strategy go , the
+probability of receiving a non-zero vasopressor or fluid
+dose at a given time increases as MAP and CVP decrease
+according to a logistic regression function. Given that a
+dose is non-zero, the exact amount is drawn from a normal
+distribution with mean inversely proportional to MAP and
+CVP. Since all drivers of treatment under go are observed in
+our data, the sequential exchangeability assumption holds        Figure 4: 100 G-Net simulated trajectories (blue) and ground
+and g-computation may be validly applied.                        truth (red) for one patient under gC1 .
+
+gc1 is similar to go , except it is a deterministic treatment
+strategy and the functions linking treatment and dose to co-     focusing only on current time point for ft . This provides us
+variates have different coefficents. Under gc2 , treatment is    4 different implementations of G-Net.
+always withheld. Again, details are in the Appendix.
+                                                                 The best parameters for each model found from grid search
+Experiment Setup: We set ourselves the task of training a        are as follows. For M2 (LSTM ) the hidden dimension
+G-Net on Do and using it to predict the trajectories of pa-      for the representational LSTM is 30, the hidden dimen-
+tients in Dcj for time steps m to K for each j. This setup is    sion for the categorical LSTM is 5, the hidden dimension
+designed to evaluate the performance of a G-Net in a situa-      for the continuous LSTM is 30, and the learning rate is
+tion in which we observe data from past patients (Do ) who       .001. For M3 (LSTM ), the hidden dimension for the cat-
+received usual care (go ) for K timesteps and would like to      egorical LSTM is 10, the hidden dimension for the con-
+predict how a new patient who has been observed for m            tinuous LSTM is 75, and the learning rate is .005. For
+timesteps would fare were they to follow a different treat-      M4 (LSTM ), the hidden dimension for the representa-
+ment strategy of interest (gcj ) for timesteps m to K. This is   tion LSTM is 30, the hidden dimension for the categorical
+a standard use case for counterfactual prediction. Dcj pro-      LSTM is 5, the hidden dimension for the continuous LSTM
+vides ground truth for a collection of patients whose tra-       is 30, and the learning rate is .001. For all models, the batch
+jectories follow just the path we are interested in predict-     size used was 64. These parameters were the ones used to
+ing. Thus, by aggregating predictive performance metrics         achieve the results presented in the experiments and results
+across simulated patients in Dcj we generate measures of         section.
+the population level performance of our G-Net at the coun-
+terfactual prediction task for which it was intended.            Evaluation: We evaluate the accuracy (Mean Squared Er-
+                                                                 ror - MSE) and calibration of the counterfactual simula-
+As shown in Table 1, we explore two specific criteria: (a)       tions generated by our G-Nets as follows. Say Dcj com-
+using sequential vs. Identity functions for rt and (b) using     prises Nc trajectories of random variable (L̄cj      cj
+                                                                                                                K , ĀK ). Given
+sequential models of entire patient history vs. linear models    observed history Hmi cj
+                                                                                         = (L̄cj      cj
+                                                                                               mi , Ām−1i ) for patient i from
+                                  (a) MSE gc1                                    (b) MSE gc2
+
+
+
+
+                               (c) Calibration gc1                            (d) Calibration gc2
+
+                     Figure 5: Performance of various models: MSE and calibration over time for gc1 and gc2
+
+
+Dcj , a G-Net G fit to Do produces M (in our experiments,         signment under go ) from CVSim to construct Do and Dcj ;
+100) simulations of the counterfactual covariate trajectory       each trajectory is of length 64 time steps (d=18, K=64). In
+{L̃cj    cj
+   ti (Hmi , G, k) : t ∈ m : K; k ∈ 1 : M }. These simu-          each Dcj , the switching time point m from go to gc is fixed
+lated trajectories are the light blue lines in Figure 4.          at 34 for all trajectories (m = 34).
+The G-Net’s point prediction of Lti is its estimate of            We fit the four models described in Table 1 to the training
+E[Lt (gcj )|Hm = Hmi ], i.e. the average of the M simula-         portion of Do (80%), and used the remaining portion as
+                  1
+                     PM      c   c
+tions L̂ti (G) ≡ M     k=1 L̃t (Hmi , G, k). This is the dark
+                                                                  validation to tune our model hyperparameters. Next, given
+blue line in Figure 4.                                            observed covariate history through 34 time steps and treat-
+                                                                  ment history through 33 time steps of each trajectory in
+If Lt has dimension d, we compute the MSE of coun-                each Dcj , we computed the MSE and calibration of the G-
+terfactual predictions by a G-Net G in the dataset Dc as          Nets’ counterfactual predictions for time steps 34 to 64.
+            PNc PK Pd             h,CF
+     1
+Nc (K−m)d     i=1    t=m    h=1 (Lti   − L̂h,CF
+                                           ti   (G))2 .
+                                                                  Figure 5 (a) and (b) illustrates the performance of the vari-
+We assess the calibration of a G-Net G as follows. Given          ous G-Net architectures in terms of MSE over time. Over-
+lower and upper quantiles αlow and αhigh , the calibration        all, for this experiment we found M3 (Identity function for
+measures the frequency with which the actual counterfac-          rt and LSTM for the fi functions), performed best over
+tual covariate Lh,cj
+                 ti   is between the αlow and αhigh quan-         both treatment strategies. Also, a comparative analysis of
+tiles of the M simulations {L̃h,cj    cj
+                                ti (Hmi , G, k) : k ∈ 1 :         M1 vs M3 (both with Identity representation function for
+M }. If this frequency is approximately αhigh − αlow , then       rt ) and M2 vs M4 (both with LSTM representation func-
+G is well calibrated.                                             tions for rt ) showed that G-Net provide better estimates of
+                                                                  conditional distributions by admitting sequential prediction
+Experiments/Results: Using CVSim, we generated a to-
+                                                                  models focusing on the entire patient history compared to
+tal of 10,000 trajectories in Do (No = 10, 000), of which
+                                                                  prediction models focusing on a single time point.
+80% were used for training, and the remaining 20% for val-
+idation. For testing, we generated 500 observations in the        Figure 5 (c) and (d) depicts calibration for the candidate
+Dcj datasets (Nc = 500). We included a total of 18 output         models. All of the calibration coverage rates are below the
+variables (including all variables influencing treatment as-      nominal levels (they should be .5), though the RNN based
+        Figure 6: Estimated (G-Net M 3 in Table 1) and actual population average trajectories under gc1 for select variables.
+
+
+
+
+                                         Figure 7: Treatment Effect for Selected Variables
+
+
+G-Nets again perform better than the linear model imple-             representations of patient history across predictive tasks or
+mentation. This is in part because the counterfactual pre-           keep them separate. In the particular implementation we
+dictive density estimates in these experiments do not take           considered, shared representations seemed to aid simple
+into account uncertainty about model parameter estimates,            linear classifiers but harm LSTMs.
+which could be addressed with dropout as discussed in Sec-
+                                                                     The G-Net framework’s flexibility means that there are
+tion 4.
+                                                                     many other alternative implementations to explore. For ex-
+The G-Net can also be used to estimate population aver-              ample, we might consider alternative architectures for rep-
+age counterfactual outcomes and treatment effects, quanti-           resenting patient history, such as attention mechanisms or
+ties sometimes more relevant to policy decisions than in-            memory networks.
+dividual level counterfactual predictions. Figure 6 displays
+                                                                     Another direction of future work is incorporation of prior
+G-Net (M3 from Table 1) estimates and true values of pop-
+                                                                     causal knowledge. For example, if it is known which vari-
+ulation average trajectories for select variables under gc1 .
+                                                                     ables are confounders and which merely predictive of the
+Figure 7 shows estimates and true values of the population
+                                                                     outcome, we might include weights in the loss function
+average treatment effect of following gc1 as opposed to gc2
+                                                                     emphasizing faithful representation and prediction of con-
+on select variables. We see that the G-Net does a good job
+                                                                     founding variables compared to non-confounders.
+of estimating these population level quantities of interest.
+
+                                                                     References
+6   Discussion and Future Work
+                                                                      [1] Simon Finfer, John Myburgh, and Rinaldo Bellomo.
+                                                                          Intravenous fluid therapy in critically ill adults. Na-
+In the G-Net we have introduced a novel and flexible frame-
+                                                                          ture Reviews Nephrology, 14(9):541, 2018.
+work for counterfactual prediction under dynamic treat-
+ment strategies through G-computation using sequential                [2] Miguel Hernan and James Robins. Causal Inference.
+deep learning models. We have illustrated several imple-                  Chapman and Hall, Forthcoming.
+mentations of the G-Net in a realistically complex simu-
+lation setting where we had access to ground truth coun-              [3] James Robins and Miguel Hernan. Estimation of the
+terfactual outcomes. In particular, we considered alterna-                causal effects of time varying exposures. In Gar-
+tive approaches to representation learning that either share              rett Fitzmaurice, Marie Davidian, Geert Verbeke, and
+     Geert Molenberghs, editors, Longitudinal Data Anal-           ment effects using generative adversarial nets.    In
+     ysis, pages 553–599. Chapman and Hall, 2009.                  ICLR., 2018.
+ [4] James Robins. A new approach to causal inference         [16] Jessica Young, Lauren Cain, James Robins, Eilis OR-
+     in mortality studies with a sustained exposure perio-         eilly, and Miguel Hernan. Comparative effectiveness
+     dapplication to control of the healthy worker survivor        of dynamic treatment regimes: An application of the
+     effect. Mathematical Modelling, 1986.                         parametric g-formula. Statistics in biosciences, 2011.
+ [5] James Robins. A graphical approach to the identifica-    [17] Nenad Tomašev, Xavier Glorot, Jack W Rae, Michal
+     tion and estimation of causal parameters in mortality         Zielinski, Harry Askham, Andre Saraiva, Anne Mot-
+     studies with sustained exposure periods. Journal of           tram, Clemens Meyer, Suman Ravuri, Ivan Protsyuk,
+     Chronic Diseases, 1987.                                       et al. A clinically applicable approach to continuous
+ [6] Sarah Taubman, James Robins, Murray Mittleman,                prediction of future acute kidney injury. Nature, 572
+     and Miguel Hernan. Intervening on risk factors for            (7767):116, 2019.
+     coronary heart disease: An application of the para-      [18] Cao Xiao, Edward Choi, and Jimeng Sun. Opportuni-
+     metric g-formula. International journal of epidemi-           ties and challenges in developing deep learning mod-
+     ology, 2009.                                                  els using electronic health records data: a systematic
+ [7] James Robins. Correcting for non-compliance in ran-           review. Journal of the American Medical Informatics
+     domized trials using structural nested mean models.           Association, 25(10):1419–1428, 06 2018.
+     Communications in Statistics-Theory and Methods,         [19] Edward Choi, Mohammad Taha Bahadori, Jimeng
+     1994.                                                         Sun, Joshua Kulas, Andy Schuetz, and Walter Stew-
+ [8] Stijn Vansteelandt and Marshall Joffe. Structural             art. Retain: An interpretable predictive model for
+     nested models and g-estimation: The partially real-           healthcare using reverse time attention mechanism. In
+     ized promise. Statistical Science, 2014.                      D. D. Lee, M. Sugiyama, U. V. Luxburg, I. Guyon,
+                                                                   and R. Garnett, editors, Advances in Neural Informa-
+ [9] James Robins, Miguel Hernan, and Babette Brum-                tion Processing Systems 29, pages 3504–3512. Curran
+     back. Marginal structural models and causal inference         Associates, Inc., 2016.
+     in epidemiology. Epidemiology, 2000.
+                                                              [20] Bryan Lim, Ahmed Alaa, and Mihaela van der Schaar.
+[10] Liliana Orellana, James Robins, and Andrea Rot-               Forecasting treatment responses over time using re-
+     nitzky. Dynamic regime marginal structural mean               current marginal structural networks. In Neural In-
+     models for estimation of optimal dynamic treatment            formation Processing Systems (NIPS)., 2018.
+     regimes. The international journal of biostatistics,
+     2008.                                                    [21] Mark van der Laan, Maya Petersen, and Marshall
+                                                                   Joffe. History-adjusted marginal structural models
+[11] James Robins. A new approach to causal inference              and statically-optimal dynamic treatment regimens.
+     in mortality studies with a sustained exposure perio-         The international journal of biostatistics, 2005.
+     dapplication to control of the healthy worker survivor
+     effect. Mathematical modelling, 7(9-12):1393–1512,       [22] Peter Schulam and Suchi Saria. Reliable decision
+     1986.                                                         support using counterfactual models. In Neural In-
+                                                                   formation Processing Systems (NIPS)., 2017.
+[12] Thomas Heldt, Ramakrishna Mukkamala, George B
+     Moody, and Roger G Mark. Cvsim: an open-source           [23] Michalis Titsias. Variational learning of inducing
+     cardiovascular simulator for teaching and research.           variables in sparse gaussian processes. In Inter-
+     The open pacing, electrophysiology & therapy jour-            national Conference on Aritifical Intelligence and
+     nal, 3:45, 2010.                                              Statistics, 2009.
+[13] Onur Atan, James Jordan, and Mihaela van der             [24] Yarin Gal and Zoubin Ghahramani. A theoretically
+     Schaar. Deep-treat: Learning optimal personalized             grounded application of dropout in recurrent neural
+     treatments from observational data using neural net-          networks. In Advances in Neural Information Pro-
+     works. In Proceedings of AAAI, 2018.                          cessing Systems, 2016.
+[14] M Ahmed Alaa, Michael Weisz, and Mihaela                 [25] T Heldt, R Mukkamala, GB Moody, and RG Mark.
+     van der Schaar. Deep counterfactual networks with             CVSim: An open-source cardiovascular simulator for
+     propensity-dropout. In Proceedings of the 34th Inter-         teaching and research. Open Pacing, Electrophysiol
+     national Conference on Machine Learning (ICML),               & Ther J, 3:45–54, 2010.
+     2017.                                                    [26] Andrew Rhodes, Waleed Evans, Laura E.and Al-
+[15] Jinsung Yoon, James Jordan, and Mihaela van der               hazzani, Mitchell M. Levy, Massimo Antonelli, Ri-
+     Schaar. Ganite: Estimation of individualized treat-           card Ferrer, Anand Kumar, Jonathan E. Sevransky,
+Charles L. Sprung, Mark E. Nunnally, et al. Sur-
+viving sepsis campaign: International guidelines for
+management of sepsis and septic shock: 2016. Criti-
+cal Care Medicine, 2017. URL https://www.ncbi.nlm.
+nih.gov/pubmed/28101605.
+A     Appendix                                                    output are listed in Table 3.
+                                                                    • Systoblic Blood Pressure (SBP) is defined as the
+A.1   CVSim
+                                                                      highest measured arterial blood pressure while heart
+CVSim is a open-source cardiovascular simulator, aiming               contracting.
+for education and research purpose developed by Thomas              • Diastolic Blood Pressure (DBP) is defined as the
+et al[12]. In this work, we focus on CVSim-6C which con-              lowest measured arterial blood pressure while heart
+sists of 6 components, functioning as pulmonary and sys-              contracting.
+temic veins, arteries, and micro-circulations respectively.         • Mean Arterial Pressure (MAP) is defined as the av-
+CVSim-6C is regulated by arterial baroreflex system to                erage pressure in a patients arteries during one cardiac
+simulate Sahs lumped hemodynamic model[12]. The ag-                   cycle as follow formula. M AP = 2∗DBP +1∗SBP3
+gregate model is capable of simulating pulsatile wave-
+forms, cardiac output and venous return curves, and sponta-
+                                                                  Table 3: Outputs of S-CVSim, Lt denotes all the output
+neous beat-to-beat hemodynamic variability. In this work,
+                                                                  of S-CVSim at time t; whereas, Lany t    denotes a subset of
+we modified and built on CVSim by adding stochastic-
+                                                                  output e.g. Lmap
+                                                                                t   represents mean   arterial pressure at time
+components to it for the purposes of evaluating our coun-
+                                                                  t. Covariates highlighted with * are the selected output.
+terfactual simulators. We call our stochastic simulation en-
+gine S-CVSim.                                                              OUTPUT COVARIATES
+
+A.2   Inputs of S-CVSim                                                    Left Ventricle Pressure*            LVP
+                                                                           Left Ventricle Flow*                LVQ
+By varying hemodynamic parameters of CVSim, it can                         Left Ventricle Volume               LVV
+simulate cardiovascular system under various conditions.                   Left Ventricle Contractility*       LVC
+We, therefore, sample values of a subset of model parame-                  Right Ventricle Pressure*           RVP
+ters while initiating simulation at time 0 to obtain ideal dis-            Right Ventricle Flow*               RVQ
+tribution of trajectories. These model parameters are listed               Right Ventricle Volume              RVV
+at Table 2. Note that this does not necessarily mean val-                  Right Ventricle Contractility*      RVC
+ues of input covariates would not exceed or drop below                     Central Venous Pressure*            CVP
+such range at any time t, where t > 0..                                    Central Venous Flow                 CVQ
+                                                                           Central Venous Volume               CVV
+                                                                           Arterial Pressure*                  AP
+Table 2: Names and corresponding ranges of input param-                    Arterial Flow*                      AQ
+eters of S-CVSim.                                                          Arterial Volume*                    AV
+                                                                           Pulmonary Arterial Pressure         PAP
+ INPUT COVARIATES                              RANGE                       Pulmonary Arterial Flow             PAQ
+                                                                           Pulmonary Arterial Volume           PAV
+ Total Blood Volume                            1,500 - 6,000               Pulmonary Venous Pressure           PVP
+ Nominal Heart Rate                            40 - 160                    Pulmonary Venous Flow               PVQ
+ Total Peripheral Resistance                   0.1 - 1.4                   Pulmonary Venous Volume*            PVV
+ Arterial Compliance                           0.4 - 1.1                   Heart Rate*                         HR
+ Pulmonary Arterial Compliance                 0.1 - 19.9                  Arteriolar Resistance*              AR
+ Total Zero-pressure filling Volume            500 - 3,500                 Venous Tone*                        VT
+ Pulmonary Arterial Compliance                 2.0 - 3.4                   Total Blood Volume*                 TBV
+ Pulmonary Microcirculation Resistance         0.4 - 1.00                  Intra-thoracic Pressure*            PTH
+                                                                           Mean Arterial Pressure*             MAP
+                                                                           Systolic Blood Pressure*            SBP
+A.3   Outputs of S-CVSim                                                   Diastolic Blood Pressure            DBP
+
+At each time t, CVSim-6C generates hemodynamic data
+including vascular resistance and varieties of type of flow,      A.4   Simulation Process
+pressure, and volume. In addition to original 25 hemody-
+namic outputs, we introduce 3 new outputs, including sys-         To obtain observational data for our intended purpose, we
+tolic blood pressure, diastolic blood pressure, and mean          implemented and built two extra events, Disease, St and
+arterial pressure, bringing the total number of output vari-      Treatment, At . Note that at each time T , both St and At
+ables to 28. For this work, we only predict a subset of out-      could happen simultaneously but St also happens before
+put covariates highlighted in Table 3. A complete list of         At . With these stochastic events, At and St , Dobs and DCF
+can be simulated and obtained on S-CVSim.                            lowing section will discuss the difference of At between
+                                                                     gCF and gobs .
+A.4.1    Data Generation, Do , Dc
+                                                                     A.4.4   Observational Regime, go
+To simulate a patient trajectory under treatment strategy g,
+we obtain Do and Dc with the following algorithm for each            Under gobs , probability and dosage of treatment are de-
+individual trajectory. Do , training set, consists of 10k tra-       noted as the followings
+jectories based on go . Dc , test set, consists of 1k trajectories     • Probability of treatment, P (At |Lt ) = 1+e1−x ,where
+based on gc .                                                            x = C1 ∗ ∆map + C2 ∗ ∆cvp + C0 .
+  • Initialize input variables V1 , ..., VN by drawing from            • If we administer fluids, we generate the dose (in
+    independent uniform distributions using a predefined                 mL) A1t ∼ max(0, β11 ∗ ∆map,t + β21 ∗ ∆cvp,t +
+    plausible physiological ranges for each variable as Ta-              N (1500, 1000)).
+    ble 2 suggested.                                                   • If we administer vasopressors, we generate the dose
+  • For t in 0:K                                                         A2t ∼ max(0, β12 ∗ ∆map + β22 ∗ ∆cvp + N (0, 1)) if
+       – Generate L∗t as Fsim,t (V, L̄∗t−1 , At−1 ), where               U ∼ U nif orm.
+          A−1 is taken to be 0.
+       – If g = gc and t ≥ K2 :
+                                                                     A.4.5   Counterfactual Regime, gc
+           ∗ Generate At as gc (L̄t )
+       – Else                                                        Under gCF , probability and dosage of treatment are de-
+           ∗ Generate At as go (L̄t )                                noted as the followings
+                                                                       • Probability of treatment, P (At |Lt ) = 1 if and only if
+                                                                                                              Lhr
+A.4.2    Disease Simulation, St                                          Lsbp
+                                                                           t  ≤ 100 and ShockIndex [26], Lsbp t
+                                                                                                                , ≤ 0.8.
+                                                                                                             t
+
+We introduce the concept St to simulate hemodynamic in-                • If we administer fluids, we generate the dose (in mL)
+stability of cardiovascular system such as sepsis and bleed-             A1t ∼ max(0, β11 ∗ ∆map,t + β21 ∗ ∆cvp,t ).
+ing at each timestep. St consists of two events, sepsis and            • If we administer vasopressors, we generate the dose
+blood loss. In module of St , we denote that P (St |Lt ) =               A2t ∼ max(0, β12 ∗ ∆map + β22 ∗ ∆cvp ) if U ∼
+0.05, and P (Sepsis|St ) = P (BloodLoss|St ) = 0.5; Note                 U nif orm.
+that blood loss and sepsis events are mutually exclusive in          We experimented with multiple parameters and opted to
+the simulation process at any time t.                                use C0 = 0.02, C1 = 0.06, C2 = 0.24, β11 = 10, β21 =
+  • When sepsis happens, Ltpr              tpr                       60, β12 = 0.1, β22 = 0.15.
+                           t+1 = αtpr ∗ Lt     where 0 <
+                          tpr
+    αtpr ≤ 0.7, meaning Lt , total peripheral resistance,
+    would decrease in αtpr at next time t + 1
+  • When blood loss happens, Ltbv     t+1    = αtbv ∗
+    Ltbv
+      t   where 0 < α tbv ≤  0.95, meaning  that Ltbv
+                                                  t , to-
+    tal blood volume would decrease in αtbv at next time
+    t + 1.
+
+A.4.3    Treatment Simulation, At
+
+We developed two treatment strategy go , policy for obser-
+vational regime and gc , policy for counterfactual policy, to
+                                                                     Figure 8: Causal DAG for Do generated under observa-
+simulate clinical treatment and validate our model. Under
+                                                                     tional regime go . Green arrows denote directed paths from
+any given g, Aany
+                t     is defined as g(Lt ). Similar to disease
+                                                                     treatments to outcomes. Treatment only depends on current
+simulation, Aany
+              t    is  either A1t , increasing quantity of to-
+                                                                     covariates. All covariates with arrows into treatment (i.e.
+tal blood volume or A2t increasing quantity of arterial
+                                                                     MAP, CVP, and ∆P ) are observed, satisfying the sequen-
+resistance. The probability of choosing fluids is equal to
+                                                                     tial exchangeability assumption as in Figure 1.
+vasopressor but will not be administered at the same time.
+The dosage of At depends on a subset of Lt which indicates
+                                                                     The DAG in Figure 8 depicts the causal structure of Do .
+hemodynamic balance. More specific, since adequate blood
+                                                                     Note that only observed covariates have arrows pointing
+pressure is an important clinical goal[26], we denote mean
+                                                                     into treatment (treatment is actually only a function of CVP,
+arterial pressure, MAP, of 65 mmHg and central venous
+                                                                     MAP, and ∆P ), so that there is no unobserved confounding
+pressure, CVP, of 10 mmHg as target goals. Therefore, We
+                                                                     and g-computation may be applied.
+define ∆map,t ≡ 65 − Lmap    t    and ∆cvp,t ≡ 10 − Lcvpt   as
+proxies of how much dosage should be delivered. The fol-
+

@@ -1,0 +1,921 @@
+                                              Large Language Models for Constrained-Based Causal
+                                                                 Discovery
+
+                                         Kai-Hendrik Cohrs                                                                      kai.cohrs@uv.es
+                                         Gherardo Varando                                                              gherardo.varando@uv.es
+                                         Emiliano Diaz                                                                      emiliano.diaz@uv.es
+                                         Vasileios Sitokonstantinou                                           vasileios.Sitokonstantinou@uv.es
+                                         Gustau Camps-Valls                                                                 gustau.camps@uv.es
+                                         Image Processing Laboratory, Universitat de València, Spain
+arXiv:2406.07378v1 [cs.AI] 11 Jun 2024
+
+
+
+
+                                                                                        Abstract
+                                             Causality is essential for understanding complex systems, such as the economy, the brain, and
+                                             the climate. Constructing causal graphs often relies on either data-driven or expert-driven ap-
+                                             proaches, both fraught with challenges. The former methods, like the celebrated PC algorithm,
+                                             face issues with data requirements and assumptions of causal sufficiency, while the latter de-
+                                             mand substantial time and domain knowledge. This work explores the capabilities of Large Lan-
+                                             guage Models (LLMs) as an alternative to domain experts for causal graph generation. We frame
+                                             conditional independence queries as prompts to LLMs and employ the PC algorithm with the
+                                             answers. The performance of the LLM-based conditional independence oracle on systems with
+                                             known causal graphs shows a high degree of variability. We improve the performance through a
+                                             proposed statistical-inspired voting schema that allows some control over false-positive and false-
+                                             negative rates. Inspecting the chain-of-thought argumentation, we find causal reasoning to justify
+                                             its answer to a probabilistic query. We show evidence that knowledge-based CIT could eventually
+                                             become a complementary tool for data-driven causal discovery.
+                                             Keywords: Causality; large language models; causal discovery; conditional independence testing;
+                                             constrained-based causal discovery.
+
+
+                                         1 Introduction
+                                         Understanding causality is imperative across various disciplines, as it offers critical insights into the
+                                         mechanisms of complex systems. For example, in the field of epidemiology, recognizing the causal
+                                         link between smoking and lung cancer has led to effective public health campaigns and anti-smoking
+                                         policies, significantly reducing the prevalence of smoking-related diseases (Cornfield et al., 1959;
+                                         Wynder, 1997).
+                                             Investigating causality enhances our understanding of the underlying processes and enables us to
+                                         make informed decisions and take proactive measures to address pressing challenges. Investigating
+                                         causality poses considerable challenges, with constructing causal graphs representing a formidable
+                                         task. Data-driven causal discovery methods, including prominent techniques like PC (Spirtes et al.,
+                                         2000) and GES (Chickering, 2002a), encounter a range of issues. These methodologies rely heavily
+                                         on large amounts of data, necessitating complex conditional independence tests that can be par-
+                                         ticularly challenging, especially when working with diverse and mixed data types. The assumption
+                                         of causal sufficiency, which presumes that all relevant variables are observed, can lead to erroneous
+                                         conclusions, especially when unobserved variables act as potential confounders between system vari-
+                                         ables. Notably, there exist alternative methods such as LPCMCI (Gerhardus and Runge, 2020),
+                                         FCI (Spirtes et al., 2000), SVAR-FCI (Malinsky and Spirtes, 2018), and GPS (Claassen and Bucur,
+                                         2022) that do not assume causal sufficiency (Camps-Valls et al., 2023). Nonetheless, missing data
+
+
+
+                                                                                             1
+and selection bias continue to pose persistent challenges in real-world applications, prompting efforts
+to develop more resilient causal discovery methods (Camps-Valls et al., 2023).
+    In addition to data-driven causal discovery methods, another approach for creating causal graphs
+involves leveraging domain knowledge. However, this process is inherently challenging and time-
+consuming, demanding substantial expertise and labor (Long et al., 2023b). Experts tasked with
+constructing causal graphs must possess a deep understanding of the relationships and mechanisms
+within the system under investigation, which often requires knowledge across different disciplines.
+This often entails extensive consultations, discussions, and reviews with domain specialists, adding
+significant time and resource commitments. Furthermore, the complexity of many real-world systems
+amplifies the difficulty of accurately capturing all relevant causal relationships, leading to potential
+oversights and inaccuracies in the resulting causal graph. These challenges underscore the necessity
+for more automated methodologies. In that respect, LLMs could play a key role if they prove to be
+a reliable source of causal knowledge.
+    LLMs present a promising knowledge-driven alternative to expert-based graph building or data-
+driven causal discovery methods. They have shown good performance across a range of language
+understanding and logical reasoning tasks (Brown et al., 2020; Xu et al., 2023). This could extend to
+probabilistic and causal reasoning, including interventional and counterfactual scenarios. Whether
+or not this is the case is the subject of heated debate (Hobbhahn et al., 2022; Willig et al., 2023;
+Zečević et al., 2023). Despite the inherent complexity of directly asking LLMs to provide complete
+causal graphs, given the various levels of reasoning involved and the rich context necessary, different
+strategies exist to elicit causal graphs from LLMs effectively. These strategies include LLMs to
+predict causal relations (Kıcıman et al., 2023; Long et al., 2023a; Willig et al., 2023), LLMs as priors
+for data-driven causal discovery methods (Ban et al., 2023), and LLMs to aid in downstream causal
+inference tasks by predicting the causal order of variables (Vashishtha et al., 2023).
+    To marry the traditional and the LLM-based methods, our work proposes chatPC as a hybrid
+approach. Specifically, this work:
+   • Frames conditional independence queries as prompts to LLMs and employs the PC algorithm
+     with this oracle for causal graph construction.
+   • Evaluates the performance of LLMs on conditional independence tests across various problems,
+     showing varied performance.
+   • Introduces a statistical-based approach for aggregating multiple LLM answers, improving per-
+     formance.
+   • Examines the graphs predicted by PC with the LLM oracle, finding them to be reasonable.
+
+   • Identifies a general tendency for conservative answers from LLMs compared to experts and
+     finds traces of causal reasoning in the model’s answers.
+   • Suggests that the approach could mitigate limitations of traditional methods, offering a promis-
+     ing avenue for automated causal graph construction.
+
+We argue that relying solely on LLM-based bivariate causal queries inherently overlooks the pres-
+ence of mediators, consequently limiting the comprehensive understanding of the full causal graph.
+Additionally, our research explores the extent to which LLMs’ queries can effectively substitute
+data-driven conditional independence tests, considering that PC represents the current state of the
+art in causal discovery, and under a perfect oracle, it can consistently retrieve the ideal graph up to
+the Markov equivalence class (Spirtes et al., 2000).
+
+
+
+
+                                                   2
+                            X            W     X ⊥⊥ Y |Z?
+
+
+
+
+                            Z            Y        YES
+
+Figure 1: Illustration of the introduced scheme for PC with GPT/LLM. Credits: Little robot face by
+          Antònia Font.
+
+
+
+2 Background
+This section presents the causal discovery task and briefly reviews different methodologies. We start
+by describing classical data-driven causal discovery methods, briefly review the integration of data
+and prior knowledge, and present novel approaches to causal discovery using LLMs.
+
+2.1 Data-Driven Causal Discovery
+Nowadays, there exists solid and established literature on causal discovery, which is the task of gen-
+erating and selecting appropriate causal hypotheses from data. Starting from the seminal work of
+Wright (1934), using graphs to represent causal relationships has become widespread in causal anal-
+ysis. In the prevalent structural equation model (SEM) formalism, a causal model is described by a
+system of equations that implicitly define a directed acyclic graph (DAG) among the variables of the
+system through the signature of each equation (Peters et al., 2017). Importantly, in this framework,
+a causal model entails a statistical or data-generating process of the data while representing addi-
+tional information such as interventional and counterfactual quantities (Peters et al., 2017). Causal
+discovery methods in the statistical DAG framework are usually categorized as constrained-based or
+score-based approaches (Glymour et al., 2019; Scutari et al., 2019). The former methods attempt the
+search for graphs that most closely entail the set of conditional independence relations judged to hold
+in the population, while the latter approaches search the spaces of graphs for the best scoring ones
+for some score function (e.g., penalized likelihood, such as BIC or AIC scores). A famous example of
+score-based methods is the GES algorithm (Meek, 1997; Chickering, 2002a,b), which performs sim-
+ple moves (add/remove edges, invert directions) directly in the space of Markov equivalence classes.
+The most well-known constrained-based method is the PC-algorithm (Spirtes et al., 2000), which
+we briefly describe as it will be central in our successive examples of LLM’s integration. It follows
+three basic steps: (i) in the first step conditional independence statements (X ⊥⊥ Y |Z), obtained
+through hypothesis tests performed on the data, are used to prune the edges of the fully connected
+undirected graph, thus building the so-called skeleton of the causal graph. (ii) In the second step,
+colliders are oriented such that invalid conditional (in)dependencies are ruled out. (iii) The third
+and last step applies a set of graphical rules (Meek, 1995) to orient as many edges as possible. Both
+the GES and the celebrated Peter-Clark (PC) algorithm (Spirtes et al., 2000) have been proven
+consistent in the large sample limit under specific assumptions. In particular, if we consider an
+oracle for conditional independence statements, and we assume causal sufficiency and faithfulness,
+the PC algorithm outputs a partially directed graph that represents the true Markov equivalence
+class (without additional assumption, it is impossible, from statistical information alone, to recover
+something more then the MEC). We refer the readers to Pearl et al. (2000), Peters et al. (2017) and
+recent surveys and reviews Camps-Valls et al. (2023); Glymour et al. (2019); Scutari et al. (2019)
+for a more exhaustive overview of causal discovery algorithms and the DAG/SEM formalism.
+
+
+
+
+                                                  3
+2.2 Causal Discovery with Prior Knowledge
+The need for integrating prior expert knowledge and data-driven methods has been recognized
+since initial works on causal discovery (Constantinou et al., 2023). The Bayesian methodology
+straightforwardly incorporates prior knowledge with data-driven approaches (Heckerman and Geiger,
+1995; Friedman and Koller, 2003; Xu et al., 2015; Suter et al., 2023). Methods have been developed to
+build informative priors on graphs based on agreement with prior beliefs of different types (Mukherjee
+and Speed, 2008) or with partial prior knowledge (Castelo and Siebes, 2000). Moreover, the Bayesian
+paradigm has also been used to integrate data with multiple sources of prior knowledge (Amirkhani
+et al., 2016; Werhli and Husmeier, 2007). Prior knowledge integration has also been proposed
+and employed in non-Bayesian settings. Classical score-based and constrained-based algorithms
+can be combined with different prior knowledge such as structural restrictions (de Campos and
+Castellano, 2007; De Campos and Ji, 2011; Li and Beek, 2018) or information on directed causal
+paths (Borboudakis and Tsamardinos, 2012, 2013). Similarly, prior knowledge given as ancestral or
+topological order constraints can help guide exact methods (Chen et al., 2016; Wang et al., 2021).
+Alternatively, human-in-the-loop approaches perform active interactions with the experts to guide
+the data-driven methods in discovering the causal graph (Masegosa and Moral, 2013; da Silva et al.,
+2023).
+
+2.3 Causality with LLMs
+LLMs present a promising knowledge-driven alternative to expert-based graph building or data-
+driven causal discovery methods. Different strategies exist to elicit causal graphs from LLMs effec-
+tively. These strategies include LLMs to predict causal relations (Kıcıman et al., 2023; Long et al.,
+2023a; Willig et al., 2023), LLMs as priors for data-driven causal discovery methods (Ban et al.,
+2023), and LLMs to aid in downstream causal inference tasks by predicting the causal order of
+variables (Vashishtha et al., 2023). Kıcıman et al. (2023) showcase LLMs’ knowledge-based causal
+discovery capabilities by eliciting DAGs for a series of bivariate and multivariate benchmark datasets
+where the ground truth is known. Vashishtha et al. (2023) proposed an approach using the topo-
+logical order over graph variables, showcasing the potential of LLMs in obtaining causal order and
+enhancing causal inference in diverse fields. Long et al. (2023b) and Long et al. (2023a) examined
+the role of LLMs in facilitating the construction of causal graphs, focusing on the automation of
+edge scoring and the use of expert knowledge to improve data-driven causal graph identification, re-
+spectively. Zečević et al. (2023) argued against the causal capabilities of LLMs, defining a subgroup
+of Structural Causal Models (SCMs) and emphasizing the reliance of LLMs on embedded causal
+knowledge. Cox Jr (2023) conducted a Socratic dialogue with an LLM, highlighting the necessity
+of sustained questioning for refining human reasoning imitated by LLMs and the reliability of their
+conclusions. Pawlowski et al. (2023) and Gat et al. (2023) explored the use of LLMs in enabling
+precise causal reasoning and model-agnostic explanations. Chen et al. (2023) focused on Bayesian
+Networks (BNs) and proposed strategies for addressing erroneous prior causal statements in LLM-
+based causal structure learning. Zhang et al. (2023) discussed the potential of enhancing causal
+machine learning and leveraging LLMs for improved performance and trustworthiness.
+
+
+3 Conditional Independence Queries via LLM
+We start by describing and evaluating conditional independence (CI) queries with LLMs. Specifically,
+we are interested in estimating the validity of conditional independence statements of the type:
+     Is X independent of Y given Z = (Z1 , Z2 , . . . , Zk )?,
+without having access to observations of the involved variables. Instead, we would like to rely on
+available or expert knowledge accessible through LLMs.
+
+
+                                                    4
+   For an LLM to be able to answer CI queries, it needs to be presented with some context and
+additional information related to the variables of interest alongside their description. In particular,
+we assume that for each problem, we have access to the following information:
+variables names or acronyms plus a short description for each quantity of interest.
+field the general subject area or expert field related to the problem.
+
+context a description of the broad context of the variables under consideration, including relevant
+     details that go beyond general knowledge
+
+3.1 Prompting for conditional independence testing
+While the approach we propose in this work could be implemented with any LLM trained to fol-
+low instructions, we compare GPT-3.5-turbo1 and GPT-42 from OpenAI. The former is a less
+computationally-expensive model with good performance over different benchmarks, while the latter
+is among the current state-of-the-art LLMs (Chiang et al., 2024). For a CI statement (X ⊥⊥ Y |Z),
+we consider a simple prompt that combines the field and context information and a description of
+the involved variables (X, Y , and eventually Z) with a general instruction and response template as
+follows (see appendix A for a detailed specification of the used prompt):
+     Persona specification
+     Instructions
+     Context
+     Variables description
+     CI Statement question
+     Response template
+The persona is based on the field variable and primes the LLM to produce reasoning appropriate
+to the area under study. To improve the answers, we apply chain-of-thought prompting following
+Wei et al. (2023), enabling us to gain insights into the model’s reasoning and inspect if it is causally
+inspired. Further, we ask the model to provide uncertainty about its best guess along the lines of
+Tian et al. (2023).
+
+3.2 Testing
+Various strategies can be followed in order to perform a “Hypothesis test” for a conditional in-
+dependence statement with LLMs. A naive option consists of asking the LLM a single question
+with the prompt described in the previous section and decide that a statement is valid (i.e., the
+variables are indeed independent) if the answer is YES and invalid, if it is NO. The main problem
+with this approach is that since LLMs are probabilistic, a single answer from an LLM does not need
+to correspond to its mode (the most likely answer) or could fail to respect the required response
+template: its answer could be, for instance, UNCERTAIN instead of YES/NO. Instead, we ask for
+an independent batch (size n) of answers, parse the obtained answers (YES or NO) together with
+the reported uncertainties, and finally output either an answer based on simple voting or weighted
+voting where the weights are the reported probabilities.
+    Alternatively, we implement a “statistical approach” where we actually produce p-values for the
+null hypothesis pno ≥ pyes (or alternatively pno ≤ pyes ) where pno , pyes are the proportion of NO
+and YES answers over the total requested batch n. The constructed test is based on the idea that
+we want to test whether the probability of obtaining the answer NO is significantly higher than that
+of obtaining the answer YES and vice versa. We opt for the null hypothesis if this difference is not
+ 1. https://platform.openai.com/docs/models/gpt-3-5
+ 2. https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+
+
+
+                                                   5
+significant in light of the obtained responses. A final decision is obtained by setting a significance
+level α and rejecting the chosen null hypothesis if the p-value is less or equal to α (we will employ
+α = 0.05 in the experiments). This last strategy has the advantage of considering the random
+variability of the answers and could offer a principled way of controlling the false positive rate. The
+user could then specify, for a particular problem, which of the two null hypotheses they would like
+to employ (either pno ≥ pyes or pyes ≥ pno ), which in turn implies a different false-positive control
+(considering either NO or YES as positive).
+
+3.3 Evaluation
+We evaluate the performance for CI testing on various problems defined in the BNLearn reposi-
+tory (Scutari and Denis, 2014), the spurious correlation website (Vigen, 2023), a classical problem
+on reconstructing protein-signaling networks (Sachs et al., 2005) and a set of graphs on climatic
+teleconnections (Kretschmer et al., 2021):
+   • cancer Simple causal graph involving four factors influencing the probability of cancer (Korb
+     and Nicholson, 2010).
+   • burglary The classical earthquake example in (Korb and Nicholson, 2010; Scutari and Denis,
+     2014)
+   • asia Causal graph of eight factors linked to respiratory problems (Lauritzen and Spiegelhalter,
+     1988).
+   • sachs: Causal graph among 11 phosphorylated proteins and phospholipids in single-cell data (Sachs
+     et al., 2005).
+   • spurious: Famous examples of spuriously correlated pairs of variables obtained from the
+     spurious-correlation website (Vigen, 2023).
+
+   • bk-spv: Hypothesized pathway from autumn sea ice in the Barents and Kara Seas (BK) to
+     the stratospheric polar vortex (SPV) in winter, including various confounding and mediating
+     factors (Kretschmer et al., 2021).
+   • nao-dk-med: Hypothesized causal relation between summertime North Atlantic Oscillation
+     (NAO) and precipitation patterns in Denmark (DK) and the Mediterranean (MED) (Kretschmer
+     et al., 2021).
+For all graphs except sachs, we evaluate all the possible CI statements over all variables with both
+permutations of X and Y . For sachs, we evaluate all CI statements (with X-Y permutations) up to
+conditioning sets of size 1. Lastly, for spurious, we evaluate the marginal independence statements
+X ⊥⊥ Y for all pairs of variables. For all the experiments, we obtain the answer to the CI queries
+by aggregating, as described previously, n = 10 independent batched responses from the LLM.
+The code implementing our approach and the problem descriptions are available in the repository
+https://github.com/IPL-UV/causal_GPT.
+Permutation consistency Consistency is a fundamental property that human experts are tested
+for and is shown to correlate with confidence and disagreement (Litvinova et al., 2022). In our
+context, consistency means that the result of a conditional independence test should not depend on
+the order of variables, i.e., it should be commutative in X and Y (given Z). As a first sanity check,
+we checked the consistency of the responses across all CITs, with respect to the change of order of
+X and Y (see Figure 2) for both language models.
+
+
+
+
+                                                  6
+Table 1: Performance of LLM-based conditional independence tests with different voting procedures
+         and metrics (accuracy, F1, precision, and recall.) The cells are empty when the metric
+         cannot be computed.
+
+
+    Data       Model                Method                  Accuracy F1 Precision Recall
+                                      voting                  0.64   0.39    0.36      0.43
+               GPT-3.5         stat. Test (H0 : ̸⊥⊥)          0.72   0.08    0.05      0.33
+                               stat. Test (H0 : ⊥⊥)           0.47   0.42    0.71      0.29
+    cancer
+                                      voting                  0.72   0.25    0.17      0.54
+               GPT-4           stat. Test (H0 : ̸⊥⊥)          0.73   0.19    0.12      0.46
+                               stat. Test (H0 : ⊥⊥)           0.70   0.31    0.26      0.39
+                                      voting                  0.45   0.36    0.50      0.28
+               GPT-3.5         stat. Test (H0 : ̸⊥⊥)          0.62   0.27    0.26      0.28
+                               stat. Test (H0 : ⊥⊥)           0.38   0.43    0.90      0.28
+    burglary
+                                      voting                  0.81   0.77    1.00      0.63
+               GPT-4           stat. Test (H0 : ̸⊥⊥)          0.88   0.82    1.00      0.69
+                               stat. Test (H0 : ⊥⊥)           0.79   0.72    1.00      0.56
+                                data-driven (MI)              0.58   0.56    0.54      0.58
+                                      voting                  0.51   0.39    0.36      0.43
+    asia       GPT-3.5         stat. Test (H0 : ̸⊥⊥)          0.61   0.18    0.12      0.44
+                               stat. Test (H0 : ⊥⊥)           0.48   0.52    0.75      0.39
+                                      voting                  0.73   0.63    0.56      0.71
+               GPT-4           stat. Test (H0 : ̸⊥⊥)          0.74   0.58    0.48      0.73
+                               stat. Test (H0 : ⊥⊥)           0.76   0.69    0.72      0.66
+                         data-driven (Sachs et al., 2005)     0.61   0.21    0.85      0.12
+                                      voting                  0.45   0.13    0.53      0.08
+    sachs      GPT-3.5         stat. Test (H0 : ̸⊥⊥)          0.81   0.13    0.24      0.09
+                               stat. Test (H0 : ⊥⊥)           0.20   0.13    0.94      0.07
+                                      voting                  0.93
+               GPT-4           stat. Test (H0 : ̸⊥⊥)          0.94
+                               stat. Test (H0 : ⊥⊥)           0.93   0.15    0.10      0.27
+                                      voting                  0.55   0.41    0.51      0.34
+               GPT-3.5         stat. Test (H0 : ̸⊥⊥)          0.72   0.24    0.17      0.42
+                               stat. Test (H0 : ⊥⊥)           0.41   0.44    0.90      0.27
+    bk-spv
+                                      voting                  0.75
+               GPT-4           stat. Test (H0 : ̸⊥⊥)          0.75
+                               stat. Test (H0 : ⊥⊥)           0.74
+
+
+
+
+                                                  7
+    For GPT-3.5, the agreement over                (a) GPT-3.5                           (b) GPT-4
+the (conditional) independence tests
+
+
+
+
+                                               X independent of Y (given Z)
+
+
+
+
+                                                                                  X independent of Y (given Z)
+reaches merely 51%, with around 22%
+of all answers being UNCERTAIN in                     461            415                   462            146
+
+
+
+
+                                                                 YES
+
+
+
+
+                                                                                                    YES
+                                                    16.61%         14.95%                16.65%         5.26%
+at least one of the directions. This in-
+dicates that the results for GPT-3.5
+vary substantially over multiple runs,                393            914                    48           1943
+
+
+
+
+                                                     NO
+
+
+
+
+                                                                                        NO
+                                                    14.16%         32.94%                 1.73%         70.02%
+particularly under a change of order of
+the variables. In contrast, for GPT-4,                YES            NO                    YES            NO
+                                                 Y independent of X (given Z)         Y independent of X (given Z)
+in 87% of all cases, the answers for               Agreement Score=0.510                Agreement Score=0.870
+both directions of the CITs yielded
+the same result. Albeit with small de-
+viations due to stochasticity, this is a Figure 2: Confusion matrix of the model’s responses to
+satisfactory result in consistency for               queries with changing order of X and Y . UNCER-
+GPT-4. In contrast to GPT-3.5, how-                  TAIN     outcomes in case of a tie in majority voting
+ever, the overall proportion of CIT an-              are  hidden.       The agreement score aggregates com-
+swered NO was over 70%. Although                     mon    YES,       NO     and UNCERTAIN outcomes.
+this proportion may be inflated by rel-
+atively large and dense graphs such as
+sachs, it indicates a tendency of GPT-4 towards rejecting independence as the safe answer. Given
+the remaining variation, especially in the responses of GPT-3.5, we propose to aggregate the query
+results in both directions to obtain results invariant to the order of the two involved variables.
+Performance of CIT Table 1 summarizes the evaluations of the CI queries over the different prob-
+lems. We compute the standard classification metrics (accuracy, precision, recall, and F1 scores).
+The results show varying performance over the different causal graphs and models. As some of these
+problems constitute pedagogical examples or hypothesized graphs, they are not accompanied by
+observations. Hence, we only compare against data-driven baselines for sachs and asia. Overall,
+we can see that the statistical tests, which imply certain assumptions about the graph’s sparsity
+and require stronger evidence (i.e., more votes) for rejecting either dependence or independence,
+give some control over the metrics, usually implying a trade-off between recall and precision. For
+cancer, GPT-3.5 yields the best results in terms of F1 and precision, while GPT-4 has the higher
+accuracy. Inspection of the implied graph under the chatPC (see fig. 4) suggests that GPT-4 as-
+sumes more dependencies and finds a denser graph. The context of burglary contains mostly all
+information on how the variables are connected. The language models still need to perform the task
+of extracting valid CI statements from there. GPT-4 clearly outperforms GPT-3.5 in this regard.
+This suggests that given access to the relevant information, GPT-4 mostly makes correct statements
+about CI. On the asia graph, the LLM models beat the data-driven baseline based on mutual in-
+formation in all metrics. Only in precision, GPT-3.5 achieves a slightly higher value than GPT-4.
+On the sachs data, in terms of F1, the data-driven method (Sachs et al., 2005) outperforms the two
+language models, whilst GPT-4 shows the highest accuracy. It is noteworthy that GPT-4 avoids
+eliminating the connection of the proteins Plc-γ and PIP2, with PKC, two known mistakes of the
+data-driven approach. The LLM-driven CITs do not yield a perfect oracle in their current state.
+Some improvement can likely be made with the next generations of language models, fine-tuning
+of the prompt (Cheng et al., 2023), or disambiguation of the context. A final source of error is
+that the required knowledge may be controversial or may simply not exist. Here, systems based on
+retrieval-augmented-generation (RAG) (Lewis et al., 2021) could help to ground answers on secured
+knowledge or weigh sources against each other (old vs. new; unsystematic vs. scientific). As data-
+driven methods also reveal major failure modes, using knowledge-driven evidence to complement
+data can be a promising future research avenue.
+
+
+
+
+                                                                              8
+Inquiring spurious correlations Up to this point, GPT-4 seemed overly conservative in favor
+of dependence. To probe this further, we went to the other extreme and asked for statistical inde-
+pendence between variables taken from the spurious correlation website (see Appendix, Table 2).
+In contrast, in this case, the model almost always chose independence. Nevertheless, there are no-
+table exceptions, such as per capita consumption of chicken and US crude oil imports, where the
+LLM correctly suggests that oil imports and, in turn, oil prices may affect chicken prices and its
+consumption through transportation costs. Furthermore, broader economic factors may serve as a
+common confounder (for the full response see appendix C). Other slightly less clear connections seem
+to exist in the pairs total revenue generated by arcades - computer science doctorates, and Japanese
+passenger cars sold in the US - suicides by crashing of motor vehicle, where the voting almost re-
+sulted in stalemates. We may favour dependence or independence depending on our choice of the
+null hypothesis. It is important to note that data-driven methods would always detect dependence
+as the spurious correlation examples are selected in this manner. This can happen in any data by
+chance; Hence, consulting additional knowledge-based evidence as a safety net seems reasonable.
+
+
+4 Application to Causal Discovery
+We propose to couple the CI oracle or testing, introduced in the previous section, with the PC-
+algorithm (Colombo and Maathuis, 2014) for recovery of the Markov equivalence class of a causal
+graph. The PC algorithm starts from a fully connected skeleton (undirected graph) among the con-
+sidered variables and iteratively removes edges between variables X and Y when it finds a condition-
+ing set Z such that X is independent of Y given Z. After the so-called skeleton phase, v-structures
+are identified through specific CI testing, and finally, a set of orientation rules are applied (Meek,
+1995). Hence, to implement chatPC, we plug in the LLM-based conditional independence testing to
+an existing PC implementation (Atienza et al., 2022).
+Causal graphs from the examples The PC algorithm should not be run only with LLMs for
+arbitrarily large graphs. First, CITs with growing conditioning set size turn even for an expert in-
+creasingly into mental gymnastics as you technically verify d-separation. Second, with the increasing
+number of variables, the number of required CITs grows exponentially. This renders the approach
+under the current energy and financial costs for querying LLMs infeasible unless the graph is small
+or one couples it with data-driven CITs. We applied chatPC to the burglary, cancer, asia and
+nao-dk-med.
+    First, for burglary, chatPC can retrieve the correct assumed causal graph (see fig. 3). This result
+stands even though the method made some mistakes in the CITs for burglary. The graph of the
+cancer variables (see fig. 4) contains the right sub-graph, which means that the LLM introduced no
+incorrect independence. The links between pollution and dyspnoea and smoking and dyspnoea are
+absent in the ground truth, but research suggests that such pathways might be assumed (Berliner
+et al., 2016). An expert may choose to introduce sparsity into a graph by including only the strongest
+links. With LLM-based CITs, this is possible through the significance level of the statistical tests,
+which we could tune up to the point where some of these links disappear. It is also noteworthy
+that chatPC could not direct any edge in the retrieved graph. In principle, directing edges is a
+simpler task that could, in a second step, also be carried out with LLMs (Kıcıman et al., 2023).
+For asia (see fig. 6), we find an overall reasonable graph that almost matches the skeleton of the
+ground truth. Notable differences are that the asia node is disconnected, smoke is directly connected
+to dysp, which aligns with the cancer graph, and xray only has a direct link to bronc. Finally, in
+NAO-DK-MED, the hypothesized graph suggests that the summertime North-Atlantic Oscillation is the
+single common cause of precipitation patterns in Denmark and the Mediterranean. The LLM would
+hence need to identify that DK ⊥  ⊥ MED| NAO, but it fails to do so (see fig. 5). Kretschmer et al.
+(2021) assume that the data is detrended, and even then, it is a debatable assumption that there are
+no connections left. Hence, the graph retrieved by chatPC is arguably not false. Moreover, one can
+
+
+                                                  9
+                                    (a)                      (b)
+                              B             E          B            E
+
+                                     A                        A
+
+                              M             J          M             J
+
+Figure 3: Assumed true graph (a) and skeleton recovered (b) with the proposed chatPC approach
+          for the burglary problem. Variables: Burglary in progress (B); earthquake (E); alarm
+          ringing (A); Mary (M) or John (J) calling.
+
+
+                                    (a)                      (b)
+                              P             S          P            S
+
+                                     C                        C
+
+                              X             D          X            D
+
+Figure 4: Assumed true graph (a) and skeleton recovered (b) with the proposed chatPC approach
+          for the cancer problem. Variables: Patient is a smoker (S); patient exposed to pollution
+          (P); patient suffers from lung cancer (C); positive results from a chest X-ray (X); patient
+          is suffering from dyspnoea (D).
+
+
+
+see some signal reflecting this as, in contrast to all other CITs showing 20-0 (NO-YES proportions)
+for dependence, DK ⊥   ⊥ MED| NAO resulted in 17-3 (NO-YES). If one were to require a complete
+agreement for dependency, the graph would have matched the assumed ground truth.
+
+
+5 Conclusions
+Our work contributes to the existing literature by probing an alternative to the data-driven PC
+approach, leveraging the capabilities of LLMs for PC when data is limited or unavailable. Building
+a reliable knowledge-based conditional independence oracle could either provide a prior to constrain
+
+
+                                  (a)
+                                          DK                         DK
+
+                           NAO                         NAO
+
+                                          MED                       MED
+
+Figure 5: Assumed true graph (a) and skeleton recovered (b) with the proposed chatPC approach
+          for the nao-dk-med problem. Variables: North-Atlantic Oscillation (NAO); summer pre-
+          cipitation in Denmark (DK); summer precipitation in the Mediterranean region (MED).
+
+
+
+                                                 10
+its data-driven counterpart or deliver a substitute for data-driven methods. Our analysis attempts
+to shed light on where we stand in this endeavour.
+    We found that LLM conjectures about hidden confounders, showing that they use causal rea-
+soning to tackle this primarily statistical task. This, however, is neither consistently nor always
+successfully done. The varying performance over different tasks showed that more effort is needed
+to steer the models to more efficient causal reasoning. We proved that employing an aggregating
+mechanism framed as a statistical test leads to improved performance and effective control over the
+retrieved graph’s density in the context of the PC algorithm. The causal graphs predicted by the PC
+algorithm with LLM-based CITs appear reasonable. While not infallible, the method demonstrates
+potential in capturing meaningful causal relationships, offering a promising avenue for automated
+causal graph construction in combination with data-driven methods. Finally, we found that LLMs
+generally tend toward conservative answers, contrasting with the often bolder responses from human
+experts. Understanding and addressing the cautious nature of LLM reasoning is crucial for refining
+the accuracy and reliability of the generated causal graphs. Future work will explore the combina-
+tion of data-driven and language-driven causality, where relying on CIT estimates in PC schemes
+constitutes a sound framework to seamlessly integrate evidence based on data and knowledge. Here,
+RAG-based systems (Lewis et al., 2021) could play a key role by ensuring that retrieved knowledge
+stems from scientific sources. The proposed approach could be useful in alignment and evaluating
+LLMs. Probing CITs and their implication for a causal graph construction with LLMs is useful to
+understand the level of causal reasoning and understanding of such systems. It does not escape our
+notice that, despite the many challenges in our pathway to causal reasoning with language models,
+the approach can bring many opportunities for scientific discovery.
+
+
+Acknowledgments and Disclosure of Funding
+
+This work was supported by the BBVA with the project ‘SCALE’, Microsoft with the Causal4Africa
+project and the GVA PROMETEO AI4CS project (CIPROM/2021/056.)
+
+
+References
+H. Amirkhani, M. Rahmati, P. J. Lucas, and A. Hommersom. Exploiting experts’ knowledge for
+  structure learning of bayesian networks. IEEE transactions on pattern analysis and machine
+  intelligence, 39(11):2154–2170, 2016.
+D. Atienza, C. Bielza, and P. Larrañaga. Pybnesian: An extensible python package for bayesian
+  networks. Neurocomputing, 504:204–209, 2022. ISSN 0925-2312. doi: https://doi.org/10.
+  1016/j.neucom.2022.06.112. URL https://www.sciencedirect.com/science/article/pii/
+  S0925231222008438.
+T. Ban, L. Chen, X. Wang, and H. Chen. From query tools to causal architects: Harnessing large
+  language models for advanced causal discovery from data. arXiv preprint arXiv:2306.16902, 2023.
+D. Berliner, N. Schneider, T. Welte, and J. Bauersachs. The differential diagnosis of dyspnea. Dtsch
+  Arztebl Int, 113(49):834–845, Dec. 2016.
+G. Borboudakis and I. Tsamardinos. Incorporating causal prior knowledge as path-constraints
+  in bayesian networks and maximal ancestral graphs. In Proceedings of the 29th International
+  Coference on International Conference on Machine Learning, pages 427–434, 2012.
+G. Borboudakis and I. Tsamardinos. Scoring and searching over bayesian networks with causal and
+  associative priors. In Proceedings of the Twenty-Ninth Conference on Uncertainty in Artificial
+  Intelligence, pages 102–111, 2013.
+
+
+                                                11
+T. Brown, B. Mann, N. Ryder, M. Subbiah, J. D. Kaplan, P. Dhariwal, A. Neelakantan, P. Shyam,
+  G. Sastry, A. Askell, S. Agarwal, A. Herbert-Voss, G. Krueger, T. Henighan, R. Child, A. Ramesh,
+  D. Ziegler, J. Wu, C. Winter, C. Hesse, M. Chen, E. Sigler, M. Litwin, S. Gray, B. Chess,
+  J. Clark, C. Berner, S. McCandlish, A. Radford, I. Sutskever, and D. Amodei. Language models
+  are few-shot learners. In H. Larochelle, M. Ranzato, R. Hadsell, M. Balcan, and H. Lin, editors,
+  Advances in Neural Information Processing Systems, volume 33, pages 1877–1901. Curran As-
+  sociates, Inc., 2020. URL https://proceedings.neurips.cc/paper_files/paper/2020/file/
+  1457c0d6bfcb4967418bfb8ac142f64a-Paper.pdf.
+G. Camps-Valls, A. Gerhardus, U. Ninad, G. Varando, G. Martius, E. Balaguer-Ballester, R. Vin-
+  uesa, E. Diaz, L. Zanna, and J. Runge. Discovering causal relations and equations from data.
+  Physics Reports, 1044:1–68, 2023. ISSN 0370-1573. doi: https://doi.org/10.1016/j.physrep.2023.
+  10.005.
+
+R. Castelo and A. Siebes. Priors on network structures. biasing the search for bayesian networks.
+  International Journal of Approximate Reasoning, 24(1):39–57, 2000.
+E. Y.-J. Chen, Y. Shen, A. Choi, and A. Darwiche. Learning bayesian networks with ancestral
+  constraints. Advances in Neural Information Processing Systems, 29, 2016.
+
+L. Chen, T. Ban, X. Wang, D. Lyu, and H. Chen. Mitigating prior errors in causal structure learning:
+  Towards llm driven prior knowledge. arXiv preprint arXiv:2306.07032, 2023.
+J. Cheng, X. Liu, K. Zheng, P. Ke, H. Wang, Y. Dong, J. Tang, and M. Huang. Black-box prompt
+   optimization: Aligning large language models without model training, 2023.
+
+W.-L. Chiang, L. Zheng, Y. Sheng, A. N. Angelopoulos, T. Li, D. Li, H. Zhang, B. Zhu, M. Jordan,
+ J. E. Gonzalez, and I. Stoica. Chatbot arena: An open platform for evaluating llms by human
+ preference, 2024.
+D. Chickering. Optimal structure identification with greedy search. Journal of Machine Learning
+  Research, 3:507–554, 01 2002a.
+
+D. M. Chickering. Learning equivalence classes of bayesian-network structures. The Journal of
+  Machine Learning Research, 2:445–498, 2002b.
+T. Claassen and I. G. Bucur. Greedy equivalence search in the presence of latent confounders. In
+  J. Cussens and K. Zhang, editors, Proceedings of the Thirty-Eighth Conference on Uncertainty in
+  Artificial Intelligence, volume 180 of Proceedings of Machine Learning Research, pages 443–452.
+  Pmlr, 01–05 Aug 2022.
+D. Colombo and M. H. Maathuis. Order-independent constraint-based causal structure learn-
+  ing. Journal of Machine Learning Research, 15(116):3921–3962, 2014. URL http://jmlr.org/
+  papers/v15/colombo14a.html.
+A. C. Constantinou, Z. Guo, and N. K. Kitson. The impact of prior knowledge on causal structure
+  learning. Knowledge and Information Systems, pages 1–50, 2023.
+J. Cornfield, W. Haenszel, E. C. Hammond, A. M. Lilienfeld, M. B. Shimkin, and E. L. Wynder.
+   Smoking and lung cancer: recent evidence and a discussion of some questions. Journal of the
+   National Cancer institute, 22(1):173–203, 1959.
+
+L. A. Cox Jr. Causal reasoning about epidemiological associations in conversational ai. Global
+  Epidemiology, 5:100102, 2023.
+
+
+
+
+                                                12
+T. da Silva, E. Silva, A. Ribeiro, A. Góis, D. Heider, S. Kaski, and D. Mesquita. Human-in-the-loop
+  causal discovery under latent confounding using ancestral gflownets, 2023.
+C. P. De Campos and Q. Ji. Efficient structure learning of bayesian networks using constraints. The
+  Journal of Machine Learning Research, 12:663–689, 2011.
+L. M. de Campos and J. G. Castellano. Bayesian network learning algorithms using structural
+  restrictions. International Journal of Approximate Reasoning, 45(2):233–254, 2007.
+
+N. Friedman and D. Koller. Being bayesian about network structure. a bayesian approach to structure
+  discovery in bayesian networks. Machine learning, 50:95–125, 2003.
+Y. Gat, N. Calderon, A. Feder, A. Chapanin, A. Sharma, and R. Reichart. Faithful explanations
+  of black-box nlp models using llm-generated counterfactuals. arXiv preprint arXiv:2310.00603,
+  2023.
+A. Gerhardus and J. Runge. High-recall causal discovery for autocorrelated time series with latent
+  confounders. Advances in Neural Information Processing Systems, 33:12615–12625, 2020.
+C. Glymour, K. Zhang, and P. Spirtes. Review of causal discovery methods based on graphical
+  models. Frontiers in Genetics, 10, 2019. ISSN 1664-8021. doi: 10.3389/fgene.2019.00524. URL
+  https://www.frontiersin.org/articles/10.3389/fgene.2019.00524.
+D. Heckerman and D. Geiger. Learning bayesian networks: a unification for discrete and gaussian
+  domains. In Proceedings of the Eleventh conference on Uncertainty in artificial intelligence, pages
+  274–284, 1995.
+
+M. Hobbhahn, T. Lieberum, and D. Seiler. Investigating causal understanding in llms. In NeurIPS
+ ML Safety Workshop, 2022.
+E. Kıcıman, R. Ness, A. Sharma, and C. Tan. Causal reasoning and large language models: Opening
+  a new frontier for causality. arXiv preprint arXiv:2305.00050, 2023.
+K. B. Korb and A. E. Nicholson. Bayesian artificial intelligence. CRC press, 2010.
+
+M. Kretschmer, S. V. Adams, A. Arribas, R. Prudden, N. Robinson, E. Saggioro, and T. G.
+ Shepherd. Quantifying causal pathways of teleconnections. Bulletin of the American Me-
+ teorological Society, 102(12):E2247 – E2263, 2021. doi: 10.1175/BAMS-D-20-0117.1. URL
+ https://journals.ametsoc.org/view/journals/bams/102/12/BAMS-D-20-0117.1.xml.
+
+S. L. Lauritzen and D. J. Spiegelhalter. Local computations with probabilities on graphical struc-
+  tures and their application to expert systems. Journal of the Royal Statistical Society: Series B
+  (Methodological), 50(2):157–194, 1988.
+P. Lewis, E. Perez, A. Piktus, F. Petroni, V. Karpukhin, N. Goyal, H. Küttler, M. Lewis, W. tau Yih,
+  T. Rocktäschel, S. Riedel, and D. Kiela. Retrieval-augmented generation for knowledge-intensive
+  nlp tasks, 2021.
+A. Li and P. Beek. Bayesian network structure learning with side constraints. In International
+  conference on probabilistic graphical models, pages 225–236. PMLR, 2018.
+A. Litvinova, R. H. Kurvers, R. Hertwig, and S. M. Herzog. How experts’ own inconsistency relates
+  to their confidence and between-expert disagreement. Scientific Reports, 12(1):9273, 2022.
+
+S. Long, A. Piché, V. Zantedeschi, T. Schuster, and A. Drouin. Causal discovery with language
+  models as imperfect experts. arXiv preprint arXiv:2307.02390, 2023a.
+
+
+                                                 13
+S. Long, T. Schuster, A. Piché, S. Research, et al. Can large language models build causal graphs?
+  arXiv preprint arXiv:2303.05279, 2023b.
+D. Malinsky and P. Spirtes. Causal structure learning from multivariate time series in settings with
+  unmeasured confounding. In T. D. Le, K. Zhang, E. Kıcıman, A. Hyvärinen, and L. Liu, editors,
+  Proceedings of 2018 ACM SIGKDD Workshop on Causal Disocvery, volume 92 of Proceedings of
+  Machine Learning Research, pages 23–47, London, UK, 20 Aug 2018. PMLR.
+
+A. R. Masegosa and S. Moral. An interactive approach for bayesian network learning using domain/-
+  expert knowledge. International Journal of Approximate Reasoning, 54(8):1168–1181, 2013.
+C. Meek. Causal inference and causal explanation with background knowledge. In Proceedings
+  of the Eleventh Conference on Uncertainty in Artificial Intelligence, UAI’95, page 403–410, San
+  Francisco, CA, USA, 1995. Morgan Kaufmann Publishers Inc. ISBN 1558603859.
+
+C. Meek. Graphical Models: Selecting causal and statistical models. PhD thesis, Carnegie Mellon
+  University, 1997.
+S. Mukherjee and T. P. Speed. Network inference using informative priors. Proceedings of the
+  National Academy of Sciences, 105(38):14313–14318, 2008.
+
+N. Pawlowski, J. Vaughan, J. Jennings, and C. Zhang. Answering causal questions with augmented
+  llms. 2023.
+J. Pearl et al. Models, reasoning and inference. Cambridge, UK: CambridgeUniversityPress, 19(2):
+   3, 2000.
+
+J. Peters, D. Janzing, and B. Schölkopf. Elements of causal inference: foundations and learning
+  algorithms. 2017.
+K. Sachs, O. Perez, D. Pe’er, D. A. Lauffenburger, and G. P. Nolan. Causal protein-signaling
+  networks derived from multiparameter single-cell data. Science, 308(5721):523–529, 2005.
+M. Scutari and J.-B. Denis. Bayesian networks. Chapman & Hall/CRC Texts in Statistical Science.
+ Chapman & Hall/CRC, Philadelphia, PA, June 2014.
+M. Scutari, C. E. Graafland, and J. M. Gutiérrez. Who learns better bayesian network structures:
+ Accuracy and speed of structure learning algorithms. International Journal of Approximate Rea-
+ soning, 115:235–253, 2019. ISSN 0888-613X. doi: https://doi.org/10.1016/j.ijar.2019.10.003. URL
+ https://www.sciencedirect.com/science/article/pii/S0888613X19301434.
+
+P. Spirtes, C. Glymour, and R. Scheines. Causation, Prediction, and Search. MIT press, 2nd edition,
+  2000.
+P. Suter, J. Kuipers, G. Moffa, and N. Beerenwinkel. Bayesian structure learning and sampling of
+  bayesian networks with the r package bidag. Journal of Statistical Software, 105(9):1–31, 2023.
+  doi: 10.18637/jss.v105.i09. URL https://www.jstatsoft.org/index.php/jss/article/view/
+  v105i09.
+K. Tian, E. Mitchell, A. Zhou, A. Sharma, R. Rafailov, H. Yao, C. Finn, and C. D. Manning.
+  Just ask for calibration: Strategies for eliciting calibrated confidence scores from language models
+  fine-tuned with human feedback, 2023.
+
+A. Vashishtha, A. G. Reddy, A. Kumar, S. Bachu, V. N. Balasubramanian, and A. Sharma. Causal
+  inference using llm-guided discovery. arXiv preprint arXiv:2310.15117, 2023.
+
+
+
+                                                 14
+T. Vigen. Spurious correlations, https://www.tylervigen.com/spurious-correlations, 2023.
+  accessed 09/11/2023.
+Z. Wang, X. Gao, Y. Yang, X. Tan, and D. Chen. Learning bayesian networks based on order graph
+  with ancestral constraints. Knowledge-Based Systems, 211:106515, 2021.
+J. Wei, X. Wang, D. Schuurmans, M. Bosma, B. Ichter, F. Xia, E. Chi, Q. Le, and D. Zhou.
+  Chain-of-thought prompting elicits reasoning in large language models, 2023.
+
+A. V. Werhli and D. Husmeier. Reconstructing gene regulatory networks with bayesian networks
+  by combining expression data with multiple sources of prior knowledge. Statistical applications in
+  genetics and molecular biology, 6(1), 2007.
+M. Willig, M. ZE ˇCEVI C, D. S. Dhami, and K. Kersting. Probing for correlations of causal facts:
+ Large language models and causality. preprint, 2023.
+S. Wright. The method of path coefficients. The annals of mathematical statistics, 5(3):161–215,
+  1934.
+E. L. Wynder. Tobacco as a cause of lung cancer: some reflections. American Journal of Epidemi-
+  ology, 146(9):687–694, 1997.
+
+F. Xu, Q. Lin, J. Han, T. Zhao, J. Liu, and E. Cambria. Are large language models really good
+  logical reasoners? A comprehensive evaluation and beyond, 2023.
+J.-G. Xu, Y. Zhao, J. Chen, and C. Han. A structure learning algorithm for bayesian network using
+   prior knowledge. Journal of Computer Science and Technology, 30:713–724, 2015.
+
+M. Zečević, M. Willig, D. S. Dhami, and K. Kersting. Causal parrots: Large language models
+ may talk causality but are not causal. Transactions on Machine Learning Research, 2023. ISSN
+ 2835-8856. URL https://openreview.net/forum?id=tv46tCzs83.
+C. Zhang, D. Janzing, M. van der Schaar, F. Locatello, and P. Spirtes. Causality in the time of llms:
+  Round table discussion results of clear 2023. Proceedings of Machine Learning Research vol TBD,
+  1:7, 2023.
+
+
+
+Appendix A. Details on the Prompt
+Here, we describe the details of the prompt used. In the following prompt scheme, curly brackets
+{} denotes elements that are replaced by corresponding elements from the problem description and
+the specific CI statement which is queried. In particular {field} and {context} are replaced by
+their values for the problem, and {x}, {y} and {z} are the name of the variables involved in the CI
+(X ⊥⊥ Y |Z). If Z = ∅ the whole conditioned on {z} is dropped from the prompt.
+   system: You are a helpful expert in {field} willing to answer
+   questions.
+   You will be asked to provide your estimate and confidence
+   on statistical independence between two variables
+   (eventually conditioned on
+   a set of variables).
+   Your answer should not be based on data or observations,
+   but only on the available knowledge.
+   Even when unsure or uncertain, provide a valid answer and uncertainty.
+   Answer only in the required format.
+
+   user:
+
+
+
+                                                 15
+   {context}
+   Consider the following variables:
+   {variables list}
+   is {x} conditionally independent of {y} conditioned on {z}?
+
+   system: After explaining your reasoning, provide the answer between
+   brackets as YES/NO, with percentage uncertainty between parenthesis.
+   Where YES stands for
+   \"{x} is conditionally independent of {y} conditioned on {z}"
+   and NO stands for
+   "{x} is not conditionally independent of {y} conditioned on {z}".
+   For example [NO (50%
+
+
+Appendix B. Spurious Correlations
+We report in Table 2 the responses obtained for the spurious problem over 15 marginal independence
+statements for the corresponding pairs of spuriously associated variables. We report the decisions
+obtained with the voting and the two statistical approaches; moreover, we report the number of NO
+and YES answers among the n = 20 batched responses.
+
+
+Appendix C. Response Example
+   Considering the relationship between per capita consumption of chicken and
+   US crude oil imports:
+
+   - The per capita consumption of chicken might seem unrelated to crude oil
+   imports at first glance, as they belong to different sectors (agriculture
+   vs. energy).
+
+   - However, there are indirect links between them. The price of oil can
+   influence the cost of transportation and feed, which in turn can affect the
+   price of chicken and potentially consumption patterns.
+
+   - Additionally, broader economic factors influenced by oil prices, such as
+   inflation rates and economic growth, could impact consumers’’ purchasing
+   power and preferences.
+
+   Given these indirect connections, we cannot confidently state that there is
+   absolute independence between these two variables. Therefore, the answer is
+   [NO (75%
+
+
+
+
+                                                16
+Table 2: Predictions for variable pairs of the spurious correlations dataset with gpt-4. Numbers
+         below each statistical test denote the respective p-value.
+
+ Variable    Description                                               voting   stat. Test    Test
+ Name                                                                               ⊥) (H0 :̸⊥⊥)
+                                                                      NO - YES (H0 :⊥
+ spending    US spending on science, space, and technology              YES       YES         YES
+ suicides    Suicides by hanging, strangulation and suffocation        4 - 16       1        ≈ 10−4
+ pool        number of people who drowned by falling into a             YES       YES         YES
+             pool per year                                             0 - 20       1        ≈ 10−10
+ cage        number of films Nicolas Cage appeared in per year
+ cheese      per capita cheese consumption                              YES       YES         YES
+ bed         number of people who died by becoming tangled in          0 - 20       1        ≈ 10−10
+             their bedsheet
+ divorce   divorce rate in Maine                                        YES       YES         YES
+ margarine per capita consumption of margarine                         1 - 19       1        ≈ 10−9
+ age         age of Miss America                                        YES       YES         YES
+ murder      number of people murdered by steam, hot vapors            0 - 20       1        ≈ 10−10
+             and hot objects
+ revenue     total revenue generated by arcades                         YES       YES         NO
+ CS          computer science doctorates awarded in the US             9 - 11      0.74       0.26
+ launches    worldwide non-commercial space launches                    YES       YES         YES
+ Soc         sociology doctorates awarded (US)                         3 - 17       1        ≈ 10−6
+ mozzarella per capita consumption of mozzarella cheese                 YES       YES         YES
+ engineering civil engineering doctorates awarded                      0 - 19       1        ≈ 10−10
+ boat        people who drowned after falling out of a fishing boat     YES       YES         YES
+ Kentucky    marriage rate in Kentucky                                 0 - 20       1        ≈ 10−10
+ Norway      US crude oil imports from Norway                           YES       YES         YES
+ railway     drivers killed in collision with railway train            0 - 20      1         ≈ 10−10
+ chicken     per capita consumption of chicken                          NO         NO         NO
+ oil         US crude oil imports                                      16 - 4    ≈ 10−4         1
+ swimming number people who drowned while in a                          YES       YES         YES
+ -pool    swimming-pool                                                0 - 20       1        ≈ 10−10
+ power    power generated by US nuclear power plants
+ cars        Japanese passenger cars sold in the US                     NO        YES         NO
+ crashing    Suicides by crashing of motor vehicle                     12 - 8      0.1         0.9
+ spelling    letters in winning word of Scripps National                YES       YES         YES
+             Spelling Bee                                              0 - 20       1        ≈ 10−10
+ spiders     number of people killed by venomous spiders
+ maths       math doctorates awarded                                    YES       YES         YES
+ uranium     uranium stored at US nuclear power plants                 0 - 20       1        ≈ 10−10
+
+
+
+Appendix D. Additional Results
+
+
+                                                 17
+                               asia                           smoke
+
+
+
+
+                                tub            lung                   bronc
+
+
+
+
+                                      either
+
+
+
+
+                                                       dysp           xray
+
+
+
+
+Figure 6: Graph obtained with the chatPC approach on the asia problem. Variables: Patient has
+          recently visited Asia (asia); patient has tuberculosis (tub); patient is a smoker (smoke);
+          patient has lung cancer (lung); patient has bronchitis (bronc); patient has dyspnoea (dysp);
+          patient has either tuberculosis or lung cancer or both (either); positive result in chest X-
+          ray (xray).
+
+
+
+
+                                                      18
+

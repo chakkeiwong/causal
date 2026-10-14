@@ -1,0 +1,772 @@
+//! Unified API for Causal Discovery
+//!
+//! Provides a scikit-learn style API for all causal discovery algorithms.
+//! Supports multiple output formats: NetworkX, Graphviz DOT, JSON.
+//!
+//! ## Usage
+//! ```python
+//! from varlingam import CausalDiscoverer
+//!
+//! # Create discoverer with chosen algorithm
+//! model = CausalDiscoverer(algorithm="varlingam", lags=1)
+//! model.fit(data, variable_names=["AAPL", "MSFT", "GOOG"])
+//!
+//! # Get results
+//! edges = model.significant_edges()
+//! graph = model.to_networkx()
+//! dot = model.to_graphviz()
+//! json = model.to_json()
+//!
+//! # Bootstrap for confidence
+//! bootstrap = model.bootstrap(n_resamples=100)
+//! ```
+
+use nalgebra::DMatrix;
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
+use std::collections::HashMap;
+
+use super::bootstrap::{var_lingam_bootstrap, BootstrapResult};
+use super::direct_lingam::{direct_lingam, DirectLiNGAMConfig, DirectLiNGAMResult};
+use super::rcd::{rcd, RCDConfig, RCDResult};
+use super::scalable::{var_lingam_scalable, ScalableConfig, ScalableResult};
+use super::var_lingam::{var_lingam, VarLiNGAMConfig, VarLiNGAMResult};
+
+/// Supported causal discovery algorithms
+#[pyclass(eq, eq_int)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Algorithm {
+    /// DirectLiNGAM for cross-sectional data
+    DirectLiNGAM,
+    /// VarLiNGAM for time series
+    VarLiNGAM,
+    /// Scalable VarLiNGAM for large universes
+    ScalableVarLiNGAM,
+    /// RCD for data with latent confounders
+    RCD,
+}
+
+/// Unified result type for all algorithms
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct CausalResult {
+    /// Algorithm used
+    #[pyo3(get)]
+    pub algorithm: String,
+    /// Variable names
+    #[pyo3(get)]
+    pub variable_names: Vec<String>,
+    /// Causal order (if applicable)
+    #[pyo3(get)]
+    pub causal_order: Vec<String>,
+    /// All edges as (source, target, effect, lag, significant)
+    edges_internal: Vec<(String, String, f64, usize, bool)>,
+    /// Adjacency matrix
+    #[pyo3(get)]
+    pub adjacency_matrix: Vec<Vec<f64>>,
+    /// Number of variables
+    #[pyo3(get)]
+    pub n_variables: usize,
+    /// Bootstrap result (if performed)
+    bootstrap_result: Option<BootstrapResult>,
+    /// Additional metadata
+    #[pyo3(get)]
+    pub metadata: HashMap<String, String>,
+}
+
+#[pymethods]
+impl CausalResult {
+    fn __repr__(&self) -> String {
+        let n_sig = self.edges_internal.iter().filter(|e| e.4).count();
+        format!(
+            "CausalResult(algo={}, vars={}, edges={}, significant={})",
+            self.algorithm,
+            self.n_variables,
+            self.edges_internal.len(),
+            n_sig
+        )
+    }
+
+    /// Get all edges as list of dicts
+    fn edges(&self, py: Python) -> PyResult<PyObject> {
+        let list = PyList::empty_bound(py);
+        for (source, target, effect, lag, significant) in &self.edges_internal {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("source", source)?;
+            dict.set_item("target", target)?;
+            dict.set_item("effect", *effect)?;
+            dict.set_item("lag", *lag)?;
+            dict.set_item("significant", *significant)?;
+            list.append(dict)?;
+        }
+        Ok(list.into())
+    }
+
+    /// Get significant edges only
+    fn significant_edges(&self, py: Python) -> PyResult<PyObject> {
+        let list = PyList::empty_bound(py);
+        for (source, target, effect, lag, significant) in &self.edges_internal {
+            if *significant {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("source", source)?;
+                dict.set_item("target", target)?;
+                dict.set_item("effect", *effect)?;
+                dict.set_item("lag", *lag)?;
+                list.append(dict)?;
+            }
+        }
+        Ok(list.into())
+    }
+
+    /// Export to Graphviz DOT format
+    fn to_graphviz(&self) -> String {
+        let mut dot = String::from("digraph CausalGraph {\n");
+        dot.push_str("  rankdir=LR;\n");
+        dot.push_str("  node [shape=box, style=filled, fillcolor=lightblue];\n\n");
+
+        // Nodes
+        for var in &self.variable_names {
+            dot.push_str(&format!("  \"{}\";\n", var));
+        }
+        dot.push('\n');
+
+        // Edges
+        for (source, target, effect, lag, significant) in &self.edges_internal {
+            let color = if *significant { "black" } else { "gray" };
+            let style = if *significant { "solid" } else { "dashed" };
+            let penwidth = (effect.abs() * 3.0).clamp(0.5, 5.0);
+
+            let label = if *lag > 0 {
+                format!("{:.2} (t-{})", effect, lag)
+            } else {
+                format!("{:.2}", effect)
+            };
+
+            dot.push_str(&format!(
+                "  \"{}\" -> \"{}\" [label=\"{}\", color={}, style={}, penwidth={:.1}];\n",
+                source.split('(').next().unwrap_or(source),
+                target,
+                label,
+                color,
+                style,
+                penwidth
+            ));
+        }
+
+        dot.push_str("}\n");
+        dot
+    }
+
+    /// Export to JSON format
+    fn to_json(&self) -> String {
+        let mut json = String::from("{\n");
+
+        // Metadata
+        json.push_str(&format!("  \"algorithm\": \"{}\",\n", self.algorithm));
+        json.push_str(&format!("  \"n_variables\": {},\n", self.n_variables));
+
+        // Variables
+        json.push_str("  \"variables\": [");
+        json.push_str(
+            &self
+                .variable_names
+                .iter()
+                .map(|v| format!("\"{}\"", v))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        json.push_str("],\n");
+
+        // Causal order
+        json.push_str("  \"causal_order\": [");
+        json.push_str(
+            &self
+                .causal_order
+                .iter()
+                .map(|v| format!("\"{}\"", v))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        json.push_str("],\n");
+
+        // Edges
+        json.push_str("  \"edges\": [\n");
+        let edge_strs: Vec<String> = self.edges_internal.iter()
+            .map(|(src, tgt, eff, lag, sig)| {
+                format!(
+                    "    {{\"source\": \"{}\", \"target\": \"{}\", \"effect\": {:.6}, \"lag\": {}, \"significant\": {}}}",
+                    src, tgt, eff, lag, sig
+                )
+            })
+            .collect();
+        json.push_str(&edge_strs.join(",\n"));
+        json.push_str("\n  ],\n");
+
+        // Adjacency matrix
+        json.push_str("  \"adjacency_matrix\": [\n");
+        let matrix_strs: Vec<String> = self
+            .adjacency_matrix
+            .iter()
+            .map(|row| {
+                let vals: Vec<String> = row.iter().map(|v| format!("{:.6}", v)).collect();
+                format!("    [{}]", vals.join(", "))
+            })
+            .collect();
+        json.push_str(&matrix_strs.join(",\n"));
+        json.push_str("\n  ]\n");
+
+        json.push_str("}\n");
+        json
+    }
+
+    /// Export to NetworkX compatible format (Python dict)
+    fn to_networkx_data(&self, py: Python) -> PyResult<PyObject> {
+        let dict = PyDict::new_bound(py);
+
+        // Nodes
+        let nodes = PyList::empty_bound(py);
+        for var in &self.variable_names {
+            nodes.append(var)?;
+        }
+        dict.set_item("nodes", nodes)?;
+
+        // Edges with attributes
+        let edges = PyList::empty_bound(py);
+        for (source, target, effect, lag, significant) in &self.edges_internal {
+            let edge_dict = PyDict::new_bound(py);
+            edge_dict.set_item("source", source.split('(').next().unwrap_or(source))?;
+            edge_dict.set_item("target", target)?;
+            edge_dict.set_item("weight", *effect)?;
+            edge_dict.set_item("lag", *lag)?;
+            edge_dict.set_item("significant", *significant)?;
+            edges.append(edge_dict)?;
+        }
+        dict.set_item("edges", edges)?;
+
+        // Directed
+        dict.set_item("directed", true)?;
+        dict.set_item("multigraph", false)?;
+
+        Ok(dict.into())
+    }
+
+    /// Get bootstrap result if available
+    fn get_bootstrap(&self) -> Option<BootstrapResult> {
+        self.bootstrap_result.clone()
+    }
+
+    /// Filter edges by minimum effect size
+    fn filter_edges(&self, min_effect: f64, py: Python) -> PyResult<PyObject> {
+        let list = PyList::empty_bound(py);
+        for (source, target, effect, lag, significant) in &self.edges_internal {
+            if effect.abs() >= min_effect {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("source", source)?;
+                dict.set_item("target", target)?;
+                dict.set_item("effect", *effect)?;
+                dict.set_item("lag", *lag)?;
+                dict.set_item("significant", *significant)?;
+                list.append(dict)?;
+            }
+        }
+        Ok(list.into())
+    }
+
+    /// Get edges involving a specific variable
+    fn edges_involving(&self, variable: &str, py: Python) -> PyResult<PyObject> {
+        let list = PyList::empty_bound(py);
+        for (source, target, effect, lag, significant) in &self.edges_internal {
+            let src_base = source.split('(').next().unwrap_or(source);
+            if src_base == variable || target == variable {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("source", source)?;
+                dict.set_item("target", target)?;
+                dict.set_item("effect", *effect)?;
+                dict.set_item("lag", *lag)?;
+                dict.set_item("significant", *significant)?;
+                list.append(dict)?;
+            }
+        }
+        Ok(list.into())
+    }
+
+    /// Get parent variables of a target
+    fn parents_of(&self, target: &str) -> Vec<String> {
+        self.edges_internal
+            .iter()
+            .filter(|(_, tgt, _, _, _)| tgt == target)
+            .map(|(src, _, _, _, _)| src.clone())
+            .collect()
+    }
+
+    /// Get child variables of a source
+    fn children_of(&self, source: &str) -> Vec<String> {
+        self.edges_internal
+            .iter()
+            .filter(|(src, _, _, _, _)| src.split('(').next().unwrap_or(src) == source)
+            .map(|(_, tgt, _, _, _)| tgt.clone())
+            .collect()
+    }
+}
+
+/// Main causal discovery interface
+#[pyclass]
+#[derive(Clone)]
+pub struct CausalDiscoverer {
+    /// Algorithm to use
+    algorithm: Algorithm,
+    /// Number of lags (for time series)
+    lags: Option<usize>,
+    /// Whether to prune small effects
+    prune: bool,
+    /// Effect threshold
+    threshold: f64,
+    /// Max chunk size (for scalable)
+    max_chunk_size: usize,
+    /// Fitted result
+    result: Option<CausalResult>,
+}
+
+#[pymethods]
+impl CausalDiscoverer {
+    /// Create a new CausalDiscoverer
+    ///
+    /// # Arguments
+    /// * `algorithm` - "directlingam", "varlingam", "scalable", or "rcd"
+    /// * `lags` - Number of lags for time series (None = auto)
+    /// * `prune` - Whether to prune small effects
+    /// * `threshold` - Minimum effect size
+    /// * `max_chunk_size` - Max assets per chunk (scalable only)
+    #[new]
+    #[pyo3(signature = (algorithm="varlingam", lags=None, prune=true, threshold=0.01, max_chunk_size=100))]
+    fn new(
+        algorithm: &str,
+        lags: Option<usize>,
+        prune: bool,
+        threshold: f64,
+        max_chunk_size: usize,
+    ) -> Self {
+        let algo = match algorithm.to_lowercase().as_str() {
+            "directlingam" | "direct" => Algorithm::DirectLiNGAM,
+            "varlingam" | "var" => Algorithm::VarLiNGAM,
+            "scalable" | "scalablevarlingam" => Algorithm::ScalableVarLiNGAM,
+            "rcd" | "latent" => Algorithm::RCD,
+            other => {
+                eprintln!(
+                    "[varlingam] Unknown algorithm '{}', defaulting to VarLiNGAM. \
+                     Valid options: varlingam, directlingam, scalable, rcd",
+                    other
+                );
+                Algorithm::VarLiNGAM
+            }
+        };
+
+        CausalDiscoverer {
+            algorithm: algo,
+            lags,
+            prune,
+            threshold,
+            max_chunk_size,
+            result: None,
+        }
+    }
+
+    /// Fit the model to data
+    ///
+    /// # Arguments
+    /// * `data` - 2D array (n_samples x n_features)
+    /// * `variable_names` - Optional variable names
+    /// * `sector_assignments` - Optional sector indices (for scalable)
+    #[pyo3(signature = (data, variable_names=None, sector_assignments=None))]
+    fn fit(
+        &mut self,
+        data: Vec<Vec<f64>>,
+        variable_names: Option<Vec<String>>,
+        sector_assignments: Option<Vec<usize>>,
+    ) -> PyResult<()> {
+        let n_samples = data.len();
+        if n_samples == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Data cannot be empty",
+            ));
+        }
+        let n_features = data[0].len();
+
+        let flat: Vec<f64> = data.iter().flatten().copied().collect();
+        let matrix = DMatrix::from_row_slice(n_samples, n_features, &flat);
+
+        let var_names: Vec<String> =
+            variable_names.unwrap_or_else(|| (0..n_features).map(|i| format!("X{}", i)).collect());
+
+        let result = match self.algorithm {
+            Algorithm::DirectLiNGAM => {
+                let config = DirectLiNGAMConfig::default();
+                let res = direct_lingam(&matrix, config);
+                self.convert_direct_lingam(res, &var_names)
+            }
+            Algorithm::VarLiNGAM => {
+                let config = VarLiNGAMConfig {
+                    lags: self.lags,
+                    prune: self.prune,
+                    edge_threshold: self.threshold,
+                    ..Default::default()
+                };
+                let res = var_lingam(&matrix, Some(var_names.clone()), config);
+                self.convert_var_lingam(res, &var_names)
+            }
+            Algorithm::ScalableVarLiNGAM => {
+                let config = ScalableConfig {
+                    max_chunk_size: self.max_chunk_size,
+                    var_lingam_config: VarLiNGAMConfig {
+                        lags: self.lags,
+                        prune: self.prune,
+                        edge_threshold: self.threshold,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let res = var_lingam_scalable(
+                    &matrix,
+                    Some(var_names.clone()),
+                    sector_assignments,
+                    config,
+                );
+                self.convert_scalable(res, &var_names)
+            }
+            Algorithm::RCD => {
+                let config = RCDConfig::default();
+                let res = rcd(&matrix, Some(var_names.clone()), config);
+                self.convert_rcd(res, &var_names)
+            }
+        };
+
+        self.result = Some(result);
+        Ok(())
+    }
+
+    /// Perform bootstrap analysis
+    ///
+    /// # Arguments
+    /// * `data` - Original data
+    /// * `variable_names` - Variable names
+    /// * `n_resamples` - Number of bootstrap resamples
+    /// * `block_size` - Block size for block bootstrap
+    /// * `ci_method` - "percentile" (default, fast) or "bca" (more accurate for small samples)
+    /// * `alpha` - Significance level (default 0.05 for 95% CI)
+    #[pyo3(signature = (data, variable_names=None, n_resamples=100, block_size=None, ci_method="percentile", alpha=0.05))]
+    fn bootstrap(
+        &mut self,
+        data: Vec<Vec<f64>>,
+        variable_names: Option<Vec<String>>,
+        n_resamples: usize,
+        block_size: Option<usize>,
+        ci_method: &str,
+        alpha: f64,
+    ) -> PyResult<BootstrapResult> {
+        let n_samples = data.len();
+        if n_samples == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Data cannot be empty",
+            ));
+        }
+        let n_features = data[0].len();
+
+        // Validate alpha
+        if alpha <= 0.0 || alpha >= 1.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "alpha must be in (0, 1), got {}",
+                alpha
+            )));
+        }
+
+        // Parse CI method
+        let ci_method_enum = match ci_method.to_lowercase().as_str() {
+            "percentile" => super::bootstrap::CIMethod::Percentile,
+            "bca" => super::bootstrap::CIMethod::BCa,
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "ci_method must be 'percentile' or 'bca', got '{}'",
+                    ci_method
+                )));
+            }
+        };
+
+        let flat: Vec<f64> = data.iter().flatten().copied().collect();
+        let matrix = DMatrix::from_row_slice(n_samples, n_features, &flat);
+
+        let config = VarLiNGAMConfig {
+            lags: self.lags,
+            prune: self.prune,
+            edge_threshold: self.threshold,
+            ..Default::default()
+        };
+
+        let bootstrap_result = var_lingam_bootstrap(
+            &matrix,
+            variable_names,
+            n_resamples,
+            config,
+            block_size,
+            ci_method_enum,
+            alpha,
+        );
+
+        // Store in result
+        if let Some(ref mut result) = self.result {
+            result.bootstrap_result = Some(bootstrap_result.clone());
+        }
+
+        Ok(bootstrap_result)
+    }
+
+    /// Get the fitted result
+    fn result(&self) -> PyResult<CausalResult> {
+        self.result.clone().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("Model not fitted. Call fit() first.")
+        })
+    }
+
+    /// Check if model is fitted
+    fn is_fitted(&self) -> bool {
+        self.result.is_some()
+    }
+
+    fn __repr__(&self) -> String {
+        let algo_str = match self.algorithm {
+            Algorithm::DirectLiNGAM => "DirectLiNGAM",
+            Algorithm::VarLiNGAM => "VarLiNGAM",
+            Algorithm::ScalableVarLiNGAM => "ScalableVarLiNGAM",
+            Algorithm::RCD => "RCD",
+        };
+        let fitted = if self.result.is_some() {
+            "fitted"
+        } else {
+            "not fitted"
+        };
+        format!(
+            "CausalDiscoverer(algorithm={}, lags={:?}, {})",
+            algo_str, self.lags, fitted
+        )
+    }
+}
+
+impl CausalDiscoverer {
+    fn convert_direct_lingam(&self, res: DirectLiNGAMResult, var_names: &[String]) -> CausalResult {
+        let n = res.adjacency_matrix.nrows();
+        let mut edges = Vec::new();
+
+        for i in 0..n {
+            for j in 0..n {
+                let effect = res.adjacency_matrix[(i, j)];
+                if i != j && effect.abs() > self.threshold {
+                    edges.push((
+                        var_names[j].clone(),
+                        var_names[i].clone(),
+                        effect,
+                        0,
+                        effect.abs() > 0.05,
+                    ));
+                }
+            }
+        }
+
+        let adjacency: Vec<Vec<f64>> = (0..n)
+            .map(|i| (0..n).map(|j| res.adjacency_matrix[(i, j)]).collect())
+            .collect();
+
+        let causal_order: Vec<String> = res
+            .causal_order
+            .iter()
+            .map(|&i| var_names[i].clone())
+            .collect();
+
+        CausalResult {
+            algorithm: "DirectLiNGAM".to_string(),
+            variable_names: var_names.to_vec(),
+            causal_order,
+            edges_internal: edges,
+            adjacency_matrix: adjacency,
+            n_variables: n,
+            bootstrap_result: None,
+            metadata: HashMap::new(),
+        }
+    }
+
+    fn convert_var_lingam(&self, res: VarLiNGAMResult, var_names: &[String]) -> CausalResult {
+        let edges: Vec<_> = res
+            .edges
+            .iter()
+            .map(|e| {
+                (
+                    e.source.clone(),
+                    e.target.clone(),
+                    e.effect,
+                    e.lag,
+                    e.significant,
+                )
+            })
+            .collect();
+
+        let mut metadata = HashMap::new();
+        metadata.insert("lags_used".to_string(), res.lags_used.to_string());
+
+        CausalResult {
+            algorithm: "VarLiNGAM".to_string(),
+            variable_names: var_names.to_vec(),
+            causal_order: res.causal_order,
+            edges_internal: edges,
+            adjacency_matrix: res.instantaneous_matrix,
+            n_variables: res.n_variables,
+            bootstrap_result: None,
+            metadata,
+        }
+    }
+
+    fn convert_scalable(&self, res: ScalableResult, var_names: &[String]) -> CausalResult {
+        let edges: Vec<_> = res
+            .edges
+            .iter()
+            .map(|e| {
+                (
+                    e.source.clone(),
+                    e.target.clone(),
+                    e.effect,
+                    e.lag,
+                    e.significant,
+                )
+            })
+            .collect();
+
+        let mut metadata = HashMap::new();
+        metadata.insert("n_chunks".to_string(), res.n_chunks.to_string());
+        metadata.insert(
+            "processing_time".to_string(),
+            format!("{:.2}s", res.processing_time_secs),
+        );
+        metadata.insert(
+            "filtered_vars".to_string(),
+            res.filtered_variables.len().to_string(),
+        );
+
+        // Build adjacency from edges (approximate)
+        let n = var_names.len();
+        let mut adjacency = vec![vec![0.0; n]; n];
+        for edge in &res.edges {
+            if edge.lag == 0 {
+                if let (Some(i), Some(j)) = (
+                    var_names.iter().position(|v| v == &edge.target),
+                    var_names.iter().position(|v| v == &edge.source),
+                ) {
+                    adjacency[i][j] = edge.effect;
+                }
+            }
+        }
+
+        CausalResult {
+            algorithm: "ScalableVarLiNGAM".to_string(),
+            variable_names: var_names.to_vec(),
+            causal_order: vec![], // Not available for scalable
+            edges_internal: edges,
+            adjacency_matrix: adjacency,
+            n_variables: n,
+            bootstrap_result: None,
+            metadata,
+        }
+    }
+
+    fn convert_rcd(&self, res: RCDResult, var_names: &[String]) -> CausalResult {
+        let edges: Vec<_> = res
+            .edges
+            .iter()
+            .map(|e| {
+                (
+                    e.source.clone(),
+                    e.target.clone(),
+                    e.effect,
+                    0,
+                    !e.possibly_confounded,
+                )
+            })
+            .collect();
+
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "confounded_pairs".to_string(),
+            res.confounded_pairs.len().to_string(),
+        );
+        metadata.insert(
+            "latent_factors".to_string(),
+            res.latent_effects.len().to_string(),
+        );
+        metadata.insert("converged".to_string(), res.converged.to_string());
+        metadata.insert("iterations".to_string(), res.n_iterations.to_string());
+
+        CausalResult {
+            algorithm: "RCD".to_string(),
+            variable_names: var_names.to_vec(),
+            causal_order: vec![], // RCD doesn't produce causal order
+            edges_internal: edges,
+            adjacency_matrix: res.adjacency_matrix,
+            n_variables: var_names.len(),
+            bootstrap_result: None,
+            metadata,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_causal_discoverer_varlingam() {
+        let data = vec![
+            vec![1.0, 2.0, 3.0],
+            vec![1.1, 2.2, 3.3],
+            vec![1.2, 2.4, 3.6],
+            vec![1.3, 2.6, 3.9],
+            vec![1.4, 2.8, 4.2],
+            vec![1.5, 3.0, 4.5],
+            vec![1.6, 3.2, 4.8],
+            vec![1.7, 3.4, 5.1],
+            vec![1.8, 3.6, 5.4],
+            vec![1.9, 3.8, 5.7],
+            vec![2.0, 4.0, 6.0],
+            vec![2.1, 4.2, 6.3],
+        ];
+
+        let mut discoverer = CausalDiscoverer::new("varlingam", Some(1), true, 0.01, 100);
+        discoverer
+            .fit(data, Some(vec!["A".into(), "B".into(), "C".into()]), None)
+            .unwrap();
+
+        let result = discoverer.result().unwrap();
+        assert_eq!(result.n_variables, 3);
+
+        let dot = result.to_graphviz();
+        assert!(dot.contains("digraph"));
+
+        let json = result.to_json();
+        assert!(json.contains("VarLiNGAM"));
+    }
+
+    #[test]
+    fn test_causal_discoverer_rcd() {
+        let n = 50;
+        let data: Vec<Vec<f64>> = (0..n)
+            .map(|i| {
+                vec![
+                    (i as f64 * 0.1).sin(),
+                    (i as f64 * 0.1).cos(),
+                    (i as f64 * 0.15).sin(),
+                ]
+            })
+            .collect();
+
+        let mut discoverer = CausalDiscoverer::new("rcd", None, true, 0.01, 100);
+        discoverer.fit(data, None, None).unwrap();
+
+        let result = discoverer.result().unwrap();
+        assert_eq!(result.algorithm, "RCD");
+    }
+}

@@ -1,0 +1,51 @@
+# Diagram construction: reviewed proposal synthesis
+
+This task develops an evidence-grounded diagram-assistance proposal. The integrated argument is in chapter L3: its inherited graph-class discussion, the new diagram development and the new ontology development. This synthesis records the task disposition and remaining work outside the product narrative. Literature coverage is bounded at 7 October 2026; acquisition and reinspection dates are retained separately. The review is by the author, not an independent scientific acceptance.
+
+## What an assistant should contribute
+
+The proposed workflow distinguishes suggesting a variable, proposing an edge, accepting a scientific premise, executing discovery and identifying an intervention target. A model-generated explanation can support the first two without establishing the last three. Endpoint marks, latent-variable declarations, event and availability clocks, populations, treatment versions and observation mechanisms survive each handoff. A CPDAG, a PAG and a finite list of DAGs remain different objects. A circle endpoint is not silently converted into an arrow, and a finite list is not labeled exhaustive over all compatible models.
+
+Each revision retains its predecessor and exact changed premise. A cosmetic edit leaves the scientific object intact; a changed intervention, unit, clock or exclusion can invalidate previous analyses. A cycle checker can expose the conflicting arrows but cannot decide which expert is right. Alternatives remain available when the evidence cannot resolve them. The effect object is the union over the declared models, retaining disconnected components and unboundedness when appropriate; no coefficient interval is substituted for model uncertainty.
+
+## Primary comparisons and reuse decisions
+
+| Route | Inspected contribution | Adverse evidence or limit | Proposed disposition |
+|---|---|---|---|
+| CausalChat, `v12_la_2410_14146` | Interactive editing, optional CPDAG discovery, linked model commentary and coefficient updates | Six-student comparison changes edge selection and task order with interface; missing citations raised in expert feedback | Reuse interaction ideas; evaluate interface benefit on matched tasks, retain premise provenance |
+| Breadth-first prompting, `v12_la_2402_01207` | One expansion query per visited variable; reject cycles | Linear query count does not bound token use; reported 221-node F1 .351 and omitted costly comparisons | Efficiency baseline with actual resource accounting; no acyclicity-as-truth claim |
+| chatPC, `v12_la_2406_07378` | Model judgments inside conditional-independence search | Symmetry agreement .510/.870; answer probability differs from a sampling-law independence test | Labeled experimental comparator, separate response uncertainty from scientific uncertainty |
+| causal-learn+, `v12_la_2606_23608` | Agents assist assumptions, method selection and formal discovery | System architecture and proposed evaluation do not establish local or bank performance | Favor explicit handoffs to supported formal methods while retaining disputed premises |
+| Sng contradiction study, `exec13_hallucination` | Retrieval/debate consistency remedies | Mocked true-graph retrieval and contradiction score do not measure discovery truth | Use debate to reveal missing assumptions and counterevidence; do not calibrate graph probabilities by voting |
+| pywhy-llm, `v12_la_package_pywhy_llm` | Confounder/identification suggestion path | Front-door method is a TODO/pass at inspected revision | Integrate candidate elicitation only; require formal identification of the reviewed graph |
+| causal_GPT, `v12_la_package_causal_gpt` | Voting and proportion-test CI interface | Binary return values are not calibrated causal p-values; same answer counts are dependent | Retain as a benchmark candidate, reject direct adoption as a sampling-law oracle |
+| CausalAgent, `v12_la_package_causalagent` | Application/MCP tool organization | OLC call lacks a definition/import in inspected server; output parsing can return an empty dictionary | Retain tool-handoff design; defer incomplete path pending repair and actual trial |
+| OntoLearner, `v12_la_package_ontolearner` and `exec13_ontolearner_inspection` | Typed semantic loading and learning operations | Mutable ontology downloads; default import hook disabled; enabled import path can continue after failure | Restrict to locally pinned ontology bundles with explicit import completeness and a separate causal mapping |
+
+The papers, exact revisions, licenses, local source bytes, hashes and inspected technical anchors are in the two primary reinspection records and the integrated source audit. Selected components are preferable to whole-stack ports until a measured platform need justifies a port. Source inspection is not an executed integration. The conditional import finding was tightened during this review to avoid implying that the base OntoLearner class automatically follows imports.
+
+## Worked banking targets and formal baselines
+
+The servicing proxy example asks for the total effect of an assistance offer on repayment, after distinguishing pre-offer latent resilience from its noisy recorded score. Exact enumeration gives a true effect of 1/5, an unadjusted contrast of 1/2 and noisy-score adjustment of 143/340. All sixteen generated joint cells are positive. Known nondifferential measurement error with flip probability 1/5 permits inversion and recovery of 1/5, with inverse one-norm amplification 5/3. This remedy needs the measurement model; it does not infer its truth from the score name. At error probability one half the chosen inversion fails.
+
+The outreach example randomizes an offer, gives it zero effect on repayment and makes later engagement a collider. Adjustment for engagement nevertheless yields −4/21, with all eight observed cells positive. It distinguishes total effects, selected comparisons and principal-stratum questions. A variable recorded later may still measure a baseline property, so event, measurement and availability clocks are treated separately instead of applying a mechanical timestamp ban.
+
+The funding sequence unrolls offer–balance feedback across dates. A deployable policy uses information actually available at its decision time, while a retrospectively measured baseline variable has a separate identification question. Revised macro releases and action-dependent observation can therefore matter even when a graph has no visible backward arrow.
+
+Two assistance versions with randomized assignment and version selection give another exact baseline: changing the high-intensity share from 1/4 to 3/4 changes the effect from .065 to .155 and stipulated net value from USD32.50 to USD77.50. The same binary treatment label does not define an invariant program across these mixtures.
+
+The disagreement example uses explicitly assumed effects .02/.08, benefit USD1,000 and cost USD50. The two net values are −USD30/+USD30. Without model probabilities neither pure decision is robustly beneficial; both have maximum regret USD30. Assumed planning probabilities .5/.8 give perfect-information values USD15/USD6 per account. These calculations can rule out an overexpensive information request under that decision model, but a lower experiment cost alone does not demonstrate its merit. No bank ROI is asserted.
+
+The additional three-model example preserves one positive observed law under a forward, reverse and latent-confounded mechanism. A valid clock removes the reverse model but leaves effect candidates {0, 4/5}; an additional valid exogeneity restriction removes the confounded candidate within this finite comparison. A separate cycle example distinguishes inclusion-minimal conflicting restrictions from a scientifically justified repair. These calculations make the consequences of accepting and withdrawing a premise explicit.
+
+The proxy/collider and treatment-version scripts were reproduced against their saved result files, and the new restriction script was executed with exact enumeration. There are no random draws, model calls or bank observations. The examples establish mathematical consequences of declared mechanisms and support public/generated prototype designs, not live discovery accuracy.
+
+## Remaining work and disposition
+
+Public/generated evaluation should compare a dictionary/clock validator, supported formal algorithms, single-model elicitation, retrieval assistance and human review where feasible. The reference must distinguish author-stipulated truth, information available to the assistant and unidentified real-data questions. Scoring retains unavailable/unsupported cases, valid abstention, target ambiguity, retrieval failures and total review/resource cost. A true graph supplied in retrieval can test use of that graph; it cannot simultaneously test its discovery from information that omitted it.
+
+Four unresolved original-text leads remain explicitly omitted: ACE, psychological hypothesis generation, CausalGraphBench and the ECMO application. The bounded acquisition found a non-PDF publisher response and no entry in an arXiv title search; other publisher routes remain outside the unchanged collector manifest. These are coverage limits, not evidence that the works lack relevant methods. Obtain authentic originals and inspect technical anchors before adding claims.
+
+The architecture and exact cases are ready for proposal use. Model-ranking, calibrated causal certainty, bank-specific measurement/assignment truth, actual package conformance and independent acceptance are unestablished. The first three need distinct evidence: prospectively evaluated task performance, a defensible inferential/calibration target, and target-process records or experiments whose value is justified by the prototype. None is silently supplied by this literature task.
+
+Evidence: `docs/program/execution/2026-10-13/diagrams/{primary-reinspection,ontology-primary-reinspection,source-audit,ontology-source-audit,reproduction-review,omissions-register}.json`; exact scripts under `tools/`; assembled chapter under `TEXT.DRAFT.L3/chapter.tex`. L3 receives its own depth review; this task synthesis receives no manuscript page credit.

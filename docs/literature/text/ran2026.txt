@@ -1,0 +1,2830 @@
+                                               Doubly Robust Functional Representation Learning for
+                                               Longitudinal Causal Inference with Irregular Histories
+                                                                            Mengfei Ran1 , Yifeng Shen1 , Ruijie Guan∗2
+                                           1
+                                               Academy of Life and Natural Sciences, Xi’an Jiaotong-Liverpool University, Suzhou, China
+                                               2
+                                                 Aerospace Information Research Institute, Chinese Academy of Sciences, Beijing, China
+
+
+
+
+                                                                                                 Abstract
+arXiv:2607.28567v1 [stat.ML] 30 Jul 2026
+
+
+
+
+                                                          Longitudinal causal studies often record histories as irregular functional fragments: lab-
+                                                      oratory values, physiologic signals, sensor streams, and image-derived summaries measured
+                                                      at unequal and informative times. Standard doubly robust estimators usually require scalar
+                                                      summaries, whereas sequence learners optimize prediction losses that need not stabilize the
+                                                      efficient influence function. We propose Doubly Robust Functional Representation Learning
+                                                      (DR-FRL), a cross-fitted workflow that turns irregular histories into estimand-targeted states
+                                                      for observed-history regimes. Functional and temporal encoders map point clouds and prior
+                                                      histories into states; nuisance heads estimate outcome, treatment, and censoring functions; and
+                                                      EIF-targeted validation, calibration, overlap, tail, and ablation diagnostics assess whether the
+                                                      state supports the estimating equation. If the selected state preserves the nuisance information
+                                                      needed by the EIF, representation error enters the same second-order product remainder as
+                                                      ordinary nuisance error, and the mean estimator is asymptotically linear under explicit rate,
+                                                      overlap, calibration, and stability conditions. Catoni aggregation is treated separately as a
+                                                      bounded-influence point estimator, not a replacement for Wald inference. Simulations show gains
+                                                      when functional confounding is high-dimensional, measurement is informative, support is weak,
+                                                      or pseudo-outcomes are heavy-tailed. A VitalDB audit shows that DR-FRL can use irregular
+                                                      laboratory point clouds and deliver a useful negative finding: for this ICU-disposition endpoint,
+                                                      scalar laboratory summaries already carry much endpoint-relevant information.
+
+                                           Keywords: causal inference; longitudinal data; functional data analysis; representation learning;
+                                           double robustness; efficient influence functions; irregular sampling.
+
+
+                                           1         Introduction
+                                           Consider a perioperative study in which clinicians decide whether and when to administer vasopressor
+                                           support while a patient’s risk state evolves. Before the decision, the record may contain a few
+                                           laboratory values measured days earlier, multiple vital-sign summaries recorded at unequal times,
+                                           surgery descriptors, prior medications, and missingness patterns that themselves reflect clinical
+                                           concern. A scalar baseline table can hide much of this structure, but a black-box prediction
+                                           model does not by itself answer the causal question of how an intervention regime would change
+                                           postoperative risk. The statistical problem is to use irregular functional histories without losing the
+                                           estimating-equation structure that makes doubly robust causal inference interpretable.
+                                                ∗
+                                                    Corresponding author. guanrj@aircas.ac.cn
+
+
+                                                                                                     1
+    The classical longitudinal causal framework is clear once a suitable history has been specified.
+The g-formula of Robins (1986) and marginal structural models (Robins et al., 2000) identify effects
+under sequential exchangeability, consistency, and positivity. Doubly robust and targeted-learning
+estimators combine outcome and mechanism models so that first-order bias is reduced when one
+nuisance component is well estimated (Bang and Robins, 2005; van der Laan and Rubin, 2006).
+Bickel et al. (1993) developed the semiparametric efficiency theory that clarifies the role of orthogonal
+scores, and modern cross-fitting makes it possible to use flexible nuisance learners without classical
+Donsker restrictions (Chernozhukov et al., 2018). These tools are now routine in longitudinal causal
+analysis, but they usually start after the analyst has already compressed the observed history into a
+finite vector.
+    That compression step is increasingly decisive. Electronic health records, perioperative monitoring
+systems, wearable devices, imaging pipelines, and mobile-health platforms often record evolving
+histories as noisy, sparse, and irregular functional measurements. Functional data analysis provides
+a rich language for such objects; Ramsay and Silverman (2005) give the foundational treatment,
+and Yao et al. (2005) developed a widely used framework for sparse longitudinal functional data.
+Functional principal components, spline summaries, and functional linear models can be highly
+effective for regression and prediction (Cardot et al., 1999; James et al., 2000), while nonparametric
+functional methods offer alternatives when smoothness assumptions are credible (Ferraty and Vieu,
+2006). In causal inference, however, the relevant dimension of a curve is not its marginal variance or
+reconstruction error, but its role in the efficient influence function: a low-variance feature can still
+drive treatment, censoring, or the outcome regression. Existing functional causal work has made
+important progress, but much of it focuses on functional treatments or fixed functional summaries
+rather than longitudinal treatment-confounder feedback with learned states (Ciarleglio et al., 2015).
+    Deep longitudinal models address another part of the problem. Lim et al. (2018) and Bica et al.
+(2020) showed that learned sequence representations can improve counterfactual prediction, and later
+recurrent or attention-based architectures further improved dynamic treatment-response modeling
+(Li et al., 2021; Melnychuk et al., 2022). The attention mechanism of Vaswani et al. (2017) is a
+powerful representation tool, but an attention layer is not an estimating equation. Prediction-oriented
+sequence models can be useful comparators, yet their objectives do not directly measure whether a
+learned state stabilizes inverse-probability weights, calibrates treatment and censoring probabilities,
+or makes the efficient influence function nearly mean zero. This leaves a gap between flexible
+representation learning and semiparametric causal inference.
+    This paper fills that gap for observed-history causal effects with irregular functional covariates. At
+each decision time, the analyst observes scalar variables and a point cloud such as laboratory values,
+blood-pressure measurements, sensor signals, or image-derived summaries. We do not require these
+point clouds to be reconstructed on a regular grid. Measurement times, counts, marker identities,
+and noisy values are part of the observed pre-treatment history. The estimand is deliberately an
+observed-history value under exchangeability conditional on the actually observed point clouds and
+sampling patterns. A latent full-functional value would require additional coarsening or measurement
+assumptions, so it is not folded into the main identification claim.
+    We propose Doubly Robust Functional Representation Learning (DR-FRL). A permutation-
+invariant or continuous-time encoder maps each irregular point cloud to a visit-level embedding; a
+temporal encoder maps previous embeddings, scalar covariates, treatments, follow-up indicators,
+and timing features into a learned state; nuisance heads estimate outcome regressions, treatment
+probabilities, and censoring probabilities; and the fitted nuisance functions enter a sequentially
+doubly robust recursion. The representation is not judged by reconstruction or prediction alone.
+It is selected and audited by its ability to support the efficient influence function through balance,
+calibration, overlap, effective sample size, and pseudo-outcome stability.
+
+                                                    2
+    The main theoretical result is intentionally conditional. If the learned state preserves the nuisance
+information needed by the efficient influence function, representation error enters through the same
+second-order product remainder as ordinary nuisance error. Under explicit rate, calibration, overlap,
+and stability conditions, the mean-aggregation estimator is asymptotically linear and admits Wald
+inference. Robust Catoni aggregation is kept separate: it is a bounded-influence point-estimation
+device for unstable pseudo-outcomes, not a source of ordinary Wald intervals.
+    The contributions are fourfold. First, we define an observed-history target for irregular functional
+measurements and keep it separate from latent full-functional targets that require extra measurement
+assumptions. Second, we place learned functional states inside a sequential doubly robust estimating
+equation rather than treating them as preprocessing. Third, we derive an expansion in which
+representation error, nuisance error, and clipping error are separated; the mean estimator has Wald
+inference under explicit product-rate, overlap, and stability conditions. Fourth, simulations and a
+VitalDB audit show where functional states, robust aggregation, and overlap diagnostics add value,
+and where scalar summaries already suffice.
+    The rest of the paper is organized as follows. Section 2 defines the observed-history estimand,
+identification assumptions, and efficient influence function. Section 3 describes the learned state,
+nuisance models, targeted validation, and diagnostic output. Section 4 gives the cross-fitted
+implementation. Section 5 states the main large-sample results and their scope. Section 6 reports
+reproducible simulations designed to stress representation, overlap, and tail behavior. Section 7
+applies the method as a diagnostic audit in VitalDB. Section 8 summarizes what the method adds
+and where it remains limited.
+
+
+2     Framework and Identification
+2.1    Observed longitudinal functional data
+We observe independent units O1 , . . . , On ∼ P0 . Each unit is followed over decision times t = 0, . . . , T .
+Let B ∈ B denote baseline covariates. At time t, before treatment assignment, we observe scalar
+covariates Lt and a functional point cloud
+
+                             OtX = {(Utℓ , X
+                                           etℓ ) : ℓ = 1, . . . , Mt },            Utℓ ∈ U,
+
+where Mt is the number of measurements and X   etℓ is a noisy evaluation of an underlying trajectory
+or signal. The case Mt = 0 is allowed. Treatment At ∈ A is assigned after (B, Lt , OtX ) is available.
+Follow-up indicator Rt ∈ {0, 1} is then
+                                     Q recorded, with Rt = 1 meaning that the unit remains under
+follow-up after time t. Define R̄t = ts=0 Rs and Āt = (A0 , . . . , At ).
+    The pre-treatment observed history is
+
+                     Ht = (B, O0X , L0 , A0 , R0 , . . . , Ot−1
+                                                            X
+                                                                , Lt−1 , At−1 , Rt−1 , OtX , Lt ),
+
+with H0 = (B, O0X , L0 ). Only variables temporally prior to At are included in Ht . This ordering is
+essential in applications such as critical care, where a physiological measurement after a treatment
+change may be a mediator rather than a confounder.
+    A nonparametric observed-data law can be factorized as
+                                     T
+                                     Y
+                   p0 (o) = p0 (b)                           et1:mt , lt | h−
+                                           p0 (mt , ut1:mt , x              t )p0 (at | ht , r̄t−1 = 1)
+                                     t=0
+                                           × p0 (rt | ht , at , r̄t−1 = 1)p0 (y | hT +1 , āT , r̄T = 1),   (1)
+
+
+                                                               3
+where h−t is the history just before the new pre-treatment measurements at time t. The first factor
+includes the functional observation process. Equation (1) clarifies that the functional observation
+process, treatment mechanism, censoring mechanism, and outcome regression play distinct roles,
+following the same temporal ordering logic used by Robins (1986) and in the longitudinal causal
+framework of Hernan and Robins (2020).
+
+2.2   Regimes and nuisance functions
+A deterministic dynamic treatment regime is g = {gt }Tt=0 with gt : Ht → A. A static regime
+ā = (a0 , . . . , aT ) is the special case gt (h) = at . Such regimes are standard objects in sequential
+decision and dynamic-treatment-regime analyses; see, for example, Robins et al. (2008). The main
+theorems are written for deterministic static or dynamic regimes because this is the setting used in
+the longitudinal simulations. Stochastic interventions q = {qt (· | ht )}Tt=0 are handled by the same
+recursion after replacing treatment indicators by regime density ratios; Supplementary Section S2
+gives the corresponding notation. We write Y g for the deterministic-regime potential outcome and
+target the value
+                                                   θ(g) = E(Y g ).
+   For deterministic g, define the treatment and incremental censoring mechanisms
+                         πtg (h) = P0 {At = gt (h) | Ht = h, R̄t−1 = 1},
+                         ρgt (h) = P0 {Rt = 1 | Ht = h, At = gt (h), R̄t−1 = 1}.
+The censoring model is incremental and conditional on current treatment. This replaces the
+ambiguous cumulative notation P (Ct = 1 | Ht ) and is needed whenever follow-up can depend on the
+current treatment.
+   Let
+                            t
+                                                             1{Āt = ḡt (H̄t ), R̄t = 1}
+               Ggt (Ht ) =                         Htg (O) =
+                           Y
+                               πsg (Hs )ρgs (Hs ),                                        .    (2)
+                           s=0
+                                                                     Ggt (Ht )
+Here Htg is the cumulative clever covariate. Also define the incremental clever covariate
+                                              1{At = gt (Ht ), Rt = 1}
+                                  ωtg (O) =                            ,                              (3)
+                                                  πtg (Ht )ρgt (Ht )
+so that Htg = ts=0 ωsg .
+              Q
+    To remove a possible ambiguity caused by censoring, Ht+1 in the next display means the next
+pre-treatment history generated after (Ht , At , Rt ) on the at-risk path. When Rt = 0, the next
+pre-treatment history is not needed for the estimating equation; formally we extend the sample
+space with a cemetery value ∂ and set Ht+1 = ∂ and Qgt+1 (∂) arbitrary. The factor 1(Rt = 1) in ωtg
+and Htg makes that arbitrary value irrelevant. Consequently, every residual
+                                    Mtg,⋆ = Qg,⋆            g,⋆
+                                             t+1 (Ht+1 ) − Qt (Ht )
+
+has conditional mean zero under the transition law given (Ht , At = gt (Ht ), Rt = 1, R̄t−1 = 1), not
+under the marginal law of Ht+1 .
+   Set QgT +1 (HT +1 ) = Y . For t = T, . . . , 0, define
+                  Qgt (h) = E0 {Qgt+1 (Ht+1 ) | Ht = h, At = gt (h), Rt = 1, R̄t−1 = 1}.              (4)
+For a static regime, replace gt (h) by at . Under the identification conditions below,
+                                          θ(g) = E0 {Qg0 (H0 )}.                                      (5)
+
+                                                     4
+2.3   Identification assumptions
+The observed-history target relies on the following assumptions, stated in potential-outcome language.
+This notation follows Rubin (2005); the same identification logic can also be expressed using graphical
+causal models (Pearl, 2009).
+
+Assumption 1 (Consistency and no interference). If a unit follows regime g through time T and
+remains observable according to the target follow-up intervention, then the observed outcome equals
+the corresponding potential outcome. Interventions are well defined and there is no interference.
+
+Assumption 2 (Sequential exchangeability). For each t and regime g, let
+
+                                         Ftg = (Y g , Ht+1
+                                                       g
+                                                           , . . . , HTg +1 )
+
+denote the counterfactual future process that would be generated after time t under regime g,
+including the terminal outcome and future pre-treatment histories. Sequential exchangeability
+requires
+                    Ftg ⊥ At | Ht , R̄t−1 = 1, Ftg ⊥ Rt | Ht , At , R̄t−1 = 1.
+Thus treatment and follow-up at time t are independent not only of the terminal counterfactual
+outcome but also of the future covariate and functional-history process needed to define later regime
+decisions. For static regimes this reduces to the usual sequential ignorability condition for the
+outcome process. The second statement treats censoring as loss of outcome follow-up or loss of
+required post-time-t data. Death is not censoring when death is the outcome.
+
+Assumption 3 (Positivity). There exists c > 0 such that, almost surely over histories relevant
+under g,
+                       πtg (Ht ) ≥ c,  ρgt (Ht ) ≥ c, t = 0, . . . , T.
+For stochastic-regime extensions, the density ratio qt (At | Ht )/πt (At | Ht ) is bounded on the support
+of qt .
+
+Assumption 4 (Observed functional history). The observed point clouds, measurement counts
+and locations, scalar covariates, and missingness or measurement-intensity indicators needed to
+control confounding are included in Ht . No reconstruction of a full latent function is required for
+the observed-history target.
+
+   If the scientific target instead conditions on a latent full trajectory Xt (·), the present observed-
+data likelihood is not enough without an additional bridge between latent and observed histories.
+We therefore treat the observed-history value as the main estimand. A latent full-functional value
+would require a separately specified measurement or coarsening model, for example a known design
+mechanism, validation data, replicate measurements, or a sensitivity model linking Htfull to the
+observed point cloud Htobs . Because the present estimator does not include an additional inverse-
+coarsening or measurement-model step, no theorem below claims identification or efficiency for an
+unrestricted latent full-functional target.
+
+2.4   EIF and doubly robust recursion
+Under Assumptions 1-4, the nonparametric efficient influence function for θ(g) is
+                             T
+                                   Htg,⋆ (O){Qg,⋆            g,⋆         g,⋆
+                             X
+                 ϕ⋆g (O) =                    t+1 (Ht+1 ) − Qt (Ht )} + Q0 (H0 ) − θ(g).              (6)
+                             t=0
+
+
+                                                          5
+           Observed histories                     Functional and
+                                                                                     Nuisance heads
+          point clouds, scalars,       −→       temporal encoders         −→
+                                                                                       Qt , πt , ρt
+                 timing                          learned states St
+                                                         ⇓
+                                                  Sequential DR
+         EIF-targeted validation                                                  Estimate and audit
+                                                     recursion
+         calibration and optional      −→                                 −→     mean, Catoni, overlap,
+                                                    out-of-fold
+                 targeting                                                               tails
+                                                 pseudo-outcomes
+
+Figure 1: DR-FRL workflow. Functional histories are encoded into states, used in nuisance models,
+evaluated through cross-fitted pseudo-outcomes, and audited by calibration, overlap, effective sample
+size, and tail diagnostics.
+
+
+This expression includes both treatment and censoring through the cumulative clever covariate in (2).
+   Given working nuisance functions η = (Q, π, ρ), define the backward pseudo-outcome recursion
+                    YeTg+1 (η) = Y,
+                       Yetg (η) = Qgt (Ht ) + ωtg (η){Yet+1
+                                                         g
+                                                            (η) − Qgt (Ht )},     t = T, . . . , 0.       (7)
+Algebraic telescoping gives
+                                                      T
+                     Ye0g (η) − θ = Qg0 (H0 ) − θ +         Htg (η){Qgt+1 (Ht+1 ) − Qgt (Ht )},
+                                                      X
+                                                                                                          (8)
+                                                      t=0
+
+with QgT +1 = Y .   Thus the recursion based on single-step weights and the EIF expansion based
+on cumulative weights are the same object written at different stages. For later notation, write
+Dg (O; η, θ) for the right-hand side of (8). At the truth, Dg (O; η ⋆ , θ(g)) = ϕ⋆g (O).
+
+
+3     Estimation and Diagnostics
+DR-FRL has three parts. First, functional and temporal encoders turn the observed history into a
+state St . Second, nuisance heads estimate the outcome, treatment, and censoring functions used
+by the EIF recursion. Third, calibration, overlap, effective sample size, and pseudo-outcome-tail
+diagnostics show whether the fitted estimating equation is empirically stable. The goal is not curve
+reconstruction; it is a state that preserves the nuisance information needed for the causal parameter.
+
+3.1   State representations
+The functional encoder maps an irregular point cloud to a visit-level embedding,
+                                            ξt = eX   X           dx
+                                                  ϕ (Ot , Mt ) ∈ R .
+
+The map is permutation invariant in the measurement pairs. Candidate encoders include Deep Sets
+and Set Transformers for unordered point clouds (Zaheer et al., 2017; Lee et al., 2019). Spline or
+wavelet summaries provide simpler bases. Continuous-time neural models handle irregular timing
+(Chen et al., 2018; Rubanova et al., 2019), while GRU-D and neural CDEs target missingness-aware
+or continuous-time sequence modeling (Che et al., 2018; Kidger et al., 2020). The temporal encoder
+maps the full pre-treatment history to a state
+                     St = eϕ (Ht ) = eH                                                      ds
+                                      ϕ (B, L0:t , ξ0:t , A0:t−1 , R0:t−1 , ∆0:t , M0:t ) ∈ R .
+
+
+                                                          6
+Here ∆0:t contains visit-time gaps or within-visit timing features. We use St for the learned state to
+avoid conflict with scalar covariates.
+
+Definition 1 (Causal sufficient representation). A representation St = eϕ (Ht ) is causally sufficient
+for θ(g) if there exist measurable functions qtg , pgt , and rtg such that, almost surely,
+
+                     Qg,⋆        g
+                      t (Ht ) = qt (St ),             πtg,⋆ (Ht ) = pgt (St ),         ρg,⋆        g
+                                                                                        t (Ht ) = rt (St ),
+
+for every t = 0, . . . , T .
+
+    For a representation class indexed by ϕ and nuisance model classes Qt and Gt , define approximation
+errors
+
+                                      bQ,t (ϕ) = inf ∥Qg,⋆
+                                                       t (Ht ) − q(eϕ (Ht ))∥L2 (P0 ) ,
+                                                  q∈Qt
+
+                                      bΓ,t (ϕ) = inf ∥Γg,⋆
+                                                       t (Ht ) − γ(eϕ (Ht ))∥L2 (P0 ) .
+                                                  γ∈Gt
+
+where Γgt = (πtg , ρgt ) or an equivalent cumulative-mechanism parameterization. These quantities
+make explicit what is lost by replacing Ht with St .
+
+3.2     Nuisance heads and calibration
+For each t, DR-FRL estimates
+                    b g (Ht ) = qbt (St ),
+                    Q                             btg (Ht ) = pbt (St ),
+                                                  π                              ρbgt (Ht ) = rbt (St , gt (Ht )).
+                      t
+
+The censoring head is conditional on current treatment. Treatment and censoring probabilities are
+calibrated within each training fold using temperature scaling, Platt scaling, or isotonic regression;
+Platt (1999) gives the classical score-calibration construction and Guo et al. (2017) studies calibration
+behavior in modern neural networks. When nonparametric calibration is preferred, the same
+diagnostic role can be served by score-to-probability transformations such as those studied by
+Zadrozny and Elkan (2002). For each time point we report Brier score, expected calibration error,
+minimum estimated probability, cumulative weight quantiles, and effective sample size
+                                                    P        2
+                                                         bg
+                                                         H
+                                                        i t,i
+                                           ESSt = P              .
+                                                         bg 2
+                                                      i (Ht,i )
+
+
+3.3     EIF-targeted learning
+Prediction accuracy is not enough: a state that predicts outcomes well may still give unstable weights
+or a biased EIF mean. Following the targeted-learning and orthogonal-score logic of van der Laan
+and Rose (2011) and Chernozhukov et al. (2018), DR-FRL selects representations by how well they
+support the estimating equation. Within each outer training fold, candidates are fitted on an inner
+fitting set, scored on an inner selection set, and evaluated only once on the outer held-out fold. The
+validation objective is
+                               T
+                               X
+                L(ϕ, η) =            {LQ,t (Q
+                                            b t ) + λA LA,t (b
+                                                             πt ) + λR LR,t (b
+                                                                             ρt )}
+                               t=0
+                               + λEIF {Pn,val ϕbg (ϕ, η)}2 + λvar Pn,val {ϕbg (ϕ, η)2 } + λcal Lcal (b
+                                                                                                     π , ρb).        (9)
+
+
+                                                                7
+The first line fits the nuisance functions. The second line penalizes EIF imbalance, volatile pseudo-
+outcomes, and poor mechanism calibration. This criterion is a tuning rule, not an identification
+assumption.
+   Selection therefore does not prove that bQ,t (ϕ)
+                                                  b and bΓ,t (ϕ)
+                                                              b are small. The asymptotic theorem
+remains conditional on the product-rate assumption. The following finite-library result states only
+what independent validation can justify.
+Proposition 1 (Finite-library selection). Fix an outer training fold and a finite library Φn with
+|Φn | = Mn . For each ϕ ∈ Φn , fit nuisance heads on an inner fitting set and compute R
+                                                                                      bEIF (ϕ) on an
+independent validation set, using the squared validation EIF mean plus the EIF variance penalty in
+(9). Let REIF (ϕ) be the corresponding conditional population criterion. If
+                               bEIF (ϕ) − REIF (ϕ)| = OP {(log Mn /nval )1/2 },
+                          sup |R
+                         ϕ∈Φn
+
+and ϕb minimizes R
+                 bEIF up to optimization error ϵn , then
+                             b ≤ inf REIF (ϕ) + OP {(log Mn /nval )1/2 } + ϵn .
+                       REIF (ϕ)
+                                    ϕ∈Φn
+
+    Thus the selected candidate is competitive for the validation EIF criterion. It need not have
+small representation error unless the library contains a representation that is already adequate for
+the nuisance functions.
+
+3.4   Targeted fluctuation
+The optional targeted update is performed inside each outer training fold and is applied backward in
+time. It follows the targeting logic of TMLE introduced by van der Laan and Rubin (2006), adapted
+here to the sequential pseudo-outcome recursion implemented in longitudinal targeted learning
+                                                                 g
+(Lendle et al., 2017). At time t, assume that a pseudo-target Ybi,t+1 has already been constructed on
+the inner training data. Let
+
+                    It = {i : R̄i,t−1 = 1},        b g = 1{Ā
+                                                   C
+                                                              i,t = ḡt (H̄i,t ), R̄i,t = 1}
+                                                                                             ,
+                                                     it
+                                                                   bsg (His )b  ρgs (His )
+                                                           Qt
+                                                               s=0 π
+
+with the convention that R̄i,−1 = 1. For a bounded or binary pseudo-target, the fluctuation parameter
+is the intercept coefficient in the weighted offset regression
+                                    X g                                              
+                      ϵt = argmin      Cb ℓlog Yb g , logit Qb t (Hit , gt (Hit )) + ϵ ,
+                      b                  it      i,t+1
+                              ϵ
+                                   i∈It
+
+where ℓlog is the Bernoulli negative log-likelihood after the pseudo-target is scaled to [0, 1]. The
+updated target-regime prediction is
+                                 bbϵ (Ht , gt (Ht )) = logit Q
+                           logit Q t
+                                                             b t (Ht , gt (Ht )) + b
+                                                                                   ϵt .           (10)
+For continuous outcomes, use the additive least-squares fluctuation
+                        P     bg b g
+                         i∈It Cit {Yi,t+1 − Qt (Hit , gt (Hit ))}
+                                             b
+                   ϵt =                                           , bbϵt = Q
+                                                                    Q      bt + b
+                                                                                ϵt .
+                                         b g + 10−8
+                   b             P
+                                         C
+                                    i∈It it
+
+Equivalently, one may fit the fluctuation only on the regime-compatible subset with inverse-probability
+weights; the weighted formulation above writes the same restriction as a full-risk-set regression. The
+pseudo-target, offset, weights, and selected fluctuation are all computed inside the outer training
+sample. The outer held-out fold is used only for final pseudo-outcome evaluation.
+
+                                                        8
+3.5    Overlap and robust aggregation
+If strict positivity is plausible, clipping is used only as finite-sample stabilization with a threshold
+τn → ∞. Weight truncation is common in marginal structural modeling, but it changes the finite-
+sample estimating equation and must be reported transparently, as emphasized by Cole and Hernán
+(2008). For a fixed threshold, replacing Htg by min(Htg , τ ) changes the estimating equation and is
+therefore a sensitivity analysis rather than, by default, the efficient influence function of a causal
+target. If empirical overlap is intrinsically poor, an explicit overlap estimand is preferable to post
+hoc truncation of the full-population estimating equation; positivity diagnostics are therefore part of
+the estimand-definition problem, not only a numerical detail (Petersen et al., 2012). One transparent
+option is the prespecified overlap-weighted target
+
+                                                     E{ω(H0 )Y g }
+                                          θω (g) =                 ,                               (11)
+                                                      E{ω(H0 )}
+
+where ω is chosen before looking at outcomes and downweights histories with little support. Real-data
+analyses therefore report estimates across clipping thresholds, but state clearly whether inference
+targets θ(g), a regularized clipped estimating equation, or the causal overlap target θω (g).
+    Let Zbg = Ye g (b (−k(i)) ) denote the out-of-fold pseudo-outcome. The mean estimator and its
+          i      i0 η
+estimated influence score are
+                                              bg ,
+                                 θbM (g) = Pn Z              bgi = Z
+                                                             φ     bg − θbM (g).
+                                                i                    i
+
+For a contrast ∆(g1 , g0 ) = θ(g1 ) − θ(g0 ), use
+                          b M = θbM (g1 ) − θbM (g0 ),
+                          ∆                                    σ
+                                                               b∆2
+                                                                         bgi 1 − φ
+                                                                   = Pn (φ       bgi 0 )2 .        (12)
+
+The Wald interval is based on (12) only for mean aggregation.
+    For heavy-tailed outcomes or unstable pseudo-outcomes, we also report a Catoni estimator.
+This plays the same bounded-influence role for the final pseudo-outcome mean that Huber (1964)
+introduced for robust location estimation, while Catoni (2012) supplies nonasymptotic mean-deviation
+motivation. With scale αg > 0, the Catoni estimate solves
+                  n
+                                                      (
+                 X           g                          log(1 + x + x2 /2),   x ≥ 0,
+                     ψ{αg (Zbi − θ)} = 0,     ψ(x) =                    2
+                 i=1
+                                                        − log(1 − x + x /2), x < 0.
+
+A median-of-means aggregate can be used similarly. These robust aggregates act after orthogonaliza-
+tion; they improve point stability but do not inherit the Wald variance in (12).
+
+
+4     Algorithm
+Algorithm 1 summarizes the implementation in the same cross-fitted style as the estimator. All
+representation selection, calibration, early stopping, and optional targeting are performed inside the
+outer training sample. Held-out folds are used only for pseudo-outcome evaluation, following the
+sample-splitting logic used by Chernozhukov et al. (2018) for modern orthogonal-score estimation.
+Robust aggregation is reported as a sensitivity analysis unless additional robust-inference conditions
+are verified.
+
+
+
+
+                                                         9
+Algorithm 1 Cross-fitted DR-FRL for one target regime
+ 1: Input: data {Oi }n
+                     i=1 , regime g, folds K, clipping grid Cclip , aggregation rule A.
+ 2: Randomly partition {1, . . . , n} into folds I1 , . . . , IK .
+ 3: for k = 1, . . . , K do
+ 4:    Split D−k = {Oi : i ∈  / Ik } into inner fitting and validation samples.
+ 5:    Train eϕ , eϕ and nuisance heads (Q
+               X    H                                 bt , ρbt )Tt=0 on the inner fitting sample.
+                                                 bt , π
+ 6:    Select the representation by the validation criterion in (9); calibrate π             bt , ρbt and optionally apply
+      (10).
+ 7:    for each i ∈ Ik do
+                g
+ 8:      Set Yei,T +1 ← Yi .
+ 9:      for t = T, T − 1, . . . , 0 do
+10:         Set agit ← gt (Hit ) and compute the clipped or stabilized increment ω                     g
+                                                                                                     bit,τ .
+                        g       (−k),g            g         g            (−k),g
+11:         Update Yeit ← Q   b
+                                t               bit,τ {Yei,t+1 − Q
+                                       (Hit ) + ω                      b
+                                                                         t      (Hit )}.
+12:      end for
+13:      Store the out-of-fold pseudo-outcome Z           bg ← Ye g .
+                                                            i         i0
+14:    end for
+15: end for
+16: For mean aggregation, set θ     bg ← n−1 P Zbg and σ                         P bg b 2
+                                                    i i            bg2 ← n−1 i (Z       i − θg ) .
+                                                      √
+17: Report the Wald interval θ     bg ± z1−α/2 σ bg / n only for mean aggregation.
+18: if A is Catoni or median-of-means then
+19:    Report the robust aggregate as a point-estimate sensitivity analysis; intervals are exploratory
+       unless separately justified.
+20: end if
+21: Output: θ   bg , interval or sensitivity summary, clipping sensitivity, calibration, effective sample
+    sizes, and pseudo-outcome diagnostics.
+
+
+Computational complexity. If a Set Transformer with r inducing points and embedding dimen-
+sion dx is used at each visit, the per-visit cost is O(Mt rdx + r2 dx ). A full self-attention encoder over
+T + 1 visits has cost O(T 2 ds ) per subject. The total training cost is
+                                     " T                                      #!
+                                       X
+                          O KEn            CX (Mt , dx , r) + T 2 ds + Cheads    ,
+                                            t=0
+
+where E is the number of epochs. The replication archive records random seeds, model-library
+definitions, calibration choices, and hardware-relevant configuration details; the simulation runner
+also prints elapsed time for local runtime auditing.
+
+
+5     Theory
+All nuisance estimators are cross-fitted, so evaluation observations are independent of the nuisance
+training sample conditional on the fold split. The results below include treatment and censoring.
+The theory follows the semiparametric expansion logic of efficient influence functions and orthogonal
+estimating equations developed by Newey (1994) and Tsiatis (2006). The main text states the
+assumptions and conclusions needed to interpret the estimator; the supplementary material gives
+the complete algebraic proofs, including the telescoping identities, projection-stability argument,
+and product-remainder derivation.
+
+                                                           10
+Assumption 5 (Moment and boundedness). The EIF ϕ⋆g has finite variance. Outcome regressions
+are square integrable. Under strict-positivity inference, true treatment and censoring probabilities
+are bounded away from zero. Under clipped inference, clipped weights satisfy the moment conditions
+in Theorem 5.
+
+Assumption 6 (Cross-fitted nuisance convergence). For the representation selected in a training
+fold, let Q† b and Γ† b denote the best approximations to Qg,⋆
+                                                             t  and Γg,⋆
+                                                                      t   = (πtg,⋆ , ρg,⋆
+                                                                                      t ) within the
+           t,ϕ      t,ϕ
+corresponding representation-indexed nuisance classes. Define stochastic estimation errors
+                               b g − Q† ∥L (P ) ,
+                       rQ,t = ∥Q                                    b g − Γ† ∥L (P ) .
+                                                            rΓ,t = ∥Γ
+                                 t     b 2 0
+                                          t,ϕ                         t     b 2 0
+                                                                             t,ϕ
+
+The estimators are cross-fitted and satisfy maxt (rQ,t + rΓ,t ) = oP (1).
+
+Assumption 7 (EIF-map stability). Let Dg (O; η, θ) denote the EIF map defined by (8). Conditional
+on the outer training folds,
+
+                            ∥Dg (·; ηb, θ(g)) − Dg (·; η ⋆ , θ(g))∥L2 (P0 ) = oP (1).
+
+A primitive sufficient condition is that estimated treatment and censoring probabilities are uniformly
+bounded away from zero after calibration or deterministic clipping, the total nuisance errors ∥Q
+                                                                                               b t −Q⋆ ∥2
+                                                                                                     t
+and ∥Γb t − Γ⋆t ∥2 converge to zero for each fixed t, and the residuals in the EIF map have uniformly
+bounded second moments. This condition is used only to control the cross-fitted empirical process
+term.
+
+Assumption 8 (Representation approximation and product rate). For the learned representation,
+                           T
+                           X
+                                                                           −1/2
+                                 {rQ,t + bQ,t (ϕ)}{r
+                                               b    Γ,t + bΓ,t (ϕ)} = oP (n
+                                                                b               ).
+                           t=0
+
+If St is exactly causally sufficient, all bQ,t and bΓ,t are zero. This is a high-level product-rate
+assumption on the representation selected inside the outer training sample. Proposition 1 explains
+what the EIF-targeted validation objective can guarantee for a finite candidate library, but the
+product-rate condition itself remains the condition needed for first-order inference.
+
+   For later reference, write
+
+                            aQ,t = rQ,t + bQ,t (ϕ),
+                                                b           aΓ,t = rΓ,t + bΓ,t (ϕ).
+                                                                                b
+
+The condition is t aQ,t aΓ,t = oP (n−1/2 ). It allows one nuisance side to be slower when the other
+                  P
+side is accurate, but it does not allow both outcome-side and mechanism-side representation errors
+to be large.
+
+Assumption 9 (Targeting and calibration stability). Representation selection, calibration, and
+targeted fluctuation are performed inside the outer training sample and are independent of the final
+evaluation folds. If an inner validation criterion is optimized repeatedly, a separate inner selection or
+calibration split is used so that the selected nuisance vector remains measurable with respect to the
+outer training sample. Fluctuation parameters remain in a shrinking neighborhood of zero when
+initial nuisance estimators are consistent, and calibrated probabilities remain bounded away from
+zero after clipping.
+
+
+
+                                                       11
+Lemma 1 (Projection decomposition and EIF-map stability). For the representation selected in an
+outer training fold,
+                    b t − Qg,⋆ ∥2 ≤ rQ,t + bQ,t (ϕ),
+                   ∥Q                            b            b t − Γg,⋆ ∥2 ≤ rΓ,t + bΓ,t (ϕ).
+                                                             ∥Γ                            b
+                           t                                         t
+
+If the treatment and censoring probabilities are bounded away from zero after calibration or deter-
+ministic clipping and the residuals in the EIF map have bounded second moments, these total-error
+bounds imply Assumption 7 whenever maxt {rQ,t + bQ,t + rΓ,t + bΓ,t } = oP (1) for fixed T .
+Theorem 1 (Observed-history identification and EIF). Under Assumptions 1-4 and positivity, the
+observed-history value θ(g) is identified by (5). In the nonparametric observed-data model for the
+observed coarsened histories, the efficient influence function is (6), with residuals conditioned on
+(Ht , At = gt (Ht ), Rt = 1, R̄t−1 = 1).
+     This is an observed-history result. Assumption 2 identifies the future pre-treatment history used
+by later regime decisions, not only the terminal outcome. A latent full-functional-history target
+would require an additional measurement or coarsening model; its canonical gradient need not equal
+(6).
+Theorem 2 (Recursive sequential multiple robustness). Let Ye0g (η) be the recursion in (7). Suppose
+the identification assumptions hold and working nuisance limits are bounded. Define ∆T +1 = 0 and,
+for t = T, . . . , 0, let ∆t (Ht ) = E{Yetg (η) | Ht } − Qg,⋆
+                                                          t (Ht ). If the following condition holds backward
+                            g
+recursively, then E{Y0 (η)} = θ(g): whenever ∆t+1 = 0, either
+                          e
+
+                              Qgt = Qg,⋆
+                                     t            or      (πtg , ρgt ) = (πtg,⋆ , ρg,⋆
+                                                                                   t )
+
+almost surely on the regime support. Consequently, the cross-fitted DR-FRL estimator is consistent
+whenever the probability limits of the nuisance learners satisfy this recursive condition.
+    The common shorthand “at each time, either the outcome nuisance or the mechanism nuisance is
+correct” should be read through this backward recursion. For T = 1, the terminal step must first be
+unbiased; only then does the time-0 step require one of its two nuisance components to be correct.
+Theorem 3 (Second-order remainder with representation error). Under Assumptions 1-9, including
+the EIF-map stability condition in Assumption 7, the DR-FRL-Mean estimator satisfies
+                    θbg − θ(g) = (Pn − P0 )ϕ⋆g + R2,n + Rrep,n + Rclip,n + oP (n−1/2 ),                (13)
+where Rclip,n = 0 for unclipped strict-positivity inference and
+                                        T
+                                        X
+                                                                                        −1/2
+                 |R2,n + Rrep,n | ≤ C         {rQ,t + bQ,t (ϕ)}{r
+                                                            b    Γ,t + bΓ,t (ϕ)} + oP (n
+                                                                             b               ).        (14)
+                                        t=0
+
+   Representation error is therefore controlled through the same orthogonal product structure as
+nuisance error; it is not automatically harmless. Lemma 1 supplies the projection step, and the
+condition matches the broader message of Farrell et al. (2021): flexible learners support inference
+only when target-relevant approximation and stochastic errors are controlled. Equivalently,
+                           aQ,t aΓ,t = rQ,t rΓ,t + rQ,t bΓ,t + bQ,t rΓ,t + bQ,t bΓ,t .
+The last three terms are the price of replacing Ht by St .
+    The next theorem covers only the mean-aggregation estimator. Robust Catoni and median-of-
+means aggregation are deliberately separated in Theorem 6, because bounded-influence concentration
+for feasible pseudo-outcomes is not the same statement as asymptotic normality with plug-in variance
+estimation.
+
+                                                        12
+Theorem 4 (Asymptotic linearity and Wald inference). If Assumptions 5-9 hold and the product
+condition in Assumption 8 is satisfied, then
+                                                     n
+                            √                    1 X ⋆
+                                n{θbg − θ(g)} = √   ϕg (Oi ) + oP (1) ⇝ N (0, σg2 ),
+                                                  n
+                                                    i=1
+
+where σg2 = E0 [(ϕ⋆g )2 ]. The empirical variance of the out-of-fold estimated influence scores is consistent
+for σg2 when mean aggregation is used.
+
+Theorem 5 (Clipping and overlap targets). If strict positivity holds and the clipping level τn → ∞
+with P (|Htg,⋆ | > τn ) → 0 sufficiently fast, clipping is asymptotically negligible for θ(g). If the target
+is instead the overlap value θω (g) in (11), its EIF is obtained by the quotient rule applied to the
+weighted numerator and denominator.
+
+    Thus clipping is a regularization device unless an overlap estimand is defined in advance. Replacing
+Htg by min(Htg , τ ) is not, by itself, the canonical gradient of a new causal target.
+
+Theorem 6 (Robust aggregation as concentration, not Wald inference). Let Zig = Yei0g (η ⋆ ) be the
+oracle pseudo-outcome with EZig = θ(g) and Var(Zig ) ≤ v < ∞. Conditional on the cross-fitting
+splits, let Zbig be the feasible out-of-fold                               −1
+                                                                               P bg      g
+                                    p         pseudo-outcome and suppose n      i |Zi − Zi | = δn = oP (1).
+With a Catoni scale of order log(1/δ)/(nv), the feasible Catoni aggregate obeys
+                                                    p
+                                 |θbC − θ(g)| = OP { v log(1/δ)/n} + OP (δn ).
+
+If only a finite (1 + κ) moment is assumed, a median-of-means aggregate with blocks formed inde-
+pendently of the evaluation observations is consistent at the usual polynomial rate, up to the same
+feasible-pseudo-outcome discrepancy.
+
+   The condition on δn is an additional stability requirement for robust aggregation. The result gives
+concentration for robust point estimation; it does not claim asymptotic normality, plug-in variance
+consistency, or bootstrap validity for Catoni or median-of-means aggregation. Wald inference in
+Theorem 4 is stated only for mean aggregation.
+
+Corollary 1 (A sufficient rate condition for basis encoders). Suppose the latent functional covariate
+has a Karhunen-Loeve expansion with eigenvalues decaying as λk ≲ k −2a , nuisance functions are
+smooth functions of the first Kn scores and scalar histories, and scores are estimated from sparse
+noisy samples with mean integrated squared error ϵ2n,K . A spline or FPCA-sieve encoder satisfies
+Assumption 8 whenever
+                    X
+                        {rQ,t + Kn−s + ϵn,K }{rΓ,t + Kn−s + ϵn,K } = oP (n−1/2 ).
+                        t
+
+   This corollary is motivated by sparse functional principal component theory (Yao et al., 2005)
+and functional regression (Morris, 2015). It gives one concrete sieve path for verifying the high-level
+representation condition, not a primitive rate theorem for every neural encoder.
+
+Two extensions. Fixed-state efficiency and growing-horizon inference are useful benchmarks but
+are not part of the main theorem sequence. If a sufficient state is fixed a priori or learned on an
+auxiliary sample and the target regime is measurable with respect to that state, standard one-step
+or TMLE arguments can yield the observed-history efficiency bound under the same product-rate
+conditions (van der Laan and Gruber, 2012). This is a fixed-state benchmark, not a claim that an
+
+                                                          13
+arbitrary data-adaptive neural representation is automatically efficient. Similarly, growing-horizon
+asymptotic linearity can be obtained by replacing the fixed-T product-rate condition with a summable
+condition over t ≤ Tn and by imposing a triangular-array central limit theorem for the EIF scores.
+These two cases are discussed as future extensions rather than central results.
+
+
+6      Simulation Study
+The simulation study is a set of stress tests rather than a ranking contest over every possible
+longitudinal estimator. The data-generating mechanisms create settings in which an estimand-
+targeted representation should matter: nonlinear feedback, irregular functional measurement, heavy-
+tailed outcomes, weak overlap, informative sampling, and high-dimensional functional structure.
+The scenarios ask four questions:
+    • Does an observed-history functional state help when confounding is carried by low-variance or
+      high-dimensional functional features?
+    • Does the EIF-based recursion stabilize estimation relative to pure weighting or prediction-style
+      baselines?
+    • Does bounded-influence final aggregation reduce extreme pseudo-outcome errors under heavy
+      tails and weak support?
+    • Do overlap and coverage diagnostics separate poor point estimation from conservative intervals
+      caused by unstable weights?
+The goal is to test the workflow under controlled failures of simple adjustment. It is not a full
+factorial ablation over every encoder, validation loss, and aggregation rule.
+
+6.1     Design and target regimes
+The main simulation uses n = 400 subjects, T + 1 = 6 decision times, 150 Monte Carlo replications,
+and seed 20260503. Scenario G uses K ⋆ = 12 latent scores; all other scenarios use K ⋆ = 6. Population
+truths are computed from independent intervention samples of size 60,000 under each policy.
+    For subject i and time t = 0, . . . , 5, the latent functional covariate is
+                                               K⋆
+                                               X
+                                   Xit (u) =         αitk ψk (u),   u ∈ [0, 1],
+                                               k=1
+
+where ψk are Fourier basis functions. Let σk = 0.80k−1 . The score process satisfies
+            αi0k ∼ N (0, σk2 ),     αitk = 0.55αi,t−1,k + {1 − 0.552 }1/2 εitk ,      εitk ∼ N (0, σk2 ).
+Baseline covariates are Bi1 ∼ N (0, 1), Bi2 ∼ Bernoulli(0.48), and Bi3 ∼ N (0, 1). We set Ai,−1 = 0.
+The baseline functional signal entering the scalar history is
+                                  fit = 0.60αit1 − 0.35αit2 + 0.25 sin(αit3 ),
+with scenario-specific additions stated below. The scalar pre-treatment history is generated as
+             Lit0 = fit + 0.25Bi1 + 0.15Ai,t−1 + ϵit0 ,                           ϵit0 ∼ N (0, 0.352 ),
+             Lit1 = 0.65 tanh(αit2 ) + 0.25Bi2 + 0.12t + ϵit1 ,                   ϵit1 ∼ N (0, 0.252 ),
+             Lit2 = cos(αit3 ) + 0.10Ai,t−1 + ϵit2 ,                              ϵit2 ∼ N (0, 0.202 ),
+             Lit3 = t/5.
+
+
+                                                          14
+The irregular measurement count is mit = 2 + Poisson{max(λit , 0.5)}, where λit = 12 expit(0.10 +
+0.25Lit0 ) + 2 except in Scenario F, where λit = 12 expit(0.25 + 0.65Lit0 ) + 2. Observed point-cloud
+summaries are the noisy mean, minimum, maximum, standard deviation, count, normalized count,
+and severity-weighted count derived from these measurements. For example,
+
+                        X̄it = αit1 + 0.10αit2 + ζit ,       ζit ∼ N (0, 0.152 /mit ).
+
+   Treatment follows
+
+ logit P (Ait = 1 | Hit ) = −0.25 + s{0.45Lit0 + 0.30 tanh(Lit1 ) + 0.35Ai,t−1 + 0.20Bi1 + 0.18X̄it },
+
+where s = 1 except in Scenario D, where s = 2.25. Scenarios B and G add s{0.30Lit0 X̄it +
+0.20 sin(αit3 )}, and Scenario F adds 0.35(mit − m̄t )/sd(mt ). The outcome is
+                                     5
+                                     X
+      Yi = 2 + 0.25Bi1 − 0.10Bi2 +         {0.32Lit0 − 0.20Lit1 + 0.10X̄it + τit Ait − 0.04Ai,t−1 } + ei ,
+                                     t=0
+
+where τit = 0.65 + 0.18Lit0 − 0.12Ai,t−1 , with √
+                                                an added 0.15 tanh(αit3 ) in Scenarios B and G. Scenario
+C replaces the normal outcome error by t3 / 3 plus 3% contamination from N (0, 92 ).
+   The target contrast is
+                                          θ(gearly ) − θ(gdelayed ),
+where gearly treats when Lit0 > 0.05 or Lit1 > 0.85, and gdelayed treats when either Lit0 > 0.05
+persists from the previous time point or Lit1 > 1.35. The population contrasts are 1.272 (A), 1.267
+(B), 1.273 (C), 1.272 (D), 1.254 (F), and 1.253 (G).
+
+6.2     Scenarios and estimators
+The six main scenarios are:
+
+  • Scenario A: baseline setting with K ⋆ = 6, normal errors, treatment strength s = 1, and
+    severity-dependent but weakly informative measurement intensity.
+
+  • Scenario B: Scenario A plus nonlinear functional interactions in fit , treatment, and treatment
+    effect; specifically 0.25αit1 αit4 + 0.20{αit3
+                                               2 − E(α2 )} enters f .
+                                                      it3          it
+
+  • Scenario C: Scenario A with heavy-tailed and contaminated outcome errors.
+
+  • Scenario D: Scenario A with treatment strength s = 2.25, producing near-positivity stress.
+
+  • Scenario F: Scenario A with strongly severity-dependent measurement intensity and a standard-
+    ized measurement-count term in the treatment model.
+
+  • Scenario G: Scenario B with K ⋆ = 12 and additional low-variance signal 0.35 tanh(αit9 ) −
+    0.25αit,11 in fit .
+
+    The comparison set includes proposed DR-FRL variants, semiparametric baselines, and sequence-
+style prediction baselines. The main tables and heatmaps show a readable subset, while the CSV files
+and ranking table retain the full method set. iTMLE is included because it is the robust-aggregation
+analogue of the low-dimensional targeted-learning baseline in this CPU implementation. This helps
+separate final robust aggregation from richer observed-history representation, although it is not a
+complete component-ablation study.
+
+                                                       15
+    The longitudinal targeted-learning benchmark follows Lendle et al. (2017). The sequence-style
+baselines are CPU-reproducible proxies for recurrent and attention-based counterfactual prediction
+approaches such as Melnychuk et al. (2022); they are not full GPU reproductions of the original
+architectures. The latent-score SDR diagnostic receives the true latent functional scores, but still
+estimates finite-sample nuisance functions and therefore is not an oracle upper bound. Coverage
+entries for Catoni aggregation and sequence-style baselines are calibration diagnostics; the Wald
+theorem applies to DR-FRL-Mean.
+
+6.3   Numerical results
+Tables 1 and 2 give the main numerical results. Each entry reports bias, RMSE, and diagnostic
+coverage. DR-FRL-Mean is the version covered by the Wald theorem; DR-FRL-Catoni uses the same
+pseudo-outcomes but replaces the final mean by bounded-influence aggregation. The comparison
+separates two effects. Functional states matter most in Scenarios F and G, where measurement
+intensity or low-variance high-dimensional scores carry confounding. Catoni aggregation mainly
+reduces point error under heavy tails and weak support. IPTW is least stable because the dynamic
+policy creates sparse treatment-path matches and unstable cumulative weights; high nominal coverage
+in those rows reflects wide intervals, not good point estimation.
+
+  Table 1: Results for Scenarios A–C (n = 400). Entries are bias/RMSE/diagnostic coverage.
+
+                       Method                     A: base         B: nonlinear        C: heavy tail
+                       DR-FRL-Mean          -0.19/0.24/0.82      -0.19/0.24/0.85     -0.20/0.31/0.93
+                       DR-FRL-Catoni        -0.14/0.19/0.91      -0.13/0.19/0.91     -0.16/0.26/0.97
+                       LTMLE                -0.22/0.25/0.88      -0.20/0.24/0.94     -0.20/0.30/0.93
+                       iTMLE                -0.19/0.22/0.93      -0.19/0.22/0.97     -0.17/0.24/0.97
+                       G-Net-style          -0.25/0.26/0.03      -0.26/0.27/0.01     -0.23/0.29/0.09
+                       Transformer-style    -0.21/0.23/0.05      -0.20/0.22/0.07     -0.20/0.28/0.14
+                       RMSN-style           -0.24/0.26/0.03      -0.24/0.26/0.03     -0.22/0.28/0.12
+                       Latent-score SDR     -0.22/0.26/0.79      -0.23/0.27/0.73     -0.20/0.30/0.94
+                       IPTW                  1.01/1.46/0.98       1.18/1.61/0.95      1.03/1.57/0.97
+                       G-computation        -0.23/0.25/0.03      -0.24/0.25/0.03     -0.22/0.28/0.12
+
+
+
+  Table 2: Results for Scenarios D–G (n = 400). Entries are bias/RMSE/diagnostic coverage.
+
+           Method              D: near positivity   F: informative sampling        G: high-dimensional functional
+           DR-FRL-Mean          -0.19/0.24/0.95         -0.17/0.22/0.91                   -0.20/0.24/0.87
+           DR-FRL-Catoni        -0.20/0.24/0.96         -0.12/0.17/0.96                   -0.14/0.19/0.95
+           LTMLE                -0.21/0.25/0.98         -0.17/0.22/0.97                   -0.21/0.25/0.94
+           iTMLE                -0.31/0.33/0.99         -0.16/0.20/0.99                   -0.20/0.23/0.97
+           G-Net-style          -0.28/0.30/0.01         -0.21/0.23/0.05                   -0.26/0.28/0.01
+           Transformer-style    -0.22/0.24/0.04         -0.18/0.21/0.13                   -0.20/0.23/0.07
+           RMSN-style           -0.28/0.30/0.01         -0.20/0.22/0.05                   -0.25/0.27/0.01
+           Latent-score SDR     -0.25/0.28/0.85         -0.19/0.24/0.89                   -0.24/0.26/0.77
+           IPTW                  1.72/1.88/0.78         1.34/1.68/0.93                     0.98/1.42/0.99
+           G-computation        -0.28/0.29/0.01         -0.20/0.22/0.03                   -0.25/0.26/0.01
+
+
+    Several augmented estimators exhibit negative finite-sample bias. This pattern is consistent with
+the design of the stress test rather than with a failure of the EIF identity: the dynamic regimes have
+limited empirical support in parts of the history space, nuisance learners are regularized, and clipping
+changes the effective estimating equation when treatment-path probabilities are small. In addition,
+
+                                                            16
+the “latent-score” row supplies true functional scores only; it does not supply oracle treatment,
+censoring, or outcome nuisance functions. The simulations therefore evaluate implementable pipelines
+under weak support and regularization, while the large-sample theory concerns the observed-history
+target under the stated product-rate and positivity conditions.
+    Table 3 summarizes the implemented component audit. Values are averages over the six scenarios;
+lower RMSE, lower absolute bias, and smaller |coverage − 0.95| are better.
+
+                  Table 3: Component-audit summary across the six simulation scenarios.
+
+                                 Audit row                                                                    RMSE |bias| |cov. − .95|    Cov.
+                                 Low-dimensional SDR (LTMLE/linear                                               0.251 0.201        0.026 0.940
+                                 SDR)
+                                 Low-dimensional SDR plus robust                                                 0.239 0.202        0.026 0.968
+                                 aggregation (iTMLE)
+                                 Latent-score SDR diagnostic                                                     0.267 0.220        0.120 0.830
+                                 DR-FRL with mean aggregation                                                    0.248 0.190        0.063 0.888
+                                 DR-FRL with Catoni aggregation                                                  0.208 0.147        0.021 0.941
+
+
+    The table should be read as an audit, not as a new factorial experiment. Low-dimensional
+targeted learning is competitive when scalar summaries carry the relevant history. iTMLE shows that
+robust final aggregation can help, but it cannot add missing functional information. DR-FRL-Mean
+has similar average RMSE to LTMLE but lower average absolute bias. DR-FRL-Catoni has the best
+point accuracy, with average RMSE 0.208 and average absolute bias 0.147, because the functional
+state, orthogonal recursion, and bounded-influence final aggregation work together.
+    Figure 2 gives a compact visual summary of RMSE. The heatmap emphasizes three features. First,
+pure weighting is fragile even with clipping. Second, the sequence-style baselines are competitive
+in benign settings but do not dominate under heavy tails or informative measurement. Third, the
+Catoni version of DR-FRL is consistently robust because it combines an orthogonal pseudo-outcome
+with a bounded-influence
+                 RMSE acrossfinal aggregation
+                             scenarios            step.
+                                       (lower is better)
+                            Blue cells denote lower error; yellow/orange cells identify unstable methods.
+
+
+
+                                                                                                0.5     1.0      1.5
+
+
+
+          DR−FRL−Mean                   0.24                     0.24                    0.31                          0.24    0.22               0.24
+
+
+         DR−FRL−Catoni                  0.19                     0.19                    0.26                          0.24    0.17               0.19
+
+
+                  LTMLE                 0.25                     0.24                    0.30                          0.25    0.22               0.25
+
+
+             G−Net−style                0.26                     0.27                    0.29                          0.30    0.23               0.28
+
+
+        Transformer−style               0.23                     0.22                    0.28                          0.24    0.21               0.23
+
+
+             RMSN−style                 0.26                     0.26                    0.28                          0.30    0.22               0.27
+
+
+        Latent−score SDR                0.26                     0.27                    0.30                          0.28    0.24               0.26
+
+
+                   IPTW                 1.46                     1.61                    1.57                          1.88    1.68               1.42
+
+
+          G−computation                 0.25                     0.25                    0.28                          0.29    0.22               0.26
+
+
+                                          A                       B                       C                             D       F                  G
+                                                                                                      Scenario
+
+
+
+     Figure 2: RMSE heatmap across the six simulation scenarios. Lower values are better.
+
+
+
+                                                                                                17
+    Figure 3 reports empirical coverage for the simulation intervals. The sequence-style baselines
+are prediction methods rather than semiparametric EIF estimators, so their intervals are best
+read as calibration diagnostics. DR-FRL-Catoni gives the strongest joint performance on RMSE
+and diagnostic coverage among the proposed variants, but Catoni intervals still require additional
+robust-inference conditions for formal interpretation. Scenario G is hardest because the nuisance
+feature space is Diagnostic
+                 high-dimensional      relative
+                            coverage across     to n = 400.
+                                            scenarios
+                            Target is 0.95; orange indicates under−coverage and blue indicates nominal/conservative coverage.
+
+
+
+                                                                                         0.00 0.25 0.50 0.75 1.00
+
+
+
+          DR−FRL−Mean                   0.82                       0.85                 0.93                      0.95                0.91   0.87
+
+
+         DR−FRL−Catoni                  0.91                       0.91                 0.97                      0.96                0.96   0.95
+
+
+                  LTMLE                 0.88                       0.94                 0.93                      0.98                0.97   0.94
+
+
+             G−Net−style                0.03                       0.01                 0.09                      0.01                0.05   0.01
+
+
+        Transformer−style               0.05                       0.07                 0.14                      0.04                0.13   0.07
+
+
+             RMSN−style                 0.03                       0.03                 0.12                      0.01                0.05   0.01
+
+
+        Latent−score SDR                0.79                       0.73                 0.94                      0.85                0.89   0.77
+
+
+                   IPTW                 0.98                       0.95                 0.97                      0.78                0.93   0.99
+
+
+          G−computation                 0.03                       0.03                 0.12                      0.01                0.03   0.01
+
+
+                                          A                         B                    C                         D                   F      G
+                                                                                                    Scenario
+
+
+
+ Figure 3: Diagnostic empirical coverage across the six simulation scenarios. The target is 0.95.
+
+
+6.4   Robustness and sample size
+Figure 4 focuses on Scenario C. The boxplot shows the full replication-level estimation-error distri-
+bution rather thanHeavy−tail
+                   only a summary        statistic.
+                             stress test, Scenario C
+                                  Boxes show replication−level errors; zero is the Monte Carlo truth.
+
+
+
+                DR−FRL−Mean
+
+
+
+
+               DR−FRL−Catoni
+
+
+
+
+                        LTMLE
+
+
+
+
+                   G−Net−style
+
+
+
+
+              Transformer−style
+
+
+
+
+             Latent−score SDR
+
+
+
+
+                                                            −1.0                                −0.5                            0.0                 0.5
+                                                                                               Estimation error
+
+
+
+                                        Figure 4: Replication estimation errors in Scenario C.
+
+
+                                                                                               18
+   DR-FRL-Catoni shrinks extreme errors relative to the non-Catoni version, and the interquartile
+range is smaller than that of LTMLE and the latent-score SDR diagnostic. This supports the
+theoretical motivation for robust aggregation: when the pseudo-outcome itself is heavy-tailed,
+robustifying only the outcome-regression loss is not enough; the final aggregation must also be
+bounded-influence.
+   Figure 5 shows sample-size diagnostics for the base and near-positivity scenarios as a matrix rather
+than a trend plot. The top row reports RMSE, and the bottom row reports interval calibration.
+Coverage in the Catoni and sequence-style rows remains diagnostic rather than a formal Wald
+guarantee. RMSE generally decreases with n, but near-positivity remains difficult because increasing
+sample size helps most when it also improves empirical support for the target regime.
+                          Sample−size diagnostic matrix
+                          Cells show observed values; blue indicates stronger diagnostic performance within the displayed metric.
+                                                  Scenario A: base                                                 Scenario D: near positivity
+
+        DR−FRL−Mean                 0.268               0.211                0.187                       0.310                0.259              0.215
+
+
+
+
+                                                                                                                                                           RMSE (lower is better)
+       DR−FRL−Catoni                0.234               0.158                0.137                       0.300                0.257              0.231
+
+
+                LTMLE               0.256               0.214                0.200                       0.277                0.238              0.216
+
+
+     Latent−score SDR               0.284               0.221                0.205                       0.336                0.272              0.247
+
+
+      Transformer−style             0.231               0.197                0.185                       0.244                0.235              0.209
+
+
+        G−computation               0.238               0.217                0.216                       0.284                0.280              0.274
+
+
+
+
+        DR−FRL−Mean                 0.87                 0.91                 0.85                        0.93                 0.93               0.93
+
+
+       DR−FRL−Catoni                0.91                 0.97                 0.97                        0.93                 0.93               0.91
+
+
+
+
+                                                                                                                                                           Diagnostic coverage
+                LTMLE               0.94                 0.94                 0.85                        1.00                 1.00               0.97
+
+
+     Latent−score SDR               0.79                 0.91                 0.81                        0.83                 0.87               0.83
+
+
+      Transformer−style             0.24                 0.11                 0.02                        0.23                 0.11               0.01
+
+
+        G−computation               0.19                 0.05                 0.00                        0.11                 0.00               0.00
+
+                                     200                 400                  800                         200                  400                800
+                                                                                        Sample size
+
+
+                                    Figure 5: Sample-size diagnostics for Scenarios A and D.
+
+
+ Table 4: Sample-size diagnostics. Entries are RMSE/coverage/minimum effective sample size.
+
+       Scenario                             Method                                   n = 200                       n = 400                       n = 800
+       A: base                              DR-FRL-Mean                       0.268/0.867/7.9               0.211/0.913/16.1             0.187/0.847/34.3
+       A: base                              LTMLE                             0.256/0.940/7.9               0.214/0.940/16.2             0.200/0.853/34.4
+       A: base                              Latent-score SDR                  0.284/0.793/7.8               0.221/0.913/16.1             0.205/0.813/34.2
+       D: near positivity                   DR-FRL-Mean                      0.310/0.927/13.9               0.259/0.933/27.9             0.215/0.933/56.9
+       D: near positivity                   LTMLE                            0.277/1.000/14.3               0.238/1.000/28.6             0.216/0.967/58.3
+       D: near positivity                   Latent-score SDR                 0.336/0.833/13.1               0.272/0.873/26.3             0.247/0.833/53.6
+
+
+    Overall, Table 4 reinforces the diagnostic message of Figure 5: increasing sample size improves
+point accuracy mainly when it also improves empirical support for the target regime, whereas interval
+calibration remains sensitive to finite-sample regularization and practical positivity.
+
+                                                                                      19
+6.5   Diagnostics
+Table 5 reports effective sample size, clipping, average standard error, and empirical standard
+deviation averaged across the six main scenarios. The diagnostic table confirms that DR-FRL-Mean
+and LTMLE operate in the same effective-sample-size regime, whereas IPTW has larger pseudo-
+outcome variance despite high nominal coverage. Table 6 ranks the full simulated method set by
+RMSE, absolute bias, and closeness of diagnostic coverage to 0.95. The average rank is not a causal
+estimand or formal inference score; it is a compact stress-test summary, and its coverage component
+is exploratory for non-EIF baselines and robust aggregation. DR-FRL-Catoni ranks first because it
+performs well simultaneously on point accuracy and interval stability.
+
+Table 5: Average diagnostics across the six main scenarios. ESS is the mean of the minimum
+effective sample size across the two dynamic regimes.
+
+                                Method             ESS      Clip%    ASE    ESD
+                                DR-FRL-Mean        18.2       6.0    0.20   0.16
+                                DR-FRL-Catoni      18.2       6.0    0.20   0.15
+                                LTMLE              18.3       7.0    0.24   0.15
+                                Latent-score SDR   17.9       5.0    0.20   0.15
+                                IPTW               17.8       5.7    1.65   1.03
+
+
+
+              Table 6: Average diagnostic rank across scenarios. Smaller is better.
+
+                      Method              RMSE rank     Bias rank    Coverage rank   Avg.
+                      DR-FRL-Catoni             1.50          1.17            2.92    1.86
+                      iTMLE                     3.67          3.67            4.08    3.81
+                      DR-FRL-Mean               5.50          3.67            4.67    4.61
+                      CRN-style                 3.00          3.67            8.17    4.94
+                      LTMLE                     7.00          5.50            3.08    5.19
+                      Linear SDR                7.00          5.50            3.08    5.19
+                      Transformer-style         3.33          5.83            8.83    6.00
+                      Latent-score SDR          9.17          7.50            5.83    7.50
+                      G-computation             7.33          8.83           11.17    9.11
+                      IPTW                     12.00         12.00            4.33    9.44
+                      RMSN-style                8.67         10.00           10.58    9.75
+                      G-Net-style               9.83         10.67           11.25   10.58
+
+
+    Overall, the simulations support three conclusions. First, robust aggregation improves point
+estimation when functional histories and outcomes produce heavy-tailed pseudo-outcomes. Second,
+learned observed-history representations help most when functional signal is high-dimensional
+or measurement is informative. Third, overlap diagnostics are essential because weak support
+makes the distinction between full-population, clipped, and overlap targets practically important.
+The population truth is the unclipped intervention value; fixed clipping is therefore finite-sample
+regularization and a coverage diagnostic, not a change in the reported causal target.
+
+
+7     VitalDB Functional-Adjustment and Diagnostic Audit
+The real-data analysis is a diagnostic audit of functional adjustment, not a claim that an observa-
+tional perioperative database can by itself validate a treatment policy. We use VitalDB, the open
+perioperative database described by Lee et al. (2022), which contains 6388 surgical cases, 73 clinical
+
+
+                                                       20
+parameters, 34 laboratory time-series parameters, and 486,451 waveform or numeric tracks. Open
+physiological databases have made reproducible critical-care and perioperative modeling more prac-
+tical, but they also expose the irregular-measurement problems that motivate functional point-cloud
+adjustment (Goldberger et al., 2000). We combine the clinical-information table, the case-level track
+list, and the laboratory time-series table to construct irregular pre-treatment laboratory point clouds
+for perioperative risk adjustment.
+     The application is deliberately narrower than the longitudinal theory. It is a point-treatment
+functional-covariate analysis of intraoperative vasopressor exposure and postoperative ICU admis-
+sion. Pre-treatment laboratory measurements enter the estimators as variable-size point clouds of
+observation time, marker, and value. Intraoperative arterial pressure and heart-rate waveforms are
+not used to define a sequential target trial here, because treatment timing and waveform-derived
+histories require a separate track-level validation step. The purpose is therefore to audit whether
+irregular pre-treatment functional histories can be incorporated into orthogonal adjustment, whether
+the resulting contrast has empirical support, and whether the functional representation changes the
+conclusion relative to transparent scalar summaries.
+
+7.1   Data and cohort
+The cohort contains all 6388 VitalDB surgical cases with available clinical information and nonzero
+operation duration. The clinical table provides demographics, surgery and anesthesia descriptors,
+preoperative laboratory snapshots, intraoperative drug summaries, and postoperative outcomes. The
+track-list table records case-specific monitoring availability, including arterial MAP, non-invasive
+MAP, heart rate, pulse oximetry, BIS, and drug-rate tracks. The laboratory time-series table provides
+irregular measurements before anesthesia induction.
+    The main functional covariate is the pre-treatment laboratory point cloud OiX = {(diℓ , miℓ , xiℓ ) :
+−7 ≤ diℓ ≤ 0}, where diℓ is days from anesthesia induction, miℓ is the marker name, and xiℓ is
+the measured value. The markers are hemoglobin, platelet count, creatinine, blood urea nitrogen,
+albumin, glucose, sodium, potassium, AST, and ALT. The representation therefore uses irregular
+pre-treatment values rather than only measurement-availability indicators. Missingness is handled
+through model-native median imputation, missing-category handling for categorical variables, and
+explicit measurement-count features; measurement intensity is retained as part of the observed
+history.
+
+Table 7: VitalDB cohort summary with irregular laboratory point clouds and track-availability
+diagnostics.
+
+                               Quantity                            Value
+                               Analyzed cases                        6388
+                               Any vasopressor prevalence           0.543
+                               Phenylephrine prevalence             0.132
+                               Ephedrine prevalence                 0.503
+                               Postoperative ICU admission          0.188
+                               ICU stay >1 day                      0.061
+                               In-hospital mortality                0.009
+                               Median pre-op lab points                10
+                               Cases with any pre-op lab point      0.778
+                               Median number of VitalDB tracks         78
+                               Cases with arterial MAP track        0.583
+                               Cases with NIBP MAP track            0.902
+
+
+                                                   21
+   Table 7 summarizes the cohort. Vasopressor exposure is common: 54.3% of cases receive ephedrine,
+phenylephrine, or epinephrine during surgery. Postoperative ICU admission occurs in 18.8% of cases,
+ICU stay longer than one day in 6.1%, and in-hospital mortality in 0.9%. The median case has 10
+preoperative laboratory point observations and 78 VitalDB monitoring tracks. Arterial MAP and
+non-invasive MAP tracks are available in 58.3% and 90.2% of cases, respectively. These features
+motivate functional representation learning and careful overlap diagnostics.
+                          VitalDB functional benchmark overview
+                          Exposure, endpoint, functional measurement density, and case−complexity imbalance.
+
+                                              (a) Exposure, outcome, and data availability                                                                 (b) Pre−treatment lab point−cloud size
+                                       1.00
+
+                                                                                                                                                    2000
+
+                                                                                                          0.78
+                                       0.75
+                                                                                                                                                    1500
+                          Proportion
+
+
+
+
+                                                                                                                           0.58
+
+
+
+
+                                                                                                                                           Cases
+                                                    0.54
+                                                                                0.50
+                                       0.50
+                                                                                                                                                    1000
+
+
+
+
+                                       0.25                                                                                                          500
+                                                                                             0.19
+                                                                 0.13
+
+                                                                                                                                                       0
+                                       0.00
+                                                  Any vaso      Phenyl          Ephed        ICU        Pre−op lab        ART MAP                                0                   20                      40                      60
+                                                                                                                                                                                          Number of pre−op lab points
+
+                                              (c) Crude ICU−disposition risk                                                                               (d) Operation duration by exposure
+                                                                                                                                                                                                 No vaso          Vaso
+
+
+                                       0.25
+                                                                                                         0.228                                      500
+
+
+
+                                       0.20
+                                                                                                                                                    400
+
+
+
+                                       0.15                       0.141                                                                             300
+                                                                                                                                            Cases
+                          Risk
+
+
+
+
+                                       0.10                                                                                                         200
+
+
+
+                                                                                                                                                    100
+                                       0.05
+
+
+
+                                                                                                                                                      0
+                                       0.00
+                                                                 No vaso                                 Vaso                                                    0                        5                        10                     15
+                                                                                                                                                                                                     Hours
+
+
+
+
+Figure 6: VitalDB functional-adjustment dashboard for exposure, outcome, laboratory point-cloud
+size, crude risk, and operation-duration imbalance.
+                                           Irregular pre−treatment laboratory point clouds
+                                           Each dot is an observed lab value; values are marker−standardized for visual comparison.
+
+                                                                                                                             hb        cr                  alb            gluc
+
+
+                                                                     Case 464                                                         Case 4683                                                                     Case 3569
+                                       4
+
+
+
+
+                                       2
+
+
+
+
+                                       0
+          Marker−standardized value
+
+
+
+
+                                      −2
+
+
+
+                                                                    Case 4878                                                          Case 617                                                                     Case 846
+                                       4
+
+
+
+
+                                       2
+
+
+
+
+                                       0
+
+
+
+
+                                      −2
+
+
+
+                                                    −6              −4                  −2          0                −6               −4                             −2          0              −6                 −4           −2             0
+                                                                                                                                  Days to anesthesia
+
+
+
+
+Figure 7: Representative irregular pre-treatment laboratory point clouds from VitalDB. Values are
+marker-standardized for display.
+
+
+
+                                                                                                                                     22
+    Figure 6 gives a multi-panel audit of the analyzed data. The exposure/outcome panel establishes
+that vasopressor use and ICU admission are both common enough for estimation; the point-cloud-
+size panel shows that the laboratory history is irregular rather than a fixed table; the crude-risk
+panel shows the unadjusted vasopressor–ICU association; and the operation-duration panel reveals
+case-complexity imbalance that motivates covariate adjustment and overlap assessment.
+    Figure 7 displays representative point clouds. Each panel is one surgical case; each dot is a pre-
+treatment laboratory measurement, marker-standardized for display so that timing and measurement
+density are visible across laboratory types. The variability in the number, timing, and marker mix
+of observations is the irregular functional-data structure targeted by DR-FRL.
+
+7.2   Estimand
+In this application, the observed data are O = (W, A, Y ), where W contains baseline clinical variables,
+surgery and anesthesia descriptors, track-availability summaries, and the pre-treatment laboratory
+point cloud OiX ; A is a point exposure summary; and Y is a postoperative endpoint. There are no
+decision-time-indexed follow-up indicators Rt in this analysis, and no sequential treatment-censoring
+weights are used. The estimator is the cross-fitted point-treatment AIPW analogue,
+                                                                                        
+                                              A{Y −  m 1 (W )}   (1 − A){Y   − m 0 (W )}
+                        b 1 (W ) − m                           −
+                                                     b                         b
+              θb = Pn m            b 0 (W ) +                                              ,
+                                                  eb(W )               1 − eb(W )
+with propensity clipping and out-of-fold nuisance fitting.
+   The primary exposure is any intraoperative vasopressor support,
+
+                A = 1{intraop_eph > 0 or intraop_phe > 0 or intraop_epi > 0}.
+
+The primary endpoint is postoperative ICU admission, Y = 1{icu_days > 0}. We treat this as a
+pragmatic postoperative disposition and resource-use endpoint rather than as a clean adverse-outcome
+label, because planned and unplanned ICU admission cannot be separated in the public clinical
+table. The estimand is the observed-population adjusted risk difference θ = E(Y 1 ) − E(Y 0 ), under
+the standard point-treatment identification assumptions conditional on the observed preoperative
+history. The AIPW form is a point-treatment analogue of the doubly robust estimating equations of
+Bang and Robins (2005). This estimand is narrower than the longitudinal dynamic-regime estimand
+developed in the main methodology. VitalDB provides reliable intraoperative drug summaries for the
+point exposure, whereas a multi-interval MAP/vasopressor target trial requires validated track-level
+drug timing and waveform histories. The same AIPW/DR-FRL machinery can be extended to such
+regimes once those track-level histories have been constructed.
+    Because vasopressor exposure is clinically heterogeneous, we examine any vasopressor, phenyle-
+phrine, ephedrine, and high-dose vasopressor use. Outcome sensitivity analyses consider ICU
+admission, ICU stay longer than one day, and a composite adverse endpoint. These analyses separate
+clinically distinct drug and outcome definitions that would be obscured by a single pooled contrast.
+
+7.3   Representation ablation
+The main empirical comparison isolates the value of functional information in an audit sense. We
+compare six estimators:
+ 1. scalar clinical covariates only;
+
+ 2. scalar covariates plus handcrafted laboratory summaries, including counts, means, minima,
+    maxima, last values, and slopes;
+
+                                                  23
+ 3. DR-FRL RBF Mean, using time-kernel embeddings of the irregular laboratory point clouds;
+
+ 4. DR-FRL RBF Catoni, the same functional representation with Catoni final aggregation;
+
+ 5. random-forest doubly robust estimation using the functional representation, included because
+    tree-based nuisance learners are common in the heterogeneous-effect estimation framework of
+    Wager and Athey (2018);
+
+ 6. linear doubly robust estimation using the functional representation.
+
+The functional RBF encoder is a lightweight set-style encoder: for each laboratory marker and
+each center in {−7, −3, −1, −0.2} days, it records kernel-weighted values and kernel masses. This
+representation captures the irregular timing and marker mix of the point cloud while remaining
+simple enough for transparent ablation. All AIPW estimators are cross-fitted, propensities are
+clipped to [0.025, 0.975], and uncertainty is computed from out-of-fold pseudo-outcome variability.
+
+Table 8: VitalDB functional point-cloud analysis of vasopressor support and postoperative ICU
+admission.
+
+ Method                                            Risk Y1 Risk Y0                        RD           SE                       95% CI AUC Brier Min ESS Clip %
+ Scalar only                                              0.193           0.181 0.013 0.008 [-0.003, 0.028] 0.721 0.212 2374.828                          0.000
+ Scalar + lab summaries                                   0.192           0.180 0.011 0.008 [-0.003, 0.026] 0.721 0.212 2401.140                          0.000
+ DR-FRL RBF Mean                                          0.192           0.181 0.010 0.008 [-0.004, 0.025] 0.720 0.212 2407.996                          0.000
+ DR-FRL RBF Catoni                                        0.192           0.181 0.011 0.008 [-0.004, 0.026] 0.720 0.212 2407.996                          0.000
+ RF DR functional                                         0.202           0.165 0.038 0.008 [0.023, 0.053] 0.698 0.221 2676.653                           0.000
+ Linear DR functional                                     0.193           0.180 0.013 0.019 [-0.023, 0.050] 0.713 0.216 1368.213                          1.080
+                                           Representation ablation on VitalDB point clouds
+                                           Points are adjusted risk differences; intervals use out−of−fold pseudo−outcome variability.
+
+                                                                                     Benchmark         DR−FRL Catoni            DR−FRL Mean
+
+
+
+
+                    Scalar clinical only                                                                                   +1.3
+
+
+
+
+               Scalar + lab summaries                                                                                    +1.1
+
+
+
+
+                  DR−FRL RBF Mean                                                                                    +1.0
+
+
+
+
+                 DR−FRL RBF Catoni                                                                                       +1.1
+
+
+
+
+          Random−forest DR functional                                                                                                             +3.8
+
+
+
+
+                  Linear DR functional                                                                                      +1.3
+
+
+                                                     −2                             0                                2                        4
+                                                                                        Adjusted risk difference, percentage points
+
+
+
+Figure 8: Representation ablation and benchmark comparison in the VitalDB diagnostic audit.
+Points are adjusted risk differences and bars are 95% intervals.
+
+   Table 8 reports treatment-specific risks, adjusted risk differences, nuisance diagnostics, effective
+sample sizes, and clipping fractions. The scalar-only adjusted risk difference is 0.0125. Adding
+handcrafted laboratory summaries gives 0.0115; the functional RBF estimator gives 0.0103; Catoni
+
+
+                                                                                               24
+aggregation gives 0.0109. The estimates cluster near one percentage point, so the functional point
+cloud does not materially change the primary contrast after rich scalar clinical adjustment. This is a
+useful negative finding: DR-FRL can add irregular point-cloud histories to orthogonal adjustment
+and audit support, but it need not force a functional effect when scalar summaries already carry
+the endpoint-relevant information. The random-forest DR estimate is larger, 0.0378, and should be
+interpreted alongside its nuisance diagnostics.
+    Figure 8 visualizes the same ablation. The treatment-specific risks are clinically useful: for
+the functional DR-FRL estimator, the estimated ICU-admission risk is 0.192 under vasopressor
+support and 0.181 under no support, corresponding to an adjusted risk difference of approximately
+1.0 percentage point.
+
+7.4               Overlap and primary diagnostics
+The common-support diagnostics are favorable for the primary functional estimator. The primary
+propensity model has AUC 0.720 and Brier score 0.212. The minimum effective sample size is
+approximately 2,408 and the clip fraction is zero at the 0.025 threshold. Figure 9 shows that treated
+and untreated cases have overlapping predicted propensities, and the calibration curve does not
+reveal a severe exposure-model failure. Reporting these diagnostics is important because, as discussed
+by Petersen
+   Overlap andet  al. (2012),
+               calibration       lack ofDR−FRL
+                           for functional overlap changes the estimand that can be supported by the data.
+   Primary functional estimator; propensities are cross−fitted and unclipped in the display.
+
+                 (a) Propensity overlap                                                                                                            (b) Propensity calibration
+                                                                No vaso        Vaso
+
+
+                                                                                                                                            1.00
+
+
+
+
+             2                                                                                                                              0.75
+                                                                                                                        Observed exposure
+   Density
+
+
+
+
+                                                                                                                                            0.50
+
+
+             1
+
+                                                                                                                                            0.25
+
+
+
+
+             0                                                                                                                              0.00
+
+                              0.25                               0.50                               0.75                                           0.00   0.25        0.50         0.75   1.00
+                                                            Predicted propensity                                                                                 Mean prediction
+
+
+
+
+                   Figure 9: Overlap and calibration diagnostics for the functional DR-FRL analysis.
+
+
+                 Table 9: Common-support trimming sensitivity for the functional DR-FRL estimator.
+
+                       Threshold         Risk Y1              Risk Y0                 RD            SE           95% CI                            Min ESS            Clip %
+                            0.010              0.192               0.181           0.010       0.008       [-0.004, 0.025]                         2407.996              0.000
+                            0.025              0.192               0.181           0.010       0.008       [-0.004, 0.025]                         2407.996              0.000
+                            0.050              0.192               0.181           0.010       0.008       [-0.004, 0.025]                         2407.996              0.000
+                            0.100              0.192               0.181           0.010       0.008       [-0.004, 0.025]                         2407.996              0.078
+
+
+    Table 9 reports trimming sensitivity. Thresholds 0.01, 0.025, and 0.05 give the same estimate
+because no predicted propensity falls outside those bounds. At threshold 0.10, only 0.08% of cases
+are clipped and the estimate remains essentially unchanged. This supports reporting the observed-
+population risk difference rather than switching to an overlap-only estimand in this particular
+analysis.
+
+                                                                                               25
+    Additional balance, marker-missingness, exposure/outcome sensitivity, and pseudo-outcome
+tail diagnostics are reported in Supplementary Section S4. These diagnostics support the same
+interpretation as the main ablation: common support is acceptable for the primary point-treatment
+contrast, but the analysis remains observational and cannot rule out unmeasured confounding by
+surgical complexity, planned postoperative monitoring, or clinician decision-making.
+
+7.5   Limitations
+The VitalDB analysis has several limitations. The estimand is a point-treatment contrast based
+on intraoperative drug summaries, not a full longitudinal dynamic-regime analysis. Planned versus
+unplanned ICU admission cannot be cleanly separated from the available public clinical table, so
+postoperative ICU admission is a pragmatic resource-use endpoint rather than a definitive clinical
+causal outcome. The analysis also cannot eliminate unmeasured confounding by surgical complexity,
+anesthesiologist decision-making, or planned postoperative monitoring.
+    The empirical conclusion is accordingly cautious. DR-FRL-style point-cloud adjustment can
+be applied to open perioperative patient-level data, and the adjusted vasopressor–ICU contrast is
+much smaller than the crude contrast. The functional representation does not improve materially
+over carefully engineered laboratory summaries for this endpoint, but it gives a coherent route
+for incorporating irregular measurements into orthogonal causal estimation. A full intraoperative
+MAP/vasopressor target trial would require validated track-level treatment timing and waveform
+histories.
+
+
+8     Discussion
+DR-FRL is built on a simple principle: reduce functional histories only in ways that preserve the
+nuisance information needed by the causal estimand. A useful representation is not the one that best
+reconstructs a curve; it is the one that stabilizes the EIF, overlap, calibration, and pseudo-outcome
+distribution.
+    The method links flexible functional encoders with an orthogonal longitudinal estimating equation,
+extending the targeted-learning idea of Schuler and Rose (2017) to irregular histories. This link has
+three benefits: point-cloud histories can be used without naive gridding, representation error appears
+through an explicit product remainder, and the pseudo-outcome recursion yields overlap, calibration,
+tail, effective-sample-size, and ablation diagnostics.
+    The simulations show where this matters. DR-FRL is most useful when functional signals are
+hard to summarize, measurement is informative, overlap is weak, or pseudo-outcomes are heavy-tailed.
+Catoni aggregation improves point accuracy in these stress tests; formal Wald inference remains tied
+to mean aggregation.
+    The VitalDB analysis illustrates the method as an audit. Pre-treatment laboratory point clouds
+can be included in orthogonal adjustment, and the crude vasopressor–ICU association is much smaller
+after adjustment. Functional RBF estimates are close to scalar-summary estimates, suggesting that
+for this endpoint scalar laboratory summaries already carry much of the relevant information.
+    Important limitations remain. The observed-history target does not remove unmeasured con-
+founding by latent functional features that are not observed or recoverable. Clipped and overlap
+targets answer different questions from the full observed-population target. Robust aggregation
+limits the effect of heavy-tailed pseudo-outcomes but cannot repair identification failures. The
+VitalDB analysis is observational and point-treatment based; a full intraoperative dynamic-regime
+study would require validated treatment timing, waveform histories, and outcome definitions.
+
+
+                                                 26
+Disclosure Statement
+No potential conflict of interest was reported by the authors.
+
+
+References
+Bang, H. and Robins, J. M. (2005). Doubly robust estimation in missing data and causal inference
+  models. Biometrics 61: 962–973.
+
+Bica, I., Alaa, A. M., Jordon, J. and van der Schaar, M. (2020). Estimating Counterfactual Treatment
+  Outcomes over Time through Adversarially Balanced Representations. In International Conference
+  on Learning Representations.
+
+Bickel, P. J., Klaassen, C. A. J., Ritov, Y. and Wellner, J. A. (1993). Efficient and Adaptive
+  Estimation for Semiparametric Models. Baltimore: Johns Hopkins University Press.
+
+Cardot, H., Ferraty, F. and Sarda, P. (1999). Functional linear model. Statistics & Probability Letters
+  45: 11–22.
+
+Catoni, O. (2012). Challenging the empirical mean and empirical variance: A deviation study.
+ Annales de l’Institut Henri Poincare, Probabilites et Statistiques 48: 1148–1185.
+
+Che, Z., Purushotham, S., Cho, K., Sontag, D. and Liu, Y. (2018). Recurrent neural networks for
+ multivariate time series with missing values. Scientific Reports 8: 6085.
+
+Chen, R. T. Q., Rubanova, Y., Bettencourt, J. and Duvenaud, D. (2018). Neural Ordinary Differential
+  Equations. In Advances in Neural Information Processing Systems, 6571–6583.
+
+Chernozhukov, V., Chetverikov, D., Demirer, M., Duflo, E., Hansen, C., Newey, W. and Robins, J.
+ (2018). Double/debiased machine learning for treatment and structural parameters. Econometrics
+ Journal 21: C1–C68.
+
+Ciarleglio, A., Petkova, E., Ogden, R. T. and Tarpey, T. (2015). Treatment decisions based on scalar
+  and functional baseline covariates. Biometrics 71: 884–894.
+
+Cole, S. R. and Hernán, M. A. (2008). Constructing inverse probability weights for marginal structural
+  models. American Journal of Epidemiology 168: 656–664.
+
+Farrell, M. H., Liang, T. and Misra, S. (2021). Deep neural networks for estimation and inference.
+  Econometrica 89: 181–213.
+
+Ferraty, F. and Vieu, P. (2006). Nonparametric Functional Data Analysis: Theory and Practice. New
+  York: Springer.
+
+Goldberger, A. L., Amaral, L. A. N., Glass, L., Hausdorff, J. M., Ivanov, P. C., Mark, R. G., Mietus,
+ J. E., Moody, G. B., Peng, C.-K. and Stanley, H. E. (2000). Physiobank, physiotoolkit, and
+ physionet: Components of a new research resource for complex physiologic signals. Circulation
+ 101: e215–e220.
+
+Guo, C., Pleiss, G., Sun, Y. and Weinberger, K. Q. (2017). On Calibration of Modern Neural
+ Networks. In Proceedings of the 34th International Conference on Machine Learning, 1321–1330.
+
+
+
+                                                  27
+Hernan, M. A. and Robins, J. M. (2020). Causal Inference: What If . Boca Raton: Chapman &
+  Hall/CRC.
+
+Huber, P. J. (1964). Robust estimation of a location parameter. Annals of Mathematical Statistics
+ 35: 73–101.
+
+James, G. M., Hastie, T. J. and Sugar, C. A. (2000). Principal component models for sparse functional
+  data. Biometrika 87: 587–602.
+
+Kidger, P., Morrill, J., Foster, J. and Lyons, T. (2020). Neural Controlled Differential Equations for
+  Irregular Time Series. In Advances in Neural Information Processing Systems, 6696–6707.
+
+Laan, M. J. van der and Gruber, S. (2012). Targeted minimum loss based estimation of causal effects
+  of multiple time point interventions. International Journal of Biostatistics 8: Article 9.
+
+Laan, M. J. van der and Rose, S. (2011). Targeted Learning: Causal Inference for Observational and
+  Experimental Data. New York: Springer.
+
+Laan, M. J. van der and Rubin, D. (2006). Targeted maximum likelihood learning. International
+  Journal of Biostatistics 2: Article 11.
+
+Lee, H.-C., Park, Y., Yoon, S. B., Yang, S. M., Park, D. and Jung, C.-W. (2022). VitalDB, a
+  high-fidelity multi-parameter vital signs database in surgical patients. Scientific Data 9: 279.
+
+Lee, J., Lee, Y., Kim, J., Kosiorek, A. R., Choi, S. and Teh, Y. W. (2019). Set Transformer:
+  A Framework for Attention-Based Permutation-Invariant Neural Networks. In International
+  Conference on Machine Learning, 3744–3753.
+
+Lendle, S. D., Schwab, J., Petersen, M. L. and Laan, M. J. van der (2017). ltmle: An r package
+  implementing targeted minimum loss-based estimation for longitudinal data. Journal of Statistical
+  Software 81: 1–21.
+
+Li, R., Hu, S., Lu, M., Utsumi, Y., Chakraborty, P., Sow, D. M., Madan, P., Li, J., Ghalwash, M.,
+  Shahn, Z. and Lehman, L.-w. (2021). G-Net: a Recurrent Network Approach to G-Computation
+  for Counterfactual Prediction Under a Dynamic Treatment Regime. In Proceedings of Machine
+  Learning for Health, Proceedings of Machine Learning Research 158 . PMLR, 282–299.
+
+Lim, B., Alaa, A. M. and Schaar, M. van der (2018). Forecasting Treatment Responses over Time
+  Using Recurrent Marginal Structural Networks. In Advances in Neural Information Processing
+  Systems, 7483–7493.
+
+Melnychuk, V., Frauen, D. and Feuerriegel, S. (2022). Causal Transformer for Estimating Coun-
+ terfactual Outcomes. In Proceedings of the 39th International Conference on Machine Learning,
+ Proceedings of Machine Learning Research 162 . PMLR, 15293–15329.
+
+Morris, J. S. (2015). Functional regression. Annual Review of Statistics and Its Application 2:
+ 321–359.
+
+Newey, W. K. (1994). The asymptotic variance of semiparametric estimators. Econometrica 62:
+ 1349–1382.
+
+Pearl, J. (2009). Causality. Cambridge: Cambridge University Press, 2nd ed.
+
+
+
+                                                 28
+Petersen, M. L., Porter, K. E., Gruber, S., Wang, Y. and Laan, M. J. van der (2012). Diagnosing
+  and responding to violations in the positivity assumption. Statistical Methods in Medical Research
+  21: 31–54.
+
+Platt, J. C. (1999). Probabilistic outputs for support vector machines and comparisons to regularized
+  likelihood methods. In Advances in Large Margin Classifiers. Cambridge, MA: MIT Press, 61–74.
+
+Ramsay, J. O. and Silverman, B. W. (2005). Functional Data Analysis. New York: Springer, 2nd ed.
+
+Robins, J. M. (1986). A new approach to causal inference in mortality studies with a sustained
+ exposure period. Mathematical Modelling 7: 1393–1512.
+
+Robins, J. M., Hernan, M. A. and Brumback, B. (2000). Marginal structural models and causal
+ inference in epidemiology. Epidemiology 11: 550–560.
+
+Robins, J. M., Orellana, L. and Rotnitzky, A. (2008). Estimation and extrapolation of optimal
+ treatment and testing strategies. Statistics in Medicine 27: 4678–4721.
+
+Rubanova, Y., Chen, R. T. Q. and Duvenaud, D. K. (2019). Latent ODEs for Irregularly-Sampled
+ Time Series. In Advances in Neural Information Processing Systems, 5320–5330.
+
+Rubin, D. B. (2005). Causal inference using potential outcomes: Design, modeling, decisions. Journal
+ of the American Statistical Association 100: 322–331.
+
+Schuler, M. S. and Rose, S. (2017). Targeted maximum likelihood estimation for causal inference in
+  observational studies. American Journal of Epidemiology 185: 65–73.
+
+Tsiatis, A. A. (2006). Semiparametric Theory and Missing Data. New York: Springer.
+
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, L. and
+  Polosukhin, I. (2017). Attention Is All You Need. In Advances in Neural Information Processing
+  Systems, 5998–6008.
+
+Wager, S. and Athey, S. (2018). Estimation and inference of heterogeneous treatment effects using
+ random forests. Journal of the American Statistical Association 113: 1228–1242.
+
+Yao, F., Müller, H.-G. and Wang, J.-L. (2005). Functional data analysis for sparse longitudinal data.
+  Journal of the American Statistical Association 100: 577–590.
+
+Zadrozny, B. and Elkan, C. (2002). Transforming Classifier Scores into Accurate Multiclass Probability
+  Estimates. In Proceedings of the Eighth ACM SIGKDD International Conference on Knowledge
+  Discovery and Data Mining, 694–699.
+
+Zaheer, M., Kottur, S., Ravanbakhsh, S., Poczos, B., Salakhutdinov, R. and Smola, A. (2017). Deep
+  Sets. In Advances in Neural Information Processing Systems, 3391–3401.
+
+
+
+
+                                                 29
+A     Proofs
+This section gives the full proof details for main-text Theorems 1–6, Proposition 1, Lemma 1, and
+Corollary 1. Throughout the supplement, P denotes P0 , Pn denotes the empirical measure, and the
+target regime g is fixed. Static regimes are obtained by setting gt (h) = at . Write
+                                                                        t
+                            Γgt = (πtg , ρgt ),         Ggt (Ht ) =
+                                                                        Y
+                                                                              πsg (Hs )ρgs (Hs ),
+                                                                        s=0
+
+and let
+                                         1{As = gs (Hs ), Rs = 1, for all s ≤ t}
+                            Htg (η) =            Qt       g      g
+                                                    s=0 πs (Hs )ρs (Hs )
+be the cumulative clever covariate associated with a working nuisance vector η = (Q, π, ρ). The true
+nuisance vector is η ⋆ = (Q⋆ , π ⋆ , ρ⋆ ). Define the EIF map
+                                                             T
+                   Dg (O; η, θ) = Qg0 (H0 ) − θ +                  Htg (η){Qgt+1 (Ht+1 ) − Qgt (Ht )},
+                                                             X
+
+                                                             t=0
+
+where QgT +1 (HT +1 ) = Y . At the truth, Dg (O; η ⋆ , θ(g)) = ϕ⋆g (O).
+    Cross-fitting is interpreted fold by fold throughout. Let I1 , . . . , IK be the evaluation folds
+and let Tk be the sigma-field generated by all observations outside Ik , together with the random
+splitting, representation-selection decisions, calibration choices, early-stopping decisions, and optional
+targeting steps made inside the training sample. The nuisance vector used for i ∈ Ik is written
+                                                                                                     (−k)
+ηb(−k) = (Q b (−k) , πb(−k) , ρb(−k) ), and the corresponding estimated influence value is written ϕbi    =
+Dg (Oi ; ηb(−k) , θg ). Conditional on Tk , the evaluation observations {Oi : i ∈ Ik } are independent of
+                  b
+ηb(−k) . All empirical-process and variance statements below are therefore first read conditionally on
+Tk and then summed over the fixed number of folds.
+
+A.1       Two algebraic lemmas
+Lemma 2 (Telescoping identity). For any working nuisance vector η = (Q, π, ρ), the backward
+recursion
+                  YeTg+1 = Y,    Yetg = Qgt (Ht ) + ωtg (η){Yet+1
+                                                               g
+                                                                  − Qgt (Ht )}
+satisfies                                                         
+                                           T Ys                   
+                      Yetg = Qgt (Ht ) +                    ωjg (η) {Qgs+1 (Hs+1 ) − Qgs (Hs )}.
+                                           X
+                                                                                                         (15)
+                                                                  
+                                           s=t        j=t
+
+In particular, Ye0g − θ = Dg (O; η, θ).
+
+Proof. For t = T , the recursion gives
+
+                                 YeTg = QgT (HT ) + ωTg (η){Y − QgT (HT )},
+
+which is exactly (15) because QgT +1 (HT +1 ) = Y . Suppose (15) holds for t + 1. Substituting the
+
+
+
+
+                                                               30
+induction hypothesis into the recursion at time t gives
+
+                 Yetg = Qgt (Ht ) + ωtg (η) Qgt+1 (Ht+1 ) − Qgt (Ht )
+                                           
+                                                                                    
+                                     T     Y s           
+                                                   ωjg (η) {Qgs+1 (Hs+1 ) − Qgs (Hs )}
+                                    X
+                                +
+                                                         
+                                   s=t+1 j=t+1
+                                                      
+                                     T Y   s          
+                          g
+                                               ωjg (η) {Qgs+1 (Hs+1 ) − Qgs (Hs )}.
+                                    X
+                      = Qt (Ht ) +
+                                                      
+                                        s=t   j=t
+
+Thus the result follows by backward induction. For t = 0, the product of incremental clever covariates
+is the cumulative clever covariate Hsg (η), which yields Ye0g − θ = Dg (O; η, θ).
+
+Lemma 3 (Conditional recursion identity). For any working nuisance vector η, define the mechanism
+ratio
+                                               πtg,⋆ (Ht )ρg,⋆
+                                                           t (Ht )
+                                 λt (Ht ; η) =     g       g       ,
+                                                 πt (Ht )ρt (Ht )
+where the numerator uses the true treatment and incremental censoring probabilities and the de-
+nominator uses the working probabilities. All conditional expectations below are on the at-risk event
+R̄t−1 = 1, which is suppressed to keep notation readable. Then
+
+       E{Yetg (η) | Ht } = Qgt (Ht ) + λt (Ht ; η) E{Yet+1
+                                                        g
+                                                           (η) | Ht , At = gt (Ht ), Rt = 1} − Qgt (Ht ) .
+                                                                                                       
+
+
+Proof. Condition on Ht . The quantity Qgt (Ht ) and the denominator of ωtg (η) are fixed. Moreover
+
+                          E{1(At = gt (Ht ), Rt = 1) | Ht } = πtg,⋆ (Ht )ρg,⋆
+                                                                          t (Ht ),
+
+where the censoring probability is conditional on (Ht , At = gt (Ht )). Applying iterated expectation
+to the product of the indicator and the future pseudo-outcome gives
+                                                                g
+                                E[1{At = gt (Ht ), Rt = 1}{Yet+1     − Qgt (Ht )} | Ht ]
+      E{Yetg | Ht } = Qgt (Ht ) +                   g       g
+                                                   πt (Ht )ρt (Ht )
+                                 g,⋆      g,⋆
+                                π (Ht )ρt (Ht )
+                   = Qgt (Ht ) + t g                    g
+                                                             | Ht , At = gt (Ht ), Rt = 1} − Qgt (Ht ) .
+                                                                                                     
+                                          g        E{Yet+1
+                                 πt (Ht )ρt (Ht )
+
+This proves the identity. If Rt = 0, the next history is the cemetery value and the indicator in ωtg is
+zero, so the arbitrary value assigned to Qgt+1 (∂) never enters the conditional expectation.
+
+A.2    Finite-library selection
+Proof. Let ϕb be an ϵn -approximate minimizer of R
+                                                 bEIF over Φn , and let ϕ◦ ∈ arg minϕ∈Φ REIF (ϕ)
+                                                                                       n
+be a population oracle candidate. Then
+                              b ≤R
+                        REIF (ϕ)       b + sup |REIF (ϕ) − R
+                                 bEIF (ϕ)                  bEIF (ϕ)|
+                                                    ϕ∈Φn
+                                              ◦
+                                    ≤R
+                                     bEIF (ϕ ) + ϵn + sup |REIF (ϕ) − R
+                                                                      bEIF (ϕ)|
+                                                            ϕ∈Φn
+                                              ◦
+                                    ≤ REIF (ϕ ) + ϵn + 2 sup |REIF (ϕ) − R
+                                                                         bEIF (ϕ)|.
+                                                                ϕ∈Φn
+
+
+
+
+                                                           31
+The assumed uniform validation concentration gives the stated bound. The concentration condition
+can be verified by Bernstein or bounded-difference inequalities when the validation EIF scores are
+conditionally sub-exponential and the candidate library is finite, followed by a union bound over
+Mn candidates. Because the oracle inequality concerns only the validation EIF criterion, it does
+not imply that the oracle projection errors bQ,t and bΓ,t are small unless the library contains a
+representation with that property.
+
+A.3     EIF-map stability
+Proof. For the outcome nuisance, add and subtract the best representation-indexed approximation:
+
+                   ∥Q                b t − Q† ∥2 + ∥Q† − Qg,⋆ ∥2 = rQ,t + bQ,t (ϕ).
+                    b t − Qg,⋆ ∥2 ≤ ∥Q                                          b
+                           t                 bt,ϕ     b   t t,ϕ
+
+The same triangle inequality for the vector mechanism Γt = (πt , ρt ) gives
+                                       b t − Γg,⋆ ∥2 ≤ rΓ,t + bΓ,t (ϕ),
+                                      ∥Γ                            b
+                                              t
+
+where the vector norm is the Euclidean norm inside the outer L2 (P0 ) norm.
+   It remains to show how these total-error bounds control the empirical-process class used in
+main-text Theorem 3. Let eQ,t = ∥Qb t − Qg,⋆ ∥2 and eΓ,t = ∥Γ b t − Γg,⋆ ∥2 . Under the lower probability
+                                         t                           t
+bound or deterministic clipping, the map (πt , ρt ) 7→ {πt ρt }−1 is locally Lipschitz on the relevant
+support. Therefore the cumulative clever covariate difference satisfies, for fixed T ,
+                                                           t
+                                  b g − Hg,⋆ ∥2 ≤ CT
+                                                           X
+                                 ∥H t    t                        eΓ,s + oP (1),
+                                                           s=0
+
+with CT depending on the lower bound or clipping level. Writing Mt⋆ = Qg,⋆    g,⋆
+                                                                       t+1 − Qt   and M
+                                                                                      ct =
+  g     g
+       b , the difference of EIF maps is a sum of terms of the form
+Q
+b
+  t+1−Q   t
+
+                             b g − Hg,⋆ )M ⋆ + H
+                            (H                 b g (M            b g − Qg,⋆ .
+                                                    ct − M ⋆ ) + Q
+                               t    t     t      t        t        0    0
+
+Cauchy-Schwarz, bounded or clipped weights, and bounded second moments of Mt⋆ give
+                                                                    T
+                                                                    X
+                  ∥Dg (·; ηb, θ(g)) − Dg (·; η ⋆ , θ(g))∥2 ≤ CT           (eQ,t + eΓ,t ) + oP (1).
+                                                                    t=0
+
+Substituting the projection bounds above shows that the right-hand side is oP (1) whenever the total
+stochastic and approximation errors vanish. This proves main-text Assumption 7 under the stated
+primitive conditions.
+
+A.4     Identification and EIF
+Proof. We first prove identification for the observed-history target. By consistency, among individuals
+whose observed treatment path agrees with g and who remain under follow-up, the observed outcome
+equals the corresponding counterfactual outcome. For a dynamic regime, the exchangeability object
+must include the future histories that determine later regime decisions. Thus, for each time t, write
+
+                                      Ftg = (Y g , Ht+1
+                                                    g
+                                                        , . . . , HTg +1 ).
+
+By sequential exchangeability, conditional on Ht and being under follow-up just before t, treatment
+assignment is independent of Ftg ; conditional on (Ht , At ), the follow-up indicator is also independent
+
+                                                      32
+of Ftg . Positivity ensures that the conditional distributions required under the intervention are
+observed.
+    The recursion is defined on the at-risk transition. More precisely, Ht+1 denotes the next pre-
+treatment history generated after observing (Ht , At , Rt ) on the event Rt = 1. If Rt = 0, we set
+Ht+1 = ∂ and Qg,⋆ t+1 (∂) arbitrarily. This convention makes all random variables measurable on a
+common sample space, while the factor 1(Rt = 1) in the clever covariate ensures that the arbitrary
+cemetery value is never used in the EIF. At the terminal time,
+
+                  Qg,⋆
+                   T (hT ) = E{Y | HT = hT , AT = gT (hT ), RT = 1, R̄T −1 = 1}.
+
+At the previous time point,
+
+     Qg,⋆                g,⋆
+      T −1 (hT −1 ) = E{QT (HT ) | HT −1 = hT −1 , AT −1 = gT −1 (hT −1 ), RT −1 = 1, R̄T −2 = 1}.
+
+Repeating the argument backward proves main-text equation (4). Taking expectation over H0 yields
+θ(g) = E{Qg,⋆0 (H0 )}.
+    For a latent full-functional-history target, the preceding argument would take place in a full-data
+law. Such a target is not identified by the present observed likelihood unless a separate bridge or
+measurement model recovers the relevant full-data sequential regressions from the coarsened histories.
+Even under such a bridge, the observed-data canonical gradient is the projection of the full-data
+gradient onto the observed-data tangent space. It coincides with main-text equation (6) only when
+the observation-process score is orthogonal to the target, so that no additional inverse-coarsening
+or coarsening-score term appears. Otherwise the present article does not claim the full-functional
+target; it targets the observed-history value.
+    We next derive the EIF for the observed-history target. Consider a regular parametric submodel
+Pε through P with score S(O) at ε = 0. The score decomposes into components for the baseline
+history, the conditional law of each next pre-treatment history on the at-risk regime path, the
+treatment mechanisms, the censoring mechanisms, and the terminal outcome law. The target
+functional is θε (g) = Eε {Qg0,ε (H0 )}. The derivative of the baseline law contributes Qg,⋆
+                                                                                         0 (H0 ) − θ(g).
+For each t, the derivative of the conditional law of Ht+1 , including the outcome law for t = T ,
+contributes the residual
+                                      Mtg,⋆ = Qg,⋆             g,⋆
+                                               t+1 (Ht+1 ) − Qt (Ht )
+weighted by the likelihood ratio that maps observed paths to the regime path. Since Qg,⋆
+                                                                                       t is exactly
+the conditional mean of Qg,⋆
+                          t+1 (H t+1 ) given (H t , At = gt (Ht ), Rt = 1, R̄t−1 = 1),
+
+                          E{Mtg,⋆ | Ht , At = gt (Ht ), Rt = 1, R̄t−1 = 1} = 0.
+
+Therefore the derivative contribution from time t is represented by Htg,⋆ Mtg,⋆ . Summing contributions
+gives
+                                                            T
+                                     "(                                   )        #
+                     d                   g,⋆
+                                                           X     g,⋆  g,⋆
+                          θε (g) = E    Q0 (H0 ) − θ(g) +      Ht M t       S(O) .
+                    dε 0
+                                                            t=0
+The displayed candidate has mean zero. For each t,
+                                                                                  
+                                      1(At = gt (Ht ), Rt = 1) g,⋆
+         E{Htg,⋆ Mtg,⋆ } = E Ht−1
+                              g,⋆
+                                  E                           M    | Ht , R̄ t−1 = 1   = 0,
+                                         πtg,⋆ (Ht )ρg,⋆
+                                                     t (Ht )
+                                                                t
+
+
+where the inner conditional expectation uses the at-risk transition and the residual mean-zero
+identity above. Treatment- and censoring-score components are orthogonal by conditioning on Ht
+and (Ht , At ), respectively. Because the observed-history model is otherwise nonparametric, the
+candidate is the canonical gradient, proving main-text equation (6).
+
+                                                   33
+A.5    Sequential robustness
+Proof. For a working nuisance vector η, define
+
+                         ∆t (Ht ) = E{Yetg (η) | Ht } − Qg,⋆
+                                                         t (Ht ),         ∆T +1 = 0.
+
+By Lemma 3,
+
+          E{Yetg | Ht } = Qgt (Ht ) + λt (Ht ; η){E(Yet+1
+                                                       g
+                                                          | Ht , At = gt (Ht ), Rt = 1) − Qgt (Ht )}.
+
+Using the definition of Qg,⋆
+                         t   and adding/subtracting Qg,⋆
+                                                     t+1 inside the conditional expectation gives
+
+                   ∆t (Ht ) = {1 − λt (Ht ; η)}{Qgt (Ht ) − Qg,⋆
+                                                             t (Ht )}
+                               + λt (Ht ; η)E{∆t+1 (Ht+1 ) | Ht , At = gt (Ht ), Rt = 1}.               (16)
+
+This identity is exact.
+   We now prove the result by backward induction. At t = T , ∆T +1 = 0, so
+
+                          ∆T (HT ) = {1 − λT (HT ; η)}{QgT (HT ) − Qg,⋆
+                                                                    T (HT )}.
+
+If either QgT = Qg,⋆      g   g       g,⋆ g,⋆
+                  T or (πT , ρT ) = (πT , ρT ), then ∆T = 0. Suppose ∆t+1 = 0 under the robustness
+conditions for future times. Equation (16) reduces to the same product form at time t. If Qgt = Qg,⋆
+                                                                                                 t ,
+the product is zero; if the time-t mechanism is correct, then λt = 1 and the product is again zero.
+Hence ∆t = 0. By backward induction, ∆0 = 0 and therefore
+
+                                    E{Ye0g (η)} = E{Qg,⋆
+                                                     0 (H0 )} = θ(g).
+
+For cross-fitted estimators whose probability limits satisfy the same time-specific conditions, the law
+of large numbers applied to the out-of-fold pseudo-outcomes gives consistency.
+
+A.6    Representation remainder
+Proof. We prove the result for the mean aggregation estimator. The robust-aggregation transfer
+is handled in main-text Theorem 6. For i ∈ Ik , all fitted nuisance functions are ηb(−k) and are
+measurable with respect to Tk . Conditional on Tk , the evaluation observations in Ik are independent
+of the nuisance functions used to score them. The proof below is written for one generic fold and
+then summed over the fixed number of folds.
+    By Lemma 2, the feasible estimator can be written as
+
+                                           θbg = Pn {Dg (O; ηb, 0)},
+
+where ηb denotes ηb(−k(i)) for observation i. Since P {Dg (O; η ⋆ , θ(g))} = 0, we decompose
+
+                      θbg − θ(g) = (Pn − P )Dg (O; η ⋆ , θ(g))
+                                    + P {Dg (O; ηb, θ(g)) − Dg (O; η ⋆ , θ(g))}
+                                    + (Pn − P ){Dg (O; ηb, θ(g)) − Dg (O; η ⋆ , θ(g))}.                 (17)
+
+The first term is (Pn − P )ϕ⋆g .
+   We next bound the mean remainder. Let
+                                        b g − Qg,⋆ ,
+                                 δQ,t = Q                          b g − Γg,⋆ .
+                                                            δΓ,t = Γ
+                                          t    t                     t    t
+
+
+                                                       34
+The exact recursion (16), applied with η = ηb, implies
+
+                       |P {Dg (O; ηb, θ(g)) − Dg (O; η ⋆ , θ(g))}| = |E{∆0 (H0 )}|.
+
+Let Γgt = (πtg , ρgt ) and use the product-mechanism norm
+                         b g − Γg,⋆ ∥2 = ∥b
+                        ∥Γ                πtg − πtg,⋆ ∥L2 (P0 ) + ∥b
+                                                                   ρgt − ρg,⋆
+                           t    t                                         t ∥L2 (P0 ) .
+
+Assume that true and working treatment and censoring probabilities are bounded below by ε > 0
+after calibration or clipping; this is the lower probability bound referred to in the theorem. Since
+
+                                                  πtg,⋆ (Ht )ρg,⋆
+                                                              t (Ht )
+                                       λt (Ht ) =
+                                       b              g       g       ,
+                                                    π
+                                                    bt (Ht )bρt (Ht )
+
+the map (π, ρ) 7→ πρ/(b
+                      π ρb) is Lipschitz on [ε, 1]4 . Hence there is a constant C = C(ε) such that
+
+                                       ∥1 − λ         b g − Γg,⋆ ∥2 .
+                                            bt ∥2 ≤ C∥Γ
+                                                        t    t
+
+To make the iteration explicit, let Pg denote the law of the observed histories generated along the
+regime path using the observed-history transition law. Positivity and fixed T imply that the relevant
+L2 (Pg ) and L2 (P0 ) norms are equivalent up to constants depending only on ε and T . Define
+
+                                   at = Eg {|∆t (Ht )|},        aT +1 = 0,
+
+where Eg is expectation under Pg . Applying (16), Cauchy-Schwarz, the lower probability bound,
+and norm equivalence gives
+
+                           at ≤ Eg {|1 − λ          b g (Ht ) − Qg,⋆ (Ht )|}
+                                         bt (Ht )| |Q
+                                                      t          t
+                                + Eg {|λt (Ht )| Eg (|∆t+1 (Ht+1 )| | Ht )}
+                                       b
+                                  b g − Γg,⋆ ∥2,P ∥Q
+                              ≤ C∥Γ                b g − Qg,⋆ ∥2,P + Cat+1 .
+                                    t    t       0   t    t       0
+
+
+Iterating this inequality from T to 0 yields, for fixed T ,
+                                                T
+                                                       b g − Qg,⋆ ∥2 ∥Γ
+                                                                      b g − Γg,⋆ ∥2 .
+                                                X
+                          |E{∆0 (H0 )}| ≤ C           ∥Q t    t         t    t                    (18)
+                                                t=0
+
+This is the longitudinal Neyman-orthogonal product remainder. It says that a first-order error in Qt
+alone or in Γt alone does not produce first-order target bias; the bias is driven by their products.
+    The learned representation separates each total nuisance error into stochastic estimation and
+approximation components. Let Q† b and Γ† b be the best representation-indexed approximations
+                                   t,ϕ       t,ϕ
+defined in main-text Assumption 6. Then
+
+                  ∥Q                b g − Q† ∥2 + ∥Q† − Qg,⋆ ∥2 ≤ rQ,t + bQ,t (ϕ),
+                   b g − Qg,⋆ ∥2 ≤ ∥Q                                          b
+                     t    t           t
+                                      t,ϕ   b  t,ϕ   b   t
+                     g   g,⋆         †       †
+                                b − Γ ∥2 + ∥Γ − Γg,⋆ ∥2 ≤ rΓ,t + bΓ,t (ϕ).
+                                 g
+                   ∥Γ
+                    b − Γ ∥2 ≤ ∥Γ
+                     t   t       t                 t
+                                                                       b
+                                     t,ϕ
+                                       b     t,ϕ
+                                               b
+
+Substituting these inequalities into (18) gives the bound in main-text equation (14). This is the
+representation-error part of the theorem: representation loss is harmless only when it enters through
+this product-rate structure.
+    Finally, consider the empirical-process term in (17). Conditional on the training folds, each
+evaluation fold is independent of the nuisance functions trained outside that fold. For a fixed number
+
+                                                       35
+of folds K, the variance of a fold-wise empirical process after multiplication by the fold size is
+bounded by
+                           P {Dg (O; ηb, θ(g)) − Dg (O; η ⋆ , θ(g))}2 | ηb .
+                                                                         
+
+By main-text Assumption 7, equivalently by main-text Lemma 1 under the stated primitive conditions,
+this conditional variance converges to zero in probability. Chebyshev’s inequality therefore gives
+                      √
+                        n(Pn − P ){Dg (O; ηb, θ(g)) − Dg (O; η ⋆ , θ(g))} = oP (1),
+
+after summing over the fixed number of folds; equivalently the unscaled empirical term is oP (n−1/2 ).
+If clipping is used, the same argument applies to the clipped EIF map and leaves an additional
+deterministic or stochastic target-shift term Rclip,n . Combining these pieces proves main-text
+equations (13) and (14).
+
+A.7     Asymptotic linearity
+Proof. Main-text Theorem 3 gives
+
+                                         θbg − θ(g) = (Pn − P )ϕ⋆g + Rn ,
+
+where
+                                   T
+                                   X
+                                                                                    −1/2
+                       |Rn | ≤ C         {rQ,t + bQ,t (ϕ)}{r
+                                                       b    Γ,t + bΓ,t (ϕ)} + oP (n
+                                                                        b                ).
+                                   t=0
+
+Main-text Assumption 8 makes the displayed sum oP (n−1/2 ), so Rn = oP (n−1/2 ). Multiplying by
+√
+  n yields
+                                               n
+                         √                  1 X ⋆
+                           n{θbg − θ(g)} = √      ϕg (Oi ) + oP (1).
+                                             n
+                                                               i=1
+
+By main-text Assumption 5, E{ϕ⋆g (O)} = 0 and E{ϕ⋆g (O)2 } = σg2 < ∞. The classical central limit
+theorem gives convergence in distribution to N (0, σg2 ).
+   For the variance estimator, define the out-of-fold estimated influence value
+
+                                                   ϕbgi = Z
+                                                          bg − θbg ,
+                                                            i
+
+where Zbig is the out-of-fold pseudo-outcome from main-text Algorithm 1; equivalently, for i ∈ Ik ,
+                                                 g,(−k)
+it is computed using ηb(−k) and may be written ϕbi      . The same fold-conditional L2 consistency
+argument used in the empirical-process part of main-text Theorem 3 gives
+
+                                             ∥ϕbg − ϕ⋆g ∥L2 (P ) = oP (1).
+
+Then
+
+              Pn {(ϕbg )2 } − P {(ϕ⋆g )2 } ≤ Pn {(ϕbg )2 − (ϕ⋆g )2 } + Pn {(ϕ⋆g )2 } − P {(ϕ⋆g )2 } .
+
+The second term is oP (1) by the law of large numbers. For the first term, use |a2 − b2 | ≤ |a − b|2 +
+2|b||a − b| and Cauchy-Schwarz to obtain
+
+           Pn |(ϕbg )2 − (ϕ⋆g )2 | ≤ Pn (ϕbg − ϕ⋆g )2 + 2{Pn (ϕ⋆g )2 }1/2 {Pn (ϕbg − ϕ⋆g )2 }1/2 = oP (1).
+
+     bg2 = Pn (ϕbgi )2 is consistent for σg2 , and the Wald interval has asymptotic coverage 1 − α.
+Thus σ
+
+                                                          36
+A.8    Clipping and overlap
+Proof. For a finite threshold τ , define the clipped estimating function by replacing Htg in main-text
+                        g
+equation (6) with Ht,τ     = min(Htg , τ ). This construction gives a bounded estimating equation,
+but it is not automatically the canonical gradient of a causal parameter. The reason is that
+min(Htg , τ ) is a history-dependent transformation of the likelihood ratio. Unless a corresponding
+weighted intervention distribution is specified, the clipped equation is simply a regularized estimating
+equation.
+   When strict positivity holds and τn → ∞, the clipped and unclipped estimating functions are
+asymptotically equivalent. Let
+                                           T
+                                                   g,⋆
+                                                         − Htg,⋆ ){Qg,⋆            g,⋆
+                                           X
+                   Dτn (O) − D(O) =              (Ht,τ n            t+1 (Ht+1 ) − Qt (Ht )}.
+                                           t=0
+
+If E|Dτn (O) − D(O)| = o(n−1/2 ), or the corresponding L2 condition holds for variance estimation,
+clipping contributes only oP (n−1/2 ) to the asymptotic expansion. This condition is satisfied, for
+example, when the clever covariates have a sufficiently light tail and τn grows fast enough. Thus
+clipping is justified as asymptotically negligible stabilization for θ(g) under strict positivity.
+    If practical positivity is intrinsically poor, the causal target can instead be defined with an
+explicit weighting function. For the overlap target
+                                  Ng
+                       θω (g) =      ,      Ng = E{ω(H0 )Y g },        D = E{ω(H0 )},
+                                  D
+with fixed nonnegative ω, the numerator EIF is the usual longitudinal EIF multiplied by ω(H0 ) plus
+the baseline contribution induced by perturbing the distribution of H0 . Equivalently, write ϕNg for
+the EIF of Ng and ϕD = ω(H0 ) − D. The quotient rule gives
+
+                                         ϕω,g = D−1 ϕNg − Ng D−2 ϕD .
+
+This is a genuine causal overlap estimand because ω is part of the estimand. It is distinct from post
+hoc truncation of Htg . The theorem follows.
+
+A.9    Robust aggregation
+Proof. Condition first on the outer training folds. The oracle pseudo-outcomes Zig = Yei0g (η ⋆ ) are i.i.d.
+over evaluation observations with mean θ(g) and variance bounded by v. Let ψ be the standard
+Catoni influence function satisfying
+
+                           − log(1 − x + x2 /2) ≤ ψ(x) ≤ log(1 + x + x2 /2).
+                                                                              g
+For a fixed candidate m, exponential Markov inequalities  p applied to i ψ{α(Zi − m)} bound the
+                                                                       P
+two tail probabilities of the Catoni root. Choosing α ≍ log(1/δ)/(nv) yields
+                                                                        
+                                − θ(g)| > C v log(1/δ)/n | training folds ≤ δ
+                             or
+                                           p
+                       P |θbC
+
+for a universal constant C, up to the usual small constants in Catoni’s theorem. If v is unknown, it
+is estimated on an auxiliary split or replaced by a conservative upper bound; the scale parameter is
+therefore part of the estimator specification.
+
+
+
+                                                         37
+   Now compare feasible and oracle Catoni roots. Let
+                                                   n
+                                                   X
+                                 Ψn (m; z) = n−1          ψ{α(zi − m)}.
+                                                    i=1
+
+Because ψ is Lipschitz, uniformly over m in a neighborhood of θ(g),
+                                                    X g
+                             b − Ψn (m; Z)| ≤ αn−1
+                    |Ψn (m; Z)                          b − Z g | = OP (αδn ).
+                                                       |Z i   i
+                                                              i
+
+The derivative of the oracle estimating function satisfies
+
+                                                         ψ ′ {α(Zig − m)}.
+                                                    X
+                             −∂m Ψn (m; Z) = αn−1
+                                                          i
+
+Under the local concentration supplied by the oracle Catoni argument, this derivative is bounded
+below by cα with probability tending to one in a neighborhood of θ(g). A one-dimensional Z-
+estimation expansion therefore divides the OP (αδn ) perturbation by an order-α derivative and
+gives
+                                               or
+                                      |θbC − θbC  | = OP (δn ).
+Combining this transfer bound with the oracle Catoni inequality gives
+                                              p
+                           |θbC − θ(g)| = OP { v log(1/δ)/n} + OP (δn ).
+
+The quantity δn = n−1 i |Zbig − Zig | is an additional feasible-pseudo-outcome stability condition
+                        P
+for robust aggregation. It is not a direct conclusion of the scalar mean-estimator expansion in
+main-text Theorem 3. The condition δn = oP (1) yields consistency of the robust aggregate; retaining
+the oracle Catoni n−1/2 concentration order would require δn = oP (n−1/2 ) or a comparably sharp
+transfer bound. Under bounded or clipped clever covariates, stable backward recursion, and L1
+or stronger L2 convergence of the nuisance functions, δn = oP (1) can be verified by applying the
+same cross-fitted pseudo-outcome perturbation bounds used in the product-remainder proof. Fold
+dependence is harmless because all conditioning is on Tk and the final evaluation observations are
+independent within each fold; summing over a fixed number of folds preserves the order.
+    For median-of-means, form blocks independently of the evaluation outcomes, for example by
+a random partition within the outer held-out folds. Oracle block means have the usual median
+concentration: under finite variance, Chebyshev’s inequality makes a majority of block means
+accurate with high probability; under a finite (1 + κ) moment the block means converge at the
+corresponding polynomial rate. If the average feasible-oracle discrepancy is δn , all but a vanishing
+fraction of block means are shifted by at most OP (δn ), so the median is shifted by the same order.
+This proves the robust aggregation statement.
+
+A.10     Basis-encoder rates
+Proof. Let
+                                                   ∞
+                                                   X
+                                        Xt (u) =         αtk ψk (u)
+                                                   k=1
+
+be the Karhunen-Loeve expansion, with eigenvalues λk ≲ k −2a . A Kn -term basis encoder retains
+the first Kn scores and estimates them from the sparse noisy point cloud. The representation error
+has two components.
+
+                                                   38
+    The first component is truncation. Under the smoothness assumption in the corollary, the true
+nuisance functions can be approximated by functions of the first Kn scores with error O(Kn−s ) in
+L2 (P ). This covers, for example, Holder or Sobolev smooth nuisance maps whose dependence on
+high-frequency scores decays with the eigenvalues. The second component is score-estimation error.
+If the estimated score vector has mean integrated squared error ϵ2n,K , Lipschitz or Holder continuity
+of the nuisance maps in the score vector gives an additional approximation term O(ϵn,K ).
+    The quantity ϵn,K is intentionally defined at the level of the observed-history encoder rather
+than only through an idealized dense-curve design. For noninformative sparse sampling, it may be
+verified by standard sparse-FPCA or spline-smoothing arguments when the expected number of
+measurements per visit is bounded away from zero and the measurement noise has bounded variance.
+When the sampling process is informative, as in Scenario F of the simulation, the measurement
+count, locations, and marker identities are part of the observed history. The score-estimation error
+should then be read as the conditional error of the chosen encoder given this observed sampling
+design. In that case the theorem does not require the sampling design to be ignorable; it requires the
+encoder class to approximate the nuisance functions of the observed point cloud and its sampling
+pattern.
+    Consequently, for both the outcome regression and mechanism nuisance classes,
+
+                          bQ,t (ϕ) ≲ Kn−s + ϵn,K ,             bΓ,t (ϕ) ≲ Kn−s + ϵn,K .
+
+Combining these bounds with the stochastic nuisance errors rQ,t and rΓ,t gives
+       X                                       X
+          {rQ,t + bQ,t (ϕ)}{rΓ,t + bΓ,t (ϕ)} ≲  {rQ,t + Kn−s + ϵn,K }{rΓ,t + Kn−s + ϵn,K }.
+          t                                           t
+
+The condition displayed in the corollary makes the right-hand side oP (n−1/2 ), which is exactly
+main-text Assumption 8. The result follows from main-text Theorem 4. Deep Set Transformer and
+neural-ODE encoders are not required for this verification result; the corollary supplies a concrete
+sieve route showing that the high-level representation condition is attainable.
+
+
+B     Stochastic-Regime Extension
+The main article writes the theorem sequence for deterministic static or dynamic regimes. This
+section records the parallel notation for stochastic interventions. Let q = {qt (· | Ht )}Tt=0 be a
+user-specified intervention density or probability mass function that is absolutely continuous with
+respect to the observed treatment law on the support of q. Define
+                                                                                 t
+                                       qt (At | Ht )Rt
+                      ωtq (O) =                                      Htq (O) =
+                                                                                 Y
+                                                             ,                         ωsq (O),
+                                  πt (At | Ht )ρt (Ht , At )
+                                                                                 s=0
+
+where πt (a | h) = P (At = a | Ht = h, R̄t−1 = 1) and ρt (h, a) = P (Rt = 1 | Ht = h, At = a, R̄t−1 = 1).
+The stochastic-regime recursion replaces conditioning on At = gt (Ht ) by integration over the
+intervention:
+                        Z
+               Qt (h) = E{Qqt+1 (Ht+1 ) | Ht = h, At = a, Rt = 1, R̄t−1 = 1} qt (da | h),
+                 q
+
+
+
+with QqT +1 = Y and θ(q) = E{Qq0 (H0 )}. Under the same consistency, sequential exchangeability,
+observed-history, and positivity conditions, with bounded density ratios qt /πt , the observed-data
+
+                                                          39
+EIF is
+                             T
+                                   Htq (O){Qqt+1 (Ht+1 ) − mqt (Ht , At )} + Qq0 (H0 ) − θ(q),
+                             X
+                  ϕq (O) =
+                             t=0
+where
+                      mqt (Ht , At ) = E{Qqt+1 (Ht+1 ) | Ht , At , Rt = 1, R̄t−1 = 1}.
+Equivalently, one may write the recursive pseudo-outcome with the increment ωtq and the condi-
+tional regression mqt . The same cross-fitting, representation approximation, and product-remainder
+arguments apply after replacing the deterministic treatment-indicator mechanism by the stochastic
+density ratio. We keep the main text deterministic because the simulations and VitalDB illustration
+use deterministic dynamic policies and a point-treatment analogue, respectively.
+
+
+C     Simulation Design Details
+The simulation code implements a longitudinal functional-history design with T + 1 = 6 decision
+times. Each subject has baseline covariates B = (B1 , B2 , B3 ), latent functional scores αitk , scalar
+time-varying covariates Lit , irregular point-cloud summaries, binary treatments, and a continuous
+terminal outcome. The latent scores follow an autoregressive evolution with coefficient 0.55 and
+geometrically decaying marginal scale. Scenario G increases the number of latent scores to 12 so
+that confounding-relevant low-variance components are harder to capture by simple summaries.
+    At each visit, a nonlinear latent functional feature combines the first scores and, in Scenarios B
+and G, interactions and nonlinear score terms. The scalar severity, lactate-like marker, and additional
+physiological markers depend on the latent feature, baseline covariates, lagged treatment, and noise.
+Irregular measurement counts are generated from a Poisson model whose mean depends on current
+severity; in Scenario F, the measurement intensity is made more strongly confounding-relevant.
+The observed point-cloud representation records noisy mean, range, standard deviation, count,
+relative count, and severity-weighted measurement intensity. The simulation therefore targets an
+observed-history estimand rather than an unrestricted latent full-function estimand.
+    Observed treatment assignment is binary. Its logit depends on current severity, the lactate-like
+marker, lagged treatment, baseline covariates, observed functional summaries, and, in Scenarios B,
+F, and G, additional nonlinear or sampling-intensity terms. Scenario D strengthens the treatment
+logit to create near-positivity. No censoring process is simulated in the main Monte Carlo study;
+censoring is included in the estimator and theory but is not stressed empirically in these tables. This
+choice keeps the simulation focused on functional representation, treatment overlap, and heavy-tailed
+pseudo-outcomes.
+    The two target policies are an early policy, which treats when current severity exceeds a threshold
+or the lactate-like marker is high, and a delayed policy, which treats after persistent severity elevation
+or very high lactate. The reported estimand is the contrast θ(gearly ) − θ(gdelayed ). Population
+truths are computed from independent Monte Carlo intervention samples of size 60,000. The main
+experiment uses n = 400, and the sample-size experiment uses n ∈ {200, 400, 800}; each simulation
+cell uses 150 replications. For a nominal 95% coverage probability, the Monte Carlo standard error is
+approximately 0.95(0.05)/150 = 0.018; bias MCSEs are recorded in the generated CSV summaries.
+                p
+
+    The reported sequence-style baselines use method-specific nonlinear feature maps and ridge or
+tree-strength regularization so that the full experiment is reproducible on CPU. They are intended
+as objective-level baselines for counterfactual prediction, not as exact reproductions of GPU-trained
+architectures. The latent-score SDR diagnostic receives the true latent scores but still estimates
+finite-sample outcome and treatment nuisance functions and therefore should not be interpreted as
+an oracle upper bound.
+
+                                                       40
+D     Additional VitalDB Diagnostics
+The main article reports the VitalDB cohort, point-cloud examples, representation ablation, over-
+lap/calibration figure, and trimming sensitivity. This section gives the remaining diagnostics used to
+audit the point-treatment illustration.
+
+                           Top−30 covariate balance diagnostics
+                           Lines connect each covariate before and after inverse−probability weighting; dashed line marks 0.1.
+
+                                                                          IPW weighted       Unweighted
+
+
+         op_duration_hr
+
+        ane_duration_hr
+
+                    age
+
+               n_tracks
+
+          has_art_mbp
+
+             preop_alb
+
+             alb_mean
+
+                alb_last
+
+              preop_hb
+
+              hb_mean
+
+           cr_last_time
+
+          bun_last_time
+
+         gluc_last_time
+
+           alt_last_time
+
+          ast_last_time
+
+                hb_last
+
+                 weight
+
+           plt_last_time
+
+           hb_last_time
+
+          alb_last_time
+
+                    asa
+
+                    bmi
+
+              preop_pt
+
+         has_nibp_mbp
+
+              preop_plt
+
+               k_count
+
+              na_count
+
+                has_bis
+
+             preop_ast
+
+                 height
+
+                             0.0                                  0.2                                  0.4                       0.6
+                                                                   Absolute standardized mean difference
+
+
+Figure 10: Top-30 covariate balance diagnostics for the VitalDB analysis. The dashed line marks
+0.1.
+
+
+
+
+                                                                             41
+Table 10: Top 30 standardized mean differences before and after weighting for the functional
+DR-FRL analysis.
+
+            Covariate                                 SMD unweighted    SMD weighted
+            op_duration_hr                                      0.593           0.113
+            ane_duration_hr                                     0.592           0.117
+            age                                                 0.347           0.085
+            n_tracks                                            0.319           0.071
+            has_art_mbp                                         0.267           0.083
+            preop_alb                                          -0.235          -0.054
+            alb_mean                                           -0.213          -0.029
+            alb_last                                           -0.207          -0.026
+            preop_hb                                           -0.179          -0.031
+            hb_mean                                            -0.173          -0.034
+            cr_last_time                                       -0.171          -0.052
+            bun_last_time                                      -0.170          -0.051
+            gluc_last_time                                     -0.169          -0.053
+            alt_last_time                                      -0.168          -0.043
+            ast_last_time                                      -0.168          -0.043
+            hb_last                                            -0.167          -0.033
+            weight                                             -0.167          -0.018
+            plt_last_time                                      -0.166          -0.053
+            hb_last_time                                       -0.165          -0.053
+            alb_last_time                                      -0.165          -0.040
+            asa                                                 0.163           0.036
+            bmi                                                -0.144          -0.029
+            preop_pt                                           -0.103          -0.027
+            has_nibp_mbp                                       -0.100          -0.010
+            preop_plt                                          -0.098          -0.042
+            k_count                                             0.091           0.024
+            na_count                                            0.091           0.025
+            has_bis                                             0.089           0.033
+            preop_ast                                           0.076           0.039
+            height                                             -0.074           0.020
+
+
+
+     Table 11: Preoperative laboratory point-cloud missingness and measurement intensity.
+
+           Variable     Observed cases   Observed %   Median points among observed
+           hb                    3909          61.2                                1
+           plt                   3898          61.0                                1
+           cr                    3746          58.6                                1
+           bun                   3745          58.6                                1
+           alb                   3811          59.7                                1
+           gluc                  3286          51.4                                1
+           na                    4543          71.1                                1
+           k                     4544          71.1                                1
+           ast                   3812          59.7                                1
+           alt                   3812          59.7                                1
+
+
+
+                                               42
+    Table 11 summarizes missingness and measurement intensity for the functional laboratory point
+clouds. The analysis treats marker-specific missingness and measurement counts as part of the
+observed history by including count and kernel-mass features.
+
+ Table 12: Exposure and outcome sensitivity analyses using the same functional representation.
+
+ Exposure                          Outcome                           Prevalence A                   Prevalence Y            RD                   SE          95% CI
+ Any vasopressor                   ICU admission                                 0.543                     0.188       0.010              0.008        [-0.004, 0.025]
+ Any vasopressor                   ICU stay > 1 day                              0.543                     0.061       0.003              0.008        [-0.013, 0.020]
+ Any vasopressor                   Composite adverse                             0.543                     0.066       0.001              0.013        [-0.025, 0.027]
+ Phenylephrine                     ICU admission                                 0.132                     0.188       0.058              0.021         [0.017, 0.099]
+ Phenylephrine                     ICU stay > 1 day                              0.132                     0.061      -0.007              0.016        [-0.038, 0.024]
+ Phenylephrine                     Composite adverse                             0.132                     0.066       0.011              0.018        [-0.025, 0.047]
+ Ephedrine                         ICU admission                                 0.503                     0.188       0.007              0.019        [-0.030, 0.044]
+ Ephedrine                         ICU stay > 1 day                              0.503                     0.061      -0.039              0.017       [-0.072, -0.006]
+ Ephedrine                         Composite adverse                             0.503                     0.066      -0.018              0.012        [-0.041, 0.006]
+ High-dose vaso-                   ICU admission                                 0.169                     0.188       0.061              0.020         [0.022, 0.101]
+ pressor
+ High-dose vaso-                   ICU stay > 1 day                              0.169                     0.061       0.028              0.019       [-0.010, 0.065]
+ pressor
+ High-dose vaso-                   Composite adverse                             0.169                     0.066       0.035              0.017        [0.002, 0.069]
+ pressor
+
+
+
+                            Exposure and endpoint sensitivity
+                            Cells are adjusted risk differences in percentage points; blue is higher risk under exposure.
+
+
+
+                                                                                 −0.06 −0.03 0.00 0.03 0.06
+
+
+
+
+    High−dose vasopressor                                +6.1                                     +2.8                                      +3.5
+
+
+
+
+               Ephedrine                                 +0.7                                     −3.9                                      −1.8
+
+
+
+
+            Phenylephrine                                +5.8                                     −0.7                                      +1.1
+
+
+
+
+          Any vasopressor                                +1.0                                     +0.3                                      +0.1
+
+
+
+                                                         sion                                        y                                          rse
+                                                    is                                       >   1 da                                    adve
+                                                adm                                     stay                                     osite
+                                          ICU                                     ICU                                           p
+                                                                                                                            Com
+
+
+
+Figure 11: Exposure and outcome sensitivity analysis. Cells are adjusted risk differences from
+functional-representation AIPW fits or lightweight sensitivity fits using the same point-cloud repre-
+sentation.
+
+    Phenylephrine and high-dose vasopressor exposure show larger adjusted ICU-admission risk
+differences than the pooled any-vasopressor definition. Ephedrine is less stable across endpoints, and
+
+
+                                                                                  43
+the composite postoperative endpoint is sparse. These results support treating the VitalDB analysis
+as a feasibility and auditing example rather than as definitive clinical evidence.
+
+                     Functional DR−FRL pseudo−outcome distribution
+                     Vertical lines compare arithmetic mean and Catoni robust aggregate.
+
+                                                                                Mean       Catoni
+
+
+
+
+              2000
+      Cases
+
+
+
+
+              1000
+
+
+
+
+                0
+
+                      −6                                −3                                 0        3
+                                                                              Pseudo−outcome
+
+
+Figure 12: Pseudo-outcome distribution for the functional DR-FRL estimator. The vertical dashed
+and dotted lines mark the arithmetic mean and Catoni aggregate, respectively.
+
+    The AIPW pseudo-outcome has moderate tails even for a binary endpoint because inverse-
+probability correction amplifies residual variation. The Catoni aggregate changes the primary
+estimate only slightly, consistent with the main text’s conclusion that robustification is most
+important when pseudo-outcome tails or overlap diagnostics indicate instability.
+
+
+
+
+                                                                                 44
+

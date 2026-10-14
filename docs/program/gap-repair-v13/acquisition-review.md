@@ -1,0 +1,3 @@
+# Source acquisition review
+
+This batch retrieves technical text and licensing metadata at ten previously saved commit identities dated on or before 7 October 2026. The commit records establish identity, not capability. The unchanged collector permits the raw GitHub host. Twenty bounded GETs use new artifact names, preserve existing receipts, and restore the frozen manifest. No GitHub API or OpenAlex retry is requested. Except for inspected tree paths, path names are acquisition hypotheses; a 404 leads to navigation, never an absence claim. Downloaded code is inspected as text, not executed. No sibling repository is changed.

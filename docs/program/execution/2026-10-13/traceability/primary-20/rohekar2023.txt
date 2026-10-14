@@ -1,0 +1,876 @@
+                                                    From Temporal to Contemporaneous Iterative Causal Discovery
+                                                              in the Presence of Latent Confounders
+
+
+                                                                Raanan Y. Rohekar 1 Shami Nisimov 1 Yaniv Gurwicz 1 Gal Novik 1
+
+
+                                                                Abstract                                    distinct time stamps. Contemporaneous causal relations are
+                                                                                                            causal relations between simultaneously measured variables
+                                             We present a constraint-based algorithm for learn-             (within the same measurement time-window), or between
+                                             ing causal structures from observational time-
+arXiv:2306.00624v1 [cs.AI] 1 Jun 2023
+
+
+
+
+                                                                                                            a latent variable and those variables. In this work we as-
+                                             series data, in the presence of latent confounders.            sume stationary, structural vector auto-regression (SVAR),
+                                             We assume a discrete-time, stationary structural               with latent confounders as the data-generating process, and
+                                             vector autoregressive process, with both temporal              the sole presence of observational data. In addition, we
+                                             and contemporaneous causal relations. One may                  assume faithfulness (Spirtes et al., 2000) and causal Markov
+                                             ask if temporal and contemporaneous relations                  assumptions (Pearl, 2009). We do not assume any para-
+                                             should be treated differently. The presented algo-             metric assumptions, such as linear relations and normally
+                                             rithm gradually refines a causal graph by learn-               distributed variables. We assume the causal structure is a
+                                             ing long-term temporal relations before short-                 DAG over observed and latent variables, where stationarity
+                                             term ones, where contemporaneous relations are                 is represented by a graph over observed variables, containing
+                                             learned last. This ordering of causal relations to             temporal and contemporaneous relations, repeating in time.
+                                             be learnt leads to a reduction in the required num-            Under these assumptions, constraint-based causal-discovery
+                                             ber of statistical tests. We validate this reduction           algorithms perform a series of conditional independence
+                                             empirically and demonstrate that it leads to higher            (CI) tests for determining if two variables are independent
+                                             accuracy for synthetic data and more plausible                 conditioned on a set of variables, and then detect the entailed
+                                             causal graphs for real-world data compared to                  causal relations (Spirtes et al., 2000; Zhang, 2008b; Pearl &
+                                             state-of-the-art algorithms.                                   Verma, 1991). In general, the true underlying causal graph
+                                                                                                            cannot be recovered from pure observational data. Instead,
+                                                                                                            an equivalence class of the underlying graph is sought, such
+                                        1. Introduction                                                     that it includes every graph that cannot be refuted given the
+                                                                                                            observed data (or the results of CI-tests). Interestingly, it
+                                        Automated discovery of causal structures from observational
+                                                                                                            was recently shown that an equivalence class can be used
+                                        time-series is an important goal in empirical science (Pearl,
+                                                                                                            for causal inference (Zhang, 2008a; Jaber et al., 2018; 2019)
+                                        2010; Spirtes, 2010; Peters et al., 2017). In many cases,
+                                                                                                            and even for learning deep neural network structures (Ro-
+                                        the use of interventional experiments to reason about the
+                                                                                                            hekar et al., 2018b; 2019) and interpreting self-attention
+                                        underlying causal structure is unethical, impossible due to
+                                                                                                            (Nisimov et al., 2022). Richardson & Spirtes (2002) derived
+                                        technical reasons, or expensive. Another challenge is to rea-
+                                                                                                            ancestral graphs for representing the equivalence class in
+                                        son about the structure when latent confounders may exist.
+                                                                                                            the presence of latent confounders, where they showed that
+                                        In this paper we consider a set of variables, measured si-
+                                                                                                            these graphs are closed under marginalization and condi-
+                                        multaneously and repeatedly over time, resulting in discrete-
+                                                                                                            tioning. In this paper, we consider learning this equivalence
+                                        time series. It is desired to identify temporal (lagged), as
+                                                                                                            class for representing temporal and contemporaneous re-
+                                        well as contemporaneous causal relations among the vari-
+                                                                                                            lations in the SVAR setting with finite order—a dynamic
+                                        ables. A temporal causal relation exists if the value of a
+                                                                                                            partial-ancestral-graph (Malinsky & Spirtes, 2018).
+                                        variable effects its own future values, or the future values
+                                        of other variables. Alternatively, a latent (hidden) variable
+                                        may effect the values of two variables, measured at two             2. Related Work
+                                           1
+                                             Intel Labs. Correspondence to:      Raanan Y. Rohekar          Constraint-based algorithms for causal discovery were
+                                        <raanan.yehezkel@intel.com>.                                        mostly pioneered by Spirtes et al. (2000) with the PC and
+                                                                                                            FCI algorithms, and by Pearl & Verma (1991). They are
+                                        Proceedings of the 40 th International Conference on Machine
+                                        Learning, Honolulu, Hawaii, USA. PMLR 202, 2023. Copyright          generally sound and complete when a perfect CI-test is used
+                                        2023 by the author(s).                                              (e.g., a statistical test in the large sample limit). That is,
+
+                                                                                                        1
+            From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+they return an equivalence class in which no member can be                                                                               exogenous nodes,
+                                                                                                      𝑡 − 𝜏, … , 𝑡 − 1                   temporal relations
+refuted and no member is missing under the assumptions on
+which they rely. However, often a limited dataset of obser-                                                𝑋′!                 𝐻
+                                                                                             𝑋′#
+vations is available for which statistical tests of conditional                                                                    𝑋′"
+                                                                                                                      𝑡
+independence are prone to errors. Thus, these algorithms                                              𝑋#                  𝑋"
+commonly seek to reduce the total number of conditional                   endogenous nodes,                      𝑋!
+                                                                          contemporaneous relations
+independence (CI) tests (Colombo et al., 2012; Claassen
+et al., 2013; Nisimov et al., 2021), or measure their uncer-
+tainty (Rohekar et al., 2018a). Recently, Gerhardus & Runge           Figure 1. A illustration of the distinction between endogenous (in
+(2020) proposed a method for improving the accuracy of                the inner oval) and exogenous (outside the inner oval) nodes, and
+CI-tests in the linear-Gaussian case, by augmenting the               the temporal (thick curved arrows) and contemporaneous (straight
+                                                                      thin arrows) causal relations. Endogenous nodes {Xi , Xj , Xk }
+conditioning set with parents of the tested nodes. However,
+                                                                      are measurements at time t, and exogenous nodes {Xi , Xj , Xk }
+since many statistical tests, such as G-square and conditional
+                                                                      are past measurements, having time-stamps within [t−τ, . . . , t−1],
+mutual information, suffer from the curse-of-dimensionality,          of the same variables.
+it is often more important to reduce CI tests having large
+conditioning sets. Spirtes et al. (2000) proposed starting
+off with a fully-connected graph and iteratively increasing           graphs over exogenous nodes are called recursively). They
+the size of the conditioning set (PC and FCI algorithms).             demonstrate that this approach allows further reducing the
+Thus, in each iteration the graph becomes sparser, and as             number of CI-tests having large conditioning sets. Although
+the conditioning set sizes increase, fewer CI-tests are re-           the usefulness of this approach was recently demonstrated
+quired. However, in the presence of latent confounders, the           in other settings (Sugahara et al., 2022), it is not clear how
+FCI algorithm requires applying this iterative process twice,         to extend this approach to support the presence of latent
+resulting in a possibly sub-optimal result. Rohekar et al.            variables, and to SVAR time-series data setting for learning
+(2021), using the principles underlying FCI, proposed the             dynamic partial-ancestral-graphs.
+ICD algorithm that requires a single iterative learning loop,
+                                                                      In this work, we employ the approach of autonomy iden-
+leading to significantly fewer CI tests.
+                                                                      tification (exogenous-endogenous split), and the approach
+Based on these approaches, several algorithms for learning            of learning with a single iterative causal discovery loop of
+from time-series were proposed in the past decade. Entner &           the ICD algorithm (Rohekar et al., 2021), and present the
+Hoyer (2010) proposed tsFCI, an adaptation of FCI (Spirtes            TS-ICD algorithm that efficiently learns a dynamic partial-
+et al., 1999) to time-series, but excluded the possibility            ancestral-graph from time-series data. Interestingly, as it
+of contemporaneous causal relations. Malinsky & Spirtes               is shown in this paper, autonomy identification in SVAR
+(2018) proposed SVAR-FCI, another adaptation of FCI that              setting leads TS-ICD to learn long-range temporal relations
+learns both contemporaneous and temporal relations. In the            before learning short-range ones, and learn contempora-
+past years, several improvements to the FCI algorithm were            neous relations after learning temporal relations. This is
+proposed, among those is the RFCI algorithm that requires             different from a simple adaptation of the ICD algorithm to
+significantly fewer CI-tests than FCI. Gerhardus & Runge              time-series data, which has no order upon which CI tests
+(2020), demonstrated the applicability of this algorithm for          are called (we also empirically demonstrate this difference
+learning time-series, and called it SVAR-RFCI. Gerhardus &            in an ablation study).
+Runge (2020) also proposed the novel LPCMCI algorithm
+and demonstrated empirically that it achieves state-of-the-art
+                                                                      3. Autonomy Identification for Iterative
+accuracy. However, LPCMCI employs larger conditioning
+sets compared to other algorithms, which may hinder its                  Causal Discovery from Time-Series
+accuracy when using a CI-test that suffers from the curse-of-         First, we provide preliminaries. Then we derive TS-ICD
+dimensionality. Thus, it is desired to both reduce the total          that adapts the learning paradigm called RAI, recursive
+number of CI-tests, and reduce the conditioning set sizes,            autonomy identification, (Yehezkel & Lerner, 2009) for
+while maintaining soundness and completeness.                         causal discovery under the assumptions in this paper.
+Under causal sufficiency and for learning contemporaneous
+relations, Yehezkel & Lerner (2009) proposed to recursively           3.1. Preliminaries
+split the graph nodes, during learning, into two types: exoge-        A causal directed acyclic graph (DAG) is defined over set
+nous and endogenous, calling disconnected groups ‘auton-              V = O ∪ L of observed O and latent L variables. We use
+omy’. Then, they start off with learning edges connecting             an ancestral graph (Richardson & Spirtes, 2002) to model
+exogenous to endogenous nodes, and only then to learn the             conditional independence relations among the observed vari-
+sub-graph over the endogenous nodes (refinement of sub-               ables. An ancestral graph that represents all conditional
+
+                                                                  2
+            From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+independence relations, and only those, is called a maxi-              causal relations are consistent over time. Namely, in P the
+mal ancestral graph (MAG). A MAG is a mixed graph with                 edge between Xis and Xjt is identical to the edge between
+two types of edge-marks, head ‘->’ and tail ‘–’. Let X                 Xik and Xjl if t − s = l − k (Entner & Hoyer, 2010).
+and Y be connected in a MAG. On the connecting edge, a                 Definition 3.1 (Homology). A pair (Xis , Xjt ) is homolo-
+tail edge-mark at X indicates that X is an ancestor of Y
+                                                                       gous to pair (Xik , Xjl ) if t − s = l − k. The set of all pairs
+in any DAG represented by this MAG, and a head edge-
+                                                                       homologous to (Xis , Xjt ) are denoted homology(Xis , Xjt ).
+marks at X indicates that X is not an ancestor of Y . An
+important property of MAGs is that for every DAG and a                 Let P be a dynamic PAG defined over V , a set of nodes
+set of observed variables O, there exists a unique MAG that            measured at t, and U , a set of nodes measured at τ earlier
+encodes all conditional independence relations among O                 time-stamps [t − τ, . . . , t − 1]. We call nodes in V endoge-
+after marginalizing out L. It is therefore the learning goal           nous, and nodes in U exogenous. We call edges among V
+of causal discovery in the presence of latent variables. In a          contemporaneous, and edges connecting a node in U and a
+MAG, a graphical criterion called m-separation determines              node in V temporal. Let the set of edges in P be the union
+conditional independence. An equivalence class of MAGs,                of temporal and contemporaneous edges. See Figure 1 for
+where every member may encode only those conditional                   an example. No connected pair in P is homologous to an-
+independence relations that are in the MAG, is called partial          other connected pair in P. Hence, this PAG consists of the
+ancestral graph (PAG). A PAG that encodes all conditional              minimal set of edges to be learned.
+independence relations encoded in the MAG is called a com-
+pleted PAG. A PAG has three types of edge-marks, head,                 Next, we extend the notion of ‘autonomous sub-structure’
+tail, and circle ‘o’. A circle edge-mark indicates position            proposed by Yehezkel & Lerner (2009) to autonomous sub-
+at which in the equivalence class there exist at least one             graph of a PAG. For that, we use the following definitions.
+MAG with a head edge-mark and one MAG with a tail                      For MAGs, a set called D-Sep(A, B) contains the condi-
+edge-mark. Thus, a PAG representing no information is a                tioning set by which A and B are m-separated (conditionally
+fully-connected graph with only circle edge-marks.                     independent), if A and B are not adjacent and A is not an
+                                                                       ancestor of B (Spirtes et al., 2000, Theorem 6.2).
+An n dimensional SVAR process with a finite order τ can
+be defined as a structural equation model: ∀t ∈ N and                  Definition 3.2 (D-SEP (Spirtes et al., 2000)). If M is a
+∀i ∈ {1, . . . , n}                                                    MAG and A ̸= B, Z is in D-Sep(A, B) if and only if
+                                                                       Z ̸= A and there is a path between A and Z such that every
+         Xit = fi (Vt \ Xit , Vt−1 , . . . , Vt−τ , εti ),   (1)       node on the path is an ancestor of A or B and, except for
+                                                                       the endpoints, is a collider.
+where {εti |t ∈ N, i ∈ {1, . . . , n}} are mutually and serially
+independent noise terms. Each Vs consists of n variables               For PAGs, a super-set of D-Sep(A, B), called
+measured at time s. We assume this data-generating process             Possible-D-Sep(A, B) (Spirtes et al., 2000), in-
+is stationary. Corresponding to this process is a graphical            cludes all the nodes that cannot be ruled out from being in
+model called dynamic-DAG (Malinsky & Spirtes, 2018),                   D-Sep(A, B). A node Z is in Possible-D-Sep(A, B) if
+where some variables are latent L and the others O are ob-             and only if there is a PDS-Path from Z to A.
+served from the marginal stationary data-generating process.
+                                                                       Definition 3.3 (PDS-path (Rohekar et al., 2021)). A
+A MAG for this dynamic-DAG is called dynamic-MAG and
+                                                                       possible-D-Sep-path (PDS-path) from A to Z, with respect
+an equivalence class for it is called dynamic-PAG.
+                                                                       to B, in PAG P, denoted ΠB (A, Z), is a path ⟨A, . . . , Z⟩
+                                                                       such that B is not on the path and for every sub-path
+3.2. The TS-ICD Algorithm                                              ⟨U, V, W ⟩ of ΠB (A, Z), V is a collider or {U, V, W } forms
+For a stationary, structural vector auto-regressive (SVAR)             a triangle.
+process, with order τ , TS-ICD learns a dynamic-PAG P
+                                                                       Rohekar et al. (2021), defined a set smaller than
+(Malinsky & Spirtes, 2018) representing causal relations
+                                                                       Possible-D-Sep, called ICD-Sep, which complies with
+among observed variables. Let Ot = {X1t , . . . , Xnt } be
+                                                                       the following conditions. ICD-Sep conditions for Z ⊂
+the set of observed    nodes at time-stamp t. Thus P is a
+            St                                                         ICD-Sep(A, B), given r, are
+PAG over s=t−τ Os , and P (Os ) = P (Os+r ), ∀r ∈ N
+(stationarity). However, considering all the possible edges
+in this graph may be inefficient. Multiple possible edges                1. |Z| = r,
+may represent the exact same casual meaning. For example,                2. ∀Z ∈ Z, there exists a PDS-path ΠB (A, Z) such that,
+an edge between two consecutive measurements of a vari-                      (a) |ΠB (A, Z)| ≤ r and
+able (Xit−1 , Xit ) represents auto-correlation, and has the
+                                                                             (b) every node on ΠB (A, Z) is in Z,
+same meaning as the edge (Xit−τ , Xit−τ +1 ), ∀τ ≥ 2. From
+stationarity, faithfulness, and causal Markov assumptions,               3. ∀Z ∈ Z, node Z is a possible ancestor of A or B.
+
+                                                                   3
+           From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+We now extend the definition of autonomous sub-graph to                                                              𝐴
+cases where causal sufficiency cannot be assumed. That is,                                  𝐵
+                                                                                                  𝐵′
+autonomy in PAG.
+Definition 3.4 (Autonomous sub-graph in a PAG). In a                  case
+PAG P over nodes O, a sub-graph PAu over OAu ⊂ O                       #1                   𝑡−𝜏
+                                                                               𝑡−𝜏                                    𝑡−1             𝑡
+is called autonomous given a set OEx ⊂ O if ∀(A, B) ∈                                       +1
+PAu , ICD-Sep(A, B) and ICD-Sep(B, A) are subsets
+                                                                             exogenous                       endogenous
+of OEx ∪ OAu . If OEx is empty, we say the sub-graph is
+(completely) autonomous.
+                                                                                                                      𝐴
+From Definition 3.4 it follows that in a dynamic PAG, a                                      𝐵
+                                                                                                  𝐵′
+sub-graph containing contemporaneous relations among en-                                                 𝐶                  𝐶′
+dogenous nodes is an autonomous sub-graph given exoge-                case
+nous nodes. By identifying contemporaneous relations as                #2
+                                                                                            𝑡−𝜏          𝑡−𝜏
+                                                                               𝑡−𝜏                                    𝑡−1             𝑡
+autonomous, the overall number of CI tests required for                                     +1           +2
+learning the graph can be reduced.
+                                                                                     exogenous                     endogenous
+Yehezkel & Lerner (2009) defined a recursive learning
+scheme called RAI which contains three main stages:
+                                                                    Figure 2. An illustration for explaining how an ordering for re-
+  1. Exogenous-endogenous refinement: remove edges con-             finement is derived. Edges marked B and B ′ are similar in the
+     necting exogenous to endogenous nodes that are found           sense that they connect nodes with equal time-interval (homology)
+     independent conditioned on a set of size r,                    of τ − 1. Likewise, C and C ′ are similar having time-interval
+  2. Endogenous refinement: remove of edges among en-               τ − 2. Case #1 describe an extreme case in which only the earliest
+     dogenous nodes found independent conditioned on a              time-stamp is considered for exogenous nodes. In this case, edges
+     set of size r,                                                 A and B describe temporal relations but B ′ is over endogenous
+                                                                    nodes. Refinement of A (interval length τ ) can reduce the number
+  3. Autonomy identification: identify autonomous sub-              of CI tests required for refining B ′ (interval length τ − 1). Thus,
+     graphs, and recursively call for each autonomous sub-          edge A is refined before refining B. In case #2, edges A, B, and
+     graph using r ← r + 1.                                         B ′ are all temporal relations and ordering between them cannot be
+                                                                    determined; however, edge B ′ (interval length τ −1) is determined
+By initially refining the edges between exogenous and en-           to be refined before C ′ (interval length τ − 2). This leads to an
+dogenous nodes, the number of CI tests required in the              ordering for refining temporal links, [τ, τ − 1, τ − 2, . . . , 1], based
+                                                                    on the time interval between the connected nodes.
+second stage are reduced. This is because after stage 1,
+fewer nodes from the exogenous nodes are considered for
+a conditioning set in stage 2. In stage 3 they split into au-
+tonomous sub-graphs, by first identifying nodes having the          Ot−τ +1 ∪, . . . , ∪Ot (e.g., Figure 2 case #1, edge B ′ ). Thus,
+lowest topological order calling them endogenous nodes,             from the RAI learning paradigm, initially refining edges
+removing them temporarily, and identifying the remaining            between τ apart nodes may reduce the number of CI tests
+disconnected graphs calling them exogenous. Note that ex-           required for refining edges between nodes that are less than
+ogenous nodes are not required to be mutually independent.          τ apart (endogenous nodes). Now consider a different case
+                                                                    where Ot−τ +2 ∪, . . . , ∪Ot are set to be endogenous, and
+In TS-ICD we start off with a fully-connected graph and
+                                                                    Ot−τ ∪ Ot−τ +1 to be exogenous (Figure 2 case #2). Here,
+refine edges connecting exogenous nodes to endogenous
+                                                                    edges connecting nodes that are τ or τ − 1 apart are only
+nodes before refining edges between the endogenous nodes.
+                                                                    temporal ones and an ordering between them cannot be
+That is, we refine temporal relations before refining contem-
+                                                                    determined. However, edges between τ − 2 apart nodes
+poraneous ones. However, the dynamic PAG can be split
+                                                                    are both temporal and among endogenous nodes (Figure 2
+into endogenous and exogenous nodes in different manners.
+                                                                    edges C and C ′ ). Thus, initially refining of edges connect-
+We derive an ordering for refining temporal relations, as           ing τ and τ − 1 apart nodes may reduce the number of
+entailed from different exogenous-endogenous splits. In             CI tests required for refining edges connecting τ − 2 apart
+an extreme case, Ot−τ +1 ∪, . . . , ∪Ot are set to be endoge-       nodes. From these cases, an ordering for refining tempo-
+nous, and Ot−τ to be exogenous (Figure 2, case #1). In              ral links is entailed: [τ, τ − 1, . . . , 1], where longer-range
+this extreme case, due to homology, edges between nodes             (large interval) edges are refined first. This complies with
+Ot−τ and nodes in Ot−τ +1 ∪, . . . , ∪Ot−1 (e.g., Figure 2          the general observation that temporal relations are refined
+case #1, edge B) are already included for endogenous nodes          before refining contemporaneous ones.
+
+                                                                4
+            From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+From these findings, we derive the TS-ICD algorithm, an                 Algorithm 1: TS-ICD
+adaptation of the ICD algorithm for time series data, us-               Input:
+ing the RAI learning scheme to utilize SVAR assumption                    O: a set of jointly observed variables
+of homology and stationarity to reduce the number of CI                   τ : maximal time interval length
+tests. The pseudo-code is given in Algorithm 1. Initially,                Ind: a conditional independence oracle
+edge orientation for temporal relations are fixed such that             Output:
+they eliminate a causal effect from present to past (line 2).             P: a dynamic-PAG
+Similarly to ICD, TS-ICD consists of a single iterative learn- 1 create τ fully-connected graphs, {P t |t ∈ [−τ, . . . , 0]},
+                                                                                                                 C
+ing loop. However, differently from ICD, TS-ICD uses an                  each over O at time t with ‘o—o’ edges, representing
+ordering for pairs of connected nodes, by which they are                 contemporaneous relations
+tested for independence. In each iteration, edges represent-                                                S0         t
+                                                                     2 initialize a dynamic PAG P ←
+ing temporal relations are ordered in descending temporal                                                     t=−τ (PC ), connect
+                                                                                                     ′
+distance (lines 5–6), and endogenous nodes are set to be O0 ,            Xo—>Y for all X ∈ PCt , Y ∈ PCt , t′ < t
+present-time measurements (line 8). Next, RefineHomology 3 done ← False, r ← 0
+function is called for refining temporal edges (line 7), and 4 while (done = False) & (r ≤ |O| − 2) do
+once concluded, it is called for refining contemporaneous 5                 assign temporal edges for refinement: E T ← edges
+                                                                                                                   ′
+edges (line 9). Finally, r is increased by 1. The algorithm                   connecting X ∈ PC0 and Y ∈ PCt ∀t′ < 0
+terminates if no conditioning sets that comply with the ICD- 6              sort E T in descending temporal distance
+sep conditions are found. The function RefineHomology                7      (P, doneT ) ← RefineHomology(E T , P, r)
+tests conditional independence between pairs in a given or-          8      assign contemporaneous edges for refinement:
+dered list (E). Conditioning sets are constructed by calling                  E C ← edges between X, Y ∈ PC0
+a function PDSepRange (Rohekar et al., 2021) that returns 9                 (P, doneC ) ← RefineHomology(E C , P, r)
+a list of conditioning sets that comply with the ICD-Sep            10      done ← doneT & doneC
+conditions (line 16). If conditional independence is found 11               r ←r+1
+between a pair (X, Y ), then all the edges connecting pairs 12 return P
+in homology(X, Y ) are removed (lines 21–22), and the 13 Function RefineHomology(E, P, r):
+conditioning set is recorded as a separating set for (X, Y ) 14             done ← True
+(line 23). Finally, edges are oriented (line 25) following a 15             for edge (X, Y ) in E do
+set of deterministic orientation rules (Zhang, 2008b), while 16                 sets that comply with ICD-Sep conditions:
+keeping the initially set temporal orientations (line 2) fixed.                   {Zi }ℓi=1 ← PDSepRange (X, Y , r, P)
+                                                                    17          if ℓ > 0 then
+3.3. Bound on the Number of CI-Tests                                18               done ← False
+In a dynamic                                                        19               for i ← 1 to ℓ do
+            n
+               PAG, the number
+                             2
+                                of possible contemporaneous
+                                                                    20                   if Ind(X, Y |Zi ) then
+edges is 2 , which is O(n ) and number of possible tem-
+                  2
+poral edges is n for each lag (interval length) in [1, . . . , τ ],  21                       ∀(V, U ) ∈ homology(X, Y, P)
+where n is the number of nodes at a single time stamp. Thus,                                   remove edge (V, U ) from P
+the total number of nodes is (τ + 1)n and the total number           22                       remove   edge (X, Y ) from P
+                                           2
+of possible edges is bound by (τ + 1)n . The number of               23                       record Z  i as a separating set for
+                                                                                               (X, Y )
+possible conditioning sets, having size r, is (τ +1)n−2
+                                                           
+                                                    r        .A
+                                                                     24                       break
+straightforward application of ICD to time-series results in
+an upper bound for the total number of CI-tests, NICD (r),
+at iteration r (conditioning set size),                             25      orient edges in P
+                                                                  26      return (P, done)
+                                 2 (τ + 1)n − 2
+           NICD (r) ≤ (τ + 1)n                      .         (2)
+                                          r
+
+The proposed TS-ICD method uses autonomy identification                of type A in Figure 2. Next, edges with lag τ − 1 are tested.
+to reduce the (τ + 1)n term in the binomial coefficient that           However there are fewer lag τ edges. So for testing lag
+measures the number of possible conditioning sets. Let                 τ − 1 edges, type B edges in Figure 2, there are τ n+ρn−2
+                                                                                                                             r
+0 < ρ < 1 be the percentage of edges remaining after                   possible conditioning sets. So an upper bound for the total
+iteration r (regardless of the time lag). Now recall that the          number of CI-tests NT SICD (r) at iteration r for TS-ICD is
+edges with the longest lag are refined first, so the number of                              τ                       
+possible conditioning sets for edges   with lag τ at iteration r
+                                                                                            X  (τ + 1 − ℓ)n + ℓρn − 2
+                                                                         NT SICD (r) ≤ n2                                     , (3)
+is the same as ICD, (τ +1)n−2
+                                 
+                           r       . This corresponds to edges                                                r
+                                                                                            ℓ=0
+
+                                                                   5
+            From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+where ℓ can be understood as τ − lag. It is evident that,             we simulate data from two time series, one with continuous
+fewer CI-tests are required by TS-ICD, compared to ICD, as            variables, and another with binary variables. In the first time-
+ρ decreases (sparser graphs) and as τ increases (considering          series, each variable is a linear combination of its parents
+longer-range temporal relations).                                     and a normally distributed additive noise (a linear-Gaussian
+                                                                      setting). The second time-series is a linear discretized into
+3.4. Soundness and Completeness                                       binary variables version of the first time-series. For more
+                                                                      details on these data-generating models see Gerhardus &
+Given a perfect CI test, and given that the data is from a sta-       Runge (2020, Sections 4 and S9).
+tionary SVAR process, the TS-ICD algorithm is sound and
+complete. It is sound in the sense that every independence            The parameters of each of the two time-series models is set
+relation and every causal relation that is entailed by the re-        as follows. We set 70% of total variables as observed (O),
+turned PAG are also present in the true underlying MAG. It            and 30% latent (L). We set the number of observed variable
+is complete in the sense that every independence relations            for a time-stamp to be 5. We set a temporal window of 4
+encoded by the true MAG and every causal relation that is             time-stamps, [t − 3, t − 2, t − 1, t], (total of 20 observed
+entailed by these independence relations is also entailed by          variables). The length of the time series is set to 500; that
+the returned PAG.                                                     is, 500 samples, each consisting of 5 variables. We sample
+                                                                      500 different models of these time-series, where the coeffi-
+Proposition 3.5. If the distribution of variables in a sta-           cients are sampled as follows. Auto-correlation coefficient
+tionary SVAR process is faithful to a dynamic-PAG, then               (between previous and current measurements of a variable)
+TS-ICD recovers this dynamic-PAG, given a perfect CI-test.            is sampled uniformly from [0.6, 0.9]. Coefficients of addi-
+                                                                      tional 5 relations are sampled uniformly from ±[0.2, 0.8].
+Proof. In the extreme case where all the nodes in the                 The percentage of contemporaneous relations is set to 30%
+dynamic-PAG are considered endogenous (no exogenous                   of the relations.
+nodes), the TS-ICD algorithm reduces to the ICD algorithm,            For each algorithm, we use a CI-test based on partial cor-
+which is sound and complete (Rohekar et al., 2021). Note              relation for the linear-Gaussian time-series, and G-square
+that the proof for ICD considers an arbitrary ordering of CI          test for the discrete values time-series, with a p-value thresh-
+testing as long as all subsets of all the nodes complying with        old α = 0.01. In addition, although the temporal time-
+ICD-Sep conditions are considered for conditioning. In the            window is 4 time-stamps, we use a window of 6 time-stamps
+general case, the split into exogenous and endogenous nodes           [t − 5, . . . , t] for the algorithms (a total of 30, 60, and 90
+results in an autonomous sub-graph composed of the exoge-             nodes in the learned graphs).
+nous nodes, and an autonomous sub-graph composed of
+the endogenous nodes conditioned on the exogenous nodes.              We evaluate three measures of performance for each of the
+By definition (Yehezkel & Lerner, 2009), autonomous sub-              tested algorithms: (1) F1-score for the skeleton accuracy,
+graphs (along with its conditioning set) include all required         (2) causal accuracy, which is the percentage of correctly
+conditioning sets for identifying conditional independence            oriented edges, (3) required number CI tests. Since run-time
+between connected nodes in that autonomous sub-graph. In              may vary depending on implementation, and since CI-tests
+Definition 3.4 we extended this definition to PAG such that           are generally the main time-consuming part, we report the
+an autonomous sub-graph (along with its conditioning set)             number of CI tests instead of run-times. Results of the 500
+includes sets complying with ICD-Sep conditions for its               instances of the time-series are summarized by the median
+nodes. This ensures the soundness and completeness.                   and MAD (mean absolute deviation from median) values.
+                                                                      Statistical significance is tested using the Wilcoxon signed-
+                                                                      rank test at significance level α = 0.05.
+4. Empirical Evaluation
+We empirically examine the presented TS-ICD algorithm,                4.1. Ablation Study: Temporal before
+and compare it to 3 recently presented algorithms: SVAR-                   Contemporaneous?
+FCI (Malinsky & Spirtes, 2018), SVAR-RFCI (Gerhardus                  TS-ICD learns temporal causal relations before learning
+& Runge, 2020; Colombo et al., 2012), and LPCMCI                      contemporaneous causal relations, and refines temporally
+(k = 4) (Gerhardus & Runge, 2020). For implementation                 longer-range relations before shorter-range relations. We
+and empirical evaluation we used Causality Lab: github.               examine two alternative orderings, different from TS-ICD’s,
+com/IntelLabs/causality-lab, and Tigramite:                           by which pairs of nodes are tested for independence: (1)
+github.com/jakobrunge/tigramite packages.                             ‘swapped’ and (2) random. In the ‘swapped’ variant, con-
+As LPCMCI was shown to achieve state-of-the-art results,              temporaneous relations are refined first, and the ordering for
+we closely follow the numerical evaluation procedure used             temporal relations is reversed. This ordering is expected to
+for evaluating it (Gerhardus & Runge, 2020). Specifically,            yield the worst results. In the ‘random’ variant, the order-
+
+                                                                  6
+             From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+       Variant    Skeleton F1     Causal Acc.     # CI-tests                                                         2500
+      random         0.4744          0.2158          388
+
+
+
+
+                                                                                  cumulative number of CI tests
+                    (0.1403)        (0.1109)        (357)                                                            2000
+      swapped        0.4744          0.2080          413
+                    (0.1398)        (0.1040)        (356)                                                            1500
+      TS-ICD         0.4744          0.2321          371
+                    (0.1439)        (0.1186)        (363)                                                            1000
+
+Table 1. Ablation study results. Median (and MAD) skeleton F1
+                                                                                                                                       500
+score, causal accuracy, and number of CI tests are reported. In                                                                                                   SVAR-FCI    SVAR-RFCI
+                                                                                                                                                                  VAR-FCI     VAR-RFCI
+the ‘swapped’ version, the contemporaneous edges were CI-tested                                                                                                   LPCMCI
+                                                                                                                                                                  LPCMCI      TS-ICD
+                                                                                                                                                                              TS-ICD
+before the temporal edges. In the ‘random’ version, a random                                                                             0
+                                                                                                                                             0   2        4          6        8         10
+ordering for CI-testing was used. Results in bold are statistically                                                                                  conditioning set size
+                                                                            (a)
+significant at α = 0.05.
+                                                                                                                                        1
+
+
+
+
+                                                                                                   cumulative percentage of CI tests
+ing for temporal and contemporaneous relations is shuffled.                                                                            0.8
+This is equivalent to a naive application of the ICD algorithm
+to time-series data. We then forced the TS-ICD algorithm                                                                               0.6
+to use these orderings and measured the performance.
+                                                                                                                                       0.4
+ In Table 1 we report median and MAD values of perfor-
+ mance measures, summarizing 500 random instances of
+                                                                                                                                       0.2
+ the binary-variables time-series model. The use of the                                                                                                           SVAR-FCI
+                                                                                                                                                                  VAR-FCI      LPCMCI
+                                                                                                                                                                               LPCMCI
+‘swapped’ ordering resulted in performing the highest num-                                                                                                        SVAR-RFCI
+                                                                                                                                                                  VAR-RFCI     TS-ICD
+                                                                                                                                                                               TS-ICD
+                                                                                                                                        0
+ ber of CI tests and the worst causal accuracy. TS-ICD                                                                                       0   2            4          6        8
+ achieved the highest causal accuracy and required the low-                (b)                                                                       conditioning set size
+
+ est number of CI tests. The superiority of TS-ICD in these
+ cases was found to be statistically significant. We did not              Figure 3. Cumulative number (a) and percentage (b) of condition-
+                                                                          ing set sizes used by the CI tests. From (a) it is evident that TS-ICD
+ find any significant difference in the skeleton F1-score. To
+                                                                          requires the fewest number of CI tests in total. While, up to con-
+ better examine the significance of the results, we provide               ditioning set size 2, both TS-ICD and LPCMCI require a similar
+ in Appendix A scatter plots for the ‘random’ and ‘swapped’               number of CI tests, LPCMCI requires more than 300 additional CI
+variants in Figure 7 and Figure 8, respectively. We found                 tests, all with larger conditioning set sizes. From (b) it is evident
+ that TS-ICD and the tested variants required very few CI                 that TS-ICD employs the highest percentage of conditioning set
+ tests with conditioning sets higher than 1. This might be the            sizes up to 1, whereas SVAR-FCI employs the lowest percentage,
+ reason why there is no significant difference in the skeleton            and LPCMCI employs the lowest percentage of conditioning set
+ accuracy. Nevertheless, it is evident from the scatter plots             sizes up to 3. This should affect accuracy of CI-test that suffer
+ that for most cases, TS-ICD requires fewer CI-tests and has              from the curse-of-dimensionality.
+ higher causal accuracy compared to the tested variants.
+                                                                          In Table 2 we report performance measures for linear-
+4.2. Comparison to Other Algorithms
+                                                                          Gaussian and binary-variable time-series. In the linear-
+In this section, the accuracy and computational complex-                  Gaussian case LPCMCI achieved the highest skeleton F1-
+ity of the presented TS-ICD algorithm is compared, using                  score and causal accuracy, and TS-ICD achieved higher
+synthetic data, to the LPCMCI (Gerhardus & Runge, 2020),                  skeleton F1-score and causal accuracy than the other algo-
+SVAR-FCI (Malinsky & Spirtes, 2018), and SVAR-RFCI                        rithms. In the binary-variable case TS-ICD achieved the
+(Gerhardus & Runge, 2020; Colombo et al., 2012) algo-                     highest skeleton F1-score and causal accuracy, and LPCMI
+rithms. First, we evaluate the number of CI tests and their               achieved the lowest. This is due to the sensitivity of G-
+conditioning set sizes required by each algorithm for the                 square CI-test to the curse-of-dimensionality. For both cases
+linear-Gaussian time-series model. In Figure 3 we provide                 TS-ICD required fewest CI tests. We further investigated the
+the cumulative number and the cumulative percentage of                    difference in performance between LPCMCI and TS-ICD in
+CI-tests as a function of the conditioning set size. It is ev-            the linear-Gaussian case by increasing the number of nodes.
+ident that TS-ICD required the fewest number of CI tests                  We found that as graph sizes increase, the advantage of
+and employed the highest percentage of small conditioning                 LPCMCI decreases, and for large graphs, having 90 nodes,
+sets, up to size 1.                                                       TS-ICD outperforms LPCMCI (Table 3).
+
+                                                                      7
+             From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+                                                linear-Gaussian                             discrete (binary)
+                  Algorithm       Skeleton F1      Causal Acc.    # CI tests     Skeleton F1 Causal Acc. # CI tests
+                  SVAR-FCI           0.3871          0.1987            1636         0.3602        0.2014         554
+                                    (0.1582)        (0.1421)          (1110)       (0.2438)      (0.2357)       (506)
+                  SVAR-RFCI          0.4118          0.2083           1184          0.3602        0.2083         550
+                                    (0.1488)        (0.1428)          (436)        (0.2507)      (0.2602)       (132)
+                  LPCMCI             0.5525          0.2948           1192          0.2740        0.1443        1351
+                                    (0.1582)        (0.1908)          (368)        (0.2025)      (0.2219)      (1010)
+                  TS-ICD             0.4838          0.2500            875          0.4744        0.2321         371
+                                    (0.0944)        (0.0987)          (282)        (0.1439)      (0.1186)       (363)
+
+Table 2. Results for learning a dynamic-PAG from a 500-samples long time-series. Median skeleton F1 score, causal accuracy, and number
+of CI tests. Highest accuracy values and lowest number of CI tests are marked bold, and second best are underlined.
+
+
+                Skeleton F1     Causal Acc         # CI tests              have a plausible explanation: Zt −→ Yt , and Xt−2 −→ Yt .
+   # nodes       60     90      60     90         60       90              TS-ICD returns a denser graph with bi-directed edges, which
+   LPCMCI       0.44    0.38    0.19    0.16     4907    11164             plausibly indicates the presence of weather-related hidden
+   TS-ICD       0.41    0.38    0.23    0.21     3722     8704             confounders. Next, we called the algorithms with a smaller
+                                                                           threshold α = 10−5 , for which sparser graphs are expected.
+Table 3. Skeleton F1 score, causal accuracy, and number of CI tests        Resulting PAGs are given in Figure 6, where SVAR-FCI
+(median over 500 graphs).                                                  PAG was omitted as it was identical to the one learned with
+                                                                           α = 10−2 . Both LPCMCI and TS-ICD omitted the rela-
+                                                                           tion between Zt and Yt , and identified the expected relation
+5. Application to Real-World Data                                          Xt −→ Yt , which SVAR-RFCI missed. The three algo-
+In this section we evaluate the application of TS-ICD to                   rithms still identified a confounder Z ←→ X, but SVAR-
+real-world data. To this end, we use the same data and                     RFCI omitted Yt−2 ←→ Yt that is expected from weather
+analysis as by Gerhardus & Runge (2020), and compared                      conditions that may last more than a day. An important
+to SVAR-FCI, SVAR-RFCI, and LPCMCI. The data is av-                        difference between TS-ICD, SVAR-RFCI and LPCMCI is
+erage daily discharges of rivers in the upper Danube basin.                the temporal relation between past X and present Y mea-
+Measurements were made available by the Bavarian Envi-                     surements. LPCMCI identified a relation Xt−2 −→ Yt ,
+ronmental Agency at https://www.gkd.bayern.de.                             and no relation between Xt−1 and Yt , whereas TS-ICD and
+It includes measurements in three sites: Iller at Kempten                  SVAR-RFCI identified Xt−1 ←→ Y , which is more plausi-
+X, Danube at Dillingen Y , and Isar at Lenggries, Z. See                   ble. Table 4 summarizes the required number of CI tests, per
+Figure 4 for a schematic description of the rivers’ flows                  conditioning set size. TS-ICD required significantly fewer
+and measurement points. For clarity, we recall the analysis                CI-tests than all other algorithms, per conditioning set size,
+and plausible causal relations made by Gerhardus & Runge                   and in total.
+(2020). The Iller discharges into the Danube upstream of
+Dillingen, where the water from Kempten reaches Dillingen                  6. Conclusions
+in a day. Since the measurements are daily, the causal rela-
+tion X −→ Y , is expected to be contemporaneous. The Isar                  In this paper we presented the TS-ICD algorithm for effi-
+discharges into the Danube downstream of Dillingen, and                    ciently learning from time-series data in the presence of
+therefore there should be no causal relations between Z, and               latent confounders. By splitting the nodes into exogenous
+X and Y . Nevertheless, there may be hidden confounders,                   and endogenous, TS-ICD creates an ordering according to
+such as rainfall, that may render these variables dependent.               which pairs of nodes are tested for conditional independence,
+                                                                           which leads to a reduction in the number of CI tests. Our
+First, we called the algorithms using p-value threshold                    empirical evaluation validates reduction in the overall num-
+α = 10−2 . Resulting PAGs are given in Figure 5. SVAR-                     ber of CI-tests, and demonstrates an increase in the accuracy
+FCI learned the PAG Yt−1 −→ Yt ◦–◦ Xt ◦–◦ Zt ←•◦Zt−1 ,                     of learned causal graphs, compared to a naive application of
+and was omitted from the figure. Although it correctly iden-               the ICD algorithm. The empirical evaluation also demon-
+tified the correlation between Xt and Yt , it did not identify             strates that TS-ICD mitigates the curse of dimensionality
+the causal relation, and missed other relations that other al-             of CI-tests better than other algorithms, and returns more
+gorithms commonly identified. SVAR-RFCI and LPCMCI                         plausible causal graphs for real-world data.
+identified the expected causal relation Xt −→ Yt , but
+LPCMCI also identified two causal relations that might not
+
+                                                                       8
+               From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+                                                                                500
+                                                                                                                     Iller @ Kempten
+                                                     D anube                    400
+                                                                                300
+                                                                                200
+
+                                       Dillingen                                100
+                                                                                     0
+                                                                                                                        daily measurements
+
+
+                                                                                                                    Danube @ Dillingen
+
+
+
+
+                          Iller
+                                                                                800
+
+
+
+
+                                                                       r
+                                                                   Isa
+                                                                                600
+                                                                                400
+                                                                                200
+                                                                                     0
+                                                                                                                        daily measurements
+
+                                                                                250
+                                                                                                                     Isar @ Lenggries
+                                                                                200
+
+                                               Lenggries                        150
+
+                                  Kempten                                       100
+                                                                                    50
+                                                                                     0
+                                                                                                                        daily measurements
+
+
+
+
+Figure 4. A sketch of the flows of Iller, Isar, and Danube, and measurement points at Kempten (X), Dillingen (Y ), and Lenggries (Z).
+Water from Kempten reaches Dillingen withing a day, thus a comtemporaneous relation is expected. In addition, measurements at
+Lenggries should not be effected by the flows of Iller and Danube. However, weather conditions, such as rainfall, may confound the
+measurements in all three sites.
+
+                              Conditioning Set Size; α = 10−2                            Total                  Conditioning Set Size; α = 10−5                          Total
+  Algorithm           0        1      2      3      4    5    6                 7                        0       1      2      3      4    5    6                    7
+  SVAR-FCI           21      115       177     192           144   84      28   4            765         21    103       177                 183    140   84    28   4   740
+  SVAR-RFCI          21      115        86      23             4    0       0   0            249         21    103        48                  11      0    0     0   0   183
+  LPCMCI             21      107        71      53            23   17       4   0            296         21     91        22                  15      6    4     1   0   160
+  TS-ICD             21       97         2       0             0    0       0   0            135         21     78         2                   0      0    0     0   0   107
+
+                                            Table 4. Number of CI tests counted for each conditioning set size.
+
+
+
+                                        𝑡−2              𝑡−1               𝑡                                                                       𝑡−2         𝑡−1       𝑡
+          Danube at Dillingen (𝑌)                                                                         Danube at Dillingen (𝑌)
+
+
+              Iller at Kempten (𝑋)                                                                            Iller at Kempten (𝑋)
+
+
+             Isar at Lenggries (𝑍)                                                                            Isar at Lenggries (𝑍)
+
+                            SVAR-RFCI; 𝛼 = 10           !"
+                                                                                                                                 SVAR-RFCI; 𝛼 = 10!"
+    (a)                                                                                            (a)
+                                        𝑡−2              𝑡−1               𝑡                                                                       𝑡−2         𝑡−1       𝑡
+          Danube at Dillingen (𝑌)                                                                         Danube at Dillingen (𝑌)
+
+              Iller at Kempten (𝑋)                                                                            Iller at Kempten (𝑋)
+
+
+             Isar at Lenggries (𝑍)                                                                            Isar at Lenggries (𝑍)
+                                                   !"
+                                  LPCMCI; 𝛼 = 10                                                                                      LPCMCI; 𝛼 = 10!"
+    (b)                                                                                            (b)
+                                       𝑡−2               𝑡−1               𝑡                                                                       𝑡−2         𝑡−1       𝑡
+          Danube at Dillingen (𝑌)                                                                         Danube at Dillingen (𝑌)
+
+             Iller at Kempten (𝑋)                                                                             Iller at Kempten (𝑋)
+
+
+             Isar at Lenggries (𝑍)                                                                            Isar at Lenggries (𝑍)
+                                                   !"
+                                  TS-ICD; 𝛼 = 10                                                                                       TS-ICD; 𝛼 = 10!"
+   (c)                                                                                             (c)
+
+Figure 5. PAGs returned at α = 10−2 by (a) SVAR-RFCI,                                        Figure 6. PAGs returned at α = 10−5 by (a) SVAR-RFCI,
+(b) LPCMCI, and (c) TS-ICD. Contemporaneous relations are                                    (b) LPCMCI, and (b) TS-ICD. Contemporaneous relations are
+bounded by a rectangle. Only one edge from each Homology is de-                              bounded by a rectangle. Only one edge from each Homology is
+picted. A red × indicates a conflict in determining the edge-mark.                           depicted.
+
+
+                                                                                         9
+            From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+References                                                            Richardson, T. and Spirtes, P. Ancestral graph markov
+                                                                        models. The Annals of Statistics, 30(4):962–1030, 2002.
+Claassen, T., Mooij, J. M., and Heskes, T. Learning sparse
+  causal models is not NP-hard. In Uncertainty in Artificial          Rohekar, R. Y., Gurwicz, Y., Nisimov, S., Koren, G., and
+  Intelligence, pp. 172. Citeseer, 2013.                                Novik, G. Bayesian structure learning by recursive boot-
+Colombo, D., Maathuis, M. H., Kalisch, M., and Richard-                 strap. In Advances in Neural Information Processing
+  son, T. S. Learning high-dimensional directed acyclic                 Systems (NeurIPS), 2018a.
+  graphs with latent and selection variables. The Annals of           Rohekar, R. Y., Nisimov, S., Gurwicz, Y., Koren, G.,
+  Statistics, pp. 294–321, 2012.                                        and Novik, G. Constructing deep neural networks by
+Entner, D. and Hoyer, P. O. On causal discovery from time               Bayesian network structure learning. In Advances in Neu-
+  series data using fci. Probabilistic graphical models, pp.            ral Information Processing Systems (NeurIPS), 2018b.
+  121–128, 2010.                                                      Rohekar, R. Y., Gurwicz, Y., Nisimov, S., and Novik, G.
+Gerhardus, A. and Runge, J. High-recall causal discovery                Modeling uncertainty by learning a hierarchy of deep
+  for autocorrelated time series with latent confounders.               neural connections. Advances in neural information pro-
+ Advances in Neural Information Processing Systems, 33:                 cessing systems, 32, 2019.
+ 12615–12625, 2020.
+                                                                      Rohekar, R. Y., Nisimov, S., Gurwicz, Y., and Novik, G.
+Jaber, A., Zhang, J., and Bareinboim, E. Causal identifica-             Iterative causal discovery in the possible presence of la-
+  tion under markov equivalence. In 34th Conference on                  tent confounders and selection bias. Advances in Neural
+  Uncertainty in Artificial Intelligence, pp. 978–987. Asso-            Information Processing Systems, 34:2454–2465, 2021.
+  ciation for Uncertainty in Artificial Intelligence (AUAI),
+                                                                      Spirtes, P. Introduction to causal inference. Journal of
+  2018.
+                                                                        Machine Learning Research, 11(May):1643–1662, 2010.
+Jaber, A., Zhang, J., and Bareinboim, E. Causal identifi-
+  cation under markov equivalence: Completeness results.              Spirtes, P., Meek, C., and Richardson, T. An algorithm for
+  In International Conference on Machine Learning, pp.                  causal inference in the presence of latent variables and
+  2981–2989, 2019.                                                      selection bias. Computation, causation, and discovery,
+                                                                        21:1–252, 1999.
+Malinsky, D. and Spirtes, P. Causal structure learning from
+ multivariate time series in settings with unmeasured con-            Spirtes, P., Glymour, C., and Scheines, R. Causation, Pre-
+ founding. In Proceedings of 2018 ACM SIGKDD work-                      diction and Search. MIT Press, 2nd edition, 2000.
+ shop on causal discovery, pp. 23–47. PMLR, 2018.                     Sugahara, S., Kishida, W., Kato, K., and Ueno, M. Re-
+Nisimov, S., Gurwicz, Y., Rohekar, R. Y., and Novik, G.                 cursive autonomy identification-based learning of aug-
+  Improving efficiency and accuracy of causal discovery                 mented naive bayes classifiers. In Proceedings of The
+  using a hierarchical wrapper. In Uncertainty in Artificial            11th International Conference on Probabilistic Graphical
+  Intelligence (UAI 2021), the 4th Workshop on Tractable                Models, volume 186 of Proceedings of Machine Learning
+  Probabilistic Modeling, 2021.                                         Research, pp. 265–276. PMLR, 2022.
+
+Nisimov, S., Rohekar, R. Y., Gurwicz, Y., Koren, G., and              Yehezkel, R. and Lerner, B. Bayesian network structure
+  Novik, G. CLEAR: Causal explanations from attention in                learning by recursive autonomy identification. Journal of
+  neural recommenders. arXiv preprint arXiv:2210.10621,                 Machine Learning Research (JMLR), 10(Jul):1527–1570,
+  2022.                                                                 2009.
+Pearl, J. Causality: Models, Reasoning, and Inference.                Zhang, J. Causal reasoning with ancestral graphs. Journal
+  Cambridge university press, second edition, 2009.                     of Machine Learning Research (JMLR), 9:1437–1474,
+                                                                        2008a.
+Pearl, J. An introduction to causal inference. The interna-
+  tional journal of biostatistics, 6(2), 2010.                        Zhang, J. On the completeness of orientation rules for
+                                                                        causal discovery in the presence of latent confounders
+Pearl, J. and Verma, T. A theory of inferred causation. In
+                                                                        and selection bias. Artificial Intelligence, 172(16-17):
+  International Conference on Principles of Knowledge
+                                                                        1873–1896, 2008b.
+  Representation and Reasoning, pp. 441–452, 1991.
+Peters, J., Janzing, D., and Schölkopf, B. Elements of Causal
+  Inference: Foundations and Learning Algorithms. MIT
+  Press, Cambridge, MA, USA, 2017.
+
+                                                                 10
+                                                         From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+A. Ablation: Temporal before                                                                                             A, ‘random order’ is equivalent to applying ICD algorithm
+   Contemporaneous?                                                                                                      (Rohekar et al., 2021) to time-series data, and a reversed or-
+                                                                                                                         der is application of the TS-ICD algorithm using a reversed
+In this section, scatter plots are provided (Figure 7, Fig-                                                              refinement order, where long-range relations are refined
+ure 8) for evaluating the performance as a function of the                                                               after shorter range ones.
+refinement ordering.
+
+
+
+
+                                                0.9                                                                                                                      0.9
+                  skeleton F1-score of TS-ICD
+
+
+
+
+                                                                                                                                           skeleton F1-score of TS-ICD
+                                                0.8                                                                                                                      0.8
+
+                                                0.7                                                                                                                      0.7
+
+                                                0.6                                                                                                                      0.6
+
+                                                0.5                                                                                                                      0.5
+
+                                                0.4                                                                                                                      0.4
+
+                                                0.3                                                                                                                      0.3
+
+                                                0.2                                                                                                                      0.2
+
+                                                0.1                                                                                                                      0.1
+                                                            0.2          0.4         0.6          0.8          1                                                                   0.2          0.4         0.6          0.8          1
+ (a)                                                         skeleton F1-score of `random'-variant                        (a)                                                       skeleton F1-score of `swapped'-variant
+
+
+
+                                                0.8                                                                                                                      0.8
+                   causal accuracy of TS-ICD
+
+
+
+
+                                                                                                                                            causal accuracy of TS-ICD
+
+
+                                                0.7                                                                                                                      0.7
+
+                                                0.6                                                                                                                      0.6
+
+                                                0.5                                                                                                                      0.5
+
+                                                0.4                                                                                                                      0.4
+
+                                                0.3                                                                                                                      0.3
+
+                                                0.2                                                                                                                      0.2
+
+                                                0.1                                                                                                                      0.1
+
+                                                 0                                                                                                                        0
+                                                      0            0.2         0.4          0.6         0.8                                                                    0          0.2         0.4          0.6         0.8
+ (b)                                                          causal accruacy of `random'-variant                         (b)                                                        causal accruacy of `swapped'-variant
+
+                                      500                                                                                                                      500
+       number of TS-ICD CI tests
+
+
+
+
+                                                                                                                                number of TS-ICD CI tests
+
+
+
+
+                                      400                                                                                                                      400
+
+
+                                      300                                                                                                                      300
+
+
+                                      200                                                                                                                      200
+
+
+                                      100                                                                                                                      100
+
+
+                                                 0                                                                                                                        0
+                                                     0            100      200        300         400         500                                                             0          100      200        300         400         500
+ (c)                                                          number of `random'-variant CI tests                         (c)                                                       number of `swapped'-variant CI tests
+
+
+Figure 7. What if the order of edges for CI testing is random?                                                           Figure 8. What if we reverse the order of edges for CI-testing used
+Scatter plots for ‘random’ (order of edges) variant vs. TS-ICD                                                           by TS-ICD? Scatter plots for ‘swapped’ variant vs. TS-ICD for: (a)
+for: (a) F1-score for skeleton, (b) causal accuracy, (c) number                                                          F1-score for skeleton, (b) causal accuracy, (c) number of CI tests.
+of CI tests. Difference in skeleton F1-scores is not statistically                                                       Difference in skeleton F1-scores is not statistically significant. TS-
+significant. TS-ICD achieves higher causal accuracy and requires                                                         ICD achieves higher causal accuracy and requires fewer CI tests,
+fewer CI tests, with statistical significance.                                                                           with statistical significance.
+
+                                                                                                                    11
+              From Temporal to Contemporaneous Iterative Causal Discovery in the Presence of Latent Confounders
+
+  Algorithm         FNR        FPR       Precision     Recall
+  SVAR-FCI         0.7576     0.0000       1.0000      0.2424
+  (MAD)           (0.1496)   (0.0047)     (0.0600)    (0.1496)
+  SVAR-RFCI        0.7308     0.0085       0.9000      0.2692
+  (MAD)           (0.1482)   (0.0084)     (0.0922)    (0.1482)
+  LPCMCI           0.6087     0.0000       1.0000      0.3913
+  (MAD)           (0.1816)   (0.0070)     (0.0577)    (0.1816)
+  TS-ICD           0.5600     0.1504       0.6000      0.4400
+  (MAD)           (0.0707)   (0.0540)     (0.1813)    (0.1504)
+
+      Table 5. Performance for the linear-Gaussian model.
+
+  Algorithm         FNR        FPR       Precision     Recall
+  SVAR-FCI         0.5964     0.0009       0.9857      0.4036
+  (MAD)           (0.2768)   (0.0016)     (0.0257)    (0.2768)
+  SVAR-RFCI        0.5768     0.0017       0.9746      0.4232
+  (MAD)           (0.2974)   (0.0027)     (0.0406)    (0.2974)
+  LPCMCI           0.6392     0.0700       0.5716      0.3608
+  (MAD)           (0.2763)   (0.0518)     (0.2555)    (0.2763)
+  TS-ICD           0.5328     0.0172       0.8311      0.4672
+  (MAD)           (0.2805)   (0.0120)     (0.1129)    (0.2805)
+
+Table 6. Performance for the discrete (binary nodes) model.
+
+
+B. Synthetic Data: False Negatives, False
+   Positives, Precision, and Recall
+In this section, we provide the false-positive ratio, false-
+negative ratio, precision, and recall for the graph-skeletons
+learned in experiments described in Section 4.2 and Ta-
+ble 2. Results for the linear-Gaussian model are provided
+in Table 5 and for the discrete (binary) nodes model in
+Table 6. For the linear-Gaussian model, SVAR-FCI and
+LPCMCI achieved the lowest false-positive ratios and high-
+est precision of identified edges. For the discrete model,
+SVAR-FCI achieved the lowest false-positive ratios and
+highest precision. For both models, TS-ICD achieved the
+lowest false-negative and highest recall. This indicates that
+TS-ICD compared to the tested algorithms recovers more
+correct edges (fewer erroneous omissions). In extended
+experiments with data sizes T = 200 and T = 1000, the
+relative advantages and disadvantages of algorithms, and
+conclusions were similar.
+
+
+
+
+                                                                 12
+

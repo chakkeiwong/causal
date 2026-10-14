@@ -1,0 +1,314 @@
+\chapter{Constructing a controlled latent-state estimator}\label{ch:latentestimation}
+\section{The estimation problem the product must own}
+A planning library generally expects transition, observation and reward
+models. A bank has transactions, incomplete measurements and a historical
+decision process. Bridging those objects is a substantive product capability.
+The estimation module must specify a latent-state model, reconstruct its
+event clock, fit the observed-data likelihood, quantify uncertainty and
+state the conditions under which changing the action mechanism has a
+causal interpretation. Passing a fitted transition matrix to a
+POMDP solver leaves most of that work unresolved.
+
+For $K$ states, $M$ signal categories and a finite action set, the model
+has $K-1+|\mathcal A|K(K-1)+K(M-1)$ free probabilities before
+reward, covariate and logging parameters. Small $K$ makes exact
+marginalization possible and is appropriate for a first implementation.
+Increasing $K$ creates flexibility, weakly separated states and more local
+optima; state count is a model-selection question, not a quality score.
+A state name such as ``fragile liquidity'' is an economic hypothesis.
+Ordering states by expected delinquency fixes a label convention; it does
+not establish a unique financial mechanism.
+
+\section{Forward and backward messages}
+Suppress a separate reward emission and define the observed transition kernel
+\[
+ M_t(s,s')=q_\eta(a_t\mid s,h_t)
+          P_\theta(s'\mid s,a_t)B_\theta(o_{t+1}\mid s',a_t).
+\]
+When logging uses only observed history and its parameters are distinct,
+its factor is constant across latent paths and can be omitted from the
+objective for environment parameters. This is a joint-likelihood
+factorization argument. It does not assert that adaptively chosen actions
+are independent of observations, or that the remaining factor is the
+ordinary conditional density of observations given the entire future
+action sequence.
+
+Let $\alpha_t$ be the normalized filter after the current signal and
+preceding observations and actions. Start with
+$c_0=\sum_s\mu(s)B(o_0\mid s)$ and
+$\alpha_0(s)=\mu(s)B(o_0\mid s)/c_0$. Then
+\begin{align}
+ \widetilde\alpha_{t+1}(s')&=\sum_s\alpha_t(s)M_t(s,s'),&
+ c_{t+1}&=\sum_{s'}\widetilde\alpha_{t+1}(s'),\\
+ \alpha_{t+1}(s')&=\widetilde\alpha_{t+1}(s')/c_{t+1},&
+ \log L&=\sum_{t=0}^{T}\log c_t.
+ \label{eq:scaled-forward}
+\end{align}
+Consistently scaled backward messages satisfy $\beta_T(s)=1$ and
+$\beta_t(s)=\sum_{s'}M_t(s,s')\beta_{t+1}(s')/c_{t+1}$.
+The smoothed transition and state probabilities are
+\begin{equation}
+ \xi_t(s,s')=
+ \frac{\alpha_t(s)M_t(s,s')\beta_{t+1}(s')}{c_{t+1}},
+ \qquad \gamma_t(s)=\sum_{s'}\xi_t(s,s'),
+ \label{eq:controlled-smoothing}
+\end{equation}
+with $\gamma_T=\alpha_T$. The identities can be checked by direct
+enumeration on a short sequence. They extend the expected-count
+construction described by \citet[pp.264--266]{rabiner1989} to the
+declared controlled kernel. A separate reward emission multiplies $M_t$
+when rewards convey additional state information.
+
+The distinction between filtering and smoothing matters operationally.
+Filtering uses information available at the decision. Smoothing uses later
+observations and actions to revise the historical state estimate. A plot
+of smoothed fragility may help diagnose a fitted model, but using that
+series as a feature in a retrospective ``prospective'' policy evaluation
+would leak future information.
+
+\section{The M step is a constrained count calculation}
+The expected complete log likelihood contains
+\[
+ \sum_s N_s^0\log\mu_s+
+ \sum_{a,s,s'}N^P_{ass'}\log P_a(s,s')+
+ \sum_{s,o}N^B_{so}\log B_s(o)+
+ \sum_{s,a}N^q_{sa}\log q_s(a).
+\]
+The counts sum $\gamma$ and $\xi$ over trajectories with the
+appropriate observed action or signal. A Lagrange multiplier shows that
+maximizing $\sum_jN_j\log p_j$ subject to $\sum_jp_j=1$ gives
+$p_j=N_j/\sum_kN_k$. Row-wise application updates the initial law,
+transitions, emissions and, when modeled, logging probabilities.
+Structural zeros must follow from the model; small positive pseudocounts
+are disclosed regularization.
+
+The E step allocates each trajectory probabilistically among states.
+The M step updates the specified likelihood from those expected counts.
+A Viterbi path instead chooses a single most probable state sequence.
+Treating that path as observed data discards state uncertainty and generally
+does not maximize the same likelihood. A convenient visualization must
+not silently replace the estimator.
+
+EM need not reach a global maximum. Multiple starts, likelihood increments,
+iteration caps, boundary probabilities and state separation belong in
+the fit receipt. Direct differentiation of the scaled marginalized
+likelihood is a useful challenger. Bayesian inference adds priors and
+posterior computation; variational estimation introduces approximation
+error. None supplies causal identification through numerical convergence.
+
+\section{Unknown emissions and hidden logging: a fitted study}
+The study generates 800 independent trajectories with twelve actions,
+two latent states and three signal categories:
+\[
+ \mu=(.72,.28),\qquad
+ P_0=\begin{pmatrix}.93&.07\\.22&.78\end{pmatrix},\quad
+ P_1=\begin{pmatrix}.94&.06\\.52&.48\end{pmatrix},\quad
+ B=\begin{pmatrix}.78&.18&.04\\.16&.34&.50\end{pmatrix}.
+\]
+The learner receives only signals and actions. Four starts estimate the
+initial law, transitions and emissions; labels are aligned by expected
+signal severity before parameter errors are evaluated. The generator's
+latent states never enter estimation.
+
+Randomized logging chooses action one with probability $0.4$. In the
+observational design its probabilities are $0.15$ and $0.80$ in the two
+hidden states. The same observational trajectories are fitted with and
+without a state-dependent logging factor. The joint fit estimates that
+factor as well. The experiment stipulates the finite model and invariance
+of transitions and observations under an action intervention. Those
+restrictions make the generated environment causal; the estimation code
+does not discover their truth.
+
+\begin{table}[htbp]\centering\small
+\input{derivations/hmm_estimation}
+\caption{Unknown-emission estimation. The policy contrast is assistance
+after the most severe current signal versus no assistance, over eight
+decisions. The true gain is USD\,22.34.}
+\label{tab:hmm-estimation}
+\end{table}
+
+The omitted-action model reverses the sign of the policy contrast in this
+sample. Historical assistance reveals fragility; ignoring that selection
+can interpret a selected post-assistance distribution as a harmful action
+effect. The joint model corrects this particular mechanism, but its
+single-sample value remains materially different from truth. Raw objective
+values from the two fitting routes are not directly comparable because
+the joint objective includes the action density.
+
+\begin{table}[htbp]\centering\small
+\input{derivations/hmm_repetitions}
+\caption{Thirty independently generated observational datasets of 500
+trajectories, with both fitting routes applied to each dataset. Correct
+logging specification improves parameter recovery but leaves substantial
+policy-value variability.}
+\label{tab:hmm-repeated}
+\end{table}
+
+The omitted model's mean policy-gain error is approximately
+USD\,$-38.95$, with Monte Carlo standard error USD\,0.59. The joint
+model's mean error is USD\,3.41 with Monte Carlo standard error USD\,4.02,
+and RMSE USD\,21.90. These results expose a failure and a conditional
+remedy. They do not show that every controlled hidden-state model is
+identified or that the remaining uncertainty permits a bank decision.
+The runs retain finite iteration budgets. All 30 selected omitted-action
+fits and seven of the 30 joint fits hit the 120-iteration repetition cap.
+The repeated table therefore compares the implemented finite-budget
+procedures, not fully optimized population estimators. Its error contains
+optimization as well as sampling and specification effects.
+
+A separate same-data convergence check extends the main observational
+fits to a maximum of 2,000 iterations without changing data or starting
+seeds. The omitted-action fit meets the stopping criterion at 163 iterations
+for its best start and still gives a policy gain near negative USD\,22.40;
+the joint fit again gives positive USD\,13.61. Thus the main sign reversal
+persists after the stated numerical stopping test. This does not establish
+a global optimum or isolate all specification bias in the repeated study.
+
+\section{Uncertainty includes the observation model}
+Seventy-nine trajectory bootstrap resamples of the randomized dataset
+refit initial probabilities, transitions and emissions, holding the two
+policies fixed. The percentile interval for their value difference is
+approximately USD\,$[14.61,38.91]$. The bootstrap count gives coarse
+tail quantiles; one selected bootstrap fit hits its 120-iteration cap.
+This is a model-conditional interval for independent
+trajectories, not a coverage study or an interval for unrestricted hidden
+confounding in bank records.
+
+Additional uncertainty arises from the state specification, intervention
+invariance and policy selection. A bootstrap holding those choices fixed
+does not address them. A fitted three-state model may describe historical
+observations as well as a two-state model and value an untested policy
+differently. An assistance action may alter reporting intensity as well
+as liquidity. A policy selected from hundreds of candidates may exploit
+noise. Each requires a separate comparison, sensitivity analysis or outer
+evaluation design.
+
+The product should show state separation, transition support, likelihood
+profiles or posterior dependence, predictive residuals by regime, and
+financial decision sensitivity. A large parameter interval need not imply
+a large value interval, and a small parameter error can reverse a close
+policy comparison. The decision determines which uncertainty matters.
+
+\section{Planning with a distribution over states}
+For a correctly specified environment and an actor restricted to recorded
+history, let $b$ be its state belief, $p(o'\mid b,a)$ the next-signal
+law and $\tau(b,a,o')$ its Bayes update. With feasible actions
+$\mathcal A(b)$ and expected reward $r(b,a)$,
+\begin{equation}
+ V_t(b)=\max_{a\in\mathcal A(b)}\left[
+ r(b,a)+\gamma\sum_{o'}p(o'\mid b,a)
+       V_{t+1}\{\tau(b,a,o')\}\right].
+ \label{eq:belief-bellman}
+\end{equation}
+Observed eligibility must be part of the information state if it changes
+the action set. The continuation averages future state uncertainty and
+future information. A myopic threshold neglects both continuation rewards
+and any value of information \citep{kaelbling1998}.
+
+The study values next-signal contribution at $(18,0,-90)$ dollars and
+charges eight dollars for assistance. Reward is a deterministic function
+of the next signal and action, so no separate reward information is
+omitted from the filter. A 501-point belief grid solves eight-decision
+control. Doubling resolution changes initial value by less than
+USD\,0.0001. Under the supplied true model, values are approximately
+$-21.92$ for no assistance, $0.42$ for assistance after a severe signal,
+and $5.30$ for the grid policy. These numerical comparisons do not show
+that the extra optimized value is statistically resolved by the fitted data.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.9\textwidth]{derivations/pomdp_value.pdf}
+\caption{Eight-decision value and initial action on a two-state belief grid,
+conditional on the supplied causal environment.}
+\label{fig:pomdp-plan}
+\end{figure}
+
+For bounded rewards and $\gamma<1$, the infinite-horizon Bellman
+operator is a contraction of modulus $\gamma$: expectation changes by
+at most the supremum change in continuation; discounting multiplies the
+bound by $\gamma$; taking a maximum preserves it. This establishes a
+unique fixed point for the supplied belief-MDP. It is a control result,
+not an identification theorem for observational banking data.
+
+\section{Partial observation is not always hidden confounding}
+Under randomized or recorded-history assignment, partial observation can
+make modeling difficult without confounding the action. History-based
+importance evaluation remains identified under the sequential assumptions,
+although its variance may be prohibitive. A latent model can impose
+structure that improves precision, with a corresponding specification risk.
+
+If historical staff used unrecorded information predictive of future
+outcomes, an accurate $\Prob(A_t\mid H_t)$ is generally insufficient.
+It describes selected historical actions without reconstructing hidden
+information under a new policy. \citet{tennenholtz2020,bennettprox2023}
+study this problem using specified information structures and informative
+proxy or bridge conditions. Their results do not turn every fitted HMM
+into a causal environment.
+
+The empirical questions are about measurement: which private information
+did staff use; which independently recorded proxies have defensible roles;
+could limited randomization identify a missing transition; could a narrower
+policy be evaluated with existing support? These questions can be more
+valuable than increasing the representation dimension.
+
+\subsection{A finite bridge exposes the inverse problem}
+At fixed $(a,x)$ in Equation~\eqref{eq:bridge}, let
+$M_{zw}=\Prob(W=w\mid Z=z,A=a,X=x)$ and
+$m_z=\E[Y\mid Z=z,A=a,X=x]$. A discrete bridge solves
+$M\boldsymbol h=\boldsymbol m$. Full column rank gives at most one
+bridge in this class. A small minimum singular value lets modest noise
+in $\boldsymbol m$ produce large changes in $\boldsymbol h$.
+Regularization stabilizes the calculation while introducing bias.
+
+This explains why two predictive but almost redundant proxies may be weak
+for identification. It also limits a numerical diagnostic: empirical full
+rank does not establish the substantive proxy exclusions or population
+completeness. Sequential bridge methods additionally preserve temporal
+roles and the target actor's information. The time-independent-sampling
+identification construction and proximal estimating strategy discussed in
+\citet{bennettprox2023} are distinct approaches, with different computational
+and regularity requirements.
+
+\section{Customer behavior and the bank's objective}
+A bank POMDP is not automatically a model of customer utility. Distinguish
+bank offer $b$ from household choice $a$. A declared dynamic logit
+construction has
+$v(a,s;b)=u(a,s;b)+\beta\E[\overline V(s')\mid s,a,b]$ and,
+under centered independent Type-I extreme-value shocks of fixed scale
+$\tau$, $\overline V(s)=\tau\log\sum_a\exp\{v(a,s)/\tau\}$.
+Choice probabilities are proportional to $\exp\{v(a,s)/\tau\}$.
+Utility normalization, discounting, information and transition restrictions
+must be identified; a softmax-looking policy does not supply them.
+
+Given a supported customer response law, the bank's induced objects are
+\[
+ K_b(s,s')=\sum_aP_\theta(a\mid s,b)F_\theta(s'\mid s,a,b),
+ \qquad r_b(s)=\sum_aP_\theta(a\mid s,b)m(s,b,a).
+\]
+Household utility $u$ and bank contribution $m$ have different owners
+and need not be proportional. Mortgage demand and lender behavior in
+\citet{benetton2021}, and refinancing mechanisms in
+\citet{agarwal2020,beraja2019}, motivate this separation. The synthetic
+POMDP's supplied reward schedule does not estimate household utility.
+
+Composition therefore needs three contracts: the response module declares
+supported offer interventions; finance declares ownership, discounting
+and terminal claims; control declares the bank's information and feasible
+actions. A fitted incumbent-choice probability alone does not support an
+unmodeled marketing or pricing intervention.
+
+\section{A concrete initial module}
+The initial product should support finite states, categorical and simple
+parametric emissions, observed covariates, variable trajectory lengths,
+explicit censoring and a declared logging-law family. Results contain
+likelihood diagnostics, parameter and state uncertainty, transition support,
+the observation clock and a separate causal interpretation. Prospective
+trajectory views use filtering; retrospective views label smoothing.
+
+Small models compare EM, direct optimization and exact path enumeration.
+Planning consumes an explicitly accepted environment and preserves the
+actor's information. Evaluation fixes a policy or runs an outer training
+and evaluation protocol. Continuous states, particle likelihoods and
+amortized inference have separate approximation and identification work.
+BayesFilter can supply useful probabilistic infrastructure, but the causal
+action model, intervention evidence and temporal semantics remain owned by
+this product. No current bank or sibling integration is claimed.

@@ -1,0 +1,264 @@
+\chapter{Construction specification and measured components}\label{ch:construction}
+\section{An operation must preserve the study's meaning}
+The implementation should make the scientific argument reproducible across
+execution environments. A scientist who requests an average effect on the
+original eligible cohort should receive that target whether the job runs in
+a notebook, a service worker or a distributed warehouse. Removing closed
+accounts, changing fold boundaries or averaging branch coefficients with
+different weights changes the analysis even if every local function succeeds.
+The unit of composition is therefore a versioned study and its artifacts.
+
+The proposal supplies two small working components: historical event
+reconstruction and crossed-cluster score reduction. It also supplies fitted
+research studies and four JSON contracts. These establish selected semantics
+and calculations. The general study compiler, service endpoints, user
+workspaces, distributed scheduler and sibling adapters described here remain
+proposed construction. Keeping that boundary explicit lets an implementation
+team identify its actual starting point.
+
+\section{Package boundaries and owned invariants}
+The proposed packages divide responsibility by the invariant they preserve.
+The data package owns historical identity, observation status, availability
+and reconciled economic components. The design package owns the estimand,
+intervention versions, identification route, assumptions and target weights.
+The execution package owns folds, model dependencies, resource limits and
+retry semantics. Estimation adapters own the translation to an explicitly
+supported external method. The inference package owns score meaning,
+dependence, resampling and simultaneous contrasts. The evidence package owns
+immutable reconstruction, source identity and permission-aware exports.
+
+These packages should exchange documented arrays and records rather than
+opaque framework objects. A trajectory artifact records trajectory key,
+calendar key, decision index, action and eligibility mask, pre-action
+information, outcomes, censoring and model-training role. An irregular
+history cannot be padded into a balanced panel without recording which
+positions are structural absence, unobserved visits or actual zeros.
+An adapter requiring equal-length histories must reject or explicitly
+transform an incompatible artifact.
+
+\begin{longtable}{P{31mm}P{54mm}P{57mm}}
+\toprule Operation & Required input & Returned artifact or refusal\\\midrule\endhead
+Reconstruct snapshot & Decision episodes, event revisions, entity and coverage rules & Selected revisions, features, observation masks, reconciliation\\
+Compile design & Study, snapshot, graph assumptions, target population & Estimand and identification status, fold plan, supported methods\\
+Fit nuisance/model & Training partition, method/version, seed, resource limit & Model, training lineage, convergence and support diagnostics\\
+Evaluate scores & Frozen models, evaluation partition, policy/target weights & Defined score vector, cluster keys, extreme-contribution diagnostics\\
+Infer contrasts & Complete score partitions, covariance specification & Point estimate, labeled uncertainty, covariance and limitations\\
+Export evidence & Completed run and authorized artifact references & Reconstruction manifest, scientific report and financial account\\
+\bottomrule
+\caption{Proposed operation contracts. Each refusal identifies a specific
+missing condition; it is not a request to silently choose a new target.}
+\label{tab:operations}
+\end{longtable}
+
+A model fit can finish while its transition parameters remain weakly
+determined. A design can be valid while a particular fitted model reaches
+its iteration cap. A job can be canceled before a complete covariance is
+available. The result should therefore carry separate computational,
+scientific and evidence states. Suggested computational states are queued,
+running, complete, failed and canceled. Scientific states distinguish
+identified under declared assumptions, partially identified, conditional
+scenario and unresolved. Evidence states distinguish exact construction,
+synthetic study, retrospective bank study and prospective evaluation.
+One green success flag cannot communicate all three.
+
+\section{The implemented temporal reference}
+The small Python package is named \texttt{causalbank-research}, version 0.2.0.
+Its \texttt{Event} and \texttt{Decision} records and
+\texttt{compile\_snapshot} function implement the revision ordering in
+Chapter~\ref{ch:data}. For example:
+\begin{lstlisting}[language=Python]
+from causalbank import Event, Decision, compile_snapshot
+
+events = [
+    Event("credit", "H1", "2026-01-02T00:00:00Z",
+          "2026-01-03T00:00:00Z", 1, 100.0, "USD"),
+    Event("credit", "H1", "2026-01-02T00:00:00Z",
+          "2026-01-10T00:00:00Z", 2, 60.0, "USD"),
+]
+decisions = [Decision("d1", "H1", "2026-01-08T00:00:00Z")]
+snapshot = compile_snapshot(
+    events, decisions, lookback_days=30,
+    currency="USD", feed_complete=True)
+assert snapshot["rows"][0]["amount"] == 100.0
+\end{lstlisting}
+The result lists the selected event revision and a hash of the declared
+input account. Reversing input event order preserves the result. A duplicate
+event revision, changed event owner, nonfinite amount, incompatible currency
+or timestamp without a timezone produces an error. The feed-completeness
+declaration is required before absence becomes an additive zero.
+
+This reference deliberately uses an inspectable per-decision algorithm.
+It is not the implementation to scan a banking group's full transaction
+history. A warehouse adapter should implement the same semantics with
+indexed intervals, partition pruning and revision-aware joins, then pass the
+same independent account fixture. Hashing a complete local input collection
+also differs from production content addressing: a large job should use
+immutable dataset manifests and partition digests instead of rereading every
+byte at each operation.
+
+Availability at exactly the recorded decision instant is treated as known
+in the reference. A real decision system may require a strict predecessor
+rule or a publication-latency margin. The source sequence number and the
+decision system's clock precision determine that choice. It must be a
+versioned convention; changing it creates a new snapshot.
+
+\section{The implemented score reducer}
+Let $x_j\in\mathbb R^d$ be an already computed, equally weighted score
+vector. Write $n$ for its row count, $\bar x=n^{-1}\sum_jx_j$, and
+$S_g=\sum_{j\in g}x_j$, $n_g=|g|$ for a declared cluster. The centered
+cluster contribution is $U_g=S_g-n_g\bar x$. For $G$ nonempty clusters,
+the component covariance used by the reference is
+\[
+ \widehat V_G=\frac{G}{G-1}\frac1{n^2}\sum_gU_gU_g'.
+\]
+Entity, date and entity--date intersections give
+$\widehat V=\widehat V_E+\widehat V_T-\widehat V_{ET}$.
+Retaining intersection groups matters when multiple scores occupy the same
+entity/date cell. Replacing the last term by an ordinary row covariance
+would then generally compute a different quantity.
+
+Raw counts and sums are additive across partitions. The reducer merges
+those sufficient statistics and centers once with the global mean.
+Centering each partition and averaging its covariance generally loses
+between-partition terms. The supplied check compares the merge result with
+an independently centered batch calculation on a crossed 63-row fixture;
+maximum discrepancies are below $2\times10^{-16}$ in this environment.
+
+\begin{lstlisting}[language=Python]
+from causalbank import ScoreReducer
+
+left = ScoreReducer(n_entities=10000, n_dates=120, dimension=2)
+right = ScoreReducer(n_entities=10000, n_dates=120, dimension=2)
+# Each worker adds disjoint rows of precomputed scores and integer keys.
+left.add(score_part_a, entity_part_a, date_part_a)
+right.add(score_part_b, entity_part_b, date_part_b)
+result = left.merge(right).result()
+\end{lstlisting}
+The caller owns score construction, target weighting and the sampling
+assumptions. A raw regression coefficient is not automatically a score.
+For a nonlinear estimating equation, its Jacobian and normalization must
+be applied consistently. Unequal target weights need a defined weighted
+score and denominator; they are not supplied by this prototype.
+
+The covariance can be indefinite in a finite sample. The reference reports
+its minimum eigenvalue and a flag instead of silently forcing a positive
+matrix. A consumer must then use a scientifically justified alternative or
+withhold the affected interval. The component also rejects nonfinite
+scores, incompatible shapes and too few nonempty clusters. It does not
+choose a bandwidth, bootstrap method or independent-unit definition for
+the analyst.
+
+\section{What the scale measurement actually times}
+The scale fixture creates two-dimensional synthetic scores in chunks of
+100,000 rows, with 10,000 declared entity keys and 120 date keys. Three
+fresh child processes run at each size. The total timer includes score
+generation, accumulation and final covariance; the reduction timer isolates
+accumulation. Linux peak resident memory includes the interpreter and
+loaded libraries.
+
+\begin{table}[htbp]\centering\small
+\input{derivations/scale_results}
+\caption{Median of three local runs per size. Precomputed-score reduction
+only: no storage reads, temporal reconstruction, nuisance fitting, causal
+graph search or POMDP parameter fitting is included.}
+\label{tab:scale-results}
+\end{table}
+
+The measured ten-million-row operation takes about 1.2 seconds and
+123 MiB peak resident memory in this environment. These numbers show
+that a bounded score reduction can avoid retaining all rows. They cannot
+be advertised as the latency of a ten-million-row causal analysis.
+The dense intersection arrays require
+$O((E+T+ET)d)$ score storage plus counts. With ten million entities,
+even 120 dates makes that representation inappropriate. A sparse grouped
+or warehouse aggregation is then required and must be measured separately.
+The current measurement does not establish a universal streaming-memory
+bound independent of cluster cardinality.
+
+The benchmark records Python and NumPy versions, platform and component
+hashes. Shared-host load can change timing. There was no dedicated machine
+reservation, storage benchmark or comparison with Ray. A production
+qualification should specify cores, memory limits, execution concurrency,
+data format, warm/cold caches and complete stage costs before committing
+to a service objective.
+
+\section{A reproducible job is a dependency graph}
+A compiled job should reference a frozen snapshot and a deterministic fold
+assignment. A nuisance fit depends only on its training role. Score tasks
+depend on the exact model versions and their evaluation partitions.
+Inference depends on the complete set of score partitions, with declared
+target weights and covariance method. Report generation depends on the
+financial account and both scientific and computational statuses.
+
+The artifact identity should hash canonical configuration, input manifest
+digests, code/dependency lock identity and random seeds. A model upgrade,
+changed treatment mapping or later outcome snapshot changes that identity.
+An authorization decision remains dynamic even when content is immutable:
+a previously readable artifact may cease to be exportable after a permission
+change. Content identity must not be confused with access authority.
+
+Retries require an exactly-once contribution rule. A failed worker may
+write the same score partition twice; the manifest must select one committed
+artifact for that partition, rather than summing both. Committing the
+partition manifest atomically is preferable to inferring completion from
+the presence of a partially written file. A reducer starts only when all
+expected partitions are present and valid.
+
+Checkpointing is method-specific. An EM checkpoint includes model
+parameters, iteration, objective and sufficient-statistic configuration.
+A bootstrap checkpoint includes resample identity and fit diagnostics.
+A graph-search checkpoint includes candidate constraints and conditioning
+tests already performed. Resuming with changed data or constraints is a
+new run. Saving an arbitrary Python process state is not the public
+reconstruction contract.
+
+\section{Three concrete repository adoption journeys}
+FinMarketing can export assignment episodes, decision-time covariates and
+a group contribution ledger. The proposed integration reconstructs the
+snapshot, computes cohort effects and returns joint balance/contribution
+uncertainty with an explicit target and sign. Acceptance compares the same
+study with FinMarketing's existing calculation and reconciles transfers
+account by account.
+
+dataml can export a recovery ensemble with observed/missing masks, the
+measurement model, draw identifiers and training partition provenance.
+The causal consumer repeats the declared analysis under compatible draws
+and reports recovery sensitivity. The initial integration should use an
+exact small corrupted-data fixture whose observed entries remain unchanged.
+It fails if a recovered outcome is exposed as a historical policy feature
+or uncertainty is lost when the ensemble becomes a dataframe.
+
+BayesFilter can supply a filtering or likelihood component through a narrow
+numerical interface. A controlled model specifies whether the action factor
+enters its historical posterior and when the reward is observed. Its
+probabilities and gradients are compared with exact short-path sums before
+larger fits. The causal library retains ownership of the intervention
+interpretation. MacroFinance can similarly consume response-path covariance
+and shock restrictions; cardnpv additionally requires an explicit contrast
+direction conversion. These are proposed acceptance journeys, not existing
+inter-repository calls.
+
+\section{Building the independent application}
+The standalone workbench should guide the bank user through subject and
+action selection, eligibility, the decision-time account, design declaration,
+method comparison and economic outcomes. Discovery should display ambiguous
+endpoints and measurements or interventions that could distinguish them.
+Latent-state analysis should show filtering uncertainty, fit diagnostics
+and conditional policy value, preserving its identification restrictions.
+
+The proposed SDK and evidence export should expose the operation records.
+The interface should explain unsupported requests in the user's terms:
+no untreated branches remain after the last rollout date, or severe-state
+assistance was never observed. Worker identifiers and dependency hashes
+belong in expandable technical evidence.
+
+A bank deployment should reuse identity, catalog, warehouse and storage
+services. Workers execute near authorized data; the control service holds
+study metadata and permitted references. Regional boundaries cover derived
+scores and fitted models as well as rows. R, Java and Python adapters each
+require environment qualification and applicable license review.
+
+Release acceptance reconstructs an exported study in a clean qualified
+environment; detects late-data, support and sign errors; resumes interrupted
+jobs without duplicate contributions; and reconciles financial totals
+independently. Review-effort savings must then be measured on equivalent tasks.

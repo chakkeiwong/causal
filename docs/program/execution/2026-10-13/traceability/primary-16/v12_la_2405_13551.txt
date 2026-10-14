@@ -1,0 +1,1129 @@
+                                               Large Language Models are Effective Priors for
+                                                         Causal Graph Discovery
+
+
+                                                        Victor-Alexandru Darvariu1 , Stephen Hailes1 , Mirco Musolesi1,2
+                                                               1
+                                                                 University College London 2 University of Bologna
+                                                            {v.darvariu, s.hailes, m.musolesi}@cs.ucl.ac.uk
+arXiv:2405.13551v1 [cs.LG] 22 May 2024
+
+
+
+
+                                                                                      Abstract
+                                                  Causal structure discovery from observations can be improved by integrating
+                                                  background knowledge provided by an expert to reduce the hypothesis space.
+                                                  Recently, Large Language Models (LLMs) have begun to be considered as sources
+                                                  of prior information given the low cost of querying them relative to a human expert.
+                                                  In this work, firstly, we propose a set of metrics for assessing LLM judgments for
+                                                  causal graph discovery independently of the downstream algorithm. Secondly, we
+                                                  systematically study a set of prompting designs that allows the model to specify
+                                                  priors about the structure of the causal graph. Finally, we present a general
+                                                  methodology for the integration of LLM priors in graph discovery algorithms,
+                                                  finding that they help improve performance on common-sense benchmarks and
+                                                  especially when used for assessing edge directionality. Our work highlights the
+                                                  potential as well as the shortcomings of the use of LLMs in this problem space.
+
+
+                                         1   Introduction
+                                         The problem of causal discovery involves determining a probabilistic graphical model that establishes
+                                         causal relationships among a set of random variables. This task holds fundamental importance
+                                         in the sciences, as the resulting model can be utilized to answer observational, interventional,
+                                         and counterfactual cause-and-effect queries [31, 30, 32]. Causal discovery often operates within
+                                         a constrained data environment where the acquisition of additional samples may be impractical,
+                                         impossible, or ethically questionable. Consequently, numerous studies have explored the integration of
+                                         appropriate prior knowledge, such as insights from human experts, to guide or bias the exploration of
+                                         the vast hypothesis space. Prominent methods of incorporating prior knowledge involve the imposition
+                                         of hard constraints. These constraints may dictate the presence of specific edges [27], establish
+                                         orderings among variables [9], enforce ancestral relationships [7], or apply typing assumptions [5].
+                                         Large Language Models (LLMs) have recently been explored as sources of hard background knowl-
+                                         edge, particularly when a human expert may be costly or unavailable [25, 2, 40]. This builds on
+                                         earlier findings that suggest LLMs contain valuable information for causal reasoning [20, 41, 21].
+                                         However, foundation models are rarely universally accurate, often failing to achieve 100% accuracy
+                                         even on simple arithmetic tasks [17]. We therefore consider that the integration of LLM-derived
+                                         knowledge should be soft to prevent error propagation, an area that has received substantially less
+                                         attention in prior work. Consequently, in this paper, we address the following questions:
+
+                                               1. How can LLMs be judged on their abilities to identify causal relationships beyond plain
+                                                  accuracy and independently of the downstream causal discovery technique?
+                                               2. What are the design choices in constructing the LLM prompt that lead to consistent, statisti-
+                                                  cally significant improvements in model outputs?
+
+                                         Preprint. Under review.
+random variables                       LLM queries based on metadata              LLM-generated
+  and metadata                                                                 matrix of expert priors
+                                                                                                         2. evaluate quality of
+
+
+
+
+                                                                                               rs
+                                                                   ...
+                                                                                                               priors via
+
+
+
+
+                                                                                             le
+                                                                                           nk
+                                                                                       we s
+                                      Prompt: causal relationship                                           proposed metrics
+
+
+
+
+                                                                                          in
+                                                                                         as
+                                                                                          t
+
+                                                                                        ri
+                                                                                                                                   LLM1    LLM2
+
+
+
+
+                                                                                       ra
+                                                                                       gr
+                   1. probabilistic   between rain and grass wet?
+
+
+
+
+                                                                                      sp
+ rain
+                   queries to LLM                                            rain
+ grass wet                            Answer:                                                                                     rain   sprinklers
+                    expert about                                                                          3. supply to causal
+                                                                             grass
+                   pairwise causal    (A) ℙ(rain   grass wet)                                            discovery algorithm
+ sprinklers                                                                    wet
+                    relationships     (B) ℙ(grass wet   rain)                                                in addition to
+                                                                         sprinklers                           observations
+                                      (C) ℙ(rain    grass wet)
+                                                                                                                                     grass wet
+
+
+
+
+Figure 1: High-level summary of the methodology and contributions of the present work. Firstly,
+we formulate a probabilistic model of expert interaction for causal graph discovery and propose
+a set of metrics for assessing the quality of causal judgements supplied by LLMs. Secondly, we
+conduct an evaluation of several LLM architectures and prompt design choices using these metrics,
+showing that LLM background knowledge can convincingly outperform a null model on benchmarks
+requiring common-sense reasoning. Lastly, we integrate LLM-derived knowledge with a recent
+causal discovery method, finding that it is most beneficial for assessing the more likely direction of a
+relationship and in scenarios in which computational budgets are low.
+
+
+        3. How can LLMs be integrated in a causal discovery method as soft background knowledge
+           and under what type of regime are they beneficial?
+Towards progress on these questions, we make the contributions listed below. They are summarized
+at a high level in Figure 1.
+        1. We design a probabilistic expert interaction model for causal relationship extraction and
+           a set of metrics for evaluating the judgments made by LLMs. Importantly, these metrics
+           are designed to be independent of the specifics of the downstream causal discovery method.
+           Our findings indicate that LLMs can convincingly exceed the performance level of random
+           guessing, particularly when applied to benchmark datasets that do not necessitate specialized
+           domain knowledge.
+        2. We study the impact of 4 prompt design choices on the proposed metrics in a case study with
+           3 causal discovery datasets and 3 open weight LLMs. We find that a 3-Way prompt (i.e.,
+           allowing the LLM to specify that a relationship does not exist) consistently and significantly
+           improves metrics, while the impacts of other choices are situationally dependent;
+        3. We present a methodology for the extraction and integration of LLM priors in graph
+           discovery algorithms. In particular, we integrate LLM priors with a general causal discovery
+           method [11]. We show that that the combination of LLM and mutual information priors
+           for sampling edges can yield superior performance to baselines due to the ability of LLMs
+           to judge the direction of a relationship, especially in scenarios characterized by a low
+           computational budget. The proposed methodology for extracting and integrating the priors is
+           broadly applicable to other causal discovery algorithms that leverage pairwise edge scores.
+
+2    Related Work
+Hard background knowledge. Many works have considered reducing the space of causal structures
+or biasing its navigation by leveraging background knowledge (e.g., provided by an expert) alongside
+the available observations. Intuitive forms include imposing edges that are certainly present or
+absent [27, 12] or a given ordering, i.e., a sequence in which a node Xi that precedes Xj signifies
+there cannot exist an arc from Xj to Xi [9], which can reduce the search space and render it more
+regular [14, 37]. One can also specify ancestral constraints of the form Xi ⇝ Xj , requiring the
+existence of a (possibly multi-hop) cause-and-effect relationship. Typing assumptions [5] have also
+been considered recently, constraining the realizability of relationships based on expert-specified
+types. This allows formally excluding those that cannot hold due to the nature of the random variable
+(e.g., the temperature of a city cannot possibly alter its altitude [32]).
+Soft background knowledge. A limitation of hard knowledge is that the constraints derived from it
+may lead to the exclusion of the true solution in case it is wrong. Soft background knowledge, on the
+other hand, makes certain structures more or less likely but does not impose formal restrictions. [26]
+considered soft priors based on a block model in which random variables belong to one of several
+                                                   2
+classes that dictate the edge existence probability. Given that LLMs have been shown to successfully
+aid other methods heuristically while performing poorly in an autonomous mode for AI tasks such as
+planning [39], their use for soft background knowledge is a promising yet under-explored direction.
+LLMs for causal reasoning. Recently, LLM-derived priors have been investigated for various
+decision-making tasks [8]. Particularly in a low-data regime (as is typically the case in causal
+structure discovery), they have shown potential to act as a source of “common-sense knowledge”
+when metadata descriptions of the phenomena are available in natural language. An emerging body
+of work evidences that such foundational models contain useful information for causal reasoning
+tasks [20, 41, 21, 19], such as distinguishing pairwise cause and effect [29, 8] as well as the full
+causal discovery problem in which a complex probabilistic structure must be identified.
+LLMs for causal structure discovery. Long et al. [24] queried LLMs about the existence of causal
+relationships in the medical domain and evaluated the accuracy of their output against ground truth
+graphs. This technique constructs causal graphs directly and cannot leverage a dataset of observations.
+Further work by Long et al. [25] used expert knowledge to reduce the size of a Markov Equivalence
+Class (as output by a pre-existing method) such that the ground truth graph is contained in the reduced
+set with high probability. The authors used hard expert judgements and a single 2-Way prompt
+design. Ban et al. [2] used LLMs to extract a set of ancestral constraints that a downstream method
+must obey (alternatively allowing violations that conflict with the observed data). Vashishtha et al.
+[40] designed a technique for extracting an ordering by querying LLMs using node triplets, which
+was subsequently used in a downstream causal discovery method.
+Use of prior knowledge in Monte Carlo tree search. CD-UCT [11] is a variant of the UCT [22]
+algorithm that can be used for planning in Markov Decision Processes. Prior knowledge can be
+integrated with it at various levels [6] in order to increase its effectiveness for a particular domain.
+A mechanism for doing so is designing the simulation policy that is used to sample actions (i.e.,
+graph edges in this context) outside of the search tree, which may yield substantially better solutions
+than the default uniform random sampling of actions. The simulation policy can generally be
+hand-engineered [16, 10] or learned from interactions [15, 35, 1].
+
+3     Methods
+3.1   Causal Graph Discovery
+
+Let G = (V, E) denote a Directed Acyclic Graph (DAG) with d nodes and m edges. Each node
+vi ∈ V corresponds to a Random Variable (RV) Xi that may be discrete or continuous. Edges ei,j
+between vertices vi and vj indicate a directional causal relationship between Xi and Xj . Let Pa(Xi )
+denote the parent set of Xi in the causal graph, i.e., RVs Xk s.t. ek,i ∈ E. Variables Xi are assumed
+                                                                               Qd
+to be independent of other RVs given their parent set: P (X1 , . . . , Xd ) = i=1 P (Xi | Pa(Xi )).
+Given a dataset X ∈ Rn×d of n d-dimensional observations, the goal is to identify the true underlying
+DAG G. In score-based methods, such as the CD-UCT model-based reinforcement learning approach
+we consider in our evaluation, this is formulated as optimizing a score function f such as the widely
+used BIC [33]. Letting D(d) denote the set of DAGs with d nodes, the problem can be formalized as
+finding one of the graphs G∗ satisfying G∗ = argminG∈D(d) f (G).
+
+3.2   Expert Interaction Model for Causal Relationship Extraction
+
+We propose a probabilistic model of interactions with the expert for causal relationship extraction.
+Interactions are formalized via queries Qi,j regarding the likelihood of a causal relationship existing
+between all possible pairs of RVs (Xi , Xj ). We let Q denote the set of all queries. Each query Qi,j
+is itself a random variable with 3 possible outcomes:
+      1. Outcome a: the edge ei,j exists (i.e., there is a direct causal relationship from Xi to Xj );
+      2. Outcome b: the edge ej,i exists (i.e., there is a direct causal relationship from Xj to Xi );
+      3. Outcome c: neither ei,j nor ej,i exists in the causal graph (i.e., there is no direct causal
+         relationship between Xi and Xj in either direction).
+In general, the expert provides probabilities P(Qi,j = a), P(Qi,j = b), P(Qi,j = c) respectively for
+each query. We use Pi,j,a , Pi,j,b , Pi,j,c as shorthands for these probabilities. Given outcomes a, b, c
+
+
+                                                   3
+are exhaustive and mutually exclusive, we have that Pi,j,a +Pi,j,b +Pi,j,c = 1. Note that the quantities
+Pi,j,a and Pj,i,b denote the probability of the same event, i.e., the existence of edge ei,j . With a
+logically coherent expert, one would expect Pi,j,a and Pj,i,b to be equal. However, this tends to not be
+the case with LLMs, as our results will later show. We therefore issue queries in both directions and
+let Pi→j denote the arithmetic mean (Pi,j,a + Pj,i,b )/2. Similarly, we let Pj→i = (Pj,i,a + Pi,j,b )/2
+and Pi↔j = (Pi,j,c + Pj,i,c )/2. It is the case that Pi→j + Pj→i + Pi↔j = 1.
+          −
+
+
+
+
+                                                                              −
+The priors can be of different types. For this reason, we instantiate the general model, considering
+                                                                                                type
+different types of priors forming a matrix Ptype in which the entry at index i, j is the value Pi→j  .
+For example, Uniform Random (UR) priors, which are equivalent to not using an expert, are denoted
+PUR and a specific value as Pi→j
+                               UR
+                                  .
+
+3.3       Metrics for Evaluating Priors
+
+The assessment of expert judgments as answers to a set of queries Q is a key aspect of the proposed
+approach. In fact, metrics for classification (such as those adopted in the existing literature discussed
+in the previous Section) are arguably insufficient since they do not fully capture the implications of
+using the expert knowledge as priors for causal discovery. For example, for an edge ei,j that exists in
+the true causal graph, it is not only the case that Pi→j > Pj→i is desirable; we would also like the
+ratio between Pi,j and Pj,i to be as high as possible, so that the edge is substantially more likely to be
+sampled in the correct direction. We therefore propose a set of metrics that are better-suited for this
+setting and can be assessed independently of the downstream causal discovery method. Recall that E
+denotes the set of edges. It is convenient to also define the set of reverse edges R = {ej,i | ei,j ∈ E};
+and the set of non-edges N = {ei,j | ei,j ∈  / E ∧ ej,i ∈
+                                                        / E}. We then define the metrics as follows.
+Fraction of Correct Orientations (FCO). This metric captures the proportion of the true causal
+relationships that are judged as more likely in the correct direction. Letting | · | denote set cardinality,
+             |{e ∈E | Pi→j >Pj→i }|
+FCO(Q) = i,j            m           .
+True Edge to Reverse Edge (TERE). It captures the aforementioned ratio between the priors of the
+                                                 P        Pi→j
+true edges and their reverse. Formally, TERE(Q) = ei,j ∈E Pj→i .
+True Edge to Negative Edge (TENE). It captures the ratio between the probabilities of the true
+edges and non-edges, corresponding to the desirable characteristic
+                                                         P         that edges that exist in the ground
+                                                                   e   ∈E Pi→j
+truth graph are more likely to be sampled: TENE(Q) = P i,j                        .
+                                                                   ek,l ∈N Pk→l
+
+
+Level Of Disagreement (LOD). Lastly, this quantity measures the lack of coherence in the expert
+judgments, with a value of 0 indicating
+                                   P a coherent expert with respect to the directionality of the
+                                           ei,j ∈E∪R∪N (abs(Pi,j,A −Pj,i,B )+abs(Pj,i,A −Pi,j,B ))
+queries. It is defined as LOD(Q) =                              2d(d−1)                              .
+
+3.4       Integrating Expert Priors with Causal Graph Discovery Algorithms
+
+Ultimately, the goal of this work is to leverage the priors in the causal discovery process. It is worth
+noting that the proposed approach can be integrated with any causal discovery algorithm that uses a
+matrix of pairwise edge scores.
+In our evaluation, we combine the priors with the CD-UCT method [11], which is a general model-
+based reinforcement learning algorithm that optimizes a given score function. We choose this method
+for its flexibility, as it is applicable across many types of random variables and score functions,
+as well as the straightforward compatibility of the expert interaction model with this technique1 .
+CD-UCT follows a simulation policy πsim for sampling valid edge choices from the action space
+A (which is defined in such a way to exclude edges that already exist or whose introduction would
+cause cycles). CD-UCT, much like the standard UCT method, uses a UR policy for performing
+      1
+     To be more precise, using the priors together with CD-UCT biases the search while still allowing the
+maximization of the score function based on the observations. This does not exclude any of the valid causal
+graphs and realizes the requirement that the integration of background knowledge should be soft, given the
+inherent characteristics of LLMs. The considered model of expert interactions, which yields a pairwise matrix of
+scores, can also be combined with other techniques in future work. For example, a pairwise matrix of scores is
+also used in LiNGAM [34] and NOTEARS [42], from which a DAG is then constructed by thresholding.
+
+
+                                                       4
+this sampling – and is thus equivalent to the null priors PUR as defined above. Instead, using the
+expert information, the probability that the simulation policy πsim selects edge ei,j is defined as
+                  exp(Pi→j /τ )
+πsim (ei,j ) = P      exp(Pk→l /τ ) , where the parameter τ controls the level of trust in the prior.
+                   ek,l ∈A
+
+When τ → 0 the valid edge with the largest prior value is chosen deterministically, while τ → ∞
+approaches UR sampling.
+
+3.5     Mutual Information as a Baseline Prior
+
+As baseline, we consider a prior that quantifies the strength of association between two RVs. Mutual
+Information (MI) is an information-theoretic measure of pairwise dependence between two RVs Xi
+and Xj . It represents the amount of information (e.g., measured in a unit such as bits) that knowing
+                                                                                  MI
+the value of Xi reveals about Xj . For discrete variables, it can be computed as Pi→j = I(Xi , Xj ) =
+P                                PXi Xj (xi ,xj )
+   xi ,xj PXi Xj (xi , xj ) log PX (xi )PX (xj ) .
+                                 i      j
+
+In practice, the joint and marginal probabilities are calculated based on the observations X. Tech-
+niques also exist for estimating MI for the continuous variable case [3]. Note that MI is a symmetric
+quantity: while it may signal the strength of a relationship, it does not indicate its directionality.
+In our approach, we propose combining MI and LLM-derived priors using the Hadamard prod-
+uct: PMI⊙LLM = PMI ⊙ PLLM . Doing so allows us to integrate an indication of the strength of a
+relationship with the ability of LLMs to provide information about its more likely directionality.
+
+
+4      Prompting Method and Design
+
+This Section describes the proposed method of interaction with the LLM-based expert. For illustration,
+we use the classic Bayesian network example with 3 RVs, in which rain and sprinklers both
+cause grass wet, and rain has a causal influence on sprinklers. Queries Q are issued to the
+LLM expert based on metadata µi for each RV Xi . The metadata is a textual description of what the
+RV measures, e.g., “the presence of rain”. The LLM is presented with a prompt of the form:
+    Among these three options which one is the most likely true:
+    (A) the presence of rain causes whether the grass is wet
+    (B) whether the grass is wet causes the presence of rain
+    (C) no causal relationship exists between the presence of rain and whether the grass is wet
+    The answer is:
+
+Subsequently, it is asked to generate the next token, and the probabilities of the (A), (B), and (C)
+tokens are measured. These correspond directly to the P(Qi,j = a), P(Qi,j = b), and P(Qi,j = c)
+probabilities as defined in Section 3.2. It may be the case that the token probabilities do not strictly
+sum to 1 (i.e., other tokens have vanishingly small probabilities), in which case they are renormalized.
+Let us now discuss several considerations regarding prompt design that will be assessed experimentally
+in the next Section. We refer to these choices as traits.
+3-Way versus 2-Way. The prompt shown above has three possible answers, and we therefore refer
+to it as 3-Way. The prompt used by Long et al. [25], in contrast, does not allow specifying that the
+most likely outcome is the absence of the relationship. We refer to this design as 2-Way.
+Variable List. We consider, prior to the evaluation of a specific query, providing the LLM with a list
+of metadata descriptions of the RVs. The rationale is that, depending on all RVs to be considered, the
+validity of the relationship Xi → Xk is possibly conditional on an intermediary variable Xj such
+that Xi → Xj and Xj → Xk . The two cannot be distinguished without enumerating all RVs:
+    A list of all the phenomena to be considered follows.
+    the presence of rain
+    whether the grass is wet
+    whether the sprinklers are switched on
+
+Example. We also consider providing an unrelated example of a question and answer pair such as
+the query shown above, so that the LLM is familiarized with the expected input-output format.
+Priming. The final trait under consideration is whether the LLM is provided with a description of the
+domain and task prior to being queried, such as:
+
+
+                                                       5
+    A User interacts with an Expert. The Expert has profound knowledge and experience in the impact of
+    meteorological phenomena. The Expert answers queries about possible causal relationships between two
+    phenomena using their knowledge about cause and effect in this domain. The Expert answers either (A)
+    or (B) corresponding to the direction of the causal relationship, or (C) if no causal relationship
+    exists.
+
+The LLM is prompted with a query of a causal nature in either the 3-Way or 2-Way format, optionally
+preceded by a component corresponding to the Variable List, Example, or Priming traits. The LLM is
+prompted separately for each individual query Q (i.e., the context is reset). More details, including
+full prompt templates, are provided in the Appendix.
+
+5         Experiments
+5.1       Experimental Setup
+
+Datasets. We use the classic benchmark datasets in the Bayesian networks literature, originally part
+of the Bayesian Network Repository [13]: Asia [23] (d = 8, m = 8), Child [36] (d = 20, m = 25),
+and Insurance [4] (d = 27, m = 52). We use n = 1000 samples for each. The metadata descriptions
+of the RVs are adapted from [25]. Further details are supplied in the Appendix.
+Choice of LLMs. We make use of open-weights LLMs to conduct our evaluation, which renders our
+results fully reproducible. Specifically, for the primary experiments, we utilize the LLaMA2-7B [38],
+LLaMA3-8B [28], and Mistral-7B [18] models. We work with models of this size as they have
+shown good performance on commonsense reasoning tasks [38] while being sufficiently fast when
+performing inference, an important consideration given the scale of our evaluation. In fact, we
+consider all possible pairwise relationships for several datasets, models, and prompt designs repeated
+across random seeds. To assess the possible impacts of larger models, we also carry out the evaluation
+with the LLaMA2-13B and LLaMA2-70B models (on the Asia dataset only due to computational
+budget limitations) and report the results in the Appendix. We leverage the fine-tuned “Chat" or
+“Instruction” variants. Further technical details are provided in the Appendix.
+Output stochasticity. When performing LLM inference, we use a temperature of 0, resulting in the
+model outputting the highest-probability token. This choice is made so that outputs are as “factual”
+as possible. To obtain statistically meaningful results, we introduce stochasticity by varying the verb
+used when prompting out of 20 choices including causes. The full list is given in the Appendix.
+Evaluation methodology. We report results aggregated over 200 random seeds and display 95%
+confidence intervals where relevant2 . We repeat experiments with priors produced with different
+causal verbs; more specifically, each of the 20 prior matrices P obtained with different verbs is used
+with 10 random initializations of the causal discovery procedure. For the standalone LLM evaluations,
+we report the metrics proposed in Section 3.3. For the full causal discovery problem, we report the
+Structural Hamming Distance (SHD), i.e., the minimum number of edge additions, deletions, and
+reversals for transforming the output graph into the ground truth causal graph.
+
+5.2       Standalone LLM Evaluation
+
+
+Figure 2 shows the results obtained by measuring the proposed metrics on the probabilistic LLM
+outputs. Each column displays the value of a particular metric and the rows correspond to results for
+3-Way and 2-Way prompting respectively for each of the 3 datasets. Within each plot, the bars are
+split by the specific LLM and prompt design. The horizontal red line, where applicable, corresponds
+to the use of UR priors. Overall, the LLMs typically surpass this threshold, suggesting their use as
+priors for causal discovery would surpass UR priors. The results are poorer on the Child dataset
+(d = 20), which arguably requires more specialized knowledge – e.g., an edge exists between the
+RVs whose descriptions are hypoxia when breathing oxygen and level of oxygen in
+the right up quadricep muscle, which may not be straightforward for an untrained human
+expert. Results for the Insurance benchmark, which requires more “common sense”, are substantially
+better despite the larger graph size (d = 27). We complement these results with statistical tests that
+can be found in Table 3 in the Appendix.
+      2
+     In a future version, our implementation, data, and instructions will be publicly released in order to ensure
+full reproducibility of all the reported results.
+
+
+                                                       6
+                           FCO ( )                            TERE ( )        Asia                      TENE ( )                            LOD ( )
+           1.0                                                                         6
+                                               7.5                                                                          0.75                 Plain
+
+3-Way Prompt
+                                                                                       4                                                         Variable List
+                                               5.0                                                                          0.50                 Example
+           0.5                                                                                                                                   Priming
+                                               2.5                                     2                                    0.25
+           0.0                                 0.0                                     0                                    0.00
+           1.0                                                                         6
+                                               7.5                                                                          0.75
+2-Way Prompt
+
+
+
+
+                                               5.0                                     4
+           0.5                                                                                                              0.50
+                                               2.5                                     2                                    0.25
+           0.0                                 0.0                                     0                                    0.00
+                           FCO ( )                            TERE ( )       Child                      TENE ( )                            LOD ( )
+           0.6                                 1.5
+                                                                                                                            0.75                 Plain
+3-Way Prompt
+
+
+
+
+                                               1.0                                    1.0                                                        Variable List
+           0.4                                                                                                              0.50                 Example
+                                                                                      0.5                                                        Priming
+           0.2                                 0.5                                                                          0.25
+           0.0                                 0.0                                    0.0                                   0.00
+
+           0.6                                 1.5
+                                                                                                                            0.75
+2-Way Prompt
+
+
+
+
+           0.4                                 1.0                                    1.0
+                                                                                                                            0.50
+           0.2                                 0.5                                    0.5                                   0.25
+           0.0                                 0.0                                    0.0                                   0.00
+                           FCO ( )                            TERE ( )    Insurance                     TENE ( )                            LOD ( )
+           0.75                                                                         2                                   0.75                 Plain
+3-Way Prompt
+
+
+
+
+                                                 2                                                                                               Variable List
+           0.50                                                                                                             0.50                 Example
+                                                 1                                      1                                                        Priming
+           0.25                                                                                                             0.25
+           0.00                                  0                                      0                                   0.00
+
+           0.75                                                                         2                                   0.75
+2-Way Prompt
+
+
+
+
+                                                 2
+           0.50                                                                                                             0.50
+                                                 1                                      1
+           0.25                                                                                                             0.25
+           0.00                                  0                                      0                                   0.00
+                      MA2-7B MA3-8B stral-7B             MA2-7B MA3-8B stral-7B                 MA2-7
+                                                                                                     B       -8B
+                                                                                                          MA3 Mistra
+                                                                                                                     l-7B
+                                                                                                                                      MA2
+                                                                                                                                         -7B       -8B
+                                                                                                                                                MA3 Mistra
+                                                                                                                                                           l-7B
+                  LLa       LLa    Mi                LLa       LLa    Mi                    LLa       LLa                          LLa      LLa
+
+
+
+   Figure 2: Results for the metrics defined over probabilistic LLM judgments. The red lines indicate
+   the values that would be obtained by UR priors. In most cases, LLMs show better results than those
+   obtained with UR, and hence can serve as useful priors for causal discovery. LLM performance is
+   weaker on the Child dataset, which requires specialist domain knowledge. LLaMA models yield
+   better TERE and TENE values at the expense of a higher LOD.
+
+
+
+
+   The dataset under consideration and prompt design are strong determinants of performance and there
+   is no universal winner. Nevertheless, LLaMA3-8B generally outperforms LLaMA2-7B in all metrics.
+   Mistral-7B also obtains better edge orientations (FCO) than LLaMA2-7B in two thirds of cases. The
+   LLaMA models exhibit higher disagreement (LOD) and hence provide more inconsistent answers.
+   This is also reflected in the higher TERE and TENE obtained by the LLaMA models. Regarding the
+   different prompt traits, 3-Way prompting improves FCO, TERE and TENE, while reducing LOD in
+   all settings tested. This specific result also confirms a finding of a study of LLM prompting based on
+   one LLM and one dataset presented in [21]. Hence, this query structure is preferable when eliciting
+   probabilistic background knowledge from LLMs. Furthermore, the Variable List trait consistently
+   improves metrics for the LLaMA models, with inconclusive impacts on Mistral-7B. Finally, the
+   other traits result in metric differences that, while generally statistically significant, do not show a
+   consistent pattern across datasets and LLMs.
+
+
+
+
+                                                                                  7
+  Table 1: SHD obtained when constructing causal graphs by greedily choosing the edges with the
+  top-m largest priors. LLM priors lead to causal graphs that are more accurate than those sampled
+  uniformly at random. We observe that MI can be used as a basis for a strong prior that outperforms
+  LLMs when considered in isolation. However, the best-performing prior is obtained by combining
+  MI and LLM priors, with the latter providing the more likely directionality of the relationship.
+
+
+     Dataset              MI        LL A MA2-7B       LL A MA3-8B         M ISTRAL -7B   MI⊙LL A MA2-7B                 MI⊙LL A MA3-8B    MI⊙M ISTRAL -7B            U NIFORM R ANDOM
+     Asia                 7.020         7.470                8.370            9.295                6.595                     6.240                    6.365                12.620
+     Child               25.715        46.930               43.115           46.505               31.080                     28.015                  23.515                45.300
+     Insurance           68.470        83.830               79.550           84.615               63.385                     55.995                  63.200                92.080
+
+
+
+
+                   UR           MI         LLaMA2-7B                 LLaMA3-8B           Mistral-7B                   MI LLaMA2-7B         MI LLaMA3-8B                     MI Mistral-7B
+                                 bsims = 1                                 bsims = 1                                      bsims = 100                                bsims = 100
+                  2.30                                                                                         2.19
+                                                            9.00                                                                                     6.00
+                                                                                                               2.19
+                  2.28                                      8.00
+      Score ( )
+
+
+
+
+                                                                                                   Score ( )
+                                                      SHD ( )
+
+
+
+
+                                                                                                                                               SHD ( )
+                                                                                                               2.18                                  5.00
+Asia
+
+
+
+
+                  2.25                                      7.00                                               2.18                                  4.00
+                  2.23                                      6.00                                               2.17
+                  2.20                                      5.00                                                                                     3.00
+                                                                                                               2.17
+
+             15.00                                        35.00                                                                                    24.00
+                                                                                                          13.50
+                                                                                                                                                   22.00
+     Score ( )
+
+
+
+
+                                                                                                  Score ( )
+                                                  SHD ( )
+
+
+
+
+                                                                                                                                           SHD ( )
+Child
+
+
+
+
+             14.50                                        30.00                                           13.40                                    20.00
+                                                                                                          13.30                                    18.00
+             14.00                                        25.00
+                                                                                                                                                   16.00
+                                                                                                          13.20
+                                                                                                                                                   14.00
+                                                          80.00                                           15.30
+             18.00
+                                                          75.00                                                                                    68.00
+Insurance
+
+
+
+
+                                                                                                          15.20                                    66.00
+  Score ( )
+
+
+
+
+                                                                                                  Score ( )
+
+
+
+
+                                                          70.00
+                                                  SHD ( )
+
+
+
+
+                                                                                                                                           SHD ( )
+             17.00
+                                                          65.00                                                                                    64.00
+                                                                                                          15.10
+             16.00                                        60.00                                                                                    62.00
+                                                          55.00                                           15.00                                    60.00
+                         10 4        10 2       100                   10 4      10 2        100                       10 4      10 2     100                  10 4        10 2        100
+                           Prior strength                               Prior strength                                  Prior strength                          Prior strength
+
+
+
+  Figure 3: Results obtained using CD-UCT with various priors. The leftmost two and rightmost two
+  columns show the results with computational budget multipliers of 1 and 100 respectively. MI and
+  MI⊙LLM priors outperform the default UR priors over edges, while LLM priors by themselves do
+  not always do so. The benefit of using priors is more pronounced with lower simulation budgets. An
+  intermediate level of trust in the prior tends to result in the best outcome.
+
+
+
+  5.3               Priors for Causal Graph Discovery
+
+
+
+ For the full causal discovery problem, we use priors derived with the 3-Way Plain prompting style
+ for Mistral-7B and 3-Way Variable List for the LLaMA models, as informed by the results above.
+ We first evaluate the priors’ quality in a simplified setting by constructing the causal graph for the
+ highest-scoring top-m edges. This is performed incrementally starting with the highest-value edge,
+ breaking ties arbitrarily, and excluding edges that would introduce cycles. Table 1 shows the SHD
+ to the true causal graph averaged over 200 random seeds. We find that the standalone LLM priors,
+ while better than UR priors, fare substantially worse than MI. The best-performing priors are those
+ obtained by combining MI and LLMs, therefore leveraging the foundation models’ abilities to judge
+ the more likely directionality of the relationships.
+  In Figure 3, we display the results obtained when equipping the CD-UCT causal discovery method
+  with various priors. The first two and last two columns show results obtained with a low (bsims = 1)
+  and high (bsims = 100) computational budget of simulations, respectively. The x-axis shows the prior
+  strength τ , while the y-axis measures the metric of interest (score function value of the output graph
+  and SHD to the ground truth graph respectively).
+
+
+                                                                                              8
+Table 2: Percentage decrease in SHD obtained by CD-UCT with the specified priors over the standard
+UR priors (higher is better). Generally, the considered priors improve on the standard method,
+indicated by cells containing values above 0. Combining MI and LLM priors can lead to the best
+improvement over standard CD-UCT. As in the standalone evaluation, LLM performance is poorer
+on the highly specialized Child dataset.
+
+
+ Dataset     bsims    MI      LL A MA2-7B   LL A MA3-8B   M ISTRAL -7B   MI⊙LL A MA2-7B   MI⊙LL A MA3-8B   MI⊙M ISTRAL -7B
+ Asia        100     39.903     13.102        19.599        11.803          39.199            38.062           38.603
+             101     33.187     44.274         1.678        −1.459          46.244            32.677           38.877
+             102     37.280     40.333         5.643         9.436          48.844            26.272           45.051
+ Child       100     35.277     9.820         14.147         8.654          18.095            29.615           34.673
+             101     29.211    −1.089          5.902        −1.300          −1.669            21.342           22.958
+             102     28.670    −0.191         14.681        −1.767           0.286            11.506           23.872
+ Insurance   100     22.999    −0.095          9.310         0.530           20.748          25.787            23.686
+             100      9.447     1.057          2.790        −0.050            3.336          12.503             7.700
+             102      2.389     0.052          1.940        −0.592            2.614           4.396            5.580
+
+
+
+
+We find that MI and MI⊙LLM priors consistently outperform the standard UR simulation policy of
+CD-UCT, while standalone LLM priors are not always beneficial. The gain when using the priors
+tends to be stronger with a low computational budget (i.e., when outputs have to be generated quickly),
+as indicated by the larger differences w.r.t. the blue line in the leftmost two columns. Regarding the
+level of trust τ in the priors, a middle ground value tends to perform best. As τ increases and priors
+matter less, metrics converge to those obtained by the standard CD-UCT with a UR simulation policy.
+Interestingly, in some cases such as LLaMA2-7B and the Asia dataset, the LLM priors can lead to
+a more truthful causal graph (low SHD) despite high score function values. This indicates that the
+LLM judgments are accurate despite the relationship not being supported by the data. Table 2 shows
+the percentage decreases in SHD relative to CD-UCT with UR priors obtained with the τ value that
+leads to the best-scoring graphs, indicating that most considered priors attain improvements over UR.
+Combining MI and LLM priors performs best on Asia and Insurance, while MI by itself does best on
+the Child benchmark on which the LLM judgments are poor in general.
+
+6    Conclusions
+Contributions. In this work, we have examined the potential of using LLM priors for causal
+discovery. We have formulated a probabilistic model of expert interaction that allows for the soft
+integration of prior knowledge. Furthermore, we have proposed a suite of metrics for evaluating
+LLM judgments separately from the downstream causal graph discovery method. Our evaluation
+shows that LLMs can be used to extract informative priors. We have also considered several design
+choices for prompts and found that 3-Way queries, which allow the model to specify that no direct
+causal relationship exists, consistently lead to more accurate causal graph reconstruction. Finally, we
+integrated LLM priors with a state-of-the-art causal discovery method using mutual information for
+sampling, demonstrating that combining them with mutual information priors can lead to superior
+performance. This is largely due to the ability of LLMs to determine the more likely direction of a
+relationship, which is particularly useful in scenarios with a limited computational budget.
+Limitations. Regarding the limitations of this work, we acknowledge that while considering the
+d ∗ (d − 1) pairwise relationships is feasible at this scale, larger networks would require a form of pre-
+processing to establish a restricted set of possible parents for each RV. This would reduce the number
+of queries and could be based on the collected observations or expert knowledge. Furthermore, LLMs
+may have been exposed to the considered benchmarks during training.
+Future work. A more interactive model of expert interaction can be considered; however, such a
+model would potentially require substantially more LLM inferences. We also note that fine-tuning
+the LLM for causal reasoning has the potential to improve performance; however, this might require
+a significant amount of data for extracting the “true” causal graphs.
+
+
+
+
+                                                              9
+Acknowledgments and Disclosure of Funding
+This work was supported by the Turing’s Defence and Security programme through a partnership
+with the UK government in accordance with the framework agreement between GCHQ & The Alan
+Turing Institute.
+
+References
+ [1] Thomas Anthony, Zheng Tian, and David Barber. Thinking Fast and Slow with Deep Learning and Tree
+     Search. In NeurIPS, 2017.
+ [2] Taiyu Ban, Lyvzhou Chen, Xiangyu Wang, and Huanhuan Chen. From query tools to causal architects: Har-
+     nessing large language models for advanced causal discovery from data. arXiv preprint arXiv:2306.16902,
+     2023.
+ [3] Mohamed Ishmael Belghazi, Aristide Baratin, Sai Rajeshwar, Sherjil Ozair, Yoshua Bengio, Aaron
+     Courville, and Devon Hjelm. Mutual information neural estimation. In ICML, 2018.
+ [4] John Binder, Daphne Koller, Stuart Russell, and Keiji Kanazawa. Adaptive probabilistic networks with
+     hidden variables. Machine Learning, 29:213–244, 1997.
+ [5] Philippe Brouillard, Perouz Taslakian, Alexandre Lacoste, Sébastien Lachapelle, and Alexandre Drouin.
+     Typing assumptions improve identification in causal discovery. In CLeaR, 2022.
+ [6] Cameron B. Browne, Edward Powley, Daniel Whitehouse, Simon M. Lucas, Peter I. Cowling, Philipp
+     Rohlfshagen, Stephen Tavener, Diego Perez, Spyridon Samothrakis, and Simon Colton. A survey of Monte
+     Carlo tree search methods. IEEE Transactions on Computational Intelligence and AI in Games, 4(1):1–43,
+     2012.
+ [7] Eunice Yuh-Jie Chen, Yujia Shen, Arthur Choi, and Adnan Darwiche. Learning bayesian networks with
+     ancestral constraints. In NeurIPS, 2016.
+ [8] Kristy Choi, Chris Cundy, Sanjari Srivastava, and Stefano Ermon. LMPriors: Pre-trained language models
+     as task-specific priors. In NeurIPS Foundation Models for Decision Making Workshop, 2022.
+ [9] Gregory F. Cooper and Edward Herskovits. A bayesian method for the induction of probabilistic networks
+     from data. Machine Learning, 9:309–347, 1992.
+[10] Victor-Alexandru Darvariu, Stephen Hailes, and Mirco Musolesi. Planning spatial networks with Monte
+     Carlo tree search. Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences,
+     479(2269):20220383, 2023.
+[11] Victor-Alexandru Darvariu, Stephen Hailes, and Mirco Musolesi. Tree Search in DAG Space with
+     Model-based Reinforcement Learning for Causal Discovery. arXiv preprint arXiv:2310.13576, 2023.
+[12] Luis M. de Campos and Javier G. Castellano. Bayesian network learning algorithms using structural
+     restrictions. International Journal of Approximate Reasoning, 45(2):233–254, 2007.
+[13] Gal Elidan. Bayesian Network Repository, 2001. URL https://www.cs.huji.ac.il/~galel/
+     Repository/.
+[14] Nir Friedman and Daphne Koller. Being Bayesian about network structure. A Bayesian approach to
+     structure discovery in Bayesian networks. Machine Learning, 50:95–125, 2003.
+[15] Sylvain Gelly and David Silver. Combining online and offline knowledge in UCT. In ICML, 2007.
+[16] Sylvain Gelly, Yizao Wang, Rémi Munos, and Olivier Teytaud. Modification of UCT with patterns in
+     Monte-Carlo Go. Technical Report RR-6062, INRIA, 2006.
+[17] Tom Henighan, Jared Kaplan, Mor Katz, Mark Chen, Christopher Hesse, Jacob Jackson, Heewoo Jun,
+     Tom B. Brown, Prafulla Dhariwal, Scott Gray, Chris Hallacy, Benjamin Mann, Alec Radford, Aditya
+     Ramesh, Nick Ryder, Daniel M. Ziegler, John Schulman, Dario Amodei, and Sam McCandlish. Scaling
+     laws for autoregressive generative modeling. arXiv preprint arXiv:2010.14701, 2020.
+[18] Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego
+     de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, Lélio Renard Lavaud,
+     Marie-Anne Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril, Thomas Wang, Timothée Lacroix, and
+     William El Sayed. Mistral 7B. arXiv preprint 2310.06825, 2023.
+
+
+                                                    10
+[19] Zhijing Jin, Jiarui Liu, Zhiheng Lyu, Spencer Poff, Mrinmaya Sachan, Rada Mihalcea, Mona T. Diab, and
+     Bernhard Schölkopf. Can large language models infer causation from correlation? In ICLR, 2024.
+[20] Vivek Khetan, Roshni Ramnani, Mayuresh Anand, Subhashis Sengupta, and Andrew E. Fano. Causal
+     BERT: Language models for causality detection between events expressed in text. In Intelligent Computing,
+     pages 965–980. Springer, 2022.
+[21] Emre Kıcıman, Robert Ness, Amit Sharma, and Chenhao Tan. Causal reasoning and large language models:
+     Opening a new frontier for causality. arXiv preprint arXiv:2305.00050, 2023.
+[22] Levente Kocsis and Csaba Szepesvári. Bandit based Monte-Carlo planning. In ECML, 2006.
+[23] Steffen L. Lauritzen and David J. Spiegelhalter. Local computations with probabilities on graphical
+     structures and their application to expert systems. Journal of the Royal Statistical Society: Series B
+     (Methodological), 50(2):157–194, 1988.
+[24] Stephanie Long, Tibor Schuster, and Alexandre Piché. Can large language models build causal graphs? In
+     NeurIPS Workshop on Causal Machine Learning for Real-World Impact, 2022.
+[25] Stephanie Long, Alexandre Piché, Valentina Zantedeschi, Tibor Schuster, and Alexandre Drouin. Causal
+     discovery with language models as imperfect experts. In ICML Workshop on Structured Probabilistic
+     Inference & Generative Modeling, 2023.
+[26] Vikash K. Mansinghka, Charles Kemp, Joshua B. Tenenbaum, and Thomas L. Griffiths. Structured priors
+     for structure learning. In UAI, 2006.
+[27] Christopher Meek. Causal inference and causal explanation with background knowledge. In UAI, 1995.
+[28] Meta. Introducing Meta Llama 3: The most capable openly available LLM to date, 2024. URL https:
+     //ai.meta.com/blog/meta-llama-3/.
+[29] Joris M. Mooij, Jonas Peters, Dominik Janzing, Jakob Zscheischler, and Bernhard Schölkopf. Distinguish-
+     ing cause from effect using observational data: methods and benchmarks. Journal of Machine Learning
+     Research, 17(32):1–102, 2016.
+[30] Stephen L. Morgan and Christopher Winship. Counterfactuals and Causal Inference. Cambridge University
+     Press, 2015.
+[31] Judea Pearl. Causality. Cambridge University Press, 2009.
+[32] Jonas Peters, Dominik Janzing, and Bernhard Schölkopf. Elements of Causal Inference: Foundations and
+     Learning Algorithms. MIT Press, 2017.
+[33] Gideon Schwarz. Estimating the dimension of a model. The Annals of Statistics, 6(2):461–464, 1978.
+[34] Shohei Shimizu, Patrik O. Hoyer, Aapo Hyvärinen, Antti Kerminen, and Michael Jordan. A linear non-
+     Gaussian acyclic model for causal discovery. Journal of Machine Learning Research, 7(72):2003–2030,
+     2006.
+[35] David Silver, Aja Huang, Chris J. Maddison, Arthur Guez, Laurent Sifre, George van den Driessche, Julian
+     Schrittwieser, Ioannis Antonoglou, Vedavyas Panneershelvam, Marc Lanctot, Sander Dieleman, Dominik
+     Grewe, John Nham, Nal Kalchbrenner, Ilya Sutskever, Timothy P. Lillicrap, Madeleine Leach, Koray
+     Kavukcuoglu, Thore Graepel, and Demis Hassabis. Mastering the game of Go with deep neural networks
+     and tree search. Nature, 529(7587):484–489, 2016.
+[36] David J. Spiegelhalter. Learning in probabilistic expert systems. Bayesian Statistics, 4:447–465, 1992.
+[37] Marc Teyssier and Daphne Koller. Ordering-based search: A simple and effective algorithm for learning
+     bayesian networks. In UAI, 2005.
+[38] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay
+     Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian Canton
+     Ferrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller,
+     Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan
+     Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit Singh
+     Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao,
+     Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy
+     Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric Michael Smith, Ranjan
+     Subramanian, Xiaoqing Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian Xiang Kuan, Puxin
+
+
+                                                     11
+     Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurelien
+     Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas Scialom. Llama 2: Open foundation and fine-tuned
+     chat models. arXiv preprint arXiv:2307.09288, 2023.
+
+[39] Karthik Valmeekam, Matthew Marquez, Sarath Sreedharan, and Subbarao Kambhampati. On the planning
+     abilities of large language models - a critical investigation. In NeurIPS, 2023.
+
+[40] Aniket Vashishtha, Abbavaram Gowtham Reddy, Abhinav Kumar, Saketh Bachu, Vineeth N. Balasubra-
+     manian, and Amit Sharma. Causal inference using LLM-guided discovery. In AAAI LLM-CP Workshop,
+     2024.
+
+[41] Moritz Willig, Matej Zečević, Devendra Singh Dhami, and Kristian Kersting. Can foundation models talk
+     causality? In UAI Causal Representation Learning Workshop, 2022.
+
+[42] Xun Zheng, Bryon Aragam, Pradeep K. Ravikumar, and Eric P. Xing. DAGs with no tears: continuous
+     optimization for structure learning. In NeurIPS, 2018.
+
+
+A    Experiment and Implementation Details
+Code and data. In a future version, we will release source code accompanied by detailed instructions
+for setting up and reproducing the experiments presented in the main text. The Bayesian Network
+Repository [13] makes the datasets available without licensing restrictions.
+CD-UCT method and parameters. We implement CD-UCT as described in [11]. In the
+experiments, we use an exploration parameter Cp = 0.025, search horizon h = 16, and simulation
+budget parameters bsims ∈ {100 , 101 , 102 }. We consider 15 possible values for the prior strength τ ∈
+{0.00001, 0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 1}.
+The other parameters are held constant so that the different types of priors can be compared equitably.
+LLM inference and quantization. To perform inference, we make use of the llama.cpp library,
+whose custom binary format is compatible with a variety of models and hardware architectures,
+allowing LLM inference on CPUs. We use 6-bit (i.e., Q6_K) post-training quantization (PTQ) for all
+models except for the larger LLaMA2-70B, for which we use the 5-bit Q5_K_M quantization. This
+substantially reduces hardware requirements with fairly minimal quality loss (i.e., the specified 6-bit
+quantization yields a perplexity 0.1% higher compared to the unquantized 16-bit original model, as
+shown through benchmarks performed by the library authors).
+Computational infrastructure. Experiments were conducted exclusively on commodity CPUs on
+an in-house High Performance Computing (HPC) cluster. On this infrastructure, the standalone LLM
+experiments (Section 5.2) and the full causal discovery experiments (Section 5.3) took approximately
+718 and 616 days of single-core CPU time respectively.
+
+B    Additional Results
+Statistical tests for prompt traits. In Table 3, we present the results of statistical tests to examine the
+impacts of the different prompt traits, complementing the results in Section 5.2. Each cell displays
+the difference in the metric obtained when the specified trait is present versus absent. We perform a
+paired t-test and highlight statistically insignificant values at a 95% confidence level in light gray.
+Approximately 80% (115/144) of the comparisons yield statistically significant results and support
+the interpretation given in the main text.
+Results with larger LLaMA2 models. We conduct the same experiments as reported in Sections 5.2
+and 5.3 using the larger LLaMA2-13B and LLaMA2-70B models. Due to computational budget
+limitations, we perform this on the Asia dataset only. The obtained standalone metrics and causal
+discovery results are shown in Figure 4 and Table 4 respectively. While larger models do present
+some improvements (e.g., the 70B variant yields an average of 84% FCO compared to the 74% FCO
+obtained by the 7B version), the differences are fairly small and not always consistent (e.g., the
+larger 13B variant obtains 71% FCO on average). This reflects that the considered task resembles
+commonsense reasoning or world knowledge benchmarks more closely, for which differences between
+LLM sizes are less significant compared to language understanding or mathematical reasoning
+tasks [38]. The differences are even less consistent when the priors are used together with the causal
+
+
+                                                    12
+Table 3: Mean differences obtained with and without the specified prompt trait. We find that 3-Way
+prompting improves the values of all the metrics across the board, and should be preferred when
+querying LLMs about causal relationships. The other prompt design choices do not yield universally
+better metric values, resulting in effects that are dependent on the dataset and specific model.
+
+                                     Trait           Dataset        Model            FCO (↑)       TERE (↑)      TENE (↑)   LOD (↓)
+                                     3-Way Prompt    Asia           LLaMA2-7B         0.0281         0.8259        1.9447    -0.4173
+                                                                    LLaMA3-8B         0.0087         2.3495        1.4726    -0.1338
+                                                                    Mistral-7B        0.0312         0.1579        0.1998    -0.0804
+                                                     Child          LLaMA2-7B         0.0505         0.0685        0.1121    -0.3281
+                                                                    LLaMA3-8B        -0.0012         0.0219        0.0902    -0.1109
+                                                                    Mistral-7B        0.0020         0.0004        0.0002    -0.0850
+                                                     Insurance      LLaMA2-7B         0.0320         0.2530        0.3061    -0.4128
+                                                                    LLaMA3-8B         0.0384         0.5052        0.5467    -0.1186
+                                                                    Mistral-7B        0.0322         0.0737        0.0449    -0.0970
+                                     Variable List   Asia           LLaMA2-7B         0.1125         0.6127        0.8624     0.0201
+                                                                    LLaMA3-8B         0.1500         1.9033       -0.0683    -0.0604
+                                                                    Mistral-7B        0.1156        -0.1176       -0.0965    -0.0759
+                                                     Child          LLaMA2-7B         0.1020         0.0698       -0.2295     0.1039
+                                                                    LLaMA3-8B         0.0780         0.2564        0.1449    -0.1637
+                                                                    Mistral-7B       -0.0720        -0.0224       -0.0254    -0.0438
+                                                     Insurance      LLaMA2-7B         0.1024         0.1258        0.0734     0.0164
+                                                                    LLaMA3-8B         0.0745         0.2581        0.0731    -0.0350
+                                                                    Mistral-7B        0.0096        -0.0092       -0.0095    -0.0572
+                                     Example         Asia           LLaMA2-7B         0.0813         0.1317       -1.1198     0.1556
+                                                                    LLaMA3-8B         0.0813        -0.1025       -0.4334     0.0666
+                                                                    Mistral-7B        0.0187         0.0576       -0.0569     0.0239
+                                                     Child          LLaMA2-7B         0.0100        -0.0021       -0.1309     0.1314
+                                                                    LLaMA3-8B        -0.0320        -0.0116        0.0403     0.0342
+                                                                    Mistral-7B       -0.0960        -0.0458       -0.0304    -0.0229
+                                                     Insurance      LLaMA2-7B         0.0476        -0.0482       -0.1336     0.2147
+                                                                    LLaMA3-8B         0.0072         0.3592       -0.1709     0.1069
+                                                                    Mistral-7B        0.0163         0.0617        0.0477     0.0325
+                                     Priming         Asia           LLaMA2-7B         0.0563         0.1134       -0.7553    -0.0797
+                                                                    LLaMA3-8B         0.1924        -0.4295       -0.8362    -0.0284
+                                                                    Mistral-7B        0.0844         0.0732       -0.0341    -0.0032
+                                                     Child          LLaMA2-7B         0.0490        -0.0096       -0.1615    -0.0609
+                                                                    LLaMA3-8B        -0.0463        -0.0285       -0.0295    -0.0714
+                                                                    Mistral-7B       -0.0260        -0.0015       -0.0114     0.0216
+                                                     Insurance      LLaMA2-7B         0.0543         0.0262       -0.0072    -0.0539
+                                                                    LLaMA3-8B         0.0297        -0.0080       -0.2757     0.0038
+                                                                    Mistral-7B        0.0154         0.0415        0.0213     0.0199
+
+
+
+                               FCO ( )                            TERE ( )       Asia                 TENE ( )                             LOD ( )
+                                                                                         6
+                                                                                                                            0.75
+    3-Way Prompt
+
+
+
+
+               0.75                                  4                                   4
+               0.50                                                                                                         0.50
+                                                     2                                   2                                  0.25
+               0.25
+               0.00                                  0                                   0                                  0.00
+                                                                                         6
+                                                                                                           Plain            0.75
+    2-Way Prompt
+
+
+
+
+               0.75                                  4                                                     Variable List
+                                                                                         4
+               0.50                                                                                        Example          0.50
+                                                     2                                                     Priming
+               0.25                                                                      2                                  0.25
+               0.00                                  0                                   0                                  0.00
+                            -7B      -13B   -70B               -7B      -13B  -70B                 -7B   13B    70B                      -7B   13B    70B
+                         MA2      MA2 LaMA2                 MA2      MA2 LaMA2                  MA2 aMA2- aMA2-                       MA2 aMA2- aMA2-
+                      LLa     LLa       L                LLa     LLa       L                 LLa     LL    LL                      LLa     LL    LL
+
+Figure 4: Metrics results for larger LLaMA models on the Asia dataset. While some improvements
+are exhibited, models with higher parameter counts do not lead to substantially better performance,
+echoing results on commonsense reasoning benchmarks.
+
+
+discovery algorithm. This is a scenario in which they interact with the maximization of the score
+function and the Mutual Information computed on the dataset.
+
+C             Prompting Templates and Dataset Metadata
+The set of causal verbs under consideration [25] comprises 20 distinct wordings: causes,
+provokes, triggers, leads to, induces, results in, brings about, yields,
+generates, initiates, produces, stimulates, instigates, fosters, engenders,
+promotes, catalyzes, gives rise to, spurs, sparks.
+
+
+                                                                                 13
+Table 4: SHD obtained on Asia by CD-UCT with priors derived from LLaMA2 variants of different
+sizes. The results with respect to model size are inconclusive, given that they are affected by the
+interaction with the score function maximization procedure in the causal discovery method.
+
+     Dataset   bsims   LL A MA2-7B   LL A MA2-13B   LL A MA2-70B     MI⊙LL A MA2-7B   MI⊙LL A MA2-13B   MI⊙LL A MA2-70B
+     Asia      100       13.102         34.001         19.058           39.199            59.664            49.702
+               101       44.274         37.710          8.753           46.244            63.822            47.994
+               102       40.333         25.254         13.228           48.844            43.386            44.033
+
+
+
+
+Below, we give the prompt templates and dataset metadata that are used to compose the LLM queries.
+Note that they are provided herein for completeness and that they will be made available together
+with source code in a future version.
+
+ 3-Way: Query
+ Among these three options which one is the most likely true:
+ (A) $xvar $verb $yvar
+ (B) $yvar $verb $xvar
+ (C) no causal relationship exists between $xvar and $yvar
+ The answer is:
+
+
+ 3-Way: Variable List
+ A list of all the phenomena to be considered follows.
+ $varlist
+
+
+ 3-Way: Example
+ Among these three options which one is the most likely true:
+ (A) the presence of rain $verb whether the grass is wet
+ (B) whether the grass is wet $verb the presence of rain
+ (C) no causal relationship exists between the presence of rain and whether the grass is wet
+ The answer is: (A)
+
+
+ 3-Way: Priming
+ A User interacts with an Expert.
+ The Expert has profound knowledge and experience in $domain.
+ The Expert answers queries about possible causal relationships between two phenomena using their
+ knowledge about cause and effect in this domain.
+ The Expert answers either (A) or (B) corresponding to the direction of the causal relationship, or (C)
+ if no causal relationship exists.
+
+
+
+ 2-Way: Query
+ Among these two options which one is the most likely true:
+ (A) $xvar $verb $yvar
+ (B) $yvar $verb $xvar
+ The answer is:
+
+
+ 2-Way: Variable List
+ A list of all the phenomena to be considered follows.
+ $varlist
+
+
+ 2-Way: Example
+ Among these two options which one is the most likely true:
+ (A) the presence of rain $verb whether the grass is wet
+ (B) whether the grass is wet $verb presence of rain
+ The answer is: (A)
+
+
+ 2-Way: Priming
+ A User interacts with an Expert.
+ The Expert has profound knowledge and experience in $domain.
+ The Expert answers queries about possible causal relationships between two phenomena using their
+ knowledge about cause and effect in this domain.
+ The Expert answers either (A) or (B) corresponding to the direction of the causal relationship.
+
+
+
+
+                                                                14
+Metadata: Asia
+Domain description: pneumonology, a medical specialty that deals with diseases involving the
+respiratory tract
+Variable id, name, and metadata:
+1,asia,visited Asia
+2,tub,tuberculosis
+3,smoke,smoking cigarettes
+4,lung,lung cancer
+5,bronc,bronchitis
+6,either,individual has either tuberculosis or lung cancer
+7,xray,positive xray
+8,dysp,"dyspnoae, laboured breathing "
+
+
+Metadata: Child
+Domain description: neonatology, a subspecialty of pediatrics that consists of the medical care of
+newborn infants
+Variable id, name, and metadata:
+1,BirthAsphyxia,lack of oxygen to the blood during the infant’s birth
+2,Disease,infant methemoglobinemia
+3,Age,age of infant at disease presentation
+4,LVH,thickening of the left ventricle
+5,DuctFlow,blood flow across the ductus arteriosus
+6,CardiacMixing,mixing of oxygenated and deoxygenated blood
+7,LungParench,the state of the blood vessels in the lungs
+8,LungFlow,low blood flow in the lungs
+9,Sick,presence of an illness
+10,HypDistrib,low oxygen areas equally distributed around the body
+11,HypoxiaInO2,hypoxia when breathing oxygen 12,CO2,level of CO2 in the body
+13,ChestXray,having a chest x-ray
+14,Grunting,grunting in infants
+15,LVHreport,report of having LVH
+16,LowerBodyO2,level of oxygen in the lower body
+17,RUQO2,level of oxygen in the right up quadricep muscule
+18,CO2Report,a document reporting high level of CO2 levels in blood
+19,XrayReport,lung excessively filled with blood
+20,GruntingReport,report of infant grunting
+
+
+Metadata: Insurance
+Domain description: car insurance, which provides financial protection against physical damage,
+injury, and liability resulting from traffic collisions, theft, or natural disasters
+Variable id, name, and metadata:
+1,Age,age
+2,SocioEcon,socioeconomic status
+3,RiskAversion,being risk averse
+4,GoodStudent,being a good student driver
+5,SeniorTrain,received additional driving training
+6,DrivingSkill,driving skill
+7,MedCost,cost of medical treatment
+8,OtherCar,being involved with other cars in the accident
+9,MakeModel,owning a sport car
+10,VehicleYear,year of vehicle
+11,HomeBase,neighbourhood type
+12,AntiTheft,car has anti-theft
+13,DrivHist,driving history
+14,DrivQuality,driving quality
+15,Airbag,airbag
+16,Antilock,anti-lock
+17,RuggedAuto,ruggedness of the car
+18,CarValue,value of the car
+19,Mileage,how much mileage is on the car
+20,Accident,severity of the accident
+21,Cushioning,quality of cushioning in car
+22,Theft,theft occurred on the car
+23,ILiCost,inspection cost
+24,OtherCarCost,cost of the other cars
+25,ThisCarDam,damage to the car
+26,ThisCarCost,costs for the insured car
+27,PropCost,ratio of the cost for the two cars
+
+
+
+
+                                                 15
+

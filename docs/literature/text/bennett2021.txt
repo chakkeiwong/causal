@@ -1,0 +1,708 @@
+                            Off-policy Evaluation in Infinite-horizon
+                        Reinforcement Learning with Latent Confounders
+
+
+
+      Andrew Bennett                     Nathan Kallus                       Lihong Li                      Ali Mousavi
+     Cornell University                Cornell University                     Amazon                    Work Done at Google
+    awb222@cornell.edu                 kallus@cornell.edu                 llh@amazon.com            ali.mousavi1988@gmail.com
+
+
+                          Abstract                                   standards of care. A central concern using such passively ob-
+                                                                     served data is that observed actions, rewards, and transitions
+                                                                     may be confounded by unobserved variables, which can
+     Off-policy evaluation (OPE) in reinforcement
+                                                                     bias standard OPE methods that assume no unobserved con-
+     learning is an important problem in settings where
+                                                                     founders, or equivalently that a standard Markov decision
+     experimentation is limited, such as education and
+                                                                     process (MDP) model holds with fully observed state.
+     healthcare. But, in these very same settings, ob-
+     served actions are often confounded by unob-                    Consider for example evaluating a new smart-phone app to
+     served variables making OPE even more difficult.                help people living with type-1 diabetes time their insulin in-
+     We study an OPE problem in an infinite-horizon,                 jections by monitoring their blood glucose level using some
+     ergodic Markov decision process with unobserved                 wearable device. Rather than risking giving bad advice that
+     confounders, where states and actions can act as                may harm individuals, we may consider first evaluating our
+     proxies for the unobserved confounders. We show                 injection-timing policy using existing longitudinal obser-
+     how, given only a latent variable model for states              vations of individuals’ blood glucose levels over time and
+     and actions, policy value can be identified from                the timing of insulin injections. The value of interest may
+     off-policy data. Our method involves two stages.                be the long-run average deviation from ideal glucose levels.
+     In the first, we show how to use proxies to esti-               However, there may in fact be events not recorded in the
+     mate stationary distribution ratios, extending re-              data, such as food intake and exercise, which may affect
+     cent work on breaking the curse of horizon to the               both the timing of injections and blood glucose. Unfortu-
+     confounded setting. In the second, we show opti-                nately, most previously proposed methods for OPE in RL
+     mal balancing can be combined with such learned                 setting do not account for such confounding, so if they are
+     ratios to obtain policy value while avoiding direct             used for analysis the results may be biased and misleading.
+     modeling of reward functions. We establish theo-
+                                                                     In this work, we study OPE in an infinite-horizon, ergodic
+     retical guarantees of consistency, and benchmark
+                                                                     MDP with unobserved confounders, where states and ac-
+     our method empirically.
+                                                                     tions can act as proxies for the unobserved confounders. We
+                                                                     show how, given only a latent variable model for states and
+                                                                     actions, the policy value can be identified from off-policy
+1    Introduction                                                    data. We provide an optimal balancing (Bennett & Kallus,
+                                                                     2019) algorithm for estimating the policy value while avoid-
+A fundamental question in offline reinforcement learning             ing direct modeling of reward functions, given an estimate
+(RL) is how to estimate the value of some target evaluation          of the stationary distribution ratio of states and an iden-
+policy, defined as the long-run average reward obtained by           tified model of confounding. In addition, we provide an
+following the policy, using data logged by running a different       algorithm for estimating the stationary distribution ratio of
+behavior policy. This question, known as off-policy evalua-          states in the presence of unobserved confounders, by ex-
+tion (OPE), often arises in applications such as healthcare,         tending recent work on infinite-horizon OPE (Liu et al.,
+education, or robotics, where experimenting with running             2018) and efficiently solving conditional moment match-
+the target policy can be expensive or even impossible, but           ing problems (Bennett et al., 2019). On the theory side,
+we have data logged following business as usual or current           we establish statistical consistency under the assumption of
+                                                                     iid confounders, and provide error bounds for our method
+                                                                     in close-to-iid settings. Finally, we demonstrate that our
+Proceedings of the 24th International Conference on Artificial In-
+telligence and Statistics (AISTATS) 2021, San Diego, California,     method achieves strong empirical performance compared
+USA. PMLR: Volume 130. Copyright 2021 by the author(s).              with several causal and non-causal baselines.
+                                   Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+    S1                   S2                    S3                  We assume access to N ≥ 1 trajectories of off-policy data,
+                                                        ......     of lengths T1 , . . . , TN . At each time step of a trajectory we
+                                                                   assume that we observe the state S, the action that was taken
+                                                                   in that state A, and the corresponding reward that was re-
+    A1       R1          A2        R2          A3        R3
+                                                                   ceived R. Importantly, we do not observe the corresponding
+                                                                   confounder value U . We assume that each trajectory was
+                  U1                    U2                         logged from a common behavior policy πb , which depends
+                                                                   on the confounders, where πb (a | s, u) gives the probability
+                                                                   that πb takes action a given state s and confounder u. Note
+Figure 2: Graphical representation of the MDPUC model, in          that although we assume our data is collected from separate
+which action selection, state transition, and reward emission      trajectories, for brevity we will index our data by concate-
+are confounded at every step.                                      nating these trajectories together and using indices i ∈ [n],
+                                                                                PN
+                                                                   where n = i=1 Ti , and we denote the observed data by
+                                                                   D = {Zi , Ri }i∈[n] .
+Notation We use uppercase letters such as S and X to
+denote random variables, and lowercase ones to denote              Our task is to estimate the value of some fixed evaluation
+nonrandom quantities. The set of positive integers is N,           policy πe , which follows the same semantics as πb , and
+and for any n ∈ N we use [n] to refer to the set {1, . . . , n}.   whose actions may optionally depend on the confounders
+We denote by k · kp the usual functional norm, defined             U (for simplicity, even in the case that its actions depend
+as kf kp = E[|f (X)|p ]1/p , where the measure is implicit         on S only, we still use the notation πe (a | s, u)) We make
+from context. Furthermore we denote as Lp the space of             the following ergodicity and mixing assumptions about the
+functions with finite k·kp -norm. We denote by N (, F, k·k)       behavior and evaluation policies.
+the -covering number of F under metric k · k, and the             Assumption 1 (Ergodicity). For some 2 < p ≤ ∞ we have
+corresponding bracketing number by N[] (, F, k·k). Finally,       The Markov chain of X values under each of πb and πe is
+for any random variable sequence {Q1 , Q2 , . . .}, we use the                    the chain of X values under πb is stationary.
+                                                                   ergodic, and , P
+notation Ql:u as shorthand for (Ql , Ql+1 , . . . , Qu ).                            ∞
+                                                                   Furthermore, k=1 k 2/(p−2) β(k) < ∞, where β(k) are
+                                                                   the β-mixing coefficients of the Markov chain of X values
+2       Problem Setting                                            induced by πb .
+
+                                                                   Assumption 1 uses β-mixing coefficients, which quantify
+We consider the Markov Decision Process with Unmea-                how close to independent X values k steps removed are
+sured Confounding, or MDPUC (Zhang & Bareinboim,                   in the Markov chain, with coefficients of zero implying
+2016), which is a confounded generalization of a standard          independence. In our stationary Markovian setting, these
+Markov decision process (MDP). An MDPUC is specified               are defined according to the expectated total variation dis-
+by a tuple (S, A, U, PT , R, P0 ), where S is the finite state     tance between the marginal distribution of Xk+1 and its
+space, A = [m] the action space, U the confounder space,           conditional distribution given X1 ; that is
+PT (s0 | s, a, u) the probability of transitioning to state s0
+from state s given action a and confounder u, R(s, a, u) the              β(k) = E[       sup      |P (B | X1 ) − P (B)|] ,
+reward distribution given action a was taken in state s with                          B∈σ(Xk+1 )
+confounder u, and P0 the distribution over starting states.
+We also define µa (s, u) = E[R(s, a, u)], where R(s, a, u)         where σ(X) denotes the σ-algebra generated by X. Overall,
+is any random variable distributed according to R(s, a, u),        the assumption implies that the X values obtained from
+and we use S 0 to refer to the state succeeding state S in         each policy have a unique stationary distribution, where the
+a trajectory, Z to refer to the triplet (S, A, S 0 ), and X to     dependence between far removed elements is sufficiently
+refer to the pair (Z, U ). An important assumption we make         weak, and under πb all values follow this stationary distribu-
+here is that the confounder values U at each time step are         tion. Note that this is a very standard kind of assumption,
+iid, which differentiates the MDPUC setting from the more          with similar assumptions in most prior work on OPE in
+general POMDP setting. An example of this setting may be           infinite-horizon settings that addresses the curse of horizon
+our diabetes problem from section 1, where S corresponds           (Liu et al., 2018; Kallus & Uehara, 2019b). Without a sim-
+to blood glucose levels, A corresponds to insulin injection        ilar assumption the kind of analysis we perform would be
+decisions, R is based on maintaining safe blood glucose            impossible, because either stationary distributions would
+levels, and U corresponds to the exogenous unmeasured              not exist, or we would not be able to control the interactions
+events such as food intake or exercise.1                           between distant data points in order to bound error terms.
+    1
+    Although the confounders are likely not perfectly iid, this    We let Eb and Ee denote expectations taken with respect to
+modelling approximation may be justified for instance if we can    these stationary distributions, and assume that probability
+approximately model the confounding events by a Poisson process.   statements refer to the stationary distribution under πb where
+                                     Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+not specified. In addition, we will use the notation d(Q) to          unobserved confounders. Similar to our work, Tennenholtz
+denote the stationary density ratio under πe versus πb , for          et al. (2020) has addressed OPE under unmeasured con-
+any random variable Q that is measurable with respect to              founding in the POMDP setting, however their work relies
+X.2 Given this, we define the value of πe to be                       on complex invertibility assumptions and is limited to tab-
+                                                                      ular settings. In addition there is a tangential line of work
+                   v(πe ) = Ee [µA (S, U )] .                         investigating the limitations of OPE under unmeasured con-
+                                                                      founding in nonparametric settings and constructing partial
+Finally, we make the following basic regularity assumptions.          identification bounds (Kallus & Zhou, 2020; Namkoong
+                                                                      et al., 2020), which differs from our focus on specific set-
+Assumption 2 (State Visitation Overlap). kd(S)k∞ < ∞.
+                                                                      tings where the model of confounding is identifiable and
+Assumption 3 (Bounded Reward Moments). For each a,                    therefore so is the policy value. Furthermore, OPE under
+µa (S, U ) is uniformly bounded almost surely. In addition,           unmeasured confounding has been studied in contextual
+V[R | Z] ≤ σ 2 and V[R | Z, U ] ≤ σ 2 almost surely, for              bandit settings (Bennett & Kallus, 2019), which may be
+some constant σ 2 .                                                   viewed as a special case of our problem where states are
+                                                                      generated iid in every step.
+Assumption 2 is a very fundamental assumption, and is
+analogous to treatment overlap assumptions that are ubiq-             Related to the evaluation problem is policy learning, where
+uitous in treatment effect estimation (e.g., Murphy et al.,           the goal is to interact with an unknown environment to opti-
+2001). Fundamentally, in order to be able to perform causal           mize the policy. The partially observable MDP (POMDP)
+inference without strong structural assumptions, we require           is a classic model for sequential decision making with un-
+overlap between the observed distribution of data, and the            observed state (Kaelbling et al., 1998), and has been exten-
+distribution that would be obtained under intervention. As-           sively studied (Spaan, 2012; Azizzadenesheli et al., 2016).
+sumption 3 is a very simple assumption that is trivially              More recently, a few authors have applied counterfactual
+satisfied when rewards are bounded, as in most realistic              reasoning techniques to multi-armed bandits and, more gen-
+applications. We chose, however, to include this more com-            erally, RL (Bareinboim et al., 2015; Zhang & Bareinboim,
+plex assumption rather than assuming bounded rewards, in              2016; Lu et al., 2018; Buesing et al., 2019). While eval-
+order to make our theory more general.                                uation might appear simpler than learning, OPE methods
+                                                                      only have access to a fixed set of data and cannot explore.
+Finally, we note that the problem of OPE that we are consid-          This restriction leads to different challenges in algorithmic
+ering is distinct from the related problem of policy learning,        development that are tackled by our proposed method.
+where given the same kind of logged data the task is to
+choose a policy π within some class of policies Π that (ap-           Finally, another related area of research is on using proxies
+proximately) maximizes v(π). We do not explicitly consider            for true confounders (Wickens, 1972; Frost, 1979). Much of
+the problem of policy learning under unmeasured confound-             this work involves fitting and using latent variable models
+ing in this paper, however we note that our proposed meth-            for confounders, or studying sufficient conditions for identi-
+ods for OPE could be used to construct an objective function          fication of these latent variable models (Cai & Kuroki, 2008;
+for policy learning. We leave additional study of this re-            Wooldridge, 2009; Pearl, 2012; Kuroki & Pearl, 2014; Ed-
+lated problem, and analysis of the impact of unmeasured               wards et al., 2015; Louizos et al., 2017; Kallus et al., 2018).
+confounding on it, to future work.                                    This body of research is complementary to our work, since
+                                                                      we propose an estimator that uses a latent variable model
+                                                                      for confounders, but do not study how to fit it.
+3       Related Work
+
+The infinite-horizon OPE problem has received fast-growing            4   Theory for Optimally Weighted Policy
+interest recently (Liu et al., 2018; Gelada & Bellemare,
+                                                                          Evaluation
+2019; Kallus & Uehara, 2019b; Nachum et al., 2019a;
+Mousavi et al., 2020; Uehara et al., 2020; Liu et al., 2020;
+Dai et al., 2020). Most of these approaches are based on              In this work, we consider generic weighted estimators of
+some form of moment matching condition, derived from the              the form
+stationary distribution of the corresponding Markov chains,                                          n
+                                                                                                  1X
+and can avoid the exponential growth of variance in typi-                                 τ̂W =         Wi Ri ,                  (1)
+cal importance sampling methods (Liu et al., 2018). Our                                           n i=1
+work extends this research to a more general setting with
+    2                                                                 where W = W1:n is any vector of weights that is measur-
+     That is, for any such Q, we define d(Q) such that Ee [g(Q)] =
+Eb [d(Q)g(Q)] for any measurable function g. Note that this in-       able with respect to Z1:n . Inspired by Kallus (2018) and
+volves slight abuse of notation since the function d depends on the   Bennett & Kallus (2019), we proceed by deriving an upper-
+random variable Q.                                                    bound for the risk of policy evaluation. First, we observe
+                                       Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+that the value of πe is given by                                     4. ga (s, u) is continuous in g for every s ∈ S and u ∈ U,
+                   m
+                                                                        and is continuous in s and u for every g ∈ G.
+                   X
+       v(πe ) =          Ee [πe (a | S, U )µa (S, U )]               5. There exists some constant G such that kga k∞ ≤ G
+                   a=1                                                  for every ga ∈ Ga∗ and a ∈ [m].
+                   Xm
+                                                                        R∞p
+               =         Eb [d(S)πe (a | S, U )µa (S, U )] ,         6. 0      log N[] (, Ga∗ , Lp )d < ∞ for each a ∈ [m] and
+                   a=1                                                  every possible joint measure on S and U ,
+where the second equality follows from the observation
+that d(S, U ) = d(S) under the iid confounder assump-               where N[] (, F, d) denotes the -bracketing number of func-
+tion. In addition, it is easy to verify that Eb [W R] =             tion set F under metric d.
+P  m
+   a=1 Eb [W δAa µa (S, U )]. It suggests that if we knew
+U1:n , the bias of balanced policy evaluation could be ap-          We will consider functions classes that are p-balancing-
+proximated by                                                       regular, where p is same constant as from assumption 1. It
+                                                                    is easy to show that many commonly considered function
+   1 XX
+       n   m                                                        classes are p-balancing-regular. In particular, we provide
+            (Wi δAi a − d(Si )πe (a | Si , Ui ))µa (Si , Ui ),      the following lemma, which justifies that this holds for a
+   n i=1 a=1
+                                                                    variety of Reproducing Kernel Hilbert Spaces (RKHSs).
+                                                                                                               ∞
+which motivates the following theorem.                              Lemma 1. Let K be a symmetirc, PSD,  PmC -smooth      and
+Theorem 1. For any vector W , vector-valued function g =            and bounded kernel, and let kgk = a=1 kga k2K , where
+                                                                                                     2
+
+(g1 , . . . , gm ), and constant λ, define                          k · kK is the RKHS norm with kernel K. Then for any γ > 0,
+                                                                    the function class GK,λ = {g : kgk ≤ γ} is p-balancing-
+           fia = Wi δAi a − d(Si )πe (a | Si , Ui ) ,               regular for every p > 0.
+                     n m
+                  1 XX                                              Finally, we make the following assumption to avoid the
+        B(W, g) =           E[fia ga (Si , Ui ) | Zi ] ,
+                  n i=1 a=1                                         pathological situation where E[gA (S, U ) | Z] = 0 almost
+                                      λ                             surely for some g 6= 0, in which case B(W, g) = B(W 0 , g)
+       Jλ (W, g) = B(W, g)2 +            kW k2 .                    for any W, W 0 ∈ Rn and bias cannot be controlled.
+                                      n2
+                                                                    Assumption 4 (Non-degeneracy).
+Then, if λ ≥ 4σ 2 and Jλ (W, µ) = Op (rn ), where µ =
+(µ1 , . . . , µm ) are the true mean reward functions, it follows               sup P (E[gA (S, U ) | Z] = 0) < 1.
+from assumptions 1 to 3 that                                                    g∈G ∗
+
+
+           τ̂W = v(πe ) + Op (max(n−1/2 , rn1/2 )) .                Note that this is a joint assumption on the class G and the
+                                                                    data generating process, and is similar to identifiability con-
+This result suggests finding weights W in eq. (1) that min-         ditions in other causal inference works with latent variable
+imize supg∈G Jλ (W, g) for some vector-valued function              such as in Miao et al. (2018); it can be seen as the assump-
+class G, since if µ ∈ G and we can minimize this upper              tion that any µ, µ0 ∈ G with µ 6= µ0 would induce a different
+bound √uniformly over G at an Op (1/n) rate, then τ̂W is            observed distribution of data.
+Op (1/ n)-consistent for v(πe ).                                    Given this additional assumption and our p-balancing-
+Next, we describe                                                   regular definition, we can now present our next core the-
+                √a category of function classes for which
+the above Op (1/ n) convergence is achievable.                      orem, which justifies that we can uniformly minimize the
+                                                                    adversarial objective Jλ .
+Definition 1 (Balancing-regular Class). Let G be some
+normed vector valued function class, and for a ∈ [m] define         Theorem 2. Given assumptions 1 and 4, and assuming that
+                                                                    G is p-balancing-regular, where p is the same constant as in
+      G ∗ = {g/kgk : g ∈ G}                                         assumption 1, we have
+      Ga∗ = {ga : ∃(g10 , . . . , gm
+                                   0
+                                     ) ∈ G ∗ with ga = ga0 } .
+                                                                                   inf sup Jλ (W, g) = Op (1/n) .
+                                                                                 W ∈Rn g∈G
+Then we say that G is p-balancing-regular if it satisfies the
+following properties:
+                                                                    4.1   Oracle Consistency
+               ∗
+  1. G and G are compact.                                           We now present the most basic consistency result, which
+  2. G is convex.                                                   considers the oracle setting where we have an oracle
+                                                                    for the conditional distribution of U given Z, and for
+  3. g ∈ G ⇐⇒ −g ∈ G                                                the state density ratio d. This implies that for any W
+                                    Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+and g, we can compute Jλ (W, g) exactly. Let W ∗ =                  Note that rn is not some fixed rate; lemma 2 simply says that
+arg minW supg∈G Jλ (W, g). Then we have the following               if its conditions hold with any given rate rn , then we obtain
+oracle consistency theorem.                                         the corresponding bound on the rate of convergence for τ̂W ∗ .
+Theorem 3. Given assumptions 1 to 4, then as long as                In particular, this implies that our methodology will be con-
+λ ≥ 4σ 2 and µ ∈ G, we have τ̂W ∗ = v(πe ) + Op (n−1/2 ).           sistent as long as ϕ and d are estimated at a op (n−1/4 ) rate,
+                                                                    and also that we can still obtain Op (n−1/2 )-consistency if ϕ
+The theorem follows by chaining together theorems 1                 and d are estimated at a Op (n−1/2 ) rate. If we are willing to
+and 2, and noting that µ ∈ G implies that Jλ (W, µ) ≤               assume a correctly-specified parametric model for ϕ and fit
+supg∈G Jλ (W, µ). We note that, although a condition of             it via maximum likelihood estimation, then the Op (n−1/2 )
+this result is that λ ≥ 4σ 2 , this is without loss of generality   rate easily follows under mild differentiability assumptions.4
+                                                                    We discuss this in further detail in appendix D.1, as well as
+for norm-bounded function classes, since replacing     √ λ with
+4σ 2 and {g : kgk ≤ γ} with {g : kgk ≤ 2σγ/ λ} will                 other approaches and corresponding rates for estimating ϕ.
+give an equivalent optimization problem in W .3 However,            In addition, we discuss the estimation of d in section 5.1.
+the condition that µ ∈ G is fundamental.                            We also note that by assumption 3 and the definition of
+                                                                    p-balancing-regular, the condition that a finite constant F
+4.2       Sensitivity to Nuisance Estimation Error and              exists is immediately follows in the case that we use the
+          Model Misspecification                                    ∞-norm for F. However, the presentation of the above
+                                                                    theorem for a general F makes our theory more general.
+Next we extend our theory to more realistic settings, and           Next, we consider minor violations in the iid confounder
+consider the effects of estimation errors and non-iid con-          assumption of the MDPUC model. Specifically, we con-
+founding. We present simplified results here for the common         sider an alternate model where U values form a Markov
+case where πe is measurable with respect to S only, with            chain. Under this alternate model, we provide the following
+corresponding results for the general case where πe can also        theorem bounding the squared error.
+depend on U presented in appendix C. For this analysis, we
+let some normed function class F be given. Then, for any            Theorem 4. Suppose that the conditions of lemma 2 hold,
+measures p and q on U we define the integral probability            and kd(S, U )k∞ < ∞. In addition let ϕi and ϕ∗i denote
+metric                                                              the conditional densities of√Ui given Zi and Z1:n , let b =
+                        Z                 Z                         maxa kµa k∞ , and let c = 2F (1 + kW ∗ k2 /n)1/2 . Then
+   DF (p, q) = sup | f (u)dp(u) − f (u)dq(u)| .                     we have (τ̂W ∗ −v(πe ))2 = 2 +Op (max(1/n, nrn4 )), where
+                  kf kF ≤1                                                                          !1/2
+                                                                                 n
+                                                                              1X
+Examples of this include total variation distance, where            || ≤ c         DF (ϕi , ϕ∗i )2      + bkd(S, U ) − d(S)k2 .
+                                                                             n i=1
+kf kF = kf k∞ , the maximum mean discrepancy where
+kf kF is given by some RKHS norm, and Wasserstein dis-
+                                                                    We note that in the iid confounder case ϕi = ϕ∗i and
+tance, where kf kF is given by the Lipschitz norm.
+                                                                    d(S, U ) = d(S), so the first two terms disappear, and the
+We first address the issue that the adversarial objective con-      result reduces to that of lemma 2. In addition under assump-
+sidered above depends on the conditional density of U given         tion 3, the constant b must be finite. Therefore, theorem 4
+Z, and the state density ratio d. In practice these both            allows us to bind the asymptotic bias5 in “near-iid” settings,
+would usually need to be estimated from data. Let ϕ(z)              where the terms DF (ϕi , ϕ∗i ) and kd(S) − d(S, U )k2 are
+and ϕ̂(z) denote the true and estimated conditional distri-         small. Note that the actual magnitude of this asymptotic
+bution of U respectively given Z = z, let dˆ be the esti-           bias will be problem specific and depend on the problem pa-
+mated state density ratio. In addition let Jˆλ (W, g) denote        rameters. Rather, theorem 4 establishes that the smaller the
+the objective using ϕ̂ and dˆ in place of ϕ and d, and let          violation of our iid assumption is, the smaller the resulting
+W ∗ = arg minW supg∈G J(W,  ˆ     g).                               asymptotic bias will be.
+Lemma 2. Suppose that there exists some constant F <
+                                                                    4.3   Consistency under G Misspecification
+∞ such that for every g ∈ G and a ∈ [m] we have
+kga kF ≤ F and kµa kF ≤ F . Suppose in addition that                All of our theory so far has been conditioned on the strong
+                                                 ˆ i )| =
+DF (ϕ(Zi ), ϕ̂(Zi )) = Op (rn ), and |d(Si ) − d(S                  and untestable assumption that our function class G is cor-
+Op (rn ), for every i ∈ [n]. Then, given assumptions 1 to 4         rectly specified; that is, µ ∈ G. We now generalize our
+and assuming µ ∈ G and G is p-balancing-regular, for the            theory to the case where we use a universally approximating
+p defined in assumption 1, we have
+                                                                        4
+                                                                          We emphasize, however, that our theory does not necessarily
+                                        −1/2
+           τ̂W ∗ = v(πe ) + Op (max(n          , n1/2 rn2 )) .      assume a correctly-specified parametric model for ϕ. This is
+                                                                    simply presented as an example of how we might justify a given
+      3
+    This is because supkgk≤γ Jλ (W, g) is identical to              rate of convergence of ϕ̂.
+(λ/4σ 2 ) supkgk≤2σγ/√λ J4σ2 (W, g).                                    5
+                                                                          That is, the limiting bias as n → ∞.
+                                     Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+function class. Specifically, we will consider a sequence of         In addition, in general it is impossible to perform consis-
+function classes {G1 , G2 , . . .} to be universally approximat-     tent policy evaluation under unmeasured confounding with-
+ing if, for any continuous function g, we have                       out some fairly strong assumptions, as established by the
+                                                                     non-identifiability of the policy value in general in this set-
+                   lim sup kg 0 − gk∞ = 0 .                          ting (e.g., Kallus & Zhou, 2020). Hence, while these as-
+                  i→∞ g 0 ∈Gi
+                                                                     sumptions may seem unsatisfying, we argue that strong
+This property holds for many commonly used function                  assumptions such as these are necessary. Furthermore, these
+classes, such as Gaussian RKHSs with shrinking scale pa-             assumptions are weaker than those of the standard OPE
+rameter on the kernel (Mendelson, 2003). Given this defini-          setting, where there is no unmeasured confounding, since
+tion, we present the following lemma.                                our work subsumes this as a special case.
+Lemma 3. Suppose that the sequence {Gi } is universally
+approximating, such that Gi is p-balancing-regular for each          5     Methodology
+i. Then given all the assumptions of theorem 4 except
+that µ ∈ G, and instead just assuming that µ is contin-              We now discuss how to implement the optimal balancing
+uous, there exists some non-decreasing sequence of in-               estimator analyzed in section 4. It can be done in three
+tegers in such that the weighted estimator using W ∗ =               steps: (1) estimating the conditional distribution of U given
+arg minW supGin Jˆλ (W, g) satisfies theorem 4 with the Op           Z (denoted by ϕ); (2) estimating d; and (3) calculating
+term replaced with op (1).                                           W ∗ = arg minW supg∈G Jˆλ (W, g). The first has been stud-
+                                                                     ied extensively, so we focus only on the last two steps.
+We note that the sequence in for which this lemma is sat-
+isfied depends on the specific sequence of function classes
+{Gi }; this lemma just ensures that there is some rate at which      5.1   Estimating the Stationary Density Ratio
+we can grow the complexity of G and still obtain consistency.
+                                                                     Here, we pose learning the stationary density ratio d(S)
+As detailed in our proof in the appendix, the optimal rate
+                                                                     as a conditional moment matching problem. Similarly to
+in depends both on the rate at which supg∈Gi kg − µk∞
+                                                                     Liu et al. (2018), we can identify d via a set of moment
+converges to zero, and the rate at which the constant factor
+                                                                     restrictions, as follows.
+in the Op term from theorem 4 grows with Gi . We leave the
+question of calculating the optimal in for particular univer-        Theorem 5. Let β(z) = E[πe (A | S, U )/πb (A | S, U ) |
+sally approximating sequences {Gi } to future work.                  Z = z]. Then under assumption 1, the stationary density
+                                                                     ratio d(S) is the unique function satisfying the regular mo-
+4.4       Discussion of Assumptions                                  ment condition E[d(S)] = 1, as well as the conditional
+                                                                     moment restriction d(S 0 ) = E[d(S)β(Z) | S 0 ] for almost-
+We acknowledge that much of our consistency theory de-               everywhere S 0 .
+pends on strong and untestable assumptions. In particular,
+we assume either explicitly or implicitly throughout most            We note that the conditional moment restriction above is
+of our theory that confounder values are iid, and that we            equivalent to E[h(S 0 )d(S)β(Z)] = 0 for every function h.
+can estimate the posterior confounder distributions ϕ(Z) at          There is a variety of work on solving such conditional mo-
+reasonably fast rates. We believe that these assumptions are         ment restrictions; see e.g. Carrasco et al. (2007); Muandet
+reasonable to make for various reasons.                              et al. (2019); Bennett et al. (2019); Dikkala et al. (2020);
+                                                                     Bennett & Kallus (2020) and citations therein. In particular,
+First, we argue the iid assumption is necessary for statistic        following the efficient variational approaches of Bennett
+tractability, since otherwise the joint posterior distribution       et al. (2019); Bennett & Kallus (2020), we propose to es-
+of the confounder values U1:n could depend arbitrarily on            timate d by solving a smooth-game optimization problem.
+Z1:n ,6 which in general would not factorize nicely, and in          Let function classes H and D be given, and let d˜ by some
+any corresponding estimator to ours we would have to in-             prior estimate of d, which might come from a previous gen-
+tegrate with respect to this joint distribution. This would          eralized method of moments (GMM) estimate or some other
+likely make the resulting algorithm both computationally             methodology. In addition, define
+and statistically intractable. Furthermore, we believe that
+in many applications this assumption should hold at least            m(Z; d, h, c) = h(S 0 )(d(S)β(Z) − d(S 0 )) + c(d(S) − 1)
+approximately, such as in our previous diabetes manage-                                n                       n
+ment example, and more generally wherever the correlation                           1X                      1 X          ˜ h, c)2.
+                                                                     Un (d, h, c) =       m(Zi ; d, h, c)−        m(Zi ; d,
+between temporally-distant confounder values is weak. In                            n i=1                  4n i=1
+such settings, we can bound the resulting bias by theorem 4.
+                                                                     Our proposed estimator takes the form
+      6
+     More accurately, the set of all confounder values within each
+distinct trajectory could depend arbitrarily on the entire set of              dˆ = arg min      sup              ˜ h, c) .
+                                                                                                           Un (d, d,            (2)
+observed data within that same trajectory.                                            d∈D     h∈H,|c|≤λc
+                                             Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+The motivation of this form of estimator is that, if we choose           ns × ns and ns + 1 × ns + 1, so therefore its computational
+H = span({h1 , . . . , hk }), and λc = ∞, then eq. (2) is                complexity depends on ns . Finally, since in practice β is
+equivalent to a standard efficiently weighted GMM esti-                  unknown, we can estimate it using ϕ̂.
+mator (Hansen, 1982) on the standard moment conditions
+E[d(S)] = 1, and E[hi (S 0 )d(S)β(Z)] = 0 for i ∈ [k].                   5.2    Solving for Optimal Weights
+This follows from a generalization of (Bennett et al., 2019,
+Lemma 1), which we explain in more detail in appendix E.                 We now describe a method for analytically computing
+Therefore, we can view eq. (2) as a regularized analogue of              arg minW supg∈G Jˆλ (W, g) for kernel-based classes G =
+efficiently weighted GMM on an infinite set of moment con-               GK,λ , as defined in lemma 1. Our approach is based on the
+ditions. Given this, in the case that D is parametric and we             following theorem.
+choose H and λc as above, then Op (n−1/2 )-convergence of                Theorem 7. Suppose we observe nz distinct Z tuples in
+dˆ can be established under standard regularity conditions for           our dataset, which we denote {z1 , . . . , znz }, and define
+GMM estimators (Hansen, 1982). We further discuss this,                  the index function ν : [n] → [nz ] such that Zi = zν(i) .
+as well as known results for general D, in appendix D.2.                 In addition, for each i ∈ [nz ], let Ui and Ũi denote iid
+In practice, we can start with an initial guess for d˜ (such as          random variables distributed according to ϕ̂(zi ), let N ∈
+ ˜ = 1 ∀s), and then iteratively solve eq. (2) with d˜ being
+d(s)                                                                     Znz denote the vector of counts of the tuples {z1 , . . . , znz }
+the previous solution. Furthermore, for our experiments                  in our dataset, let W ∗ = arg minW ∈W supg∈G Jˆλ (W, g)
+we choose to use norm-bounded RKHSs for H and D,7                        for some given set W, and define
+which allows the optimization to be performed analytically,
+as dictated by the following theorem.                                        ki,j = K((si , Ui ), (sj , Ũj )) ∀i, j ∈ [nz ]
+Theorem 6. Suppose we observe ns distinct states in our                      Gij = Ni Nj δai aj E[ki,j ] + λNi δij ∀i, j ∈ [nz ]
+dataset, which we denote {s1 , . . . , sns }. Let Lagrangian                          Xnz
+                                                                              gi = Ni      ˆ j )E[πe (ai | sj , Ũj )ki,j ] ∀i ∈ [nz ]
+                                                                                          d(s
+regularization hyperparameters λh , λk > 0 be given, let
+KH and KD denote the reproducing kernels for H and D                                    j=1
+
+respectively, and let kH and kD the corresponding kernel                     W 0 = arg min W T GW − 2g T W .
+matrices on the states s1 , . . . , sns . Furthermore, define                         W ∈W
+
+                            ˜ i )β(Zi ),
+        qi = [KH (s1 , Si0 )d(S                                          Then, Wi∗ = Wν(i)
+                                                                                      0
+                                                                                           ∀i ∈ [n].
+                                     ˜ i )β(Zi ), d(S
+               . . . , KH (sn , S 0 )d(S          ˜ i ) − 1]T
+                                     s   i                               If we do not constrain the weights W , as in both our theory
+                    n
+           1X T                                                          and our experiments, then
+        Q=   ql ql + BlockDiag(λh kH , λc )
+           n
+                    l=1                                                                        Wi∗ = (G−1 g)ν(i) .
+                 n
+                1X
+       Ωi,j =             KH (si , Sl0 )KD (sj , Sl )β(Zl )              That is, we can compute the optimal weights be solving a
+                n
+                    l=1                                                  linear system of equations of size nz × nz . Hence, the com-
+             ∀i, j ∈ [ns ]                                               putational complexity of our optimal balancing algorithm
+            1X
+               n                                                         depends on the number of unique Z values in the dataset.
+ Ωns +1,j =        KD (sj , Sl ) ∀j ∈ [ns ]
+            n                                                            Finally, we note that if we wished to impose some con-
+                    l=1
+                                 T                                       straints on W , such as W ∈ ∆n (the set of categorical
+         ω = [0, . . . , 0, 1]
+                                                                         distributions over n categories), then we could instead solve
+         b = (ΩT Q−1 Ω + λd kD )−1 ΩT Q−1 ω .                            a quadratic program. However, our theory does not support
+                                                                         this, and in practice in our experiments we calculate W ∗
+Then, the solution to eq. (2) using RKHS balls for H and D               using the unconstrained analytic solution.
+is given by
+                           ns
+                                                                         6     Experiments
+                          X
+                  ˆ =
+                 d(s)          bi KD (si , s) ,
+                                 i=1
+where the radii of H and D are implicitly given by λh and                We now evaluate our proposed method and demonstrate its
+λd , respectively.                                                       benefits over state-of-the-art baselines for OPE. Our method
+                                                                         requires as input an approximate confounder model for the
+We note that the computation required by this algorithm is               posterior of U given Z: ϕ̂(z) ≈ P (· | Z = z). Since our
+dominated by solving systems of linear equations of size                 baselines cannot account for unmeasured confounding, for
+   7
+     This is in contrast to Bennett et al. (2019), who used neu-         fairness we allow these methods access to ϕ̂. Specifically,
+ral networks and smooth-game optimization techniques for their           for each i ∈ [n] we sample a value Ûi from the approxi-
+instrumental variable regression estimator.                              mate posterior ϕ̂(Zi ), and augment the baselines’ data with
+                                      Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+
+
+Figure 3: C-ModelWin Results. From left to right: The off-policy estimate, The log(RMSE) of different methods as we
+change the number of trajectories, sensitivity of our estimator to model misspecification, and to noise in the confounders
+posterior distribution.
+
+
+
+
+Figure 5: Confounded GridWorld Results. From left to right: off-policy estimate, log(RMSE) of different methods as we
+change the number of trajectories, sensitivity of our estimator to model misspecification, and to noise in the confounders
+posterior distribution. Note that we changed the y axis scale in the last plot for clarity, since the effect was very small.
+
+
+{Ûi }i∈[n] . They then use (Si , Ûi ) as the state variable rather                      U
+than Si . However, since we only assumed a latent variable
+model for (Z, U ), but not for (Z, U, R) (that is, we do not                                          a0
+assume an outcome model) we expect that this may still lead
+to biased estimators even if ϕ̂ is perfect.8
+                                                                                   s1         r1      s0        r2       s2
+We consider the following baselines: Direct Method which
+fits an outcome model using the imputed confounders; Dou-
+bly Robust which combines our optimal balancing weights                                               a1
+with the Direct Method, by re-weighting the estimated re-
+ward residuals; Inverse Propensity Scores (IPS) with IPS
+weights calculated as in Liu et al. (2018); and Black-Box              Figure 2: The C-ModelWin environment with 3 states and 2
+which is state-of-the-art weighted estimator (Mousavi et al.,          actions and a confounder.
+2020). For a detailed description of these baselines see ap-
+pendix F.1, and for additional details on hyperparameters              tional confounder distribution for ϕ̂, with datasets of varying
+for our method and baselines see appendix F.2.                         number of trajectories of length 100, and performing 50 rep-
+First Experiment. In this experiment we consider the C-                etitions for each configuration of estimator and number of
+ModelWin environment, which is a confounded variant of                 trajectories to compute 95% confidence intervals.9 We dis-
+ModelWin (Thomas & Brunskill, 2016). This is a simple                  play the results of this comparison in the first two plots of
+tabular environment with 3 states, 2 actions, and 2 con-               fig. 3, where we plot the estimated policy value and cor-
+founder levels. We depict this environment in fig. 2, and              responding root mean squared error (RMSE) respectively
+describe it in detail in appendix F.3.                                 for every configuration. We see that our estimator achieves
+                                                                       strong results, with near-zero bias as we increase the num-
+First, we compare our estimator τ̂W , with dˆ calculated as            ber of trajectories. This is in contrast to the baselines, all
+in section 5.1 and W estimated as in section 5.2, against              of which converge to biased estimates as we increase the
+the baselines. For this comparison we use the true condi-              number of trajectories, with significantly higher RMSE.
+    8
+      This is because we can only sample confounders conditioned       Next, we investigate the sensitivity of our estimator to the
+on Z, not on (Z, R), so the dataset augmented with imputed con-
+                                                                           9
+founders will be distributed differently to a dataset augmented with         We also used these trajectory lengths and numbers of repeti-
+the true confounders.                                                  tions in our sensitivity experiments.
+                                    Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+assumption of iid confounders. Let Piid denote the iid con-        follow the same trend as in the previous experiment. We
+founder distribution under the C-ModelWin environment,             note that with GridWorld, which is more complex than C-
+and Palt denote some alternative distribution, where within        ModelWin, the benefits of our methodology are even more
+each trajectory the distribution of the confounder at time         evident, with a larger relative decrease in RMSE compared
+t depends on the confounder at time t − 1. We experi-              to baselines. Interestingly, in this setting we see that our
+ment with a variation of C-ModelWin, where confounders             method seems especially robust to model assumption viola-
+are distributed according to αPiid + (1 − α)Palt , for some        tions and nuisance error, with relatively small increases in
+α ∈ [0, 1]. Thus, we recover C-ModelWin with α = 1, and            RMSE in the second two plots. We hypothesize that this is
+as we decrease α the iid confounder assumption becomes             because the setting is more challenging than C-ModelWin,
+increasingly violated. The specific alternative model Palt         so the error introduced by these perturbations is relatively
+used is described in appendix F.4. We display the RMSE of          small compared with the overall errors of the estimators.
+our estimator for various numbers of trajectories and vari-        This suggests that our estimator may be relatively robust to
+ous values of α in the third plot in fig. 3. We see here that,     these issues in challenging real-world settings where RMSE
+as predicted in section 4.2, the effects of this assumption        is naturally relatively high.
+violation are continuous; when α is close to 1 the RMSE
+only increases slightly.
+Thirdly, we investigate how error in ϕ̂ affects our algorithm.     7   Conclusion
+We inject error by adding random Gaussian noise of varying
+variance to the logits of the conditional confounder dis-
+tribution for each level of Z (before re-normalizing) and          In this work, we considered OPE in infinite-horizon rein-
+measured the amount of noise via the average standard              forcement learning with unobserved confounders. We pro-
+devaition (ASD) metric, which calculates the expected stan-        posed a novel estimator, and showed its consistency under
+dard deviation of P̂ (U = u | Z), averaged over the levels         reasonable assumptions that account for nuisance estima-
+of U .10 Details of this metric and our noise injection are        tion error and model misspecification. This is in contrast
+in appendix F.5. We display the RMSE of our estimator              to existing estimators designed for fully-observable MDPs,
+under varying levels of noise injection in the fourth plot of      which typically are unbiased and inconsistent. We also pro-
+fig. 3. We observe that again, as predicted in section 4.2, the    vided sensitivity results bounding the asymptotic bias of
+effects of noise injection are continuous; as we increase the      our estimator under small violations of these assumptions.
+level of noise injection (as measured by ASD) the RMSE             Furthermore, we validated our method empirically, demon-
+gradually increases, with minimal impact when the error in         strating its accuracy against baselines and corroborating our
+ϕ̂ is very small. We provide additional plots in appendix F.6,     theoretical analysis.
+repeating both sensitivity experiments for the baselines.
+                                                                   These promising results open up a number of interesting
+Second Experiment. In this                                         research directions. First, as an alternative or complement to
+experiment we consider a con-                                      our optimal balancing-based approach, one could investigate
+founded version of the Grid-                                       direct or “model-based” approaches, by directly estimating
+World environment. This en-                                        µ, and using this in estimators. This could be combined
+vironment consists of a 10 ×                                       with our approach to improve accuracy, using the doubly
+10 grid, with 4 actions corre-                                     robust augmentation (Kallus & Uehara, 2019a; Tang et al.,
+sponding to attempted move-                                        2020). Second, we could extend this kind of approach to
+ment in each direction, reward                                     episodic settings, where there is a fixed time-horizon, by
+based on moving toward the                                         estimating the time-dependent state-density ratio at each
+goal, and 2 confounder levels.                                     time step. Third, we may be able to avoid the dependency
+We depict this envirnment in                                       on the knowledge of behavior policy by using black-box
+fig. 4, and describe it in detail    Figure 4: The GridWorld
+                                                                   or behavior-agnostic methods (e.g., Nachum et al., 2019a;
+in appendix F.3.                     environment.
+                                                                   Mousavi et al., 2020). Last but not least, one could ap-
+We conduct the same set of ex-                                     ply our approach to extend work on batch policy optimiza-
+periments with GridWorld as with C-ModelWin, except that           tion (e.g., Nachum et al., 2019b) to the case of unmeasured
+each trajectory was of length 200. We detail the alternative       confounders.
+non-iid confounder model used in the sensitivity part of the
+experiment in appendix F.4, we display the corresponding
+plots in fig. 5, and we include additional sensitivity results     Acknowledgments. This material is based upon work
+for baselines in appendix F.6. In general, our results here        supported by the National Science Foundation under Grant
+   10
+      With expectation taken over Z, and standard deviation over   No. 1846210. This work was done when AM and LL were
+random noise injection.                                            with Google Research.
+                                 Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+References                                                      Jessie K Edwards, Stephen R Cole, and Daniel Westreich.
+                                                                  All your data are always missing: incorporating bias
+Kamyar Azizzadenesheli, Alessandro Lazaric, and An-
+                                                                  due to measurement error into the potential outcomes
+  imashree Anandkumar. Reinforcement learning of
+                                                                  framework. International journal of epidemiology, 44(4):
+  POMDPs using spectral methods. In Proceedings of
+                                                                  1452–1459, 2015.
+  the 29th Conference on Learning Theory, pp. 193–256,
+  2016.                                                         Peter A Frost. Proxy variables and specification bias. The
+Elias Bareinboim, Andrew Forney, and Judea Pearl. Ban-            review of economics and Statistics, pp. 323–325, 1979.
+  dits with unobserved confounders: A causal approach.          Carles Gelada and Marc G. Bellemare. Off-policy deep
+  Advances in Neural Information Processing Systems, 28:          reinforcement learning by bootstrapping the covariate
+  1342–1350, 2015.                                                shift. In Proceedings of the 33rd AAAI Conference on
+Andrew Bennett and Nathan Kallus. Policy evaluation with          Artificial Intelligence (AAAI), pp. 3647–3655, 2019.
+  latent confounders via optimal balance. In Advances in        Lars Peter Hansen. Large sample properties of generalized
+  Neural Information Processing Systems, pp. 4827–4837,           method of moments estimators. Econometrica, pp. 1029–
+  2019.                                                           1054, 1982.
+Andrew Bennett and Nathan Kallus. The variational method        Daniel Hsu, Sham M Kakade, and Tong Zhang. A spec-
+  of moments. arXiv preprint arXiv:2012.09422, 2020.              tral algorithm for learning hidden markov models. In
+Andrew Bennett, Nathan Kallus, and Tobias Schnabel. Deep          Conference on Learning Theory (COLT) Proceedings,
+  generalized method of moments for instrumental variable         2009.
+  analysis. In Advances in Neural Information Processing        Leslie Pack Kaelbling, Michael L. Littman, and Anthony R.
+  Systems, pp. 3559–3569, 2019.                                   Cassandra. Planning and acting in partially observable
+Lars Buesing, Theophane Weber, Yori Zwols, Nicolas Heess,         stochastic domains. Artificial Intelligence, 101(1–2):99–
+  Sébastien Racanière, Arthur Guez, and Jean-Baptiste             134, 1998.
+  Lespiau. Woulda, coulda, shoulda: Counterfactually-           Nathan Kallus. Generalized optimal matching methods for
+  guided policy search. In Proceedings of the 7th Interna-        causal inference. arXiv preprint arXiv:1612.08321, 2016.
+  tional Conference on Learning Representations (ICLR),
+                                                                Nathan Kallus. Balanced policy evaluation and learning. In
+  2019.
+                                                                  Advances in Neural Information Processing Systems, pp.
+Zhihong Cai and Manabu Kuroki. On identifying total               8895–8906, 2018.
+  effects in the presence of latent variables and selection
+  bias. In Proc. of the 24th Conference on Uncertainty in       Nathan Kallus and Masatoshi Uehara. Double reinforcement
+  Artificial Intelligence, pp. 62–69, 2008.                       learning for efficient off-policy evaluation in Markov de-
+                                                                  cision processes, 2019a. arXiv:1908.08526.
+Marine Carrasco, Jean-Pierre Florens, and Eric Renault. Lin-
+ ear inverse problems in structural econometrics estima-        Nathan Kallus and Masatoshi Uehara. Efficiently breaking
+ tion based on spectral decomposition and regularization.         the curse of horizon in off-policy evaluation with double
+ Handbook of econometrics, 6:5633–5751, 2007.                     reinforcement learning, 2019b. arXiv:1909.05850.
+Victor Chernozhukov, Denis Chetverikov, Mert Demirer,           Nathan Kallus and Angela Zhou. Confounding-robust pol-
+  Esther Duflo, Christian Hansen, and Whitney K Newey.            icy evaluation in infinite-horizon reinforcement learning,
+  Double machine learning for treatment and causal param-         2020. arXiv:2002.04518.
+  eters. Technical report, cemmap working paper, 2016.          Nathan Kallus, Xiaojie Mao, and Madeleine Udell. Causal
+Felipe Cucker and Steve Smale. On the mathematical foun-          inference with noisy and missing covariates via matrix
+  dations of learning. Bulletin of the American mathemati-        factorization. In Advances in Neural Information Pro-
+  cal society, 39(1):1–49, 2002.                                  cessing Systems, pp. 6921–6932, 2018.
+Bo Dai, Ofir Nachum, Yinlam Chow, Lihong Li, Csaba              Michael R Kosorok. Introduction to empirical processes and
+  Szepesvári, and Dale Schuurmans. CoinDICE: Off-policy          semiparametric inference. Springer Science & Business
+  confidence interval estimation. In Advances in Neural In-      Media, 2007.
+  formation Processing Systems 33, pp. 9398–9411, 2020.         Manabu Kuroki and Judea Pearl. Measurement bias and
+Arthur P Dempster, Nan M Laird, and Donald B Rubin.              effect restoration in causal inference. Biometrika, 101(2):
+  Maximum likelihood from incomplete data via the em             423–437, 2014.
+  algorithm. Journal of the Royal Statistical Society: Series   Erich L Lehmann and George Casella. Theory of point
+  B (Methodological), 39(1):1–22, 1977.                           estimation. Springer Science & Business Media, 2006.
+Nishanth Dikkala, Greg Lewis, Lester Mackey, and Vasilis
+  Syrgkanis. Minimax estimation of conditional moment
+  models. arXiv preprint arXiv:2006.07201, 2020.
+                                 Andrew Bennett, Nathan Kallus, Lihong Li, Ali Mousavi
+
+
+Qiang Liu, Lihong Li, Ziyang Tang, and Dengyong Zhou.            quential decisions under unobserved confounding. arXiv
+  Breaking the curse of horizon: Infinite-horizon off-policy     preprint arXiv:2003.05623, 2020.
+  estimation. In Advances in Neural Information Process-       Judea Pearl. On measurement bias in causal inference. arXiv
+  ing Systems, pp. 5356–5366, 2018.                              preprint arXiv:1203.3504, 2012.
+Yao Liu, Pierre-Luc Bacon, and Emma Brunskill. Under-          Emmanuel Rio. Inequalities and limit theorems for weakly
+  standing the curse of horizon in off-policy evaluation via     dependent sequences. Lecture, September 2013.
+  conditional importance sampling. In Proceedings of the
+  37th International Conference on Machine Learning, pp.       Amirreza Shaban, Mehrdad Farajtabar, Bo Xie, Le Song,
+  6184–6193, 2020.                                              and Byron Boots. Learning latent variable models by
+                                                                improving spectral solutions with exterior point method.
+Christos Louizos, Uri Shalit, Joris M Mooij, David Sontag,      In UAI, pp. 792–801, 2015.
+  Richard Zemel, and Max Welling. Causal effect inference
+                                                               Matthijs T. J. Spaan. Partially observable Markov decision
+  with deep latent-variable models. In Advances in Neural
+                                                                processes. In Marco Wiering and Martijn van Otterlo
+  Information Processing Systems, pp. 6446–6456, 2017.
+                                                                (eds.), Reinforcement Learning: State of the Art, pp. 387–
+Chaochao Lu, Bernhard Schölkopf, and José Miguel                414. Springer Verlag, 2012.
+  Hernández-Lobato. Deconfounding reinforcement learn-
+                                                               Ziyang Tang, Yihao Feng, Lihong Li, Dengyong Zhou, and
+  ing in observational settings, 2018. arXiv:1812.10576.
+                                                                 Qiang Liu. Doubly robust bias reduction in infinite hori-
+Shahar Mendelson. On the performance of kernel classes.          zon off-policy estimation. In Proceedings of the 8th
+  Journal of Machine Learning Research, 4(Oct):759–771,          International Conference on Learning Representations
+  2003.                                                          (ICLR), 2020.
+Wang Miao, Zhi Geng, and Eric J Tchetgen Tchetgen. Iden-       Guy Tennenholtz, Shie Mannor, and Uri Shalit. Off-policy
+ tifying causal effects with proxy variables of an unmea-        evaluation in partially observable environments. In Pro-
+ sured confounder. Biometrika, 105(4):987–993, 2018.             ceedings of the 33rd AAAI Conference on Artificial Intel-
+Ali Mousavi, Lihong Li, Qiang Liu, and Denny Zhou. Black-        ligence (AAAI), 2020.
+  box off-policy estimation for infinite-horizon reinforce-    Philip S. Thomas and Emma Brunskill. Data-efficient off-
+  ment learning. In Proceedings of the Eighth International      policy policy evaluation for reinforcement learning. In
+  Conference on Learning Representations (ICLR), 2020.           Proceedings of the 33rd International Conference on Ma-
+Krikamol Muandet, Arash Mehrjou, Si Kai Lee, and Anant           chine Learning (ICML), pp. 2139–2148, 2016.
+  Raj. Dual iv: A single stage instrumental variable regres-   Masatoshi Uehara, Jiawei Huang, and Nan Jiang. Minimax
+  sion. arXiv preprint arXiv:1910.12358, 2019.                  weight and Q-function learning for off-policy evaluation,
+Susan A. Murphy, Mark van der Laan, and James M. Robins.        2020.
+  Marginal mean models for dynamic regimes. Journal of         Aad W Van der Vaart. Asymptotic statistics. Cambridge
+  the American Statistical Association, 96(456):1410–1423,       University Press, 2000.
+  2001.
+                                                               Michael R Wickens. A note on the use of proxy variables.
+Ofir Nachum, Yinlam Chow, Bo Dai, and Lihong Li.                Econometrica: Journal of the Econometric Society, pp.
+  DualDICE: Behavior-agnostic estimation of discounted          759–761, 1972.
+  stationary distribution corrections. In Advances in Neural
+                                                               Jeffrey M Wooldridge. On estimating firm-level production
+  Information Processing Systems 32 (NeurIPS), 2019a.
+                                                                  functions using proxy variables to control for unobserv-
+Ofir Nachum, Bo Dai, Ilya Kostrikov, Yinlam Chow, Lihong          ables. Economics Letters, 104(3):112–114, 2009.
+  Li, and Dale Schuurmans. Algae: Policy gradient from
+                                                               Junzhe Zhang and Elias Bareinboim. Markov decision pro-
+  arbitrary experience, 2019b. CoRR abs/1912.02074.
+                                                                 cesses with unobserved confounders: A causal approach.
+Hongseok Namkoong, Ramtin Keramati, Steve Yadlowsky,             Technical Report R-23, Columbia CausalAI Laboratory,
+  and Emma Brunskill. Off-policy policy evaluation for se-       2016.
+

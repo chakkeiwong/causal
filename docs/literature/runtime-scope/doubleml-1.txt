@@ -1,0 +1,63 @@
+    def fit(self, n_jobs_cv=None, store_predictions=True, external_predictions=None, store_models=False):
+        """
+        Estimate DoubleML models.
+
+        Parameters
+        ----------
+        n_jobs_cv : None or int
+            The number of CPUs to use to fit the learners. ``None`` means ``1``.
+            Default is ``None``.
+
+        store_predictions : bool
+            Indicates whether the predictions for the nuisance functions should be stored in ``predictions``.
+            Default is ``True``.
+
+        store_models : bool
+            Indicates whether the fitted models for the nuisance functions should be stored in ``models``. This allows
+            to analyze the fitted models or extract information like variable importance.
+            Default is ``False``.
+
+        external_predictions : None or dict
+            If `None` all models for the learners are fitted and evaluated. If a dictionary containing predictions
+            for a specific learner is supplied, the model will use the supplied nuisance predictions instead. Has to
+            be a nested dictionary where the keys refer to the treatment and the keys of the nested dictionarys refer to the
+            corresponding learners.
+            Default is `None`.
+
+        Returns
+        -------
+        self : object
+        """
+
+        self._check_fit(n_jobs_cv, store_predictions, external_predictions, store_models)
+        self._initalize_fit(store_predictions, store_models)
+
+        for i_rep in range(self.n_rep):
+            self._i_rep = i_rep
+            for i_d in range(self._dml_data.n_treat):
+                self._i_treat = i_d
+
+                # this step could be skipped for the single treatment variable case
+                if self._dml_data.n_treat > 1:
+                    self._dml_data.set_x_d(self._dml_data.d_cols[i_d])
+
+                # predictions have to be stored in loop for sensitivity analysis
+                nuisance_predictions = self._fit_nuisance_and_score_elements(
+                    n_jobs_cv, store_predictions, external_predictions, store_models
+                )
+
+                self._solve_score_and_estimate_se()
+
+                # sensitivity elements can depend on the estimated parameter
+                self._fit_sensitivity_elements(nuisance_predictions)
+
+        # aggregated parameter estimates and standard errors from repeated cross-fitting
+        self.coef, self.se = _aggregate_coefs_and_ses(self._all_coef, self._all_se)
+
+        # validate sensitivity elements (e.g., re-estimate nu2 if negative)
+        self._validate_sensitivity_elements()
+
+        # construct framework for inference
+        self._framework = self.construct_framework()
+
+        return self
