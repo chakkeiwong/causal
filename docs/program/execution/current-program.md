@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 89 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 742-page working reader;
+Recovery and continuation recorded 91 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 750-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[742 pages](../../causal_proposal_llm_identification_v2_2026-10-14.pdf), hash
-`bedc4b4f1dc6f434b38725b2b9426940384b526459fc46a107bf69a4c74d9f46`.
-Its traceability review covers 558 cited records and 159 genuine scholarly
+[750 pages](../../causal_proposal_failure_recovery_2026-10-14.pdf), hash
+`99ce4757232dda841b51e9749be9871f341aa44adc5ec06f35b108a16ab82ccb`.
+Its traceability review covers 568 cited records and 160 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -77,9 +77,23 @@ examples show equal observed laws and complier effect1 but population effects
 contract preserves unknown, invalid input, criterion failure and certified
 nonidentification separately. No live LLM or upstream runtime result is claimed.
 An inherited bibliography-year default was preserved in an unpublished743-page
-candidate and repaired in the current742-page successor. Continue
-SW.CELL.discovery_temporal_interventional.R with the reviewed plan and pinned
-primary acquisition in the r-temporal execution directory.
+candidate and repaired in its742-page successor. The R temporal/interventional
+cell is now recorded as inconclusive and integrated in the747-page reader.
+Seventeen original blobs, a genuine sequential-invariance paper and inherited
+pcalg manuals distinguish tier order, lag prediction, invariance and regimes.
+Exact examples cover aggregation timing, series boundaries and shared calendars.
+Help/source graph-class disagreement and broader search/rights/runtime questions
+remain explicit. Missing scholarly filename metadata in the initial build was
+preserved and repaired in a successor. IN.REQ.failure_trials is now recorded
+and integrated in the750-page reader. Twelve actual/instrumented local cases
+plus three actual CLI cases preserve both successful recovery and failure.
+Content-only publication and report-before-acknowledgement recover matching
+identities; corrupted checkpoints refuse. A valid request with corrupted replay
+is incorrectly classified by the CLI as invalid_request; a concrete repair and
+acceptance plan is proposed, with library sources unchanged. The original CLI
+probe's post-save summary-print failure is retained and repaired in a successor.
+Continue TEXT.DRAFT.L7 by reviewing existing benchmarking material for genuine
+coverage/depth and adding only missing analysis.
 The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
@@ -126,3 +140,7 @@ State updates use a lock, compare the previously read state hash, save its histo
 Keep shell output small, use short commands and poll long builds with bounded output. Do not dump saved session JSONL or image data. The inherited six-image allowance is exhausted: further rendered review needs a fresh session under `/home/ubuntu/AGENTS.md`; authoring, computation and text/source checks continue independently. Recovery starts with this file and canonical state rather than replaying large tool results.
 
 No unattended research worker is installed or running. The controller can select, validate and checkpoint tasks; an active agent must perform research, proofs, manuscript writing and review. Automatic task selection cannot guarantee that an agent continues after yielding its turn. These instructions and durable checkpoints correct the operational practice; they do not promise a nonexistent service.
+
+The identification reader and temporal acquisition checkpoint were committed
+and pushed at 55668a7156fc7af5a2e7613795865069f5684e11; the exact remote main
+was verified. Later temporal work and failure trials await the next publication.
