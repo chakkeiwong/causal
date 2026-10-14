@@ -1,0 +1,16 @@
+# Python temporal and interventional discovery: plan and author review
+
+Operation: SW.CELL.discovery_temporal_interventional.Python. Literature cutoff: 2026-10-07 Asia/Shanghai (2026-10-07T15:59:59Z). Acquisition occurs later and must not imply later-source eligibility.
+
+1. Reconcile inherited Tigramite and VARLiNGAM evidence with the present citation audit. Search explicitly for temporal, irregular-sampling, regime/context and interventional families, retaining aliases and omissions.
+2. Acquire cutoff-compatible repository identities and selected primary implementations for Tigramite extensions, Salesforce CausalAI, DYNOTEARS/CausalNex, Python GIES, CausalDAG/IGSP, DCDI, ENCO and SDCD. Review additional leads without asserting absence when originals or implementation review are missing. Bound the first pass to these eight families, inherited LiNGAM and two query rounds; retain new independent families for follow-up. Stop each acquisition round after its finite manifest, preserving failures.
+3. Separate temporal order from identification, context/regime changes from random intervention, perfect from soft interventions, known from unknown targets, and selected DAGs from endpoint equivalence classes. Inspect matrix orientation, series boundaries, masks, lag/frequency, stationarity and uncertainty semantics. Verify downloaded source blobs against pinned complete Git trees.
+4. Develop reproducible exact banking examples: hidden common calendar effects, subsampling and lag ambiguity, perfect versus mechanism intervention, and structural versus reduced-form dynamics. State all units and assumptions; no upstream benchmark or bank ROI inference.
+5. Write a comparative manuscript section and proposed per-family adoption/adapter/defer decisions with concrete public/generated acceptance cases. Preserve inherited citations and release evidence, compile a successor reader, check text/bounds and renew applicable exact-reader reviews. No new image calls: six-image session allowance is exhausted.
+6. Review coverage honestly; record pass only if contracted criteria hold, otherwise scoped inconclusive with an exact continuation list. Continue independent queued work after the outcome. Commit and push verified changes under existing authorization.
+
+## Review before execution
+The finite candidate set is a coverage aid, not a claim of universal completeness. Primary source is needed for every technical capability; search snippets/metadata establish discovery only. Existing generic package reuse verdicts do not resolve uninspected temporal paths. Regimes, multi-dataset pooling and interventions have different semantics and must have distinct contracts. Runtime qualification is not required for a proposal but execution status must be explicit. Public tests are proposed, not silently reported as observed. File and mathematical checks cannot close rendered release acceptance or whole-monograph depth. Each package omission is local and cannot block other packages or lanes. Source/receipt hashes and historical failed evidence remain immutable.
+
+## Preparation failure
+The first shell preparation returned Python SyntaxError before executing any statement because newline quoting in a JSON-string boundary was malformed. This successor uses chr(10) for serialized record terminators; no evidence was overwritten by that failure.

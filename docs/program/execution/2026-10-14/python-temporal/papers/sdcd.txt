@@ -1,0 +1,1907 @@
+                                                                          Stable Differentiable Causal Discovery
+
+
+                                                                   Achille Nazaret * 1 2 Justin Hong * 1 2 Elham Azizi 1 2 3 David Blei 1 4
+
+
+                                                                  Abstract                                      can either be interventional, where some variables were
+                                                                                                                purposely manipulated, or purely observational, where there
+                                              Inferring causal relationships as directed acyclic
+                                                                                                                has been no manipulation.
+                                              graphs (DAGs) is an important but challenging
+arXiv:2311.10263v2 [cs.LG] 27 Jun 2024
+
+
+
+
+                                              problem. Differentiable Causal Discovery (DCD)                    The challenge of causal discovery is that searching for the
+                                              is a promising approach to this problem, fram-                    true DAG underlying the data is an NP-hard problem. Exact
+                                              ing the search as a continuous optimization. But                  methods are intractable, even for modest numbers of vari-
+                                              existing DCD methods are numerically unstable,                    ables (Chickering, 1996). Yet datasets in fields like biology
+                                              with poor performance beyond tens of variables.                   routinely involve thousands of variables (Dixit et al., 2016).
+                                              In this paper, we propose Stable Differentiable
+                                                                                                                To address this problem, Zheng et al. (2018) introduced
+                                              Causal Discovery (SDCD), a new method that im-
+                                                                                                                differentiable causal discovery (DCD), which formulates
+                                              proves previous DCD methods in two ways: (1)
+                                                                                                                the DAG search as a continuous optimization over the
+                                              It employs an alternative constraint for acyclic-
+                                                                                                                space of all graph adjacency matrices. An essential element
+                                              ity; this constraint is more stable, both theoreti-
+                                                                                                                of this strategy is an acyclicity constraint, in the form of
+                                              cally and empirically, and fast to compute. (2)
+                                                                                                                a penalty, that guides an otherwise unconstrained search
+                                              It uses a training procedure tailored for sparse
+                                                                                                                toward acyclic graphs.
+                                              causal graphs, which are common in real-world
+                                              scenarios. We first derive SDCD and prove its                     This optimization-oriented formulation often scales better
+                                              stability and correctness. We then evaluate it with               than previous methods, and it has opened opportunities to
+                                              both observational and interventional data and                    harness neural networks (Lachapelle et al., 2019), incorpo-
+                                              in both small-scale and large-scale settings. We                  rate interventional data (Brouillard et al., 2020), and use
+                                              find that SDCD outperforms existing methods in                    matrix approximation techniques (Lopez et al., 2022). But,
+                                              convergence speed and accuracy, and can scale                     while promising, existing DCD methods still struggle to
+                                              to thousands of variables. We provide code at                     scale consistently beyond tens of variables, or they rely on
+                                              github.com/azizilab/sdcd.                                         approximations that limit their applicability (see Section 5).
+                                                                                                                In this paper, we study the problems of DCD and improve
+                                                                                                                on it, so that it can scale more easily and apply to many
+                                         1. Introduction                                                        types of causal discovery problems. We trace the issues
+                                         Inferring cause-and-effect relationships between variables is          with DCD to the instability of its objective function; in
+                                         a fundamental challenge in many scientific fields, including           particular, properties of the acyclicity constraint it uses to
+                                         biology (Sachs et al., 2005), climate science (Zhang et al.,           find a DAG solution. We formalize this notion of stability,
+                                         2011), and economics (Hoover, 2006). Mathematically, a set             show that previous DCD methods are unstable, and then
+                                         of causal relations can be represented with a directed acyclic         formulate a method that is stable and scalable.
+                                         graph (DAG) where nodes are variables, and directed edges              In details, this paper makes several contributions. First, we
+                                         indicate direct causal effects. The goal of causal discovery           present a unifying theoretical view of existing acyclicity con-
+                                         is to recover the graph from the observed data. The data               straints, which explains their intrinsic numerical instability.
+                                            *
+                                              Equal contribution 1 Department of Computer Science,              We then employ a constraint, the spectral acyclicity con-
+                                         Columbia University, New York, USA 2 Irving Institute for Cancer       straint (Lee et al., 2019), that is both faster to compute and
+                                         Dynamics, Columbia University, New York, USA 3 Department of           offers improved numerical stability. We prove its stability
+                                         Biomedical Engineering, Columbia University, New York, USA             and corroborate its good properties with experiments.
+                                         4
+                                           Department of Statistics, Columbia University, New York, USA.
+                                         Correspondence to: Elham Azizi <ea2690@columbia.edu>.                  Finally, we develop Stable Differentiable Causal Discovery
+                                                                                                                (SDCD). SDCD is a two-stage optimization procedure for
+                                         Proceedings of the 41 st International Conference on Machine           causal discovery that is stable and computationally efficient.
+                                         Learning, Vienna, Austria. PMLR 235, 2024. Copyright 2024 by
+                                         the author(s).                                                         In its first stage, it prunes edges without regard for acyclicity.
+
+                                                                                                            1
+                                             Stable Differentiable Causal Discovery
+
+                   Stage 1                     Stage 2                   2002) and GDS (Peters & Bühlmann, 2014) optimize the
+               Edge Preselection   Differentiable Causal Discovery
+True edge                                                                BIC score of a Gaussian linear model by greedily adding or
+                                                                         removing edges. GIES modifies GES to support interven-
+Preselected
+                                                                         tional data (Hauser & Bühlmann, 2012), and CAM supports
+   edge                                                                  non-linear additive models (Bühlmann et al., 2014).
+                                                                         Differentiable Causal Discovery (DCD), which our work
+ Inferred
+   edge
+                                                                         extends, is a type of score-based approach that reformu-
+                                                                         lates the search of the score maximizer into a continuous
+                                                                         optimization problem. It uses a numerical criterion to distin-
+   Figure 1: Visual representation of the SDCD method.                   guish acyclic graphs from cyclic ones (called the acyclicity
+                                                                         constraint). It was initially introduced in (Zheng et al.,
+                                                                         2018) as NO-TEARS, which uses linear models, augmented
+In the second stage, it performs DCD with the spectral
+                                                                         Lagrangian optimization, and a constraint based on the adja-
+acyclicity constraint described above. We prove that the
+                                                                         cency matrix exponential. Other works extend the methodol-
+first stage of SDCD does not remove true edges, and we
+                                                                         ogy to incorporate polynomial regression (Lee et al., 2019),
+show empirically that it is faster and more accurate than a
+                                                                         neural networks (Lachapelle et al., 2019; Zheng et al., 2020),
+single-stage optimization. SDCD removes key barriers that
+                                                                         and support for interventional data (Brouillard et al., 2020).
+previously limited differentiable causal discovery to small
+problem sizes and application contexts.                                  Alternative acyclicity constraints (Lee et al., 2019; Ng et al.,
+                                                                         2020; Bello et al., 2022) have been proposed, as well as
+In sum, the main contributions of this work are:
+                                                                         optimization schemes different than augmented Lagrangian
+                                                                         (Ng et al., 2020; 2022; Bello et al., 2022). Deng et al. (2023)
+   • We develop a theoretical analysis of the acyclicity con-            introduced a hybrid approach combining gradient optimiza-
+     straints used in DCD, and their numerical instabilities.            tion with combinatorial optimization, while Lippe et al.
+   • We motivate an alternative acyclicity constraint with               (2021) explored removing the acyclicity constraint entirely.
+     superior stability, both theoretically and empirically.             Despite a rich literature, DCD has difficulty scaling to a
+                                                                         large number of variables, exhibiting long training times
+   • We propose the SDCD method for efficient DCD. It
+                                                                         and numerical instability. Wei et al. (2020); Ng et al. (2024)
+     leverages the stable constraint within a two-stage op-
+                                                                         identified those limitations, and Lee et al. (2019); Lopez
+     timization procedure designed for training robustness.
+                                                                         et al. (2022) addressed these problems with elegant approxi-
+     We prove that SDCD does not compromise accuracy.
+                                                                         mations, but they resulted in poor accuracy.
+   • We empirically study SDCD, and show that it effi-
+                                                                         Here, we provide a theoretical understanding of some algo-
+     ciently solves problems involving thousands of vari-
+                                                                         rithmic issues with DCD and then use that understanding to
+     ables. Compared to previous methods, SDCD achieves
+                                                                         develop a better DCD method. Our proposed method builds
+     faster convergence and improved accuracy on observa-
+                                                                         on ideas that have been partially studied in previous work,
+     tional and interventional data.
+                                                                         including the acyclicity constraint of Lee et al. (2019) and
+   • Code is available at github.com/azizilab/sdcd.                      the penalty method of Ng et al. (2020). Lee et al. (2019)
+                                                                         uses the spectral acyclicity constraint for computational ef-
+Related Work. Causal discovery methods mainly fall into                  ficiency but otherwise does not expand on its advantages.
+two categories: constraint-based methods and score-based                 In this work, we provide a novel analysis of the constraint
+methods (Glymour et al., 2019).                                          and incorporate it into a new strategy that is more accu-
+                                                                         rate and scalable than existing DCD algorithms. Table 1
+Constraint-based methods identify causal relationships by                recapitulates research in DCD and how this work fits in.
+testing for conditional independence among variables in the
+data. For example, the PC algorithm (Spirtes et al., 2000)
+finds the graphs which conform to all the independencies
+                                                                         2. Background and Notations
+present in the data. COmbINE is an extension to support                  We review the Differentiable Causal Discovery (DCD) ap-
+interventional data (Triantafillou & Tsamardinos, 2015).                 proach and define the notations used in the paper.
+On the other hand, score-based methods design a score
+S(G) that is maximized by the true graph G∗ , and they                   2.1. Background on Causal Discovery
+aim to find its maximizer Ĝ = arg maxG∈DAG S(G). Exist-                 Causal discovery is the task of learning cause-and-effect
+ing score-based methods differ in their choice of S and of               relationships among a set of variables. In this work, we
+the optimization method to maximize it. GES (Chickering,
+
+                                                                     2
+                                               Stable Differentiable Causal Discovery
+
+Table 1: Comparison of Differentiable Causal Discovery methods including our proposed SDCD method. Expressive model
+class refers to the capability to approximate any causal graph with non-linear structural equations.
+
+
+                   Method                Stable           Scalable              Can Use             Expressive
+                                        Training         Constraint           Interventions         Model Class
+                   SDCD                    ✓               O(d2 )                    ✓                    ✓
+                                                                3
+                   DCDI                    ✕               O(d )                     ✓                    ✓
+                   DCDFG                   ✕               O(md)                     ✓                    ✕
+                   DAGMA                   ✕               O(d3 )                    ✕                    ✓
+                   NO-TEARS                ✕               O(d3 )                    ✕                    ✕
+                   NO-BEARS                ✓               O(d2 )                    ✕                    ✕
+
+
+
+consider variables that can be intervened on such that                  Causal discovery with score-based methods. The goal
+they no longer are affected by their causal parents. These              of causal discovery is to infer the graph G∗ from the data
+interventions are called structural or perfect interventions            (X, T ). In particular, score-based methods assign a score
+(Eberhardt & Scheines, 2007).                                           S(G) to every possible graph G, where the score function
+                                                                        is designed so that it is maximized on the true graph G∗ .
+Causal Graphical Models.        Causal graphical models
+                                                                        Score-based methods aim to find the maximizer
+(CGMs) provide a mathematical framework for reasoning
+about causal relationships between variables. Consider a                                    Ĝ = arg max S(G).                       (2)
+CGM over d variables and K possible interventions on it.                                           G∈DAG
+
+There are three components:                                             Fix a model class that defines the conditional (and in-
+                                                                        terventional) distributions for each possible DAG G as
+  1. A directed acyclic graph (DAG), G∗ = (V, E), where                 {p(· | G; θ, k)}θ . We can define the score S(G) to be the
+     each node, j ∈ V , represents a variable xj , and each             maximum log-likelihood that can be achieved under graph
+     edge, (j, k) ∈ E, indicates a direct causal relationship           G with some regularization over the number of edges |G|
+     from xj to xk .                                                    (Chickering, 2002):
+  2. A list of conditional distributions, p∗j (xj | xpaG∗ ; 0),
+                                                                                            " n                       #
+                                                       j                                     1X           i         i
+     which specify the distribution of each xj given its                  Smle (G) = sup           log p(x | G; θ, t ) − λ|G|. (3)
+                                                                                        θ    n i=1
+     causal parents xpaG∗ without intervention (the 0 in-
+                        j
+     dicates no intervention).
+                                                                        In the limit of infinite samples (n → ∞), and under a few
+  3. A list of interventions, I = {I0 , I1 , ..., IK }, where           assumptions, any maximizer Ĝ of Equation (3) is close
+     I0 = ∅ (no intervention) and the others Ik ⊂ V define              to the true G∗ (Brouillard et al., 2020). More precisely,
+     the target variables of intervention k. Alongside is a             Ĝ and G∗ are I-Markov-equivalent: they share the same
+     list of interventional distributions, p∗m (xm ; k), for each       skeleton, v-structures, and other restrictive properties at the
+     k > 0 and m ∈ Ik , which define the distributions over             intervened variables in I (Yang et al., 2018).
+     xm after intervention k.
+                                                                        2.2. Differentiable Causal Discovery
+The joint distribution under intervention k writes:
+                                                                        The main challenge to a score-based method for causal dis-
+                                                                        covery is how to search over the large space of DAGs. Dif-
+                 Y                         Y
+  p∗ (x; k) =         p∗j (xj | xpaG∗ ; 0)   p∗j (xj ; k). (1)
+               j∈V \Ik
+                                    j
+                                           j∈Ik
+                                                                        ferentiable Causal Discovery (DCD) reformulates this com-
+                                                                        binatorial search into a continuous optimization problem
+Note p∗(x; 0) is the joint on observational data.                       over the space of all graphs, including cyclic ones (Zheng
+                                                                        et al., 2018). It introduces three key components.
+Data.       We observe n data points of the d variables
+X = {(xi1 , ..., xid )}ni=1 with labels T = {ti }ni=1 where             Model Class with Implicit Graph. First, DCD defines
+ti ∈ {0, ..., K} indicates which intervention was applied to            a model class with no apparent underlying graph, where
+xi (0 indicating no intervention). For example, in genomics,            Q variable is conditioned on all others as p(· | θ, k) ∝
+                                                                        each
+Perturb-seq screens (Replogle et al., 2022) measure the ex-                 pj (xj |x−j ; θ, k). Instead, θ defines the graph G implic-
+pression of d genes across n cells, where each cell can be              itly, such that if θ renders x−j 7→ pj (xj |x−j ; θ, 0) invariant
+edited once to change the expression of one of its genes.               to some xℓ ⊂ x−j , then there is no edge from l to j. The
+
+                                                                    3
+                                               Stable Differentiable Causal Discovery
+
+induced adjacency matrix is denoted Aθ . When θ induces                 Name     ak        fa               ha                ∇h⊤
+                                                                                                                                a
+an acyclic Aθ , then p(· | θ, k) defines a valid CGM.                   hexp    1/k!    exp(x) − 1     Tr exp(A) − d        exp(A)
+                                                                        hlog    1/k            1
+                                                                                          log 1−x     − log det(I − A)    (I − A)−1
+Acyclicity Function. Second, DCD introduces a differ-                   hinv     1          1
+                                                                                                        Tr(I − A)−1       (I − A)−2
+                                                                                           1−x
+entiable function h(Aθ ) that quantifies how “cyclic” Aθ               hbinom    d
+                                                                                   
+                                                                                       (1 + x)d − 1   Tr(I + A)d − d     d(I + A)d−1
+                                                                                 k
+is. h(Aθ ) is high when Aθ contains cycles with large
+                                                                         hρ      –          –             |λd (A)|       vd u ⊤   ⊤
+                                                                                                                              d /vd ud
+edge weights, it is low when Aθ contains cycles with small
+weights, and h(Aθ ) = 0 when Aθ contains no cycles.
+                                                                      Table 2: (Top) Existing PST constraints with their power
+Optimization. Finally, DCD reformulates Equation (3)                  series and gradients. (Bottom) The spectral acyclicity con-
+into a constrained optimization problem only over θ.                  straint, which is not PST.
+
+               θ̂ =      arg max        Sα,β (θ).           (4)
+                              θ
+                                    .                                 Then, for any matrix A ∈ Rd×d
+                                                                                                  ≥0 with non-negative entries,
+                      s.t. h(Aθ ) = 0
+                                                                      we define the Power Series Trace (PST) function
+It uses Aθ in place of G, uses the constraint h(Aθ ) = 0 in                                               ∞
+                                                                                                          X
+place of G ∈ DAG, and uses a new objective Sα,β :                                                                ak Tr Ak .
+                                                                                                                       
+                                                                                ha (A) = Tr [fa (A)] =
+                 n                                                                                        k=1
+            1X
+ Sα,β (θ) =       log p(xi ; θ, ti ) − α∥Aθ ∥1 − β∥θ∥22 , (5)
+            n i=1                                                     The quantity ha (A) is closely related to the
+                                                                                                                   cycles
+                                                                                                                            in the
+                                                                      graph represented by A. In ha (A), each Tr Ak equals the
+Sα,β is a relaxed version of Smle (Equation (3)) where the            total weight of all length-k cycles in A – where the weight
+discrete |G| is changed into an L1 regularization of Aθ               of a cycle is the product of its edge weights (Bapat, 2010).
+(for α ≥ 0) and an L2 regularization of θ is included (for            The next theorem generalizes the result of Wei et al. (2020)
+β ≥ 0). The supθ in Smle (Equation (3)) is now removed,               to show that most ha can be used to characterize acyclicity.
+as it merges with the arg maxθ of Equation (4).                       Theorem 3.2 (PST constraint). For any sequence
+                                                                                     ∗
+
+With Equation (4) in hand, different methods for DCD solve            (ak )k∈N∗ ∈ RN≥0 , if we have ak > 0 for all k ∈ J1, dK, then,
+the constrained optimization in different ways. Some ap-              for any matrix A ∈ Rd×d≥0 , we have
+proaches use the augmented Lagrangian method (Zheng                        
+et al., 2018; Lachapelle et al., 2019; Brouillard et al., 2020;             ha (A) = 0 ⇔ A is acyclic,
+Lopez et al., 2022), some use the barrier method (Bello                       ha (A) ≥ 0,
+                                                                              ∇ha (A) = ha′ (A⊤ ) with a′k = (k + 1)ak+1 .
+                                                                           
+et al., 2022), and others use h as a regularizing penalty (Ng
+et al., 2020).                                                        We say that ha is a PST constraint.
+In all these approaches, the choices of h and the optimiza-
+                                                                      The proof is in Appendix A.1. In particular, sequences
+tion method dictate the optimization behavior and the ulti-
+                                                                      of strictly positive ak satisfy the conditions for any d, so
+mate quality of the inferred graph. In the next section, we
+                                                                      several standard power series are PST constraints.
+highlight the importance of h.
+                                                                      For example, the sequence aexp
+                                                                                                   k
+                                                                                                          1
+                                                                                                       = k! recovers the penalty
+3. Stable Acyclicity Constraint                                       hexp (A) = Tr(exp(A)) − d originally proposed in Zheng
+                                                                      et al. (2018).
+In this section, we demonstrate how most existing acyclicity                                              P∞ xk
+constraints can lead to unstable numerical behaviors during           If we define alog   1
+                                                                                     k = k , then falog =   k=1 k is the power
+optimization, especially with large numbers of variables d.           series of x 7→ − log(1 − x). With the identity Tr log A =
+We then motivate an alternative constraint, which we show             log det A (Withers & Nadarajah, 2010), where log A is the
+to be theoretically and empirically more stable.                      matrix logarithm, we find that
+                                                                          hlog (A) = Tr(− log(I − A)) = − log det(I − A).
+3.1. Power Series Trace Constraints
+                                                                      This is precisely the constraint introduced in Ng et al. (2020);
+We first introduce a family of constraints. It generalizes            Bello et al. (2022). Hence, even though it uses the matrix
+existing constraints and reveals their similarities.                  determinant instead of the matrix trace, we uncover that
+Definition 3.1 (The Power Series Trace Family). For any               hlog is also a PST constraint.
+                                         ∗
+non-negative coefficients (ak )k∈N∗ ∈ RN≥0 , consider the
+                      ∞                                               Table 2 shows that other constraints such as hbinom = Tr((I+
+                          ak xk .                                     A)d )−d (Yu et al., 2019), hinv = Tr((I −A)−1 )−d (Zheng
+                      P
+power series fa (x) =
+                        k=1                                           et al., 2018) are also PST.
+
+                                                                  4
+                                             Stable Differentiable Causal Discovery
+
+                                                                              :     random weights in [0,ε]   length-d/2 cycle of weights ε
+3.2. Limitations of PST constraints
+                                                                              :
+In this section, we provide the criteria necessary for con-
+straints to exhibit stable optimization behavior. We prove
+that PST constraints do not satisfy these criteria and show
+empirically that optimization with these constraints can be
+slow or fail. As a solution, we suggest an alternative, non-
+PST acyclicity constraint and demonstrate its stability.
+Definition 3.3. An acyclicity constraint h is stable if these
+three criteria hold for almost every A ∈ Rd×d
+                                          ≥0 :
+
+ - E-stable. h(sA) = Os→∞ (s)
+ - V-stable. h(A) ̸= 0 ⇒ h(εA) = Ωε→0+ (ε)                             Figure 2: Constraint behaviors when evaluated on uniform
+ - D-stable. h and ∇h are defined almost everywhere.                   random matrices in [0, ϵ]d×d (dashed) or a cycle of length
+                                                                       d/2 with weight ε (solid). The y-axis shows the constraint’s
+E-stability ensures that h does not explode to infinity; V-            value, the x-axis is (left) the weights’ scale ε (right) the
+stability ensures h does not vanish rapidly to 0; D-stability          number of variables d. Only the proposed hρ (orange) re-
+ensures that h and its gradient are well defined.                      mains stable; others vanish to zero exponentially or escalate
+                                                                       to infinity (as soon as d > 10). The vertical dotted lines
+These three criteria are all important for maximizing Sα,β (θ)         indicate the constraint escaped its domain of definition. All
+under the constraint h(Aθ ) = 0. D-stability and E-stability           these failures were encountered during DCD experiments.
+ensure the constraint remains well-defined and with bounded
+values throughout the optimization procedure. The V-
+stability is related to the nature of constrained optimization.        hlog and hinv appears even in small ϵ or d (vertical lines). We
+Methods like augmented Lagrangian, barrier functions, and              encounter all three instabilities during causal discovery ex-
+penalties use the constraint h to formulate an objective of            periments (Section 5.2), leading existing approaches to fail.
+the form Sα,β (θ) − γh(Aθ ) − µh(Aθ )2 . They then increase
+γ and µ until h(Aθ ) reaches 0. These increments ensure that           3.3. The Spectral Acyclicity Constraint
+the penalty does not become negligible relative to Sα,β (θ).
+But without V-stability, h(Aθ ) can shrink quickly very close          To overcome the limits of the PST constraint family, we
+to 0, while Aθ remains far from a DAG. So, for full conver-            propose to use another type of constraint, one based on the
+gence, these methods must grow γ and µ to large values,                spectrum of A, which was first used in Lee et al. (2019).
+which can be either inefficient (it requires more training             This constraint draws from a characterization of DAG ma-
+epochs) or fail (as γ or h(Aθ ) eventually reach the limit of          trices from graph theory - that A is acyclic if and only if all
+machine precision). The studies in Section 5.2 demonstrate             its eigenvalues are zero (Cvetković et al., 1980).
+these failure modes happen in practice.                                We write λ1 (A) ∈ C to λd (A) ∈ C, the d eigenvalues of A,
+We now show that PST constraints are unstable, especially              sorted from smallest to highest complex magnitude
+as d grows.                                                            Definition 3.5 (Spectral radius). The spectral radius
+Theorem 3.4 (PST instability). For d ≥ 2, any PST con-                                       hρ (A) = |λd (A)|,
+straint h is both E-unstable and V-unstable. More precisely,
+  - E-unstable. ∃A ∈ Rd×d                       d                      is the largest eigenvalue magnitude of A.
+                         ≥0 , h(sA) = Ωs→∞ (s )
+                         d×d
+  - V-unstable. ∃A ∈ R≥0 , h(εA) = Oε→0+ (εd )                         The next theorem shows that the spectral radius can be used
+Also, any PST constraint for which fa has a finite radius of           as an acyclicity constraint.
+convergence is D-unstable (e.g., hlog , hinv ).                        Theorem 3.6 (Cvetković et al. (1980); Lee et al. (2019)).
+                                                                       The spectral radius is an acyclicity constraint.
+Theorem 3.4 is proved in Appendix A.2. It shows that the
+instability of the PST constraints worsens exponentially in                            hρ (A) = 0 ⇔ A is a DAG.
+d. Figure 2 empirically corroborates the theorem with two
+types of adjacency matrices encountered during DCD: a                  We refer to it as the spectral acyclicity constraint. It is
+cycle and some uniformly random noise. It shows that all               differentiable almost everywhere, with gradient
+PST constraints escalate to infinity or vanish to zero as the                            ∇hρ (A) = vd u⊤   ⊤
+                                                                                                       d /vd ud ,
+scale of noise ε changes (Figure 2 left) or as the number
+of variables d increases (Figure 2 right), reflecting their E-         where ud , vd are respectively the right and left eigenvectors
+instability and V-instability. In addition, the D-instability of       associated with λd (A) (Magnus, 1985).
+
+                                                                   5
+                                             Stable Differentiable Causal Discovery
+
+Theorem 3.6 is proved in Appendix A.3. It implies that hρ           Stage 2: Differentiable Causal Discovery. Next, SDCD
+is D-stable. Next, we prove hρ is E-and-V-stable.                   re-solves Equation (6), this time with the constraint and with
+Theorem 3.7. hρ is stable.                                          masking the removed edges from stage 1,
+
+We refer to Appendix A.4 for the proof.                                    θ̂2 =       arg max            Sα2 ,β2 (θ) − γ2 hρ (Aθ ).   (8)
+                                                                                            θ
+Remark 3.8. As a corollary of Theorem 3.7, hρ is not an-                           ∀(j,l)∈R̂1 ,Aθ,jl =0
+other PST constraint (since it is stable).
+                                                                    The term γ2 is initialized at 0 and is increased by a constant,
+We complete Figure 2 with the empirical behavior of hρ . As         γδ , after each epoch. Like other DCD methods, SDCD
+theoretically expected, hρ retains non-extreme values and is        forms the final graph ĜSDCD by selecting the edges in Aθ̂2
+suitable for constraint-based optimization.                         with weight above a threshold τ2 . The details of the algo-
+                                                                    rithm can be found in Appendix B.2.
+To further understand the impact of the constraints’ stabil-
+ity on optimization, we empirically study the optimization          Remark 4.1. In both stages, the constraints Aθ,jl = 0 are
+path of the augmented Lagrangian and the penalty method             straightforward to enforce by masking the elements in θ
+with each constraint in Appendix Figure 5. The instabili-           corresponding to Aθ,jl (i.e., fixing them at 0).
+ties of PST constraints effectively slow their convergence          Compared to other methods, SDCD innovates in two ways:
+and require increasing γ and µ to excessively large values.         (1) by using the constraint hρ with the penalty method and
+In contrast, the optimization paths with hρ take the least          (2) by using a two-stage optimization that preselects edges
+number of iterations to converge, especially with the penalty       in stage 1 and optimize the DCD objective only on those in
+method. Moreover, the computation of hρ can be done in              stage 2. Without explicit masking, stage 2 would be similar
+O(d2 ) time (See Appendix B.2), contrary to the PST con-            to the barrier or penalty method (Ng et al., 2020; Bello et al.,
+straints whose computations scale in O(d3 ).                        2022), with stage 1 only providing a warm start.
+We are ready to perform DCD with the stable hρ .                    Motivations for stage 1. Dedicating stage 1 to removing
+                                                                    unlikely edges is motivated by the hypothesis that real-life
+4. Stable Differentiable Causal Discovery                           causal graphs are sparse. For example, individual genes in
+                                                                    biological systems are typically regulated by a few other
+With the stable acyclicity constraint hρ in hand, we now            genes rather than all other genes (Lambert et al., 2018).
+introduce Stable Differentiable Causal Discovery (SDCD).            A similar hypothesis underlies work in sparse mechanism
+SDCD efficiently learns causal graphs in two stages.                shift (Schölkopf et al., 2021). Hence, stage 1 will likely
+                                                                    remove many false edges and facilitate stage 2. Alternative
+4.1. The SDCD method                                                approaches for variable selection (e.g., markov boundaries
+                                                                    (Loh & Bühlmann, 2014; Wang & Chan, 2012), skeletons
+To solve the optimization problem (4) with the spectral
+                                                                    (Tsamardinos et al., 2006), preliminary neighborhood selec-
+acyclicity constraint hρ , SDCD optimizes the following
+                                                                    tion (Bühlmann et al., 2014; Lachapelle et al., 2019)) can
+objective with gradient-based optimization:
+                                                                    be motivated for the same reasons. Here, we found a simple
+           θ̂ = arg max Sα,β (θ) − γ · hρ (Aθ ),          (6)       modification to the objective function can effectively serve
+                    θ                                               this purpose. In practice, we find that stage 1 improves con-
+                                                                    vergence speed and accuracy (Section 5, Table 7). Notably,
+where hρ is used as a penalty with coefficient γ. SDCD
+                                                                    we find that stage 1 improves the stability of the training
+proceeds in two stages (See Figure 1).
+                                                                    in stage 2, even when PST constraints are used in place
+Stage 1: Edge Preselection. First, SDCD solves Equa-                of the spectral one (Table 8). For this reason, stage 1 may
+tion (6) without the constraint, by setting γ = 0.                  also serve as a beneficial preprocessing step for other causal
+                                                                    discovery methods. In Theorem 4.2 below, we prove that
+                 θ̂1 = arg max Sα1 ,β1 (θ)                (7)       stage 1 does not remove true causal parents.
+                            θ
+                        ∀j,Aθ,jj =0
+                                                                    4.2. Theoretical guarantees
+This stage amounts to solving simultaneously d independent
+prediction problems of each variable given the others (the          We analyze SDCD’s time complexity in Appendix B.2.3.
+constraint Aθ,jj = 0 prevents self-loops). The goal is to           We now provide correctness guarantees for the two stages of
+identify nonpredictive edges and remove them in stage 2,            SDCD. We show that theoretically, stage 1 does not remove
+akin to feature selection.                                          true causal parents, and so, stage 2 returns an optimal graph.
+SDCD selects the removed edges as R̂1 = {(j, l) ∈ J1, dK2 |         As done in the field (e.g., Chickering (2002); Brouillard
+Aθ̂1 ,jl < τ1 } where τ1 is a threshold.                            et al. (2020)), the results focus on the “theoretical” Ĝ that
+
+                                                                6
+                                                  Stable Differentiable Causal Discovery
+
+would be obtained with infinite data and if Equations (7)                     lard et al., 2020), DCD-FG (Lopez et al., 2022), and GIES
+and (8) were solved exactly, in their non-relaxed form. We                    (Hauser & Bühlmann, 2012).
+study SDCD in practice in Section 5.
+                                                                              Baselines for observational data. When the dataset con-
+With infinite data, Equation (7)’s unrelaxed version writes,                  tains only observational data, we include the interventional
+                                                                              methods and further compare against NO-TEARS (Zheng
+                  K
+                  X                                                           et al., 2018), NO-BEARS (Lee et al., 2019), DAGMA (Bello
+ θ̃1 = arg max            πk∗ E [log pj (xj |x−j ; θ, 0)]−λ|Aθ |,   (9)       et al., 2022), and SCORE (Rolland et al., 2022). In addition,
+           θ               p (x;k)
+       ∀j,Aθ,jj =0 k=0                                                        we report sortnregress (Reisach et al., 2021), a trivial base-
+                   Ik ̸∋j
+                                                                              line that should be outperformed (see Robustness Checks).
+where πk is the proportion of data coming from intervention                   We further included NOCURL (Yu et al., 2021) and AVICI
+k. The next theorem characterizes the graph G̃1 = Aθ̃1 in                     (Lorch et al., 2022) in Appendix D.
+terms of Markov boundaries in the true graph G∗ . A Markov
+boundary for j is a minimal set of variables that render j                    Metrics. We evaluate performance using the structural
+independent of all the others. In a causal graph, each j has                  Hamming distance (SHD) between the true G∗ and each
+a unique Markov boundary, consisting of j’s parents, j’s                      method’s output graph. SHD is standard in causal discovery.
+children, and j’s children’s parents (Neapolitan et al., 2004).               It quantifies the minimum number of edge additions, dele-
+                                                                              tions, and reversals needed to transform one graph into the
+Theorem 4.2. Under regularity assumptions detailed in                         other. Lower SHDs indicate better reconstructions of G∗ .
+Appendix A.5, the candidate parents paG̃
+                                      j of j selected by
+                                        1
+
+
+stage 1 are precisely the Markov boundary of j in the true                    Robustness Checks. Previous works detailed common
+                              G∗     G∗      G∗                               issues with the SHD metric (Tsamardinos et al., 2006) and
+graph G∗ , That is, paG̃
+                      j = paj ∪ chj ∪ pachG∗ .
+                         1
+                                                         j                    data simulation processes (Reisach et al., 2021). We include
+                                                                              additional metrics and baselines recommended by previous
+The assumptions of Theorem 4.2 and its proof are detailed in                  works to ensure our evaluation is robust. Further details and
+Appendix A.5. The assumptions are reasonable: p∗ should                       results are detailed in Appendix C.4.
+be in the model class {pθ }, the expectations should be well
+defined, and “faithfulness” should hold (that is, G∗ doesn’t                  Data. We simulate observational and interventional data for
+have superfluous edges).                                                      a wide range of d (number of variables), varying the graph
+                                                                              density with s (the average number of parents per node),
+Theorem 4.2 gives two guarantees: (1) stage 1 does not                        and varying the number of variables that are intervened on.
+remove causal parents and (2) stage 1 returns only a subset                   The simulations proceed as done in Brouillard et al. (2020);
+of the edges, not all of them. For instance, if G∗ is sparse                  Bello et al. (2022), by sampling a random graph, modeling
+such that each node has at most k parents, then only O(dk 2 )                 its conditionals with random neural networks, setting its
+edges are returned, which is essentially linear in d for small                interventional distribution to Gaussian, and drawing samples
+k (see Appendix A.7).                                                         from the obtained model. More details are in Appendix C.1.
+Theorem 4.2 implies that Brouillard et al. (2020, Theorem                     In all experiments, the number of observational samples is
+1) still applies, and we deduce that stage 2 remains optimal                  fixed at 10, 000, and an additional 500 samples are added
+under the stated assumptions (see Appendix A.6).                              for each perturbed variable.
+
+The theoretical results are reassuring. In the next section, we               To further validate the results against the strongest base-
+study SDCD’s empirical performance to examine the impact                      line, we evaluate SDCD on the simulated data generated
+of finite data, nonconvex optimization, and relaxations.                      in Brouillard et al. (2020) (DCDI) and compare our results
+                                                                              against their reported SHD values.
+5. Empirical studies                                                          Setting.     Consistent with prior work (e.g., DAGMA,
+                                                                              NOTEARS), we do not conduct hyperparameter optimiza-
+We compare SDCD to state-of-the-art baselines on multiple                     tion for the experiments. Instead, we fix a single set of
+datasets. We find that SDCD achieves significantly better                     parameters for all experiments (see Appendix C.2). The
+scores in both observational and interventional settings, par-                training time on CPU is measured on an AMD 3960x with
+ticularly excelling at recovering sparser graphs. SDCD is                     4-core per method; on GPU on an AMD 3960x with 16-core
+the only method to scale to thousands of variables without                    and an Nvidia A5000.
+sacrificing accuracy.
+                                                                              SDCD Modeling Assumptions. We use neural net-
+5.1. Evaluation Setup                                                         works (NNs) to parameterize the model class, as done
+                                                                              in Lachapelle et al. (2019); Zheng et al. (2020). Each
+Baselines for interventional data. For datasets with inter-                   pj (xj | x−j ; θ, k) is a Gaussian distribution over xj with
+ventional data, we compare SDCD against DCDI (Brouil-
+
+                                                                          7
+                                              Stable Differentiable Causal Discovery
+
+      # of edges    DCDI      NOBEARS     sortnregress   DAGMA                   Number of true edges = d x s          = Edge Density = 2s / (d-1)
+                                                                                      s=2                       s=4                s=6
+      SDCD          NOTEARS   DCDFG       GIES           SCORE
+
+                                2k
+
+
+
+
+                                                                                                                                                 d=20
+   200
+SHD
+
+
+
+
+   100                          1k
+
+
+
+
+                                                                                                                                                 d=30
+      0                          0
+          10   20   30   40   50 50      200 300 400 500
+                    d                        d
+ Figure 3: SHD across simulations on observational data
+ with increasing numbers of variables d. SDCD achieves the
+
+
+
+
+                                                                                                                                                 d=40
+ best SHDs. It is the only method scaling above 200 variables
+ with nontrivial SHD. Missing data points imply the method
+ failed to run. Error bars indicate std on 30 random datasets
+ for d ≤ 50 and five for d > 50 (175 total). Lower is better.
+                                                                                            Fraction of variables intervened on
+
+                                                                      Figure 4: SHD across simulations with an increasing
+ mean and variance given by an NN as a function of all the            proportion of variables intervened on, varying the total
+ other x−j . More details about the NN architecture are in            number of variables d (columns) and average edges per
+ Appendix B.1. Also, SDCD is amenable to other model                  variable s (rows). SDCD is the only method to consistently
+ classes, such as normalizing flows (Brouillard et al., 2020).        improve with interventional data and has the best SHDs for
+                                                                      sparse graphs (edge density δ ≤ 45%). Each boxplot over
+ 5.2. Observational Data Experiments                                  5 random datasets (45 datasets total).
+
+ We evaluate all eight methods on a wide range of number
+ of variables d, with a fixed average number of edges per             hensive set of scenarios, we provide additional metrics for
+ variable s = 4, and repeat the experiments over 30 random            these experiments in Appendix C.4 and Figures 7 and 10.
+ datasets. Figure 3 reports the results and detailed tables are
+ provided in Appendix D with additional baselines.                    The runtimes associated with Figure 3 are presented in Ap-
+                                                                      pendix Figure 6. SDCD-GPU runs under 15 minutes for
+ SDCD outperforms the other methods in accuracy at every              all values of d in Figure 3 experiments (e.g., d = 500). In
+ scale and speed. It can be explained by SDCD’s stability.            Appendix Figure 8, we further demonstrate that SDCD can
+ Failures of other methods. DCDI is competitive on small              scale up to 4,000 variables under 2h45.
+ d but crashes for d > 40 – as discussed in 3.2, for d = 50,
+ NaNs appear during training when hexp underflows due to              5.3. Interventional Data Experiments
+ V-instability; for d > 50 NaNs appear right at initialization        Next, we compare SDCD, DCDI, DCD-FG, and GIES over
+ when hexp overflows due to E-instability. DAGMA fails to             datasets with an increasing proportion of intervened vari-
+ converge within 6 hours for as few as 30 variables due to the        ables. We show the results for SDCD and DCDI in Fig-
+ learned adjacency matrix escaping the domain of definition           ure 4 and all methods in the Appendix (DCD-FG and GIES
+ of hlog , caused by D-instability. DAGMA attempts to stay            performed consistently worse). As expected, the methods
+ within the domain of definition of hlog by reducing the              generally improve with more interventional data, although
+ learning rate near the singularities, but this is often not          SDCD is the only method to do so consistently. We find
+ sufficient and it significantly slows down training. NO-             that SDCD performs the best in most scenarios, particularly
+ TEARS and NO-BEARS perform similarly to the trivial                  on sparser graphs. We characterize the edge density of a
+ baseline sortnregress, confirming the findings of Reisach            graph, δ, as the ratio of true edges to the maximum number
+ et al. (2021). DCD-FG scales well but has exceptionally              of edges possible in a DAG.
+ high SHD due to predicting very dense graphs – which we
+ attribute to its low-rank approximation.
+                                                                      5.4. Ablation Experiments
+ Finally, we note that most methods outperform the SHD of
+                                                                      We performed ablation studies to judge the impact of each
+ the empty graph (it is the number of edges, as dashed line).
+                                                                      innovation implemented in SDCD. We evaluated modifica-
+ To show that SDCD’s performance is robust to a compre-               tions of SDCD where (1) only stage 2 is performed without
+
+                                                                  8
+                                             Stable Differentiable Causal Discovery
+
+stage 1 and where (2) in stage 2, the spectral constraint is            Learning DAGs via M-matrices and a Log-Determinant
+substituted for alternative PST acyclicity constraints. As the          Acyclicity Characterization. In Neural Information Pro-
+results show in Tables 7 and 8, both stages are essential to            cessing Systems, 2022.
+the success of SDCD.
+                                                                      Brouillard, P., Lachapelle, S., Lacoste, A., Lacoste-Julien,
+5.5. Experiment against the best baseline                               S., and Drouin, A. Differentiable causal discovery from
+                                                                        interventional data. In Neural Information Processing
+In Supplementary Table 3 we report the results of SDCD                  Systems, 2020.
+on the simulated data presented in (Brouillard et al., 2020)
+alongside their original DCDI results. SDCD outperforms               Bühlmann, P., Peters, J., and Ernest, J. CAM: Causal addi-
+DCDI on all its sparse datasets (s = 1). Only for datasets              tive models, high-dimensional order search and penalized
+where d = 10, s = 4, does SDCD perform worse than                       regression. The Annals of Statistics, 42(6):2526–2556,
+DCDI. However, we find the edge density (δ = 88.9%) of                  2014.
+these graphs to be unrepresentative of realistic scenarios.
+                                                                      Chickering, D. M. Learning Bayesian networks is NP-
+                                                                        complete. Learning from Data: Artificial Intelligence
+6. Conclusion                                                           and Statistics V, pp. 121–130, 1996.
+With SDCD, we addressed the limitations of existing DCD
+                                                                      Chickering, D. M. Optimal structure identification with
+methods by applying an acyclicity constraint and a two-
+                                                                        greedy search. Journal of Machine Learning Research, 3
+stage procedure that each promotes stability. We show it im-
+                                                                        (Nov):507–554, 2002.
+proves in all regimes and can scale to thousands of variables,
+enabling new applications for DCD in data-rich settings.              Cvetković, D. M., Doob, M., and Sachs, H. Spectra of
+Future work could aim to provide a deeper theoretical under-            Graphs: Theory and Application. Academic Press, 1980.
+standing of the impact of the acyclicity constraint’s stability
+on gradient-based optimization, particularly how the con-             Deng, C., Bello, K., Aragam, B., and Ravikumar, P. K.
+straint’s non-convexity affects training.                               Optimizing notears objectives via topological swaps. In
+                                                                        International Conference on Machine Learning, pp. 7563–
+                                                                        7595. PMLR, 2023.
+Acknowledgments
+                                                                      Dixit, A., Parnas, O., Li, B., Chen, J., Fulco, C. P., Jerby-
+A.N. was supported by funding from the Eric and Wendy                   Arnon, L., Marjanovic, N. D., Dionne, D., Burks, T., Ray-
+Schmidt Center at the Broad Institute of MIT and Harvard,               chowdhury, R., et al. Perturb-seq: dissecting molecular
+and the Africk Family Fund. J.H. was supported by grant                 circuits with scalable single-cell rna profiling of pooled
+number 2022-253560 from the Chan Zuckerberg Initiative                  genetic screens. Cell, 167(7):1853–1866, 2016.
+DAF, an advised fund of the Silicon Valley Community
+Foundation, and the Irving Institute for Cancer Dynamics.             Eberhardt, F. and Scheines, R. Interventions and causal
+E.A. was supported by the National Institute of Health (NIH)            inference. Philosophy of Science, 74(5):981–995, 2007.
+NCI grant R00CA230195 and NHGRI grant R01HG012875.
+D.B. was funded by NSF 2127869, NSF 2311108, ONR                      Glymour, C., Zhang, K., and Spirtes, P. Review of causal
+N00014-17-1-2131, ONR N00014-15-1-2209, the Simons                      discovery methods based on graphical models. Frontiers
+Foundation, and Open Philanthropy.                                      in genetics, 10:524, 2019.
+
+                                                                      Hauser, A. and Bühlmann, P. Characterization and greedy
+Impact Statement                                                        learning of interventional markov equivalence classes of
+This paper presents work whose goal is to advance the field             directed acyclic graphs. Journal of Machine Learning
+of Machine Learning. There are many potential societal                  Research, 13(1):2409–2464, 2012.
+consequences of our work, none of which we feel must be
+                                                                      Hoover, K. D. Causality in Economics and Econometrics,
+specifically highlighted here.
+                                                                        pp. 1–13. Palgrave Macmillan UK, 2006.
+
+References                                                            Horn, R. A. and Johnson, C. R. Matrix analysis. Cambridge
+                                                                        university press, 2012.
+Bapat, R. B. Graphs and matrices, volume 27. Springer,
+  2010.                                                               Lachapelle, S., Brouillard, P., Deleu, T., and Lacoste-Julien,
+                                                                        S. Gradient-based neural DAG learning. In International
+Bello, K., Aragam, B., and Ravikumar, P.            DAGMA:              Conference on Learning Representations, 2019.
+
+                                                                  9
+                                            Stable Differentiable Causal Discovery
+
+Lambert, S. A., Jolma, A., Campitelli, L. F., Das, P. K., Yin,        Reisach, A. G., Seiler, C., and Weichwald, S. Beware of the
+  Y., Albu, M., Chen, X., Taipale, J., Hughes, T. R., and               simulated DAG! causal discovery benchmarks may be
+  Weirauch, M. T. The human transcription factors. Cell,                easy to game. In Neural Information Processing Systems,
+  172(4):650–665, 2018.                                                 2021.
+
+Lee, H.-C., Danieletto, M., Miotto, R., Cherng, S. T., and            Replogle, J. M., Saunders, R. A., Pogson, A. N., Hussmann,
+  Dudley, J. T. Scaling structural learning with NO-BEARS               J. A., Lenail, A., Guna, A., Mascibroda, L., Wagner,
+  to infer causal transcriptome networks. In Pacific Sympo-             E. J., Adelman, K., Lithwick-Yanai, G., et al. Map-
+  sium on Biocomputing, 2019.                                           ping information-rich genotype-phenotype landscapes
+                                                                        with genome-scale perturb-seq. Cell, 185(14):2559–2575,
+Lippe, P., Cohen, T., and Gavves, E. Efficient neural causal            2022.
+  discovery without acyclicity constraints. arXiv preprint
+  arXiv:2107.10483, 2021.                                             Rolland, P., Cevher, V., Kleindessner, M., Russell, C., Janz-
+                                                                        ing, D., Schölkopf, B., and Locatello, F. Score matching
+Loh, P.-L. and Bühlmann, P. High-dimensional learning of               enables causal discovery of nonlinear additive noise mod-
+  linear causal networks via inverse covariance estimation.             els. In Chaudhuri, K., Jegelka, S., Song, L., Szepesvari,
+  The Journal of Machine Learning Research, 15(1):3065–                 C., Niu, G., and Sabato, S. (eds.), Proceedings of the 39th
+  3105, 2014.                                                           International Conference on Machine Learning, volume
+                                                                        162 of Proceedings of Machine Learning Research, pp.
+Lopez, R., Hütter, J.-C., Pritchard, J., and Regev, A. Large-          18741–18753. PMLR, 2022.
+  scale differentiable causal discovery of factor graphs. In
+  Neural Information Processing Systems, 2022.                        Sachs, K., Perez, O., Pe’er, D., Lauffenburger, D. A., and
+                                                                        Nolan, G. P. Causal protein-signaling networks derived
+Lorch, L., Sussex, S., Rothfuss, J., Krause, A., and                    from multiparameter single-cell data. Science, pp. 523–
+  Schölkopf, B. Amortized inference for causal structure               529, 2005.
+  learning. Advances in Neural Information Processing
+  Systems, 35:13104–13118, 2022.                                      Schölkopf, B., Locatello, F., Bauer, S., Ke, N. R., Kalch-
+                                                                        brenner, N., Goyal, A., and Bengio, Y. Toward causal
+Magnus, J. R. On differentiating eigenvalues and eigenvec-              representation learning. Proceedings of the IEEE, pp.
+ tors. Econometric theory, 1(2):179–191, 1985.                          612–634, 2021.
+
+Neapolitan, R. E. et al. Learning Bayesian Networks. Pren-            Spirtes, P., Glymour, C. N., and Scheines, R. Causation,
+  tice Hall, 2004.                                                      prediction, and search. MIT press, 2000.
+
+Ng, I., Ghassami, A., and Zhang, K. On the role of sparsity           Triantafillou, S. and Tsamardinos, I. Constraint-based
+  and DAG constraints for learning linear DAGs. In Neural               causal discovery from multiple interventions over overlap-
+  Information Processing Systems, 2020.                                 ping variable sets. Journal of Machine Learning Research,
+                                                                        16(1):2147–2205, 2015.
+Ng, I., Lachapelle, S., Ke, N. R., Lacoste-Julien, S., and
+  Zhang, K. On the convergence of continuous constrained              Tsamardinos, I., Brown, L. E., and Aliferis, C. F. The max-
+  optimization for structure learning. In International Con-            min hill-climbing bayesian network structure learning
+  ference on Artificial Intelligence and Statistics, 2022.              algorithm. Machine learning, 65:31–78, 2006.
+
+Ng, I., Huang, B., and Zhang, K. Structure learning with              Wang, Z. and Chan, L. Learning bayesian networks from
+  continuous optimization: A sober look and beyond. In                 markov random fields: an efficient algorithm for linear
+ Causal Learning and Reasoning, pp. 71–105. PMLR,                      models. ACM Transactions on Knowledge Discovery
+  2024.                                                                from Data (TKDD), 6(3):1–31, 2012.
+
+Peters, J. and Bühlmann, P. Identifiability of gaussian              Wei, D., Gao, T., and Yu, Y. Dags with no fears: A closer
+  structural equation models with equal error variances.               look at continuous optimization for learning bayesian
+  Biometrika, 101(1):219–228, 2014.                                    networks. Advances in Neural Information Processing
+                                                                       Systems, 33:3895–3906, 2020.
+Peters, J., Mooij, J. M., Janzing, D., and Schölkopf, B.
+  Causal discovery with continuous additive noise models.             Withers, C. S. and Nadarajah, S. Log Det A= Tr Log A.
+  Journal of Machine Learning Research, 15:2009–2053,                  International Journal of Mathematical Education in Sci-
+  2014.                                                                ence and Technology, 2010.
+
+                                                                 10
+                                             Stable Differentiable Causal Discovery
+
+Yang, K., Katcoff, A., and Uhler, C. Characterizing and
+  learning equivalence classes of causal dags under inter-
+  ventions. In International Conference on Machine Learn-
+  ing, 2018.
+Yu, Y., Chen, J., Gao, T., and Yu, M. DAG-GNN: DAG
+  structure learning with graph neural networks. In Inter-
+  national Conference on Machine Learning, 2019.
+
+Yu, Y., Gao, T., Yin, N., and Ji, Q. Dags with no curl:
+  An efficient dag structure learning approach. In Inter-
+  national Conference on Machine Learning, pp. 12156–
+  12166. Pmlr, 2021.
+
+Zhang, D. D., Lee, H. F., Wang, C., Li, B., Pei, Q., Zhang, J.,
+  and An, Y. The causality analysis of climate change and
+  large-scale human crisis. In Proceedings of the National
+  Academy of Sciences, 2011.
+Zheng, X., Aragam, B., Ravikumar, P. K., and Xing, E. P.
+  DAGs with NO TEARS: Continuous optimization for
+  structure learning. In Neural Information Processing
+  Systems, 2018.
+Zheng, X., Dan, C., Aragam, B., Ravikumar, P., and Xing,
+  E. Learning sparse nonparametric dags. In International
+  Conference on Artificial Intelligence and Statistics, 2020.
+
+
+
+
+                                                                  11
+           Supplementary Materials: Stable Differentiable Causal Discovery
+
+
+A. Theoretical Results
+A.1. Proof of Theorem 3.2
+Before proving Theorem 3.2, we precisely define an acyclic matrix and prove a few lemmas.
+Definition A.1 (Cyclic and acyclic matrices). Take a matrix A ∈ Rd×d
+                                                                 ≥0 .
+
+We say that A has a cycle of length k if and only if:
+                                                                          
+                                                                               i0 = ik
+                             ∃(i0 , ..., ik ) ∈ J1, kKk+1 , such that,                                                      (10)
+                                                                               ∀ℓ ∈ J1, kK, Aiℓ−1 ,iℓ > 0
+
+We say that A is cyclic if it contains at least one cycle. We note that if A contains a cycle of length k for k ∈ N∗ (the set
+of strictly positive integers), then A also contains a cycle of length k ′ for k ′ ∈ J1, dK (this follows from the pigeon hole
+principle).
+We say that A is acyclic if it does not contain any cycle (or equivalently if it does not contain any cycle of length k ≤ d).
+Lemma A.2. For any matrix A ∈ Rd×d
+                               ≥0 ,
+
+        
+   • Tr Ak ≥ 0 for any k
+                                                 
+   • A has a cycle of length k if and only if Tr Ak > 0
+
+   • Ad = 0 if and only if A is acyclic.
+
+Proof. Fix a matrix A ∈ Rd×d
+                         ≥0 . We have,
+
+
+                                                                  X             k
+                                                                                Y
+                                            Tr Ak =
+                                               
+                                                                                      Aℓ−1,ℓ .                              (11)
+                                                         (i0 ,...,ik )∈J1,dKk+1 ℓ=1
+                                                                 i0 =ik =i
+
+                                      
+Each addend is non-negative so Tr Ak ≥ 0. Furthermore, the total sum is strictly positive if and only if at least one addend
+is strictly positive. This happens if and only if A has a cycle of length k by definition.
+Similarly, we have
+
+                                                                  X             k
+                                                                                Y
+                                            (Ad )i,j =                                Aℓ−1,ℓ .                              (12)
+                                                                           d+1 ℓ=1
+                                                         (i0 ,...,id )∈J1,dK
+                                                                 i0 =id =j
+
+
+If Adi,j > 0, then one addend is strictly positive and so there exists (i0 , ..., id ) ∈ J1, dKd+1 such that i0 = id = j and
+Qk
+   ℓ=1 Aℓ−1,ℓ > 0. By the pigeon-hole principle, two iℓ are identical, which provides a cycle. Reciprocally, if (i0 , ..., ik )
+is a cycle of length k, then by repeating (i0 , ..., ik , i1 , i2 ...id mod k ) until having a path of length d + 1, we have that
+(Ad )i0 ,id mod k > 0. Hence, Ad = 0 if and only if A is acyclic.
+
+We recall Theorem 3.2.
+
+                                                                   12
+                                            Stable Differentiable Causal Discovery
+                                                                           ∗
+Theorem 3.2 (PST constraint). For any sequence (ak )k∈N∗ ∈ RN≥0 , if we have ak > 0 for all k ∈ J1, dK, then, for any
+            d×d
+matrix A ∈ R≥0  , we have
+                                
+                                 ha (A) = 0 ⇔ A is acyclic,
+                                   ha (A) ≥ 0,
+                                   ∇ha (A) = ha′ (A⊤ ) with a′k = (k + 1)ak+1 .
+                                
+
+We say that ha is a PST constraint.
+                                                                    ∗
+Proof. Fix a matrix A ∈ Rd×d
+                         ≥0 and a sequence (ak )k∈N∗ ∈ R≥0 such that ak > 0 for any k ∈ J1, dK.
+                                                        N
+
+
+By definition, we have,
+                                                                "+∞               #
+                                                                 X
+                                                  ha (A) = Tr             ak Ak                                          (13)
+                                                                    k=1
+                                                              +∞
+                                                              X
+                                                                    ak Tr Ak
+                                                                          
+                                                          =                                                              (14)
+                                                              k=1
+                                                                                                                         (15)
+                           
+  1. By Lemma A.2, Tr Ak ≥ 0 and so ha (A) ≥ 0. This proves the second property.
+                                          
+  2. Then, ha (A) = 0 if and only if Tr Ak = 0 for all k for which ak > 0. Since ak > 0 for any k ∈ J1, dK we conclude
+     that if ha (A) = 0, then A does not contain cycles of length k ≤ d, so A is acyclic by Definition A.1. Reciprocally, if A
+     is acyclic, it does not contain cycles of any length, so ha (A) = 0.
+  3. Finally, if we write ra the radius of convergence of fa , then ha converge
+                                                                          P+∞ absolutely over the set of matrices with
+     hρ (A) < ra so it is differentiable with gradient given by: ∇ha (A) = k=1 ak k(A⊤ )k−1 .
+
+This concludes the proof.
+
+
+
+A.2. Proof of Theorem 2
+We recall Theorem 3.4.
+Theorem 3.4 (PST instability). For d ≥ 2, any PST constraint h is both E-unstable and V-unstable. More precisely, -
+E-unstable. ∃A ∈ Rd×d
+                   ≥0 , h(sA) = Ωs→∞ (s )
+                                          d
+                     d×d
+ - V-unstable. ∃A ∈ R≥0 , h(εA) = Oε→0+ (εd )
+Also, any PST constraint for which fa has a finite radius of convergence is D-unstable (e.g., hlog , hinv ).
+
+Proof. Take a PST constraint ha for some (ak )k ∈ Rd×d
+                                                   ≥0 with ak > 0 for k ∈ J1, dK.
+
+We will show the E-unstable and V-unstable results using a particular adjacency matrix C.
+Define C as the adjacency matrix of the cycle 1 → 2 → ... → d → 1 with edges weights of 1. That is:
+                                                                             
+                                                  0 1 0 ... ... 0
+                                                     0 1      0 . . . 0
+                                                  ..           . . . . . ... 
+                                                                             
+                                                 .      . .. .               
+                                            C=                                                                          (16)
+                                                                             
+                                                      ..      . .   . .       
+                                                 
+                                                      .          .     . 0  
+                                                                   ..        
+                                                 0                     . 1
+                                                  1 0         ...         0
+                                 
+                                  d if k = 0 mod d
+We have C d = Id and Tr C k =                              .
+                                    0 if k ̸= 0 mod d
+
+                                                               13
+                                            Stable Differentiable Causal Discovery
+
+We obtain for any w ∈ R≥0 ,
+                                                                  +∞
+                                                                  X
+                                                  ha (wC) = d           aℓd wℓd .                                     (17)
+                                                                  ℓ=1
+
+
+   • In particular, we have for any s ≥ 0, ha (wC) = dad sd = Ωs→+∞ sd (since ad > 0). This proves the E-instability.
+
+   • Define u = min(1, ra /2) where ra is the radius of convergence of fa .
+     Then, for any ε ∈ [0, u2 ],
+
+
+                                                              +∞
+                                                              X
+                                                ha (εC) = d          aℓd εℓd                                          (18)
+                                                              ℓ=1
+                                                                     +∞
+                                                                                        !
+                                                                     X
+                                                            d                  (ℓ−1)d
+                                                         =ε d              aℓd ε                                      (19)
+                                                                     ℓ=1
+                                                                     +∞
+                                                                                             !
+                                                                     X
+                                                            d                      2(ℓ−1)d
+                                                         ≤ε d              aℓd u                                      (20)
+                                                                     ℓ=1
+                                                                     +∞
+                                                                                             !
+                                                                     X
+                                                         ≤ εd d            aℓd uℓd + ad                               (21)
+                                                                     ℓ=1
+                                                         ≤ εd d (fa (uC) + ad ) .                                     (22)
+                                                                         d
+                                                         = Oε→0+ (ε )                                                 (23)
+
+     Where we obtain Equation (21) by noting that 2(ℓ − 1) ≥ ℓ and u ≤ 1. Finally, since u < ra , fa (uC) is finite. Hence
+     the result.
+
+The D-instability result follows from the definition of the radius of convergence.
+
+A.3. Proof of Theorem 3
+We recall Theorem 3.6.
+Theorem 3.6 (Cvetković et al. (1980); Lee et al. (2019)). The spectral radius is an acyclicity constraint.
+
+                                                 hρ (A) = 0 ⇔ A is a DAG.
+
+We refer to it as the spectral acyclicity constraint. It is differentiable almost everywhere, with gradient
+
+                                                   ∇hρ (A) = vd u⊤   ⊤
+                                                                 d /vd ud ,
+
+where ud , vd are respectively the right and left eigenvectors associated with λd (A) (Magnus, 1985).
+
+The two properties stated in Theorem 3.6 are standard results.
+
+Proof.
+
+
+   • We provide proof for the statement hρ (A) = 0 ⇔ A is a DAG for the sake of completeness.
+                                                                           Pd                         
+      ⇒ If hρ (A) = 0 then all eigenvalues λj (A) are zeros. But since Tr Ak = j=1 λj (A)k , we have Tr Ak = 0 for
+         any k ≥ 1 and by Lemma A.2, A is acyclic.
+      ⇐ Assume A is acyclic, then Ad = 0 by Lemma A.2. But then all eigenvalues are 0 (as for eigenvalue λj (A) and
+         associated eigenvector vj (A), we have Ad vj (A) = λj (A)d vj (A) = 0.
+
+                                                                14
+                                                Stable Differentiable Causal Discovery
+
+     Hence, hρ is a valid acyclicity constraint.
+
+   • Magnus (1985) shows that hρ is differentiable at every A that has mutually distinct eigenvalues, with the formula
+     provided in Theorem 3.7. The set of matrices with all distinct eigenvalues is dense in the set of matrices (Horn &
+     Johnson, 2012)[Theorem 2.4.7.1], which proves the result
+
+
+
+
+A.4. Proof of Theorem 4
+We recall Theorem 3.7.
+Theorem 3.7. hρ is stable.
+
+Proof. We prove each stability criterion.
+
+   • E-stable: For any s > 0 and matrix A, hρ (sA) = |s|hρ (A) = Os→+∞ (s).
+
+   • V-stable:For any ε > 0 and matrix A such that hρ (A) > 0, hρ (εA) = |ε|hρ (A) = Ωε→0+ (ε).
+
+   • D-stable: Every matrix has eigenvalues (C is algebraically closed), so hρ is well defined everywhere. In addition,
+     Theorem 3.6 proved that hρ was differentiable almost everywhere.
+
+Hence, hρ is a stable constraint.
+
+A.5. Proof for Stage 1
+In this section, we guarantee that if the optimization problem solved in stage 1 is solved exactly, without relaxation and with
+infinite data, then stage 1 does not remove any true causal parent.
+The optimization problem solved in stage 1 is given in Equation (7) as
+                                                                         n
+                                                                     1X
+                    θ̂1 = arg max Sα1 ,β1 (θ) = arg max                    log p(xi ; θ, ti ) − α1 ∥Aθ ∥1 − β2 ∥θ∥22 .
+                              θ                            θ         n i=1
+                          ∀j,Aθ,jj =0                  ∀j,Aθ,jj =0
+
+
+
+With infinite data xi |ti ∼ p∗ (xi ; ti ), the optimization problem writes,
+                                                 K
+                                                 X
+                             θ̃1 = arg max             πk ∗ E      [log p(x; θ, k)] − α1 ∥Aθ ∥1 − β2 ∥θ∥22 .              (24)
+                                         θ               p (x;k)
+                                    ∀j,Aθ,jj =0 k=0
+
+
+where πk is the proportion of data coming from intervention k.
+Furthermore, in its non-relaxed form, Equation (24) above writes
+                                                         K
+                                                         X
+                                     θ̃1 = arg max              πk ∗ E       [log p(x; θ, k)] − λ|Aθ |,                   (25)
+                                                  θ                p (x;k)
+                                              ∀j,Aθ,jj =0 k=0
+
+
+where the L1 and L2 regularization are reverted back into the number of edges |Aθ | regularization (for some λ > 0).
+Since we are interested in the graph induced by θ̃1 , that we write G̃1 = Aθ̃1 , we can rewrite Equation (25) as
+
+                                                                 K
+                                                                 X
+                                G̃1 =        arg max     sup          πk ∗ E         [log p(x; θ, k)] − λ|G|,             (26)
+                                               G            θ              p (x;k)
+                                        without self-loops G=Aθ k=0
+
+
+                                                                      15
+                                             Stable Differentiable Causal Discovery
+
+Finally, since there are no constraint over G other than no self-loops, Equation (26) can be solved as d independent
+optimization problems, each one determining the parents of j in the graph G̃1 ,
+                                                              K
+                                                              X
+                           paG̃
+                             j =
+                                1
+                                     arg max        sup             πk ∗ E       [log pj (xj |x−j ; θ, k)] − λ|S|,            (27)
+                                    S⊂J1,dK\{j}     θ                  p (x;k)
+                                                      A k=0
+                                                  S=paj θ
+
+
+
+Furthermore, whenever j ∈ Ik , our model class has pj (xj |x−j , θ, k) = pj (xj |θ(j,k) , k) — we know we have perfect
+interventions and the interventions are known. So the θ(j,k) is not related to the coordinates of θ that define Aθ . That is to
+say, Equation (27) is equivalent to
+                                                              K
+                                                              X
+                          paG̃
+                            j = arg max
+                               1
+                                                    sup              πk ∗ E      [log pj (xj |x−j ; θ, k)] − λ|S|,            (28)
+                                    S⊂J1,dK\{j}     θ                  p (x;k)
+                                                      A k=0
+                                                  S=paj θ j̸∈Ik
+
+
+
+We recall Theorem 4.2.
+Theorem 4.2. Under regularity assumptions detailed in Appendix A.5, the candidate parents paG̃
+                                                                                            j of j selected by stage 1
+                                                                                              1
+
+                                                                                                  ∗        ∗         ∗
+are precisely the Markov boundary of j in the true graph G∗ , That is, paG̃    G     G     G
+                                                                         j = paj ∪ chj ∪ pachG∗ .
+                                                                            1
+                                                                                                                     j
+
+
+The assumptions are similar to the ones detailed in Brouillard et al. (2020) to guarantee that differentiable causal discovery
+can identify causal graphs.
+The assumptions are:
+
+   • π0 > 0 – we observe some observational data,
+
+   • ∃θ, s.t. ∀k, p∗ (· ; k) = p(· ; θ, k) – the model class can express the true model p∗ ,
+
+   • The observational distribution p∗ (x; 0) is faithful to the graph G∗ (that is any edge in G∗ indeed result in a nonzero
+     cause-and-effect relation in the distribution p∗ (x; 0). See Neapolitan et al. (2004) for more details.
+
+   • The true distributions p∗ (x; k) and any distribution of the model class p(x; θ, k) have strictly positive density p∗ (x; k) >
+     0, p(x; θ, k) > 0. This avoids technical difficulty when forming conditional distributions (e.g., p∗ (xj |xT ; k)).
+
+   • The expectations Ep∗ (x;k) [log p∗ (x; k)] are well defined (they are finite). This enables us to consider the likelihood
+     expectations in the first place.
+
+   • The regularization strength λ is strictly positive and small enough (see the proof for how small).
+
+Proof. Fix j ∈ J1, jK.
+For clarity of notations, we rewrite Equation (28) as
+                                                            K
+                                                            X
+                              paG̃
+                                j = arg max sup
+                                   1
+                                                                    πk ∗ E      [log pj (xj |xS ; θ, k)] − λ|S|,              (29)
+                                      S⊂J1,dK\{j}     θ               p (x;k)
+                                                            k=0
+                                                            j̸∈Ik
+
+
+where the condition S = paA
+                          j is fully captured by the notation pj (xj |xS ; θ, k).
+                           θ
+
+
+
+Then, define                                      X
+                                  ψ(T ) = sup             Ep∗ (x;k) [πk log pj (xj |xS ; θ, k)] − λ|S|.                       (30)
+                                             θ
+                                                    k
+                                                  j̸∈Ik
+                          ∗
+Further, define B = boG                                                               ∗
+                      j to be the Markov boundary of node j in the true causal graph G .
+
+We will show that ψ(B) > ψ(T ) for any other T ⊂ J1, dK\ {j}.
+
+                                                                      16
+                                                   Stable Differentiable Causal Discovery
+
+We compute,
+                                      X                                                 X
+          ψ(B) − ψ(T ) = sup              πk Ep∗ (x;k) [log pj (xj |xB ; θ, k)] − sup           πk Ep∗ (x;k) [log pj (xj ; xT ; θ, k)]   (31)
+                              θ                                                    θ
+                                    k                                                     k
+                                  j̸∈Ik                                                 j̸∈Ik
+
+                            − λ|B| + λ|T |
+                                  X
+                                     πk Ep∗ (x−j ;k) DKL p∗j (xj |x−j ; k) ∥ pj (xj |xB ; θ, k)
+                                                                                              
+                          = − inf                                                                                                        (32)
+                                  θ
+                                        k
+                                      j̸∈Ik
+                                      X
+                                              πk Ep∗ (x−j ;k) DKL p∗j (xj |x−j ; k) ∥ pj (xj ; xT ; θ, k)
+                                                                                                        
+                            + inf
+                                  θ
+                                        k
+                                      j̸∈Ik
+
+                            − λ(|B| − |T |)
+                                X
+                                   πk Ep∗ (x−j ;k) DKL p∗j (xj |x−j ; k) ∥ pj (xj ; xT ; θ, k)
+                                                                                             
+                          = inf                                                                                                          (33)
+                              θ
+                                    k
+                                  j̸∈Ik
+
+                            + λ(|T | − |B|).
+
+The line 32 comes from Ep∗ (x;k) [log pj (xj |xB ; θ, k)] = −Ep∗ (x−j ;k) DKL p∗j (xj |x−j ; k) ∥ pj (xj |xB ; θ, k) +
+                                                                                                                      
+
+Ep∗ (x;k) log p∗j (xj |x−j ; k) where we added and substracted the log p(k) term (the Ep∗ (x;k) is decomposed into
+                               
+
+Ep∗ (x−j ;k) Ep∗ (xj ;k) , where the second expectation is in the KL divergence). We use the assumption of strictly positive
+density here to define the conditional p∗j (xj |x−j ; k) without technical difficulties.
+The line 33 comes from the assumption of sufficient model class capacity and the definition of the Markov boundary. Indeed,
+we first have p∗j (xj |x−j ; k) = p∗j (xj |xB ; k) by definition of the Markov boundary B, and since the model class is expressive
+enough, there exists θ such that DKL p∗j (xj |x−j ; k) ∥ pj (xj |xB ; θ, k) = 0.
+                                                                              
+
+We further have:
+    ψ(B) − ψ(T ) ≥ π0 inf Ep∗ (x−j ;0) DKL p∗j (xj |xB ; 0) ∥ pj (xj |xT ; θ, 0) + λ(|T | − |B|)
+                                                                               
+                                                                                                                                         (34)
+                       θ
+                                                                                                   p∗j (xj |xT ; 0)
+                                                                                                                    
+                 = π0 Ep∗ (x−j ;0) DKL p∗j (xj |xB ; 0) ∥ p∗j (xj |xT ; 0) + π0 inf Ep∗ (x;0) log
+                                                                         
+                                                                                                                                         (35)
+                                                                                   θ              pj (xj |xT ; θ, 0)
+                      + λ(|T | − |B|)
+                    ≥ π0 Ep∗ (x−j ;0) DKL p∗j (xj |xB ; 0) ∥ p∗j (xj |xT ; 0) +λ(|T | − |B|).
+                                                                            
+                                                                                                                                         (36)
+                      |                        {z                             }
+                                                      η(T )
+
+                                           p∗ (xj |xT ;0)
+                                     h                    i
+where line 36 follows from Ep∗ (x;0) log pjj(xj |xT ;θ,0) = Ep∗ (xT ) DKL p∗j (xj |xT )∥pj (xj |xT ; θ, 0) ≥ 0.
+                                                                                                         
+
+                             n                                                           o       
+                                  η(T )
+Let’s finally define u = min    |B|−|T | | T ⊂   J1,  dK\{j} and η(T ) > 0 and |B| > |T |   ∪ {1}    and fix any λ ∈]0, u[.
+
+Let’s assume now that ψ(T ) ≥ ψ(B) for some T ⊂ J1, dK\{j}, and show that we obtain contradictions.
+First, we would have λ(|B| − |T |) ≥ η(T ). In particular we deduce that |B| ≥ |T | (since η(T ) ≥ 0).
+Now, two possibilities:
+
+  1. If η(T ) > 0, then |B| > |T | and by definition of λ, λ > λ which is absurd.
+  2. If η(T ) = 0, then π0 Ep∗ (x−j ;0) DKL p∗j (xj |xB ; 0) ∥ p∗j (xj |xT ; 0)
+                                                                                         
+                                                                                               = 0.          This implies that
+     DKL p∗j (xj |xB ; 0) ∥ p∗j (xj |xT ; 0) = 0 for all (x−j ); since p∗ (x−j ; 0) has positive density and π0 > 0. Hence, the
+                                              
+
+     conditional p∗j (xj |xB ; 0) and p∗j (xj |xT ; 0) are identical. Since B was the Markov boundary of xj , that makes T also a
+     Markov blanket of xj . But then, by minimality of the Markov boundary in a faithful graph, we have B ⊂ T . Remember
+     that we had deduced |B| ≥ |T |. So B = T .
+
+This ends the proof, where λ ∈]0, u[.
+
+                                                                     17
+                                             Stable Differentiable Causal Discovery
+
+A.6. Proof for Stage 2
+Since stage 1 does not remove any true causal parents, theorem 1 of Brouillard et al. (2020) remains valid.
+
+A.7. Lemma: Asymptotic Bound on number of edges returned in Stage 1
+                                                      ∗                            ∗               ∗    ∗   ∗
+We denote the Markov boundary of j in G∗ by boG                     G     G     G     G
+                                              j , and recall that boj = paj ∪ chj ∪ pachG∗ \{j}.
+                                                                                                            j
+
+The following lemma upper-bounds the theoretical number of edges returned by stage 1 when each node has at most k
+parents.
+Lemma A.3. Assume G∗ is sparse such that each node has at most k parents. Then, the total size of all the Markov
+boundaries is upper-bounded by dk(k + 2) = O(dk 2 ).
+
+Proof. First, note that if each node has at most k parents, then |E| ≤ dk. Finally,
+                                        X        ∗    X        ∗
+                                            |boG
+                                               j |=       |boGj |                                               (37)
+                                       j∈V                j∈V
+                                                          X         ∗          ∗                  ∗
+                                                                            G
+                                                    ≤           |paG                 G
+                                                                   j | + |chj | + |pachG∗ |                     (38)
+                                                                                                  j
+                                                          j∈V
+                                                                         X X                       ∗
+                                                    ≤ |E| + |E| +                              |paG
+                                                                                                  k |           (39)
+                                                                         j∈V k∈chG∗
+                                                                                       j
+                                                                  X X                      ∗
+                                                    ≤ 2kd +                    |paG
+                                                                                  k |                           (40)
+                                                                  k∈V j∈paG∗
+                                                                           j
+
+                                                                     2
+                                                    ≤ 2kd + dk                                                  (41)
+
+
+
+
+                                                                  18
+                                             Stable Differentiable Causal Discovery
+
+B. Methods
+B.1. Model Details
+In SDCD, the conditional distributions, pj (xj |x−j ; θ, k), are modeled as Gaussian distributions where the mean and variance
+are learned by a neural network that takes in all of the other x−j as input. The initial layer of the network applies d
+independent linear transformations followed by a sigmoid nonlinearity to the input and outputs d hidden states of size 10.
+Each of the d hidden states corresponds to the features then used to predict each variable. Each hidden state is fed into
+two linear layers: one to predict the mean parameter of the conditional and one to predict the variance parameter of the
+conditional. For the variance, a softplus operation is applied to the output of the linear layer to constrain the variance to be
+strictly positive.
+
+B.2. Algorithm Details
+B.2.1. S PECTRAL ACYCLICITY C ONSTRAINT E STIMATION
+As described in Theorem 3.6, the gradient of the spectral acyclicity constraint can be computed as hρ (A) = vd u⊤       ⊤
+                                                                                                                    d /vd ud ,
+where ud , vd are the right and left eigenvectors of A respectively. Using the power iteration method, which involves a fixed
+number of matrix-vector multiplications, ud , vd can be estimated in O(d2 ). Specifically, the updates are as follows:
+                                                                (i)                 (i)
+                                               (i+1)        A⊤ ud     (i+1)    Avd
+                                             ud        :=          , vd     :=
+                                                            ∥ud ∥2             ∥vd ∥2
+                                 (1)   (1)
+where ud , vd are initialized as ud , vd := [ √1d , . . . , √1d ] at the very first epoch of SDCD. In our implementation, we use
+15 iterations to estimate the spectral acyclicity constraint value.
+Importantly, we re-use the estimates of ud and vd from one epoch to another, as we don’t expect A (and its eigenvectors) to
+change drastically.
+Hence, at each epoch, we initialize ud , vd using their last epoch’s value and perform 15 power iterations.
+
+B.2.2. SDCD A LGORITHM
+The SDCD algorithm follows a two-stage procedure. In the first stage, the coefficient of the spectral acyclicity constraint, γ,
+is fixed at zero. We use an Adam optimizer with a learning rate, η1 , specific to stage 1 to perform minibatch gradient-based
+optimization. The coefficients corresponding to the L1 and L2 penalties, α1 and β1 , respectively, are fixed throughout
+training. The stage 1 training loss is written as:
+                              L1 (X, θ, α1 , β1 ) = Sα1 ,β1 (θ)
+                                                       n
+                                                    1X
+                                                  =         log p(xi ; θ, ti ) − α1 ∥Aθ ∥1 − β1 ∥θ∥22 .
+                                                    n i=1
+
+To prevent the model from learning implicit self-loops, the weights corresponding to the predicted variable are masked out
+for every hidden state output by the initial neural network layer. Thus, the prediction of each variable is prevented from
+being a function of the same variable.
+In interventional regimes, the log-likelihood terms corresponding to the prediction of intervened variables are zeroed out.
+The intervened variables do not have to be modeled as we assume perfect interventions.
+Stage 1 is run for a fixed number of epochs. By default, stage 1 also has an early stopping mechanism that uses the
+reconstruction loss of a held-out validation set of data (sampled uniformly at random from the training set) as the early
+stopping metric. If the validation reconstruction loss does not achieve a new minimum after a given number of epochs, the
+stage 1 training loop is exited.
+At the end of stage 1, the learned input layer weights are used to compute a set of removed edges, R̂, for stage 2. Let
+W ∈ Rd×d×10 represent the input layer weights. Then, each value of the implicitly defined weighted adjacency matrix is
+computed as the L2 vector norm for the corresponding set of weights (i.e., Aθ,i,j := ∥Wi,j,: ∥2 ). This weighted adjacency
+matrix is discretized with a fixed threshold, τ1 , such that each edge, (i, j), is removed if it falls below the threshold (i.e.,
+Aθ,i,j < τ1 ).
+
+                                                                  19
+                                            Stable Differentiable Causal Discovery
+
+In stage 2, the spectral acyclicity constraint is introduced. Like stage 1, we use an Adam optimizer with learning rate, η2 ,
+and perform minibatch gradient-based optimization. Once again, the L1 and L2 coefficients, α2 , β2 , are fixed throughout
+training. Rather than a fixed γ, SDCD takes an increment value, γ + ∈ R+ , determining the rate at which γ increases every
+epoch. The training loss for stage 2 is as follows:
+
+
+                    L2 (X, θ, R̂, α2 , β2 , γ) = Sα2 ,β2 (θ) − γhρ (Aθ )
+                                                    n
+                                                 1X
+                                               =         log p(xi ; θ, ti ) − α2 ∥Aθ ∥1 − β2 ∥θ∥22 − γhρ (Aθ ).
+                                                 n i=1
+
+The same masking strategy as in stage 1 is used to prevent self-loops in Aθ . However, the input layer weights corresponding
+to edges (i, j) ∈ R̂ are also masked.
+Like before, the reconstruction loss terms corresponding to intervened variables are removed from the loss.
+To reduce the sensitivity of stage 2 to the choice of γ + and to prevent the acyclicity constraint term from dominating the
+loss, the linear increment schedule is frozen when Aθ achieves a DAG at the final threshold, τ2 . In practice, the DAG check
+is performed every 20 epochs. If the adjacency matrix returns to being cyclic throughout training, the γ increment schedule
+restarts to increase from where it left off.
+The early stopping metric is computed similarly to stage 1, but in stage 2, the early stopping can only kick in when γ has
+been frozen. If the γ schedule is resumed due to Aθ reintroducing a cycle, the early stopping is reset.
+Lastly, once stage 2 is complete, Aθ is computed and thresholded according to a fixed threshold, τ2 . All values exceeding
+the threshold (i.e., Aθ , i, j ≥ τ2 ) are considered edges in the final graph prediction.
+The thresholded adjacency matrix may contain cycles if stage 2 runs to completion without hitting early stopping. To ensure
+a DAG, we follow a greedy edge selection procedure detailed in Algorithm 2.
+Pseudocode for a simplified SDCD algorithm (excludes γ freezing and early stopping) is provided in Algorithm 1.
+
+B.2.3. T IME AND S PACE C OMPLEXITY
+The time complexity of each iteration of SDCD is O(d2 ). The forward pass in stage 1 can be computed in O(d2 ) time.
+On the other hand, each of the d prediction problems can be computed independently. This allows for parallelizing the d
+problems, each taking O(d) time. Stage 2 also takes O(d2 ) time as the spectral acyclicity constraint and the forward pass
+both take O(d2 ) time to compute. Thus, the time complexity of each iteration in both stages is O(d2 ).
+If the sparsity pattern of the underlying causal graph is known beforehand such that each variable has at most k parents, we
+can further tighten the time complexity of SDCD. By Appendix A.7, we know the size of the set of remaining edges after
+stage 1 is O(dk 2 ). Using sparse matrix multiplication, the spectral acyclicity constraint can be done in O(dk 2 ), which is
+effectively linear in d if k ≪ d. However, this improvement only becomes significant when d > 10, 000 (from experiments
+not reported in this paper).
+The space complexity of the algorithm is O(d2 ), as the number of parameters in the input layer scale quadratically in the
+number of features.
+
+
+
+
+                                                                20
+                                           Stable Differentiable Causal Discovery
+
+
+
+
+Algorithm 1 SDCD
+Require: α1 , α2 ∈ R+ , β1 , β2 ∈ R+ , γ + ∈ R+ ,
+            τ1 , τ2 ∈ R+ , η1 , η2 ∈ R+ , E1 , E2 ∈ Z+
+    (0)
+  Aθ ← ⃗0G×G
+   (0)
+  θ−Aθ ← RandomGaussianInit()
+  e←0
+  while e < E1 do
+     θ(e+1) := AdamUpdate(θ(e) , ∇L1 (X, θ(e) , α1 , β1 ), η1 )
+     e←e+1
+  end while
+                       (E )
+  R̂ := Threshold(Aθ 1 , τ2 )
+    (E )
+  Aθ 1 ← ⃗0G×G
+   (E )
+  θ−A1θ ← RandomGaussianInit()
+  γ←0
+  while e < E1 + E2 do
+     θ(e+1) := AdamUpdate(θ(e) , ∇L1 (X, θ(e) , R̂, α2 , β2 , γ), η2 )
+     γ ← γ + γ+
+     e←e+1
+  end while
+                       (E )
+output DAGTrim(Aθ 2 , τ2 )
+
+
+
+
+Algorithm 2 DAGTrim
+Require: Aθ ∈ RD×D , τ ∈ R+
+  E ← ∅ {Initialize the set of final edges.}
+  C ← [(i, j) ∈ J1, dK2 | (Aθ,i,j > τ ] {Candidate edges above threshold τ .}
+  Sort C by decreasing Aθ,i,j .
+  for each (i, j) ∈ C do
+    if the graph with edges E ∪ {(i, j)} is still acyclic then
+        E ← E ∪ {(i, j)} {We add the edge if it does not create a cycle.}
+    end if
+  end for
+
+
+
+
+                                                             21
+                                            Stable Differentiable Causal Discovery
+
+C. Empirical Studies Details
+C.1. Simulation Details
+To judge the performance of SDCD against existing methods over both interventional and observational data, we generated
+simulated data according to the following procedure:
+
+   • Draw a random undirected graph from the Erdős-Rényi distribution.
+
+   • Convert the undirected graph into a DAG G∗ by setting the direction of each edge i → j if π(i) < π(j), where π is a
+     random permutation of the nodes.
+
+   • Form d possible sets of interventions that target one variable at a time: Ij = {j} and I0 = ∅.
+
+                                                                                       G∗
+   • Draw a set of random fully connected neural networks MLP(j) : R| paj | → R100 → 1, each one with one 100-
+     dimensional hidden layer. Each neural network parametrizes the mean of the observational conditional distributions:
+                                                                                        
+                                    p∗j (xj | xpaG∗ ; 0) ∼ N µ = MLP(j) (xpaG∗ ), σ = 0.5 .
+                                                j                                  j
+
+
+
+
+   • For intervention distribution k ≥ 1, perform a hard intervention on variable k and set
+
+                                                      p∗j (xk ; k) ∼ N (0, 0.1).
+
+   • Draw the data according to the model, with 10,000 observational samples and 500 extra interventional samples per
+     target variable.
+
+   • Standardize the data.
+
+We consider several values of d to simulate different scenarios.
+
+C.2. Choice of Hyperparameters
+We fixed the hyperparameters as follows: α1 := 1e−2, β1 := 2e−4, η1 := 2e−3, τ1 := 0.2, α2 := 5e−4, β2 :=
+5e−3, η2 := 1e−3, γ + := 0.005, τ2 := 0.1. We found that these selections worked well empirically across multiple
+simulated datasets and were used in all experiments without simulation-specific fine-tuning.
+Each stage was run for 2000 epochs with a batch size of 256, and the validation loss was computed over a held-out fraction
+of the training dataset (20% of the data) every 20 epochs for early stopping. In stage 2, the DAG check of the implicit
+adjacency matrix was performed every 20 epochs before the validation loss computation.
+
+C.3. Baseline Methods
+Here, we provide details on the baseline methods and cite which implementations were used for the experiments. For DCDI
+and DCDFG, we used the implementations from https://github.com/Genentech/dcdfg, using the default
+parameters for optimization. For DCDFG, we used 10 modules in our benchmarks, as reported in the paper experiments.
+For GIES, we used the Python implementation from https://github.com/juangamella/gies, using the default
+parameters. For DAGMA, we used the original implementation from https://github.com/kevinsbello/dagma
+with the default parameters. For NOTEARS, we used the implementation from https://github.com/xunzheng/
+notears, and for NOBEARS, we used the implementation from https://github.com/howchihlee/BNGPU.
+For NOTEARS and NOBEARS, we found the default thresholds for determining the final adjacency matrix performed
+poorly or did not return a DAG, so for each of these baselines, we followed the same procedure described in Lopez et al.
+(2022): we find the threshold that returns the largest possible DAG via binary search. sortnregress (Reisach et al., 2021) is a
+trivial baseline meant to ensure that the causal graph cannot be easily inferred from the variance pattern across the variables.
+For this baseline, we used the implementation in https://github.com/Scriddie/Varsortability.
+
+                                                              22
+                                           Stable Differentiable Causal Discovery
+
+C.4. Robustness Checks
+Below, we discuss three categories of issues that commonly arise when evaluating causal discovery methods and address
+each issue with a diagnostic metric.
+Sparsity. Particularly when the true causal graph is sparse, SHD may favor sparser predictions since, in the extreme case,
+the empty graph achieves an SHD equal to the number of true edges. To show the relative performance of the benchmarked
+methods with respect to this trivial solution, we indicate the number of true edges for each simulated setting in Figure 3 and
+Figure 4. We find that most methods outperform this baseline. Additionally, we report the F1 score and the recall of the
+predictions (see Figures 7 and 10), two metrics that suffer when a method predicts many false negatives. We find that SDCD
+still outperforms other methods with these metrics.
+Identifiability. In settings with incomplete or no interventional data, the true causal graph may be unidentifiable, meaning
+multiple I-Markov equivalent graphs can maximize the score (Brouillard et al., 2020). Therefore, graphs in the same
+Markov equivalence class as the true causal graph may have positive SHD values despite being optimal with respect to the
+available data. As proposed in Peters et al. (2014), we also compute an adapted version of the SHD to compare the Markov
+equivalence class of the methods’ results against the true Markov equivalence class instead of the graphs themselves. This
+metric, called SHD-CPDAG, is computed as the SHD between the completed partially directed acyclic graph (CPDAG) of
+the predicted graph and the CPDAG of the true graph. Unlike the regular SHD metric, this metric is zero if two graphs are in
+the same equivalence class. We report it alongside SHD for our experiments in Figure 7 to better represent the results in
+scenarios with an unidentifiable causal graph. We find very similar results.
+Simulation issues. As discussed in Reisach et al. (2021), certain simulation processes used for causal discovery
+benchmarking exhibit an issue where the order of the variables, when sorted by sample variance, reflects the true causal
+ordering of the graph. As a result, methods that exploit this phenomenon to accurately infer the causal graph may be
+misrepresented. To ensure that our simulation process does not suffer from this issue and that the methods are being properly
+evaluated, we take two complementary steps recommended in Reisach et al. (2021): (i) we standardize the data before
+being input into any of the evaluated methods so that no artificial sample variance information can be exploited, and (2)
+we include the trivial baseline, sortnregress (Reisach et al., 2021), which is designed to exploit sample variance artifacts
+from a flawed simulation, and should be outperformed by an effective, scale-invariant algorithm. We find that sortnregress
+performs poorly, which confirms that our normalization scheme removes simulation artifacts, and we find that SDCD and its
+competing methods beat sortnregress by a wide margin.
+
+
+
+
+                                                             23
+                                                            Stable Differentiable Causal Discovery
+
+D. Supplementary Figures and Tables
+
+                                                   With Penalty                         With Augmented Lagrangian
+
+                  Threshold to DAG
+                                     0.04
+                                     0.03                        hexp        h
+                                                                 hlog        h+
+                                     0.02                        hinv
+                                     0.01
+                                     0.00
+                                            0k    2k        4k          6k         0k        50k        100k        150k
+                                                           Epoch                                   Epoch
+Figure 5: The effect of constraints on the learned graph throughout training. The training with penalty hρ + (dashed purple,
+exactly hρ with a hard mask on the diagonal as to prevent self-loops, as implemented in SDCD) converges the fastest toward
+a DAG. (left) training with h as a regularization penalty. (right) training with h as an augmented Lagrangian constraint.
+Threshold to DAG is the smallest η at which all edges with weight > η form a DAG.
+
+
+                                       s     d         δ         Method       SDCD          DCDI-G      DCDI-DSF
+                                       1     10   22.2%          L            0.7±1.2       1.3±1.9     0.9±1.3
+                                                                 NL-Add       0.6±0.7       5.2±7.5     4.2±5.6
+                                                                 NL-NN        0.7±0.7       2.3±3.6     7.0±10.7
+                                             20   10.5%          L            1.4±3.4       5.4±4.5     3.6±2.7
+                                                                 NL-Add       4.1±3.0       21.8±30.1   4.3±1.9
+                                                                 NL-NN        3.0±2.5       13.9±20.3   8.3±4.1
+                                       4     10   88.9%          L            5.2±3.5       3.3±2.1     3.7±2.3
+                                                                 NL-Add       4.8±2.1       4.3±2.4     5.5±2.4
+                                                                 NL-NN        7.3±3.0       2.4±1.6     1.6±1.6
+                                             20   42.1%          L            18.8±10.5     23.7±5.6    16.6±6.4
+                                                                 NL-Add       18.0±7.3      35.2±13.2   26.7±16.9
+                                                                 NL-NN        14.9±1.9      16.8±8.7    11.8±2.1
+
+Table 3: Means and standard deviations of SHD scores over simulations from Brouillard et al. (2020). The “Method”
+column refers to the model used to simulate the causal relationships. “L” refers to linear model, “NL-Add” refers to
+nonlinear, additive model, and “NL-NN” refers to nonlinear, non-additive (neural network) model. We refer to Brouillard
+et al. (2020) for the simulation details. The results are reported alongside the values presented in the original paper. s refers
+to the expected number of edges per node, d denotes the number of nodes, and the edge density, δ, is computed as the
+fraction of d(d−1)
+               2    , the maximum number of edges for a DAG. The lowest average SHD values are set in bold.
+
+
+
+
+                                                                                  24
+                                                                 Stable Differentiable Causal Discovery
+
+                                          SDCD             NOTEARS                   DCDFG                 DAGMA               SDCD-GPU
+                                          DCDI             NOBEARS                   GIES
+                                     1.5h                                                           5h
+                                                                                                    4h
+                         Training Time   1h                                                         3h
+                                     30m                                                            2h
+                                                                                                    1h
+                                         0m                                                          0
+                                              10        20         30           40            50 50                   200 300 400 500
+                                                                   d                                                      d
+Figure 6: Training runtimes across simulations from Figure 3. SDCD on GPU (dashed) scales to 500 variables in under 20
+minutes. Error bars indicate std on 5 random datasets for d < 50 and 3 random datasets for d ≥ 50.
+
+         SDCD           SDCD-GPU          DCDI          DCDFG            GIES              DAGMA         NOTEARS      NOBEARS        SCORE         sortnregress   AVICI    NOCURL
+ d
+ 10      14.7 ±5.5      NT                24.3 ±3.9     24.6 ±6.0        27.8 ±3.9         25.3 ±6.2     35.3 ±1.9    33.5 ±3.0      14.4 ±4.0     28.6 ±4.7      23.52    33.23
+ 20      35.7 ±6.2      NT                31.7 ±6.5     108.0 ±14.3      123.4 ±12.3       62.0 ±12.0    75.4 ±4.0    74.2 ±3.0      118.6 ±8.5    81.6 ±6.3      60.93    82.37
+ 30      53.8 ±11.9     NT                55.5 ±10.7    258.8 ±32.6      NA                89.4 ±10.9    113.1 ±4.8   113.7 ±3.3     275.9 ±21.0   134.6 ±8.4     97.13    134.60
+ 40      64.0 ±13.7     NT                102.4 ±21.6   426.6 ±73.7      NA                115.3 ±13.4   147.9 ±6.0   151.1 ±3.4     454.3 ±52.8   172.9 ±12.2    135.83   179.93
+ 50      69.9 ±12.3     68.3 ±13.3        NA            660.8 ±126.1     NA                NA            183.4 ±7.4   192.0 ±3.5     619.4 ±59.7   216.6 ±12.4    170.83   240.93
+ 100     92.7 ±9.1      89.7 ±11.0        NA            1807.3 ±788.2    NA                NA            327.3 ±7.5   389.0 ±3.6     NA            421.3 ±12.0    366.50   513.07
+ 200     225.3 ±13.7    228.0 ±18.3       NA            5657.3 ±2982.6   NA                NA            619.0 ±4.2   770.0 ±7.8     NA            824.0 ±19.0    NT       NT
+ 300     350.0 ±12.5    360.0 ±nan        NA            7284.7 ±5072.3   NA                NA            NA           1149.0 ±14.0   NA            1190.7 ±26.3   NT       NT
+ 400     466.3 ±62.4    471.7 ±68.0       NA            3779.7 ±507.3    NA                NA            NA           1534.7 ±3.1    NA            1585.0 ±59.3   NT       NT
+ 500     621.7 ±10.7    621.0 ±10.5       NA            7252.7 ±3284.6   NA                NA            NA           1915.7 ±18.8   NA            1974.3 ±34.6   NT       NT
+
+
+Table 4: Detailed results of SHD means and standard deviations from Figure 3. SDCD-GPU was only run for d ≥ 50. All
+other NA values correspond to failed runs (possibly from timeout after 6h, e.g., GIES, or from training error, e.g., DCDI).
+NT corresponds to the method not having been tested on that particular example.
+
+
+                                                                                              1                                                           # of edges
+                                                                                                                                                          SDCD
+              200                                                                      0.75                                                               DCDI
+       SHD-CPDAG
+
+
+
+
+                                                                                                                                                          NOTEARS
+                                                                                F1 Score
+
+
+
+
+                                                                                           0.5                                                            NOBEARS
+              100                                                                                                                                         DCDFG
+                                                                                       0.25                                                               sortnregress
+                                                                                                                                                          GIES
+                   0                                                                          0                                                           DAGMA
+                       10            20       30         40         50                            10        20        30         40         50            SCORE
+                                              d                                                                       d
+Figure 7: F1 and SHD-CPDAG metrics across simulations from Figure 3, observational data with increasing numbers of
+variables d. Missing data points imply the method failed to run. Error bars indicate std on 30 random datasets.
+
+
+
+
+                                                                                              25
+                                        Stable Differentiable Causal Discovery
+
+                              SDCD-GPU         # of edges
+                   16000                                             150m
+
+
+
+
+                                                         Training Time
+                   12000                                             120m
+               SHD  8000                                              90m
+                                                                      60m
+                    4000                                              30m
+                       0                                                0
+                           1000 2000 3000 4000                              1000 2000 3000 4000
+                                    d                                                d
+Figure 8: SDCD on GPU (dashed) scales to 4000 variables under 3 hours while maintaining competitive SHD. Error bars
+indicate std on 3 random datasets for d = 1000, 2000 and 2 random datasets for d = 3000, 4000.
+
+
+                                             d         SDCD-GPU
+                                             1000      1438.7 ±59.2
+                                             2000      3356.7 ±70.0
+                                             3000      5172.5 ±89.8
+                                             4000      7567.0 ±343.7
+
+                   Table 5: Detailed results of SHD means and standard deviations from Figure 8.
+
+
+
+
+                                                         26
+                                          Stable Differentiable Causal Discovery
+
+In addition to SHD, we computed precision and recall metrics over the predicted edges with respect to the true edges for
+both observational and interventional scenarios. The precision is the fraction of true edges among all the predicted edges.
+The recall is the fraction of true edges that have been correctly predicted.
+
+                            SDCD    NOTEARS           DCDFG               GIES           SCORE
+                            DCDI    NOBEARS           sortnregress        DAGMA
+                        1.0
+                        0.8
+                Precision
+
+
+
+                        0.6
+                        0.4
+                        0.2
+                        0.0
+                              10   20     30      40      50 50             200 300 400 500
+                                          d                                     d
+Figure 9: Precision across simulations from Figure 3, observational data with increasing numbers of variables d. The
+SDCD(-CPU) and SDCD-GPU lines overlap, indicating consistent results. Missing data points imply the method failed to
+run. Error bars indicate std on 30 random datasets for d < 50 and 5 random datasets for d ≥ 50.
+
+
+                            SDCD    NOTEARS           DCDFG               GIES           SCORE
+                            DCDI    NOBEARS           sortnregress        DAGMA
+                        1.0
+                        0.8
+                        0.6
+                Recall
+
+
+
+
+                        0.4
+                        0.2
+                        0.0
+                              10   20     30      40      50 50             200 300 400 500
+                                          d                                     d
+Figure 10: Recall across simulations from Figure 3, observational data with increasing numbers of variables d. The
+SDCD(-CPU) and SDCD-GPU lines overlap, indicating consistent results. Missing data points imply the method failed to
+run. Error bars indicate std on 30 random datasets for d < 50 and 5 random datasets for d ≥ 50.
+
+
+
+
+                                                            27
+                                          Stable Differentiable Causal Discovery
+
+
+
+
+                               SDCD-GPU
+                        1.0                                       1.0
+                        0.8                                       0.8
+                Precision
+
+
+
+
+                        0.6                                       0.6
+                                                             Recall
+
+
+                        0.4                                       0.4
+                        0.2                                       0.2
+                        0.0                                       0.0
+                              1000 2000 3000 4000                       1000 2000 3000 4000
+                                       d                                         d
+Figure 11: Precision and recall across simulations from Figure 8, observational data with increasing numbers of variables d.
+Error bars indicate std on 3 random datasets for d = 1000, 2000 and 2 random datasets for d = 3000, 4000.
+
+
+
+
+                                                            28
+                                         Stable Differentiable Causal Discovery
+
+
+
+
+                                                         Number of true edges = d x s        = Edge Density = 2s / (d-1)
+                              s=2                     s=4                         s=6                  s=8
+
+
+
+
+                                                                                                                       d=20
+                                                                                                                       d=30
+                                                                                                                       d=40
+
+
+Figure 12: SHD across simulations with an increasing proportion of variables intervened on, varying the total number of
+variables d (columns) and average edges per variable s (rows). Extended version of Figure 4 with DCDFG and GIES and
+s = 8. Boxplots over 5 random datasets.
+
+
+
+
+                                                            29
+                                     Stable Differentiable Causal Discovery
+
+
+
+                               Fraction of Variables
+                s   d    δ                             SDCD          DCDI          DCDFG          GIES
+                                  Intervened on
+                                       0.00            18.0 ±6.5     24.8 ±4.6     112.3 ±25.8    80.3 ±26.1
+                                       0.25            13.4 ±5.7     27.4 ±8.6     99.0 ±7.8      70.0 ±36.8
+                2   20   21%           0.50            9.4 ±5.4      25.4 ±8.5     109.0 ±31.4    69.7 ±41.9
+                                       0.75            9.0 ±2.1      19.8 ±4.8     76.0 ±14.2     62.7 ±22.0
+                                       1.00            9.0 ±2.8      18.8 ±3.3     98.0 ±19.7     65.7 ±18.5
+                                       0.00            24.6 ±9.6     56.0 ±32.9    183.0 ±102.1   NA
+                                       0.25            26.8 ±13.1    60.4 ±40.9    204.3 ±51.4    NA
+                    30   13%           0.50            21.8 ±9.0     56.2 ±26.6    206.7 ±84.3    NA
+                                       0.75            16.2 ±3.4     43.2 ±17.8    207.0 ±119.7   NA
+                                       1.00            18.2 ±2.2     31.7 ±6.1     283.7 ±15.2    NA
+                                       0.00            44.2 ±4.1     109.2 ±27.6   465.0 ±131.8   NA
+                                       0.25            33.4 ±3.6     123.8 ±62.1   372.7 ±84.3    NA
+                    40   10%           0.50            33.0 ±3.5     105.6 ±38.8   479.7 ±103.5   NA
+                                       0.75            27.6 ±3.4     76.0 ±24.4    469.3 ±126.6   NA
+                                       1.00            27.0 ±7.5     63.0 ±26.9    333.7 ±135.5   NA
+                                       0.00            36.0 ±6.4     31.2 ±4.1     104.0 ±3.5     110.7 ±25.3
+                                       0.25            32.2 ±6.6     33.0 ±3.6     105.7 ±4.2     110.7 ±20.0
+                4   20   42%           0.50            34.6 ±10.6    30.4 ±7.6     107.7 ±9.5     101.3 ±22.3
+                                       0.75            25.8 ±8.8     29.6 ±8.2     102.0 ±6.1     105.7 ±22.8
+                                       1.00            22.4 ±7.1     25.8 ±6.4     107.0 ±10.4    105.3 ±12.2
+                                       0.00            54.0 ±9.8     57.6 ±7.9     234.7 ±42.9    NA
+                                       0.25            43.8 ±10.3    67.0 ±4.0     269.3 ±36.7    NA
+                    30   27%           0.50            39.2 ±8.6     72.4 ±15.5    262.0 ±15.7    NA
+                                       0.75            35.0 ±9.9     72.2 ±10.7    232.7 ±24.0    NA
+                                       1.00            29.0 ±6.5     60.3 ±5.7     236.0 ±42.8    NA
+                                       0.00            69.0 ±11.7    99.0 ±30.7    460.0 ±47.8    NA
+                                       0.25            56.8 ±15.4    107.0 ±39.2   438.3 ±73.1    NA
+                    40   20%           0.50            50.4 ±13.0    105.6 ±41.6   457.7 ±21.2    NA
+                                       0.75            41.4 ±10.7    97.8 ±33.9    426.3 ±52.6    NA
+                                       1.00            34.4 ±11.3    93.5 ±16.3    458.7 ±55.3    NA
+                                       0.00            51.2 ±7.5     56.6 ±10.4    112.0 ±12.3    117.7 ±11.9
+                                       0.25            44.0 ±6.5     37.8 ±10.2    92.3 ±17.0     117.3 ±11.6
+                6   20   63%           0.50            42.2 ±8.6     29.0 ±10.8    97.0 ±11.5     112.7 ±7.6
+                                       0.75            38.8 ±8.3     25.2 ±10.0    94.0 ±11.5     91.3 ±16.6
+                                       1.00            34.0 ±5.1     23.8 ±7.7     93.3 ±1.5      86.0 ±7.9
+                                       0.00            85.4 ±6.5     75.8 ±4.4     256.7 ±30.6    NA
+                                       0.25            79.8 ±12.5    69.2 ±15.4    260.7 ±12.4    NA
+                    30   41%           0.50            69.4 ±14.8    80.6 ±17.2    257.3 ±18.6    NA
+                                       0.75            67.0 ±12.2    86.2 ±23.3    245.3 ±23.7    NA
+                                       1.00            57.4 ±11.3    82.0 ±5.3     259.7 ±19.5    NA
+                                       0.00            95.4 ±27.7    107.8 ±36.3   460.3 ±63.3    NA
+                                       0.25            75.6 ±23.6    130.2 ±43.3   401.0 ±112.8   NA
+                    40   30%           0.50            63.6 ±17.0    146.0 ±51.7   370.0 ±87.1    NA
+                                       0.75            57.4 ±19.6    128.3 ±16.3   387.7 ±81.1    NA
+                                       1.00            47.2 ±12.2    114.5 ±31.8   469.0 ±28.2    NA
+                                       0.00            53.6 ±10.2    82.8 ±14.5    117.7 ±11.4    111.7 ±16.5
+                                       0.25            51.0 ±8.1     58.2 ±12.6    108.3 ±19.7    96.7 ±15.8
+                8   20   84%           0.50            47.0 ±5.3     41.4 ±13.8    100.7 ±7.6     91.0 ±23.5
+                                       0.75            40.8 ±6.7     26.0 ±3.8     73.7 ±8.1      86.0 ±31.2
+                                       1.00            43.0 ±9.0     19.8 ±4.9     81.7 ±22.4     79.7 ±10.8
+                                       0.00            111.8 ±9.8    93.4 ±13.3    255.0 ±27.1    NA
+                                       0.25            90.8 ±7.5     75.6 ±8.2     242.7 ±14.6    NA
+                    30   55%           0.50            89.6 ±13.2    78.8 ±12.2    255.0 ±22.1    NA
+                                       0.75            77.6 ±9.3     81.2 ±9.4     226.3 ±15.1    NA
+                                       1.00            71.0 ±4.6     81.6 ±12.5    222.3 ±13.0    NA
+                                       0.00            150.4 ±16.9   151.0 ±23.1   450.0 ±44.5    NA
+                                       0.25            127.0 ±12.4   188.4 ±27.4   452.0 ±7.0     NA
+                    40   41%           0.50            113.4 ±20.2   200.0 ±33.9   424.3 ±43.0    NA
+                                       0.75            104.4 ±21.3   193.0 ±14.1   426.7 ±34.6    NA
+                                       1.00            92.0 ±17.6    190.0 ±nan    422.0 ±18.1    NA
+
+
+Table 6: Detailed results of SHD means and standard deviations from Figure 12. GIES failed to run on d ≥ 30.
+
+
+
+
+                                                          30
+                                          Stable Differentiable Causal Discovery
+
+
+
+
+                                                          Number of true edges = d x s          = Edge Density = 2s / (d-1)
+                              s=2                      s=4                         s=6                    s=8
+
+
+
+
+                                                                                                                          d=20
+                                                                                                                          d=30
+                                                                                                                          d=40
+
+
+
+Figure 13: Precision across simulations from Figure 12 increasing proportion of variables intervened on, varying the total
+number of variables d (columns) and average edges per variable s (rows). Boxplots over 5 random datasets.
+
+
+
+
+                                                             31
+                                         Stable Differentiable Causal Discovery
+
+
+
+
+                                                       Number of true edges = d x s          = Edge Density = 2s / (d-1)
+                             s=2                     s=4                          s=6                   s=8
+
+
+
+
+                                                                                                                       d=20
+                                                                                                                       d=30
+                                                                                                                       d=40
+
+
+
+Figure 14: Recall across simulations from Figure 12 increasing proportion of variables intervened on, varying the total
+number of variables d (columns) and average edges per variable s (rows). Boxplots over 5 random datasets.
+
+
+
+
+                                                           32
+                                           Stable Differentiable Causal Discovery
+
+
+
+
+                                 Name                      d=10     d=20     d=30     d=40
+                                 SDCD                       14.7     40.3     54.3     69.0
+                                 SDCD-warm                  14.7     40.7     55.0     68.7
+                                 SDCD-warm-nomask           19.3     69.7    156.0    272.7
+                                 SDCD-no-s1                 19.3     68.3    155.3    272.3
+                                 SDCD-no-s1-2               16.3     56.7     95.0    135.0
+                                 DCDI                       24.0     35.7     56.7     87.0
+
+Table 7: Ablation study for SDCD stage 1. We observe that the described version of SDCD performs the best out of all
+variations. SDCD-warm performs competitively but generally provides little benefit. SDCD-warm-nomask performs much
+worse than SDCD, demonstrating that enforcing the mask during stage 2 is important. We report mean SHD over three
+random seeds of observational data (no interventions) with a fixed number of edges per variable, s = 4, for a range of
+numbers of variables, d. SDCD-warm refers to starting stage 2 of SDCD, where the input layer is ported over from stage 1
+instead of re-learned. SDCD-warm-nomask performs the same warmstart as SDCD-warm but does not enforce the mask in
+stage 2. SDCD-no-s1 only performs stage 2. SDCD-no-s1-2 only does stage 2, but sets (α2 , β2 ) to the default values from
+stage 1 (α1 , β1 ). We report these values alongside DCDI. The lowest SHD values are bolded for each value of d.
+
+
+
+
+                              Name          d = 10     d = 20      d = 30    d = 40    d = 50
+                              SDCD            13.33      33.47      54.07     70.80      76.60
+                              SDCD-exp        11.60      44.33      69.07     85.07      89.93
+                              SDCD-log        11.20      52.00      87.47    117.87     116.00
+
+Table 8: Ablation study for SDCD stage 2 (choice of the constraint). We observe that SDCD performs the best out of the
+three variations. Additionally, the variations using the PST constraints do not crash for any of the runs, even for those with
+d = 50. We attribute this improved stability (as compared to DCDI and DAGMA) to stage 1 since there are fewer non-zero
+parameters contributing to the value of the constraint. We report mean SHD over five random seeds of observational data
+(no interventions) with a fixed number of edges per variable, s = 4, for a range of numbers of variables, d. SDCD-exp is
+SDCD except using the hexp constraint in place of the hρ , and SDCD-log uses the hlog constraint.
+
+
+
+
+                                                             33
+

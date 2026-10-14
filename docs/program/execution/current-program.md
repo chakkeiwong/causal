@@ -6,11 +6,24 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 96 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 766-page working reader;
+Recovery and continuation recorded 97 of 376 proposal operations, with no
+global research blocker. Q2–Q4 pass for the exact 773-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
+The current reader is [773 pages](../../causal_proposal_python_temporal_v3_2026-10-14.pdf),
+SHA-256 `fe052d76fd35300902c11e09e848502267c7b94ee2960ab70c8fcf48de8d31eb`.
+Its 601 citation records include 172 scholarly records linked to genuine PDFs.
+The Python temporal/interventional review adds 42 verified source blobs across
+nine pinned repositories, inherited LiNGAM evidence and eight primary method
+papers. Its census coverage outcome is inconclusive; static inspection and
+exact examples do not establish upstream runtime or causal recovery.
+Author-name and typography repairs preserve both unpublished candidates.
+All 582 earlier records and citation contexts remain. Text extraction and
+all-page bounds pass; rendered visual acceptance remains open under the image
+allowance. Continue the four-banking-journeys requirement and then the eligible
+queue. Historical reader figures below describe preserved earlier releases.
+
 The scope document's references to the earlier controller, all five reviews
 being open, and P1 as the next design are historical text. All six public
 designs now have passing design receipts; a design receipt is not an executed
