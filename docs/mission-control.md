@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**84 / 376 proposal operations have recorded outcomes; 246 are ready.** Next: **TEXT.DRAFT.L6**.
+**86 / 376 proposal operations have recorded outcomes; 245 are ready.** Next: **SW.COMM.identification_counterfactual**.
 
-Prototype/package draft coverage; full backend/framework comparison incomplete. Use the currently inspected corpus and reusable examples; incorporate later findings without blocking current scholarly development.
+Compare shortlisted vendor editions with our observed current capability, proposed capability and remaining gap. Document vendor strengths, deployment and licensing, quoted/public/unavailable prices and unknown runtime behavior.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_artifact_custody_2026-10-14.pdf) — 719 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_agent_backends_v2_2026-10-14.pdf) — 730 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

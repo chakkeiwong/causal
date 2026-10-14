@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 84 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 719-page working reader;
+Recovery and continuation recorded 86 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 730-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[719 pages](../../causal_proposal_artifact_custody_2026-10-14.pdf), hash
-`7bf42587aae557db29116bc947a7e6eebc13f0e44084beec9db29d3b8be344d5`.
-Its traceability review covers 534 cited records and 156 genuine scholarly
+[730 pages](../../causal_proposal_agent_backends_v2_2026-10-14.pdf), hash
+`405aa94f0b01281ecd858acd43c39aa233eef6c935bcd81339398446f89ce0fb`.
+Its traceability review covers 538 cited records and 156 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -48,8 +48,17 @@ support selected byte, context and replay refusals. Coherent local descriptor
 replacement under an old handle and a blocking FIFO reveal two preserved
 limitations. The chapter supplies proposed repairs and acceptance cases;
 the implementation is unchanged and no bank custody qualification is awarded.
-Continue `TEXT.DRAFT.L6`, developing packages, model backends and auditable
-agent architecture from the inspected corpus. The
+L6 is developed and integrated. Its initial seven-page substantive shortfall
+and citation-format problem are preserved; the successor earns ten
+nonduplicate substantive pages. Backend contracts, three pinned frameworks,
+local prototype evidence, revision/recovery, shared budgets, typed adapters
+and matched comparisons are connected through exact project examples.
+Its coverage review remains **inconclusive** because the named-provider and
+broader framework comparison is incomplete. Official OpenAI documentation
+reads returned HTTP403; no unobserved service capability or price is inferred.
+Continue `SW.COMM.identification_counterfactual`, assessing exact vendor
+edition evidence, documented strengths, local gaps and licensing/cost unknowns.
+The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
 check-in and supplied `github.com/chakkeiwong/causal`. Git is now initialized,
@@ -61,11 +70,11 @@ LFS upload completed, the branch push succeeded, and `git ls-remote` verified
 `0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
 The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
 preserves this observation. Later commits retain that ancestry. Remote `main`
-was independently verified at `6a005087ee67b956efe7fe1890b0ee05865d82cc`, including
-the expert-evidence and latent-language readers and reviews; the
-[verification receipt](2026-10-14/program-refresh/git-publication-6a005087.json)
-records the exact observation. Custody and subsequent chapter development
-continue as successors; use Git status for pending changes.
+was independently verified at `cb0ee3bed0b9c1824df70c6e25a7de89a10990ca`, including
+the custody reader and reviews; the
+[verification receipt](2026-10-14/program-refresh/git-publication-cb0ee3be.json)
+records the exact observation. L6 and subsequent comparison work continue
+as successors; use Git status for pending changes.
 
 ## Execution loop
 
