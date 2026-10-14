@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 83 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 715-page working reader;
+Recovery and continuation recorded 84 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 719-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[715 pages](../../causal_proposal_latent_languages_v2_2026-10-14.pdf), hash
-`ea4f41b1e5ad89754f47927457c6e1f70ed258ab8cc684df8a726bd85c67768b`.
-Its traceability review covers 531 cited records and 156 genuine scholarly
+[719 pages](../../causal_proposal_artifact_custody_2026-10-14.pdf), hash
+`7bf42587aae557db29116bc947a7e6eebc13f0e44084beec9db29d3b8be344d5`.
+Its traceability review covers 534 cited records and 156 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -42,8 +42,14 @@ Thirty-six inspected source blobs and an authentic RCD original support
 specific reuse decisions and exact banking/selection/contrast diagnostics.
 Broader search coverage, missing originals and runtime/rights closure remain
 open. A Markdown quotation-conversion defect was preserved and repaired before
-publication. Continue `IN.REQ.artifact_data_custody`, covering artifact/context
-binding and stale or tampered-input refusal. The
+publication. The artifact/data custody requirement is now reviewed and
+integrated. Fifteen actual generated local cases and sixteen existing tests
+support selected byte, context and replay refusals. Coherent local descriptor
+replacement under an old handle and a blocking FIFO reveal two preserved
+limitations. The chapter supplies proposed repairs and acceptance cases;
+the implementation is unchanged and no bank custody qualification is awarded.
+Continue `TEXT.DRAFT.L6`, developing packages, model backends and auditable
+agent architecture from the inspected corpus. The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
 check-in and supplied `github.com/chakkeiwong/causal`. Git is now initialized,
@@ -54,10 +60,12 @@ The first ordinary push failed during the large-file transfer. The recovered
 LFS upload completed, the branch push succeeded, and `git ls-remote` verified
 `0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
 The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
-preserves this observation. The next verified remote commit is
-`11870171ed761dc650bc910ebde00625c0953075`, including the705-page software-lifecycle
-reader and its reviews. Later expert-evidence work proceeds as a successor
-without rewriting that history; use Git status for pending changes.
+preserves this observation. Later commits retain that ancestry. Remote `main`
+was independently verified at `6a005087ee67b956efe7fe1890b0ee05865d82cc`, including
+the expert-evidence and latent-language readers and reviews; the
+[verification receipt](2026-10-14/program-refresh/git-publication-6a005087.json)
+records the exact observation. Custody and subsequent chapter development
+continue as successors; use Git status for pending changes.
 
 ## Execution loop
 
