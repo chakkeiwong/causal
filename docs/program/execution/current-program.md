@@ -6,23 +6,35 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 97 of 376 proposal operations, with no
-global research blocker. Q2–Q4 pass for the exact 773-page working reader;
+Recovery and continuation recorded 100 of 376 proposal operations, with no
+global research blocker. Q2–Q4 pass for the exact 780-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
-The current reader is [773 pages](../../causal_proposal_python_temporal_v3_2026-10-14.pdf),
-SHA-256 `fe052d76fd35300902c11e09e848502267c7b94ee2960ab70c8fcf48de8d31eb`.
-Its 601 citation records include 172 scholarly records linked to genuine PDFs.
-The Python temporal/interventional review adds 42 verified source blobs across
-nine pinned repositories, inherited LiNGAM evidence and eight primary method
-papers. Its census coverage outcome is inconclusive; static inspection and
-exact examples do not establish upstream runtime or causal recovery.
-Author-name and typography repairs preserve both unpublished candidates.
-All 582 earlier records and citation contexts remain. Text extraction and
-all-page bounds pass; rendered visual acceptance remains open under the image
-allowance. Continue the four-banking-journeys requirement and then the eligible
-queue. Historical reader figures below describe preserved earlier releases.
+The current reader is [780 pages](../../causal_proposal_banking_economics_v3_2026-10-14.pdf),
+SHA-256 `dec023dc91c90dd1c4e09320011baac5b9c6dd350c7ac2b8f09cd8e73a8b12d3`.
+Its 603 citation records include 172 scholarly records linked to genuine PDFs.
+The economics chapter is integrated and reviewed: 6.5 nonduplicate substantive
+pages meet its six-page minimum; the seven-page planning target is not claimed.
+Exact project scenarios connect consequential losses, selective routing, review
+thresholds, correlated retry costs, ambiguity criteria, joint policy values,
+delayed pilot options and deployment mixtures. Three primary rereads retain
+their original populations and limits. Both unpublished candidates and their
+citation/equality wording defects are preserved. All 601 prior source records
+and citation uses remain. No bank ROI, actual price or live-model performance
+is inferred. Text extraction and all-page bounds pass; visual acceptance remains
+open under the exhausted image allowance.
+
+The four-journey requirement passes its proposal reconciliation: 420 retained
+request slots, 416 frozen matches and 103 semantic comparisons bind the unchanged
+runtime. Four servicing expectation errors and both funding harness amendments
+remain explicit. The narratives are integrated; independent public/generated
+acceptance cases and later owner inputs are recorded in the
+[requirement review](../comprehensive-v14/work/IN.REQ.four_banking_journeys/requirement-review.json).
+The Python temporal/interventional census remains inconclusive on breadth despite
+bounded static evidence passing; runtime and broader census closure are unclaimed.
+Continue the next eligible operation: commercial longitudinal/survival coverage.
+Historical reader figures below describe preserved earlier releases.
 
 The scope document's references to the earlier controller, all five reviews
 being open, and P1 as the next design are historical text. All six public
