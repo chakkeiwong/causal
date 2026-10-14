@@ -1,0 +1,166 @@
+//! # varlingam — High-Performance Causal Discovery for Time Series
+//!
+//! Pure Rust implementation of the LiNGAM family of causal discovery algorithms,
+//! achieving 14-50x speedup over the Python `lingam` library with full feature parity.
+//!
+//! ## Algorithms
+//!
+//! | Algorithm | Use Case | Module |
+//! |-----------|----------|--------|
+//! | **VarLiNGAM** | Time series causal discovery | [`var_lingam`] |
+//! | **DirectLiNGAM** | Cross-sectional causal discovery | [`direct_lingam`] |
+//! | **FastICA** | Independent Component Analysis | [`ica`] |
+//! | **RCD** | Latent confounders detection | [`rcd`] |
+//! | **Scalable VarLiNGAM** | 1000+ variable systems | [`scalable`] |
+//! | **Bootstrap** | BCa confidence intervals | [`bootstrap`] |
+//!
+//! ## Quick Start (Python)
+//!
+//! ```python
+//! from varlingam import CausalDiscoverer
+//!
+//! model = CausalDiscoverer(algorithm="varlingam", lags=1)
+//! model.fit(data, variable_names=["X", "Y", "Z"])
+//!
+//! edges = model.significant_edges()
+//! dot = model.to_graphviz()
+//! ```
+//!
+//! ## Quick Start (Rust)
+//!
+//! ```rust,no_run
+//! use varlingam::{var_lingam_core, VarLiNGAMConfig};
+//! use nalgebra::DMatrix;
+//!
+//! let data = DMatrix::from_row_slice(100, 3, &vec![0.0; 300]);
+//! let config = VarLiNGAMConfig::default();
+//! let result = var_lingam_core(&data, None, config);
+//!
+//! for edge in &result.edges {
+//!     println!("{} -> {} (effect={:.3}, lag={})",
+//!         edge.source, edge.target, edge.effect, edge.lag);
+//! }
+//! ```
+//!
+//! ## Numerical Robustness
+//!
+//! - Condition number checks before all matrix inversions (κ threshold: 1e10)
+//! - Explicit error types: `NumericalError::IllConditioned`, `Singular`, `InvalidInput`
+//! - Observability: `ILL_CONDITIONED_COUNT`, `OLS_CALL_COUNT` atomic counters
+//! - High-precision normal distribution: `norm_cdf` (< 2e-15 error), `norm_ppf` (< 1e-14 error)
+//!
+//! ## Thread Safety
+//!
+//! All functions are thread-safe and use Rayon for parallelization.
+//!
+//! ## References
+//!
+//! - Shimizu et al. (2006). A Linear Non-Gaussian Acyclic Model for Causal Discovery. JMLR 7:2003-2030.
+//! - Hyvärinen et al. (2010). Estimation of a Structural VAR Model Using Non-Gaussianity. JMLR 11:1709-1731.
+//! - Maeda & Shimizu (2020). RCD: Repetitive Causal Discovery. JMLR 21:1-32.
+
+#![allow(dead_code)]
+// Numerical library: coefficients from Cody (1969) and Acklam (2004) are kept
+// at full precision from the reference papers, even beyond f64's ~17 significant digits.
+#![allow(clippy::excessive_precision)]
+// PyO3 macro-generated code produces `.into()` on PyErr values that are already PyErr.
+#![allow(clippy::useless_conversion)]
+
+pub mod api;
+pub mod bootstrap;
+pub mod direct_lingam;
+pub mod ica;
+pub mod math;
+pub mod rcd;
+pub mod scalable;
+pub mod utils;
+pub mod validation;
+pub mod var_lingam;
+pub mod var_model;
+
+// Re-export main types
+pub use api::{Algorithm, CausalDiscoverer, CausalResult};
+pub use bootstrap::{
+    fit_var_lingam_bootstrap, BootstrapResult, CausalOrderStats, EdgeBootstrapStats,
+};
+pub use rcd::{fit_rcd, ConfoundedPair, LatentEffect, RCDEdge, RCDResult};
+pub use scalable::{fit_var_lingam_scalable, ChunkStrategy, MergeStrategy, ScalableResult};
+pub use validation::{
+    py_list_test_cases, py_validate_all, py_validate_test_case, summarize_results, validate_all,
+    validate_test_case, TestCase, ValidationResult, ValidationSummary,
+};
+pub use var_lingam::{
+    calculate_min_samples, check_sample_size, fit_var_lingam, get_sample_size_warning_count,
+    reset_sample_size_warning_count, var_lingam as var_lingam_core, CausalEdge, SampleSizeWarning,
+    VarLiNGAMConfig, VarLiNGAMResult, DEFAULT_SAMPLE_SIZE_MULTIPLIER, SAMPLE_SIZE_WARNING_COUNT,
+};
+
+// Re-export numerical utilities
+pub use utils::{
+    condition_number, get_numerical_metrics, is_well_conditioned, ols_checked, ols_multi_checked,
+    reset_numerical_metrics, NumericalError, ILL_CONDITIONED_COUNT, MAX_CONDITION_NUMBER,
+    OLS_CALL_COUNT,
+};
+
+// Python module
+use pyo3::prelude::*;
+
+#[pymodule]
+fn varlingam(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Core VarLiNGAM
+    m.add_function(wrap_pyfunction!(var_lingam::fit_var_lingam, m)?)?;
+    m.add_class::<var_lingam::VarLiNGAMResult>()?;
+    m.add_class::<var_lingam::CausalEdge>()?;
+    m.add_class::<var_lingam::SampleSizeWarning>()?;
+    m.add_function(wrap_pyfunction!(
+        var_lingam::py_get_sample_size_warning_count,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        var_lingam::py_reset_sample_size_warning_count,
+        m
+    )?)?;
+
+    // Bootstrap (BCa confidence intervals)
+    m.add_function(wrap_pyfunction!(bootstrap::fit_var_lingam_bootstrap, m)?)?;
+    m.add_class::<bootstrap::BootstrapResult>()?;
+    m.add_class::<bootstrap::EdgeBootstrapStats>()?;
+    m.add_class::<bootstrap::CausalOrderStats>()?;
+    m.add_class::<bootstrap::CIMethod>()?;
+    m.add_function(wrap_pyfunction!(
+        bootstrap::py_get_bca_computation_count,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        bootstrap::py_reset_bca_computation_count,
+        m
+    )?)?;
+
+    // Scalable VarLiNGAM (1000+ variables)
+    m.add_function(wrap_pyfunction!(scalable::fit_var_lingam_scalable, m)?)?;
+    m.add_class::<scalable::ScalableResult>()?;
+    m.add_class::<scalable::ChunkStrategy>()?;
+    m.add_class::<scalable::MergeStrategy>()?;
+
+    // RCD (latent confounders)
+    m.add_function(wrap_pyfunction!(rcd::fit_rcd, m)?)?;
+    m.add_class::<rcd::RCDResult>()?;
+    m.add_class::<rcd::RCDEdge>()?;
+    m.add_class::<rcd::ConfoundedPair>()?;
+    m.add_class::<rcd::LatentEffect>()?;
+
+    // Unified API (scikit-learn style)
+    m.add_class::<api::CausalDiscoverer>()?;
+    m.add_class::<api::CausalResult>()?;
+    m.add_class::<api::Algorithm>()?;
+
+    // Validation framework
+    m.add_function(wrap_pyfunction!(validation::py_validate_test_case, m)?)?;
+    m.add_function(wrap_pyfunction!(validation::py_validate_all, m)?)?;
+    m.add_function(wrap_pyfunction!(validation::py_list_test_cases, m)?)?;
+    m.add_class::<validation::ValidationResult>()?;
+    m.add_class::<validation::ValidationSummary>()?;
+    m.add_class::<validation::TestCase>()?;
+
+    Ok(())
+}

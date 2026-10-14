@@ -1,0 +1,639 @@
+//! RCD: Repetitive Causal Discovery with Latent Confounders
+//!
+//! Implements the RCD algorithm for discovering causal structure in the presence
+//! of latent (unobserved) confounders. Essential for real market data where
+//! macro factors (Fed policy), sentiment, and liquidity act as hidden common causes.
+//!
+//! ## Problem Setting
+//! Standard LiNGAM assumes no latent confounders: X_i = Σ_j b_ij X_j + e_i
+//! RCD relaxes this to allow: X_i = Σ_j b_ij X_j + Σ_k c_ik L_k + e_i
+//! where L_k are unobserved latent variables.
+//!
+//! ## Algorithm
+//! 1. Initial DirectLiNGAM to get candidate adjacency matrix
+//! 2. For each pair (i,j) without direct edge:
+//!    - Compute residuals after regressing on ancestors
+//!    - Test independence of residuals (entropy-based)
+//!    - If dependent → potential latent confounder
+//! 3. Iteratively refine adjacency, adjusting for confounders
+//! 4. Group confounded pairs into latent factor clusters
+//!
+//! ## Detection Criterion
+//! Two variables X_i, X_j share a latent confounder if:
+//! - No direct causal path X_i → X_j or X_j → X_i
+//! - Residuals ε_i, ε_j (after controlling ancestors) are dependent
+//!
+//! ## References
+//! - Maeda, T. N., & Shimizu, S. (2020). RCD: Repetitive Causal Discovery
+//!   of Linear Non-Gaussian Acyclic Models with Latent Confounders.
+//!   Proceedings of AISTATS 2020, PMLR 108:735-745.
+//! - Hoyer, P. O., et al. (2008). Estimation of Causal Effects Using
+//!   Linear Non-Gaussian Causal Models with Hidden Variables.
+//!   International Journal of Approximate Reasoning, 49:362-378.
+//!
+//! ## Use Case: Finance
+//! - Detect when two stocks move together due to sector/macro factors
+//! - Distinguish direct causation (earnings spillover) from confounding (Fed policy)
+//! - Flag edges that may be spurious correlations
+
+use nalgebra::{DMatrix, DVector};
+use pyo3::prelude::*;
+use std::collections::HashSet;
+
+use super::direct_lingam::{direct_lingam, DirectLiNGAMConfig};
+use super::utils::{ols, pwling_entropy};
+
+/// A pair of variables potentially sharing a latent confounder
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct ConfoundedPair {
+    /// First variable
+    #[pyo3(get)]
+    pub var1: String,
+    /// Second variable
+    #[pyo3(get)]
+    pub var2: String,
+    /// Confidence score (0-1)
+    #[pyo3(get)]
+    pub confidence: f64,
+    /// Independence test statistic
+    #[pyo3(get)]
+    pub test_statistic: f64,
+}
+
+#[pymethods]
+impl ConfoundedPair {
+    fn __repr__(&self) -> String {
+        format!(
+            "ConfoundedPair({} ↔ {}, conf={:.3}, stat={:.3})",
+            self.var1, self.var2, self.confidence, self.test_statistic
+        )
+    }
+}
+
+/// Latent confounder effect estimation
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct LatentEffect {
+    /// Variables affected by this latent confounder
+    #[pyo3(get)]
+    pub affected_vars: Vec<String>,
+    /// Estimated effect strengths on each variable
+    #[pyo3(get)]
+    pub effect_strengths: Vec<f64>,
+    /// Latent confounder ID (L1, L2, ...)
+    #[pyo3(get)]
+    pub latent_id: String,
+}
+
+#[pymethods]
+impl LatentEffect {
+    fn __repr__(&self) -> String {
+        format!(
+            "LatentEffect({} → {:?})",
+            self.latent_id, self.affected_vars
+        )
+    }
+}
+
+/// Causal edge with confounder awareness
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct RCDEdge {
+    /// Source variable
+    #[pyo3(get)]
+    pub source: String,
+    /// Target variable
+    #[pyo3(get)]
+    pub target: String,
+    /// Effect size
+    #[pyo3(get)]
+    pub effect: f64,
+    /// Whether this edge might be confounded
+    #[pyo3(get)]
+    pub possibly_confounded: bool,
+    /// Confidence in this edge (accounting for confounders)
+    #[pyo3(get)]
+    pub confidence: f64,
+}
+
+#[pymethods]
+impl RCDEdge {
+    fn __repr__(&self) -> String {
+        let conf_marker = if self.possibly_confounded { "?" } else { "" };
+        format!(
+            "RCDEdge({}→{}{}, effect={:.3}, conf={:.2})",
+            self.source, self.target, conf_marker, self.effect, self.confidence
+        )
+    }
+}
+
+/// RCD algorithm result
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct RCDResult {
+    /// Discovered causal edges
+    #[pyo3(get)]
+    pub edges: Vec<RCDEdge>,
+    /// Pairs with potential latent confounders
+    #[pyo3(get)]
+    pub confounded_pairs: Vec<ConfoundedPair>,
+    /// Estimated latent confounder effects
+    #[pyo3(get)]
+    pub latent_effects: Vec<LatentEffect>,
+    /// Adjacency matrix (observed variables only)
+    #[pyo3(get)]
+    pub adjacency_matrix: Vec<Vec<f64>>,
+    /// Number of iterations performed
+    #[pyo3(get)]
+    pub n_iterations: usize,
+    /// Whether algorithm converged
+    #[pyo3(get)]
+    pub converged: bool,
+}
+
+#[pymethods]
+impl RCDResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "RCDResult(edges={}, confounded_pairs={}, latent_factors={}, converged={})",
+            self.edges.len(),
+            self.confounded_pairs.len(),
+            self.latent_effects.len(),
+            self.converged
+        )
+    }
+
+    /// Get edges that are NOT confounded (high confidence)
+    fn clean_edges(&self) -> Vec<RCDEdge> {
+        self.edges
+            .iter()
+            .filter(|e| !e.possibly_confounded)
+            .cloned()
+            .collect()
+    }
+
+    /// Get all variables affected by latent confounders
+    fn confounded_variables(&self) -> Vec<String> {
+        let mut vars: HashSet<String> = HashSet::new();
+        for pair in &self.confounded_pairs {
+            vars.insert(pair.var1.clone());
+            vars.insert(pair.var2.clone());
+        }
+        vars.into_iter().collect()
+    }
+}
+
+/// Configuration for RCD algorithm
+#[derive(Clone, Debug)]
+pub struct RCDConfig {
+    /// Maximum iterations
+    pub max_iter: usize,
+    /// Convergence threshold
+    pub convergence_threshold: f64,
+    /// Independence test threshold (p-value)
+    pub independence_threshold: f64,
+    /// Minimum effect size to consider
+    pub min_effect: f64,
+    /// Whether to estimate latent effects
+    pub estimate_latent_effects: bool,
+}
+
+impl Default for RCDConfig {
+    fn default() -> Self {
+        RCDConfig {
+            max_iter: 10,
+            convergence_threshold: 1e-4,
+            independence_threshold: 0.05,
+            min_effect: 0.01,
+            estimate_latent_effects: true,
+        }
+    }
+}
+
+/// Compute residual after regressing y on x
+fn compute_residual(data: &DMatrix<f64>, y_idx: usize, x_indices: &[usize]) -> DVector<f64> {
+    let n = data.nrows();
+    let y = data.column(y_idx).clone_owned();
+
+    if x_indices.is_empty() {
+        return y;
+    }
+
+    // Build design matrix
+    let mut x = DMatrix::zeros(n, x_indices.len());
+    for (j, &idx) in x_indices.iter().enumerate() {
+        for i in 0..n {
+            x[(i, j)] = data[(i, idx)];
+        }
+    }
+
+    // OLS coefficients
+    let coefs = ols(&x, &y);
+
+    // Residual
+    let mut residual = y.clone();
+    for i in 0..n {
+        let pred: f64 = x_indices
+            .iter()
+            .enumerate()
+            .map(|(j, _)| x[(i, j)] * coefs[j])
+            .sum();
+        residual[i] -= pred;
+    }
+
+    residual
+}
+
+/// Test independence of two residuals using entropy-based criterion
+fn test_independence(r1: &DVector<f64>, r2: &DVector<f64>) -> f64 {
+    // Use difference in mutual information as independence measure
+    // Lower values = more independent
+    let n = r1.len();
+    if n < 10 {
+        return 1.0; // Cannot test with too few samples
+    }
+
+    // Standardize
+    let mean1 = r1.iter().sum::<f64>() / n as f64;
+    let mean2 = r2.iter().sum::<f64>() / n as f64;
+    let std1 = (r1.iter().map(|&x| (x - mean1).powi(2)).sum::<f64>() / n as f64).sqrt();
+    let std2 = (r2.iter().map(|&x| (x - mean2).powi(2)).sum::<f64>() / n as f64).sqrt();
+
+    if std1 < 1e-10 || std2 < 1e-10 {
+        return 1.0;
+    }
+
+    let z1: Vec<f64> = r1.iter().map(|&x| (x - mean1) / std1).collect();
+    let z2: Vec<f64> = r2.iter().map(|&x| (x - mean2) / std2).collect();
+
+    // Correlation as a proxy for dependence
+    let corr: f64 = z1.iter().zip(z2.iter()).map(|(&a, &b)| a * b).sum::<f64>() / n as f64;
+
+    // Also check non-linear dependence using product of entropies vs joint
+    let h1 = pwling_entropy(&DVector::from_vec(z1.clone()));
+    let h2 = pwling_entropy(&DVector::from_vec(z2.clone()));
+
+    // Product variable for non-linear dependence
+    let prod: Vec<f64> = z1.iter().zip(z2.iter()).map(|(&a, &b)| a * b).collect();
+    let h_prod = pwling_entropy(&DVector::from_vec(prod));
+
+    // Combined independence score (higher = more dependent)
+    let linear_dep = corr.abs();
+    let nonlinear_dep = (h_prod - (h1 + h2) / 2.0).abs().min(1.0);
+
+    (linear_dep + nonlinear_dep) / 2.0
+}
+
+/// Identify pairs with potential latent confounders
+fn identify_confounded_pairs(
+    data: &DMatrix<f64>,
+    var_names: &[String],
+    adjacency: &DMatrix<f64>,
+    threshold: f64,
+) -> Vec<ConfoundedPair> {
+    let n_vars = data.ncols();
+    let mut pairs = Vec::new();
+
+    // For each pair of variables with no direct edge
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            // Skip if there's a direct edge
+            if adjacency[(i, j)].abs() > 1e-10 || adjacency[(j, i)].abs() > 1e-10 {
+                continue;
+            }
+
+            // Find common ancestors (variables that cause both i and j)
+            let ancestors_i: Vec<usize> = (0..n_vars)
+                .filter(|&k| k != i && adjacency[(i, k)].abs() > 1e-10)
+                .collect();
+            let ancestors_j: Vec<usize> = (0..n_vars)
+                .filter(|&k| k != j && adjacency[(j, k)].abs() > 1e-10)
+                .collect();
+
+            // Compute residuals after controlling for ancestors
+            let r_i = compute_residual(data, i, &ancestors_i);
+            let r_j = compute_residual(data, j, &ancestors_j);
+
+            // Test independence of residuals
+            let dep_score = test_independence(&r_i, &r_j);
+
+            // If residuals are dependent, there might be a latent confounder
+            if dep_score > threshold {
+                pairs.push(ConfoundedPair {
+                    var1: var_names[i].clone(),
+                    var2: var_names[j].clone(),
+                    confidence: dep_score.min(1.0),
+                    test_statistic: dep_score,
+                });
+            }
+        }
+    }
+
+    pairs
+}
+
+/// Estimate latent confounder effects
+fn estimate_latent_effects(
+    confounded_pairs: &[ConfoundedPair],
+    _var_names: &[String],
+) -> Vec<LatentEffect> {
+    if confounded_pairs.is_empty() {
+        return vec![];
+    }
+
+    // Group pairs that share variables (might be same latent confounder)
+    let mut groups: Vec<HashSet<String>> = Vec::new();
+
+    for pair in confounded_pairs {
+        // Find groups that contain either variable
+        let matching_groups: Vec<usize> = groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| g.contains(&pair.var1) || g.contains(&pair.var2))
+            .map(|(i, _)| i)
+            .collect();
+
+        if matching_groups.is_empty() {
+            // New group
+            let mut new_group = HashSet::new();
+            new_group.insert(pair.var1.clone());
+            new_group.insert(pair.var2.clone());
+            groups.push(new_group);
+        } else {
+            // Merge into first matching group
+            let first = matching_groups[0];
+            groups[first].insert(pair.var1.clone());
+            groups[first].insert(pair.var2.clone());
+
+            // Merge other matching groups into first
+            for &idx in matching_groups.iter().skip(1).rev() {
+                let to_merge = groups.remove(idx);
+                groups[first].extend(to_merge);
+            }
+        }
+    }
+
+    // Create latent effects
+    groups
+        .into_iter()
+        .enumerate()
+        .map(|(i, vars)| {
+            let affected: Vec<String> = vars.into_iter().collect();
+            let effect_strengths: Vec<f64> = affected
+                .iter()
+                .map(|v| {
+                    // Average confidence for pairs involving this variable
+                    let relevant: Vec<&ConfoundedPair> = confounded_pairs
+                        .iter()
+                        .filter(|p| &p.var1 == v || &p.var2 == v)
+                        .collect();
+                    if relevant.is_empty() {
+                        0.5
+                    } else {
+                        relevant.iter().map(|p| p.confidence).sum::<f64>() / relevant.len() as f64
+                    }
+                })
+                .collect();
+
+            LatentEffect {
+                affected_vars: affected,
+                effect_strengths,
+                latent_id: format!("L{}", i + 1),
+            }
+        })
+        .collect()
+}
+
+/// Refine adjacency matrix accounting for confounders
+fn refine_adjacency(
+    data: &DMatrix<f64>,
+    adjacency: &DMatrix<f64>,
+    confounded_pairs: &[ConfoundedPair],
+    var_names: &[String],
+) -> DMatrix<f64> {
+    let _n_vars = data.ncols();
+    let mut refined = adjacency.clone();
+
+    // For confounded pairs, reduce edge strengths if edges exist between them
+    for pair in confounded_pairs {
+        let i = var_names.iter().position(|v| v == &pair.var1);
+        let j = var_names.iter().position(|v| v == &pair.var2);
+
+        if let (Some(i), Some(j)) = (i, j) {
+            // Reduce edge strength proportional to confounder confidence
+            let reduction = 1.0 - pair.confidence * 0.5;
+            refined[(i, j)] *= reduction;
+            refined[(j, i)] *= reduction;
+        }
+    }
+
+    refined
+}
+
+/// Main RCD algorithm
+pub fn rcd(
+    data: &DMatrix<f64>,
+    variable_names: Option<Vec<String>>,
+    config: RCDConfig,
+) -> RCDResult {
+    let n_vars = data.ncols();
+
+    let var_names: Vec<String> =
+        variable_names.unwrap_or_else(|| (0..n_vars).map(|i| format!("X{}", i)).collect());
+
+    // Step 1: Initial DirectLiNGAM
+    let lingam_config = DirectLiNGAMConfig::default();
+    let initial = direct_lingam(data, lingam_config);
+    let mut adjacency = initial.adjacency_matrix.clone();
+
+    let mut converged = false;
+    let mut n_iterations = 0;
+    let mut prev_confounded_count = 0;
+
+    // Iterative refinement
+    for iter in 0..config.max_iter {
+        n_iterations = iter + 1;
+
+        // Step 2: Identify confounded pairs
+        let confounded_pairs =
+            identify_confounded_pairs(data, &var_names, &adjacency, config.independence_threshold);
+
+        // Check convergence
+        if confounded_pairs.len() == prev_confounded_count {
+            converged = true;
+            break;
+        }
+        prev_confounded_count = confounded_pairs.len();
+
+        // Step 3: Refine adjacency matrix
+        adjacency = refine_adjacency(data, &adjacency, &confounded_pairs, &var_names);
+    }
+
+    // Final pass: identify confounded pairs with refined adjacency
+    let confounded_pairs =
+        identify_confounded_pairs(data, &var_names, &adjacency, config.independence_threshold);
+
+    // Estimate latent effects
+    let latent_effects = if config.estimate_latent_effects {
+        estimate_latent_effects(&confounded_pairs, &var_names)
+    } else {
+        vec![]
+    };
+
+    // Create edges with confounder awareness
+    let confounded_vars: HashSet<String> = confounded_pairs
+        .iter()
+        .flat_map(|p| vec![p.var1.clone(), p.var2.clone()])
+        .collect();
+
+    let mut edges = Vec::new();
+    for i in 0..n_vars {
+        for j in 0..n_vars {
+            let effect = adjacency[(i, j)];
+            if i != j && effect.abs() > config.min_effect {
+                let possibly_confounded = confounded_vars.contains(&var_names[i])
+                    || confounded_vars.contains(&var_names[j]);
+
+                // Confidence: reduce if possibly confounded
+                let confidence = if possibly_confounded {
+                    0.5 + 0.5
+                        * (1.0
+                            - confounded_pairs
+                                .iter()
+                                .filter(|p| {
+                                    (p.var1 == var_names[i] || p.var2 == var_names[i])
+                                        || (p.var1 == var_names[j] || p.var2 == var_names[j])
+                                })
+                                .map(|p| p.confidence)
+                                .fold(0.0, f64::max))
+                } else {
+                    1.0
+                };
+
+                edges.push(RCDEdge {
+                    source: var_names[j].clone(),
+                    target: var_names[i].clone(),
+                    effect,
+                    possibly_confounded,
+                    confidence,
+                });
+            }
+        }
+    }
+
+    // Sort edges by confidence then effect
+    edges.sort_by(|a, b| {
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| {
+                b.effect
+                    .abs()
+                    .partial_cmp(&a.effect.abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+    });
+
+    // Convert adjacency to nested vec
+    let adjacency_vec: Vec<Vec<f64>> = (0..n_vars)
+        .map(|i| (0..n_vars).map(|j| adjacency[(i, j)]).collect())
+        .collect();
+
+    RCDResult {
+        edges,
+        confounded_pairs,
+        latent_effects,
+        adjacency_matrix: adjacency_vec,
+        n_iterations,
+        converged,
+    }
+}
+
+/// Python-exposed RCD function
+#[pyfunction]
+#[pyo3(signature = (data, variable_names=None, max_iter=10, independence_threshold=0.05))]
+pub fn fit_rcd(
+    data: Vec<Vec<f64>>,
+    variable_names: Option<Vec<String>>,
+    max_iter: usize,
+    independence_threshold: f64,
+) -> PyResult<RCDResult> {
+    let n_samples = data.len();
+    if n_samples == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Data cannot be empty",
+        ));
+    }
+    let n_features = data[0].len();
+
+    let flat: Vec<f64> = data.iter().flatten().copied().collect();
+    let matrix = DMatrix::from_row_slice(n_samples, n_features, &flat);
+
+    let config = RCDConfig {
+        max_iter,
+        independence_threshold,
+        ..Default::default()
+    };
+
+    let result = rcd(&matrix, variable_names, config);
+
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rcd_basic() {
+        // Create data with a latent confounder structure:
+        // L (latent) -> X0, X1
+        // X0 -> X2
+        let n = 200;
+        let mut data = DMatrix::zeros(n, 3);
+
+        // Latent variable (not observed)
+        let latent: Vec<f64> = (0..n).map(|i| (i as f64 * 0.1).sin()).collect();
+
+        // X0 = L + noise
+        for i in 0..n {
+            data[(i, 0)] = latent[i] + (i as f64 * 0.17).cos() * 0.3;
+        }
+        // X1 = L + noise (confounded with X0)
+        for i in 0..n {
+            data[(i, 1)] = latent[i] * 0.8 + (i as f64 * 0.23).sin() * 0.4;
+        }
+        // X2 = X0 + noise (direct cause)
+        for i in 0..n {
+            data[(i, 2)] = 0.6 * data[(i, 0)] + (i as f64 * 0.31).cos() * 0.2;
+        }
+
+        let config = RCDConfig::default();
+        let result = rcd(&data, None, config);
+
+        println!("RCD Result: {:?}", result);
+        println!("Confounded pairs: {:?}", result.confounded_pairs);
+        println!("Latent effects: {:?}", result.latent_effects);
+
+        // Should detect confounding between X0 and X1
+        // (they share latent L)
+    }
+
+    #[test]
+    fn test_independence_test() {
+        // Independent variables
+        let r1 = DVector::from_vec((0..100).map(|i| (i as f64 * 0.1).sin()).collect());
+        let r2 = DVector::from_vec((0..100).map(|i| (i as f64 * 0.37).cos()).collect());
+
+        let dep = test_independence(&r1, &r2);
+        println!("Independence score (should be low): {}", dep);
+
+        // Dependent variables
+        let r3 = &r1 * 0.8 + DVector::from_fn(100, |i, _| (i as f64 * 0.2).sin() * 0.2);
+        let dep2 = test_independence(&r1, &r3);
+        println!("Dependence score (should be high): {}", dep2);
+
+        assert!(dep < dep2);
+    }
+}

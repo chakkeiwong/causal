@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 81 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 705-page working reader;
+Recovery and continuation recorded 83 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 715-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,16 +24,26 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[705 pages](../../causal_proposal_software_lifecycle_2026-10-14.pdf), hash
-`4037793ee34d0514d10d7a1d565d0858711a9b6fe46116c7e9f414ab3d6dc876`.
-Its traceability review covers 518 cited records and 153 genuine scholarly
+[715 pages](../../causal_proposal_latent_languages_v2_2026-10-14.pdf), hash
+`ea4f41b1e5ad89754f47927457c6e1f70ed258ab8cc684df8a726bd85c67768b`.
+Its traceability review covers 531 cited records and 156 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
 reuse decision rejects default adoption on explicit maintenance and inspected
 semantic grounds; its substantive discussion is integrated in this reader.
-Continue `LL.TASK.expert_evidence`, the active lane on citations, conflicting
-expert accounts, evidence absence and causal refusal. The
+The expert-evidence task is complete and integrated: eight primary papers,
+selected pinned PyWhyLLM paths and exact banking/consensus examples distinguish
+retrieved support, repeated agreement and formal consistency from causal truth.
+No live model performance or enabled adapter is claimed. The latent-language
+cell now records an inconclusive coverage outcome with a substantive six-family
+comparison: Julia FCI, Rust RCD, MATLAB L-MARVEL/GIN/OCT and JavaScript DAGitty.
+Thirty-six inspected source blobs and an authentic RCD original support
+specific reuse decisions and exact banking/selection/contrast diagnostics.
+Broader search coverage, missing originals and runtime/rights closure remain
+open. A Markdown quotation-conversion defect was preserved and repaired before
+publication. Continue `IN.REQ.artifact_data_custody`, covering artifact/context
+binding and stale or tampered-input refusal. The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
 check-in and supplied `github.com/chakkeiwong/causal`. Git is now initialized,
@@ -44,7 +54,9 @@ The first ordinary push failed during the large-file transfer. The recovered
 LFS upload completed, the branch push succeeded, and `git ls-remote` verified
 `0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
 The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
-preserves this observation. Reviewed successor work is committed and published
+preserves this observation. The next verified remote commit is
+`11870171ed761dc650bc910ebde00625c0953075`, including the705-page software-lifecycle
+reader and its reviews. Later expert-evidence work proceeds as a successor
 without rewriting that history; use Git status for pending changes.
 
 ## Execution loop

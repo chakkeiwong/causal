@@ -1,0 +1,1445 @@
+                                                Leveraging Large Language Models for Causal Discovery: a
+                                                    Constraint-based, Argumentation-driven Approach
+
+
+
+                                                                     Zihao Li                                    Fabrizio Russo
+                                                            zihao.li24@imperial.ac.uk                         fabrizio@imperial.ac.uk
+
+                                                                                    Department of Computing
+arXiv:2602.16481v1 [cs.AI] 18 Feb 2026
+
+
+
+
+                                                                                    Imperial College London
+
+
+                                                              Abstract                              records when constructing the causal graphs necessary
+                                                                                                    to perform causal inference (Cooper and Herskovits,
+                                             Causal discovery seeks to uncover causal re-           1992; Heckerman et al., 1995; Meek, 1995).
+                                             lations from data, typically represented as
+                                                                                                    Formulating such background knowledge is labour-
+                                             causal graphs, and is essential for predict-
+                                                                                                    intensive: domain experts must identify relevant vari-
+                                             ing the effects of interventions. While ex-
+                                                                                                    ables, specify admissible orientations, and articulate
+                                             pert knowledge is required to construct prin-
+                                                                                                    forbidden ancestral relations (Cooper and Herskovits,
+                                             cipled causal graphs, many statistical meth-
+                                                                                                    1992; Meek, 1995). Existing pipelines either encode
+                                             ods have been proposed to leverage obser-
+                                                                                                    these judgements as hard structural constraints, fix-
+                                             vational data with varying formal guaran-
+                                                                                                    ing or forbidding edges before discovery (Meek, 1995),
+                                             tees. Causal Assumption-based Argumenta-
+                                                                                                    or as Bayesian priors that weight the search over
+                                             tion (ABA) is a framework that uses sym-
+                                                                                                    graph structures (Cooper and Herskovits, 1992; Heck-
+                                             bolic reasoning to ensure correspondence be-
+                                                                                                    erman et al., 1995). On the one hand, hard con-
+                                             tween input constraints and output graphs,
+                                                                                                    straints commit to the specified structure irrespective
+                                             while offering a principled way to combine
+                                                                                                    of whether conditional independencies in the data cor-
+                                             data and expertise. We explore the use
+                                                                                                    roborate it, leaving no mechanism to expose conflicts
+                                             of large language models (LLMs) as imper-
+                                                                                                    between expertise and observations. Priors, on the
+                                             fect experts for Causal ABA, eliciting se-
+                                                                                                    other hand, require distributing probability mass over
+                                             mantic structural priors from variable names
+                                                                                                    super-exponential hypothesis spaces and still provide
+                                             and descriptions and integrating them with
+                                                                                                    limited feedback when they conflict with observations.
+                                             conditional-independence evidence. Experi-
+                                             ments on standard benchmarks and semanti-              Causal Assumption-Based Argumentation (Causal
+                                             cally grounded synthetic graphs demonstrate            ABA) offers a principled alternative by encoding can-
+                                             state-of-the-art performance, and we addi-             didate causal relations as defeasible assumptions and
+                                             tionally introduce an evaluation protocol to           confronting them with independence constraints de-
+                                             mitigate memorisation bias when assessing              rived from data (Russo et al., 2024). ABA is a sym-
+                                             LLMs for causal discovery.                             bolic reasoning framework that constructs and evalu-
+                                                                                                    ates arguments for and against specific claims based
+                                         1   Introduction                                           on a set of assumptions and rules (Bondarenko et al.,
+                                                                                                    1997; Cyras et al., 2017). Causal ABA encodes d-
+                                         Understanding the causal structure that governs ob-        separation (Pearl, 2009) within this framework to en-
+                                         servational and interventional data is central to expla-   sure that any DAG inferred from data is consistent
+                                         nation, prediction, and decision-making (Pearl, 2009;      with (a defendable subset of) the input assumptions,
+                                         Peters et al., 2017; Spirtes et al., 2000). Constraint-    whether in the form of independencies or structural
+                                         and score-based discovery algorithms translate statis-     constraints. Additionally, Causal ABA’s rule-based
+                                         tical regularities into equivalence classes of directed    structure offers the possibility to trace each accepted
+                                         acyclic graphs (DAGs), but their reliability hinges on     or defeated claim back to the assumptions that sup-
+                                         sometimes strong assumptions or large sample sizes,        port it. This exposes the provenance of inferred edges,
+                                         motivating practitioners to complement statistical ev-     whether constraints are adopted or not, preserving
+                                         idence with mechanistic knowledge and experimental         transparency and rigour in the integration.
+                           Leveraging Large Language Models for Causal Discovery
+
+
+Large language models (LLMs) provide an attrac-              2       Related Work
+tive yet imperfect source of knowledge. They encode
+broad semantic and scientific information and can per-       We build on three strands of literature: causal discov-
+form structured reasoning when prompted appropri-            ery from data, the integration of expert knowledge into
+ately (Bommasani et al., 2021; Kojima et al., 2022).         causal discovery, and the use of LLMs for knowledge
+To leverage this information, we rely on semantically        elicitation and causal discovery.
+meaningful variable metadata (names and optional de-
+scriptions rather than anonymised identifiers such as        Causal discovery from data. Causal discovery al-
+X1 , . . . , Xn ), which provides semantic signal unavail-   gorithms aim to reconstruct causal graphs from ob-
+able to data-only discovery pipelines. Yet, LLMs can         servational and interventional data, often under the
+hallucinate plausible-sounding but unsupported causal        assumptions of acyclicity and faithfulness: that the
+links (Ji et al., 2023), which goes against the rigour       causal structure is a DAG and that all and only the
+that causal discovery demands. Additionally, their           conditional independencies implied by the DAG are
+training on web-scale corpora, where many benchmark          present in the data (Spirtes et al., 2000). Many meth-
+causal discovery graphs are publicly available, makes        ods (including ours) additionally assume causal suffi-
+it difficult to discern whether a suggested causal de-       ciency, i.e., no unobserved confounders (Spirtes et al.,
+pendence stems from genuine reasoning or the ver-            2000). A rich literature has proposed various algo-
+batim retrieval of a memorised solution. Perturbing          rithms with different assumptions, guarantees, and
+descriptions beyond what the model has seen often            trade-offs between statistical and computational effi-
+leads to sharp degradation in the predicted relations        ciency (Glymour et al., 2019; Zanga et al., 2022).
+(Carlini et al., 2021; Ji et al., 2023), underscoring the    Constraint-based algorithms such as Peter-Clark (PC)
+need for evaluation protocols that stress-test out-of-       and Fast Causal Inference (Spirtes et al., 2000) infer
+distribution generalisation.                                 Markov equivalence classes through conditional inde-
+These tensions raise two research questions: how can         pendence (CI) tests, whereas score-based procedures
+we exploit the rich priors embedded in LLMs without          such as Greedy Equivalence Search (Chickering, 2002;
+sacrificing rigour and transparency, and how can we          Ramsey et al., 2017) trade combinatorial search for
+certify that the resulting causal graphs do not merely       statistical fit criteria. We use an improved version
+reflect memorised benchmarks?                                of PC, Majority-PC (MPC) (Colombo and Maathuis,
+                                                             2014), as the statistical engine to derive independence
+We address these questions by treating LLMs as defea-        constraints from data, but our approach is agnostic to
+sible experts whose suggestions are scrutinised through      the choice of the underlying discovery algorithm. MPC
+argumentation. We make the following contributions:          remains a baseline in our empirical evaluation, to-
+                                                             gether with score-based Fast Greedy Search (Ramsey
+  • We design a robust LLM integration pipeline              et al., 2017, FGS). We also benchmark against two re-
+    that elicits high-precision constraints on causal        cent order-based methods: GRaSP (Lam et al., 2022),
+    direction (required and forbidden arrows), filters       a greedy relaxation of the sparsest permutation crite-
+    them via a consensus mechanism across multiple           rion, and BOSS (Andrews et al., 2023), an order-based
+    independent queries, and integrates them defea-          score-search method that explores grow–shrink neigh-
+    sibly with data-derived conditional-independence         bourhoods. Amongst the score-based category, contin-
+    evidence within a Causal ABA solver, improv-             uous optimisation methods have recently gained trac-
+    ing tractability via data-driven search optimisa-        tion by relaxing the combinatorial search over graphs
+    tion.                                                    into a continuous optimisation problem (Vowels et al.,
+                                                             2022). A pioneering method is NOTEARS (Zheng
+  • We develop a novel synthetic evaluation pro-             et al., 2018), which uses a smooth characterization of
+    tocol to mitigate memorisation concerns when             acyclicity to enable gradient-based optimisation. We
+    evaluating LLMs for causal discovery. The proto-         use NOTEARS-MLP (Zheng et al., 2020), its more
+    col creates random benchmarks by grounding ran-          advanced, non-linear counterpart, as a baseline. 1
+    dom DAGs in the CauseNet (Heindorf et al., 2020)
+                                                             Hybrid approaches tighten these relaxations by
+    knowledge graph via sub-graph isomorphism and
+                                                             combining constraint- and score-based approaches
+    heuristic-guided selection, enabling a robust as-
+                                                             (Tsamardinos et al., 2006) while logic-based ap-
+    sessment of LLM generalisation.
+                                                                 1
+  • We demonstrate empirically that our LLM-                      We include NOTEARS/NOTEARS-MLP as widely-
+                                                             used structure-learning baselines from the continuous-
+    augmented Causal ABA pipeline achieves state-            optimisation literature, without claiming causal identifi-
+    of-the-art performance on both standard bench-           ability from observational data alone; see also cautionary
+    marks and our novel evaluation protocol.                 discussion in (Reisach et al., 2021).
+                                                       Li, Russo
+
+
+proaches embed logical inference in the process e.g. via      causal relations, yet we consolidate the queries into
+SAT-based encodings (Hyttinen et al., 2014). Causal           a single prompt for improved efficiency and context.
+ABA fits into the logical constraint-based literature         Additionally, we adapt the consensus refinement strat-
+but uses ABA (Bondarenko et al., 1997) to guarantee           egy of (Cohrs et al., 2023) and benchmark against the
+that every inferred orientation is backed by an explicit      BFS-style LLM-only method of (Jiralerspong et al.,
+chain of assumptions and rules (Russo et al., 2024).          2024), which iteratively expands a graph via pairwise
+Our work complements these efforts by integrating a           queries.
+scalable source of structured assumptions from LLMs.
+                                                              Despite this promise, LLM responses remain fallible.
+Integrating expert knowledge. Prior knowledge                 Benchmarks reveal gaps between memorised answers
+has long been recognised as essential to trim the search      and genuine causal reasoning (Jin et al., 2023; Wan
+space and enforce domain restrictions in causal discov-       et al., 2025; Zečević et al., 2023), and repeated studies
+ery (Cooper and Herskovits, 1992; Heckerman et al.,           caution against using LLMs as sole decision-makers for
+1995; Meek, 1995). Conventional approaches require            causal discovery (Wu et al., 2025). Hallucinations of
+experts to enumerate admissible edges, ancestral rela-        LLMs are well documented (Ji et al., 2023) and, when
+tions, or forbidden paths before running an algorithm.        accepted as constraints, can eliminate true causal re-
+More recent efforts incorporate domain constraints            lations (Chen et al., 2023). To mitigate these risks,
+during search or as post-processing filters, yet they still   we use schema-guided prompting (567-labs, 2025; Liu
+rely on hand-crafted inputs and provide limited feed-         et al., 2024b) to extract structured semantic con-
+back when constraints conflict (Hyttinen et al., 2014).       straints, filter them via consensus, and integrate them
+By embedding LLM-sourced statements into the argu-            with data-derived conditional-independence evidence
+mentative machinery of Causal ABA, we retain trans-           within Causal ABA; we also introduce robust bench-
+parency about why and when constraints are overruled          marks to evaluate LLM outputs beyond memorisation.
+while creating a causal discovery pipeline that can use
+both traditional and unstructured sources of expertise,
+while blending them with data-driven insights.                3    Background
+                                                              Let G = (V, E) be a graph with nodes V and edges
+LLMs for causal discovery. LLMs are Transformer               E ⊆ V × V. Edges can be directed or undirected, the
+architectures (Vaswani et al., 2017) pretrained on web-       skeleton replaces every direction with an undirected
+scale corpora and exhibit strong few-shot generalisa-         link. A path path = x1 . . . xn is a sequence of dis-
+tion (Brown et al., 2020). Their internalised knowledge       tinct adjacent nodes; it is directed if (xi , xi+1 ) ∈ E for
+can be elicited through prompting to recover common-          all i, and cyclic if additionally x1 = xn . A directed
+sense relations from variable-style descriptions (Zhao        acyclic graph (DAG) has only directed edges and no
+et al., 2023). For causal discovery, this ability enables     cycles and will serve as our causal graph formalism.
+LLMs to act as experts and translate metadata into            A DAG is ascribed a causal semantics by interpreting
+candidate structural constraints.                             nodes as random variables and edges as direct causal
+A growing literature leverages LLMs in three comple-          effects (Pearl, 2009). A Bayesian Network (BN) is a
+mentary roles (Wan et al., 2025): (i) querying them           pair (G, P) where P is a joint distribution over V that
+to orient edges or assemble full causal graphs (Jiraler-      satisfies the Markov condition relative to G: every
+spong et al., 2024; Kıcıman et al., 2023; Vashishtha          variable is independent of its non-descendants given
+et al., 2025); (ii) using them as assistants that cri-        its parents. For pairwise disjoint sets X, Y, Z ⊆ V
+tique, refine, or document algorithmic outputs via re-        we let (X⊥⊥Y | Z) indicate that X and Y are inde-
+finement loops or natural-language analytics (Abdu-           pendent given the conditioning set Z; (X⊥⊥Y | ∅) is
+laal et al., 2024; Gkountouras et al., 2024; Khatibi          simply written as (X⊥⊥Y) and singleton sets {x} are
+et al., 2024; Liu et al., 2024a); and (iii) coupling tex-     denoted by x (e.g., ({x}⊥⊥{y} | ∅) is written as (x⊥    ⊥y).
+tual priors with statistical search through hard (Chen        Also, (X ̸⊥⊥Y | Z) means that X and Y are dependent
+et al., 2023) or soft constraints (Ban et al., 2023), or      given Z. The link between DAG structure and CI is
+even by replacing CI tests with conversational judg-          captured by the d-separation criterion (Pearl, 2009).
+ments within PC (Cohrs et al., 2023). In our approach,        Causal ABA (Russo et al., 2024) is a framework that
+MPC provides the CI statements from data, while               combines computational argumentation (Dung, 1995;
+the consensus-filtered LLM constraints are encoded            Toni, 2014) with causal reasoning. An ABA frame-
+as additional required/forbidden arrow facts and en-          work (Bondarenko et al., 1997, ABAF) is a tuple
+forced within the Causal ABA solver only when they            ⟨L, R, A, ⟩ where L is a formal language, R is a set
+do not contradict strong statistical counter-evidence         of inference rules of the form head ← body where
+(Section 4). As in (Jiralerspong et al., 2024; Kıcıman        head ∈ L and body is a finite (possibly empty) set
+et al., 2023; Vashishtha et al., 2025), we solicit direct     of elements from L, A ⊆ L is a non-empty set of
+                          Leveraging Large Language Models for Causal Discovery
+
+
+assumptions, and is a total mapping from A into            When MPC consume these tests, it returns the par-
+L (contrary). In Causal ABA, the language L in-            tially oriented DAG depicted above (right). Causal
+cludes statements about graphical (causal) relation-       ABA ingests the same CI statements, but reasons
+ships (with (X, Y ) denoting a directed edge in the        about their joint consistency. Each test result is ranked
+causal graph), independencies and d-separations; the       by credibility, and the framework searches for a sta-
+rules R encode the principles of acyclicity and d-         ble extension. Including both independence statements
+separation, and the assumptions A represent candi-         yields no stable extension: the d-separation rules make
+date causal relations and/or independencies that can       the two statements inconsistent, because E ⊥⊥ R | O
+be accepted or rejected based on the evidence and their    can hold together with E ⊥⊥ R only if R and E are
+relations. An assumption a ∈ A attacks an assump-          disconnected from the other variables—contradicting
+tion b ∈ A if and only if a can be used to derive the      many of the other CI tests. After progressive exclu-
+contrary of b, i.e., b, using the rules in R.              sions, the stable extension contains only the correct in-
+                                                           dependence statement, yielding the ground-truth DAG.
+An ABAF is evaluated using argumentation seman-
+tics (Baroni et al., 2011), which determine which sets     Having described our statistical and symbolic engines,
+of assumptions (called extensions) can be collectively     we now turn to the integration of LLM-derived knowl-
+accepted based on their ability cohexist (conflict-        edge into Causal ABA.
+freeness) and defend against external attacks (see
+(Russo et al., 2024; Toni, 2014) for formal definitions
+and examples). A set of assumptions S ⊆ A will pro-
+                                                           4     LLMs Knowledge for Causal ABA
+duce no stable extension if it contains conflicts, i.e.,
+                                                           Our methodology integrates the semantic knowledge of
+if there exists a, b ∈ S such that a attacks b. Causal
+                                                           LLMs with the symbolic rigour of Causal ABA. The
+ABA employs stable semantics to guarantee a one-to-
+                                                           core idea is to use an LLM as a proxy domain ex-
+one correspondence between the accepted assumptions
+                                                           pert to generate high-precision structural constraints,
+and the d-separation relations induced by the output
+                                                           which are then encoded as facts within the argumenta-
+DAG (Russo et al., 2024).
+                                                           tive framework to prune the vast search space of pos-
+A bodyless rule (head ←) is called a fact and repre-       sible causal graphs. This hybrid approach, depicted
+sents an unconditionally true statement in the ABAF        in Figure 1, aims to enhance both the efficiency and
+i.e., it is by default included in every extension. In     the accuracy of the discovery process. The pipeline
+(Russo et al., 2024) ABAPC is proposed as an in-           consists of a method to elicit structured constraints
+stantiation of Causal ABA using MPC (Colombo and           from LLMs (left), and the formal integration of these
+Maathuis, 2014), as the statistical engine to derive CI    constraints into Causal ABA (right). Human expert
+constraints from data. The CI facts from MPC are           knowledge is included as optional, and not currently
+ranked based on their associated p-values, and the al-     part of the experiments, but can be readily integrated.
+gorithm iteratively attempts to construct a stable ex-
+tension by removing the least credible facts, until a      4.1    Constraint Elicitation Pipeline
+stable extension is found. The resulting stable exten-
+sion corresponds to a DAG that is consistent with the      The quality of LLM-derived knowledge is highly de-
+strongest possible (subset of) CI statements.              pendent on the elicitation process (Anthropic, 2024).
+                                                           We propose a robust pipeline to transform unstruc-
+Example 3.1 Consider the simple four-variable DAG          tured metadata into formal, high-precision constraints.
+shown below (left): Education (E) and Race (R) influ-
+ence Occupation (O), which in turn influences Income       Eliciting Structural Priors. The process begins
+(I); Education also directly affects Income (E → I).       with a set of variables, each with a name and an op-
+                                                           tional description. We developed a detailed prompt
+           True Graph               Majority-PC            that instructs a primary LLM (gemini-2.5-flash,
+       E                        E                          LLM 1 in Figure 1) to act as a domain expert and
+             O       I                O       I            to focus exclusively on high-precision judgments. The
+                                                           prompt explicitly asks the LLM to generate two lists:
+       R                        R
+                                                               • Required Directions: Causal relationships
+From synthetic data sampled from this ground-truth
+                                                                 (X, Y ) that are required based on logic, tempo-
+DAG we obtain 23 CI tests that become fact in Causal
+                                                                 ral precedence, or established principles.
+ABA including E ⊥   ⊥ R (correct) and E ⊥  ⊥ R | O (a
+finite-sample artefact). Conditioning on the collider O        • Forbidden Directions: Causal relationships
+should render E and R dependent, yet PC-style pro-               (X, Y ) that are forbidden if they contradict es-
+cedures treat both statements as equally trustworthy.            tablished knowledge or logical consistency.
+                                                      Li, Russo
+
+
+
+
+Figure 1: LLM Integration Pipeline: Given a set of variables with their names and (possibly) descriptions,
+we prompt an LLM to generate pairwise causal statements. These statements are then parsed into structured
+assumptions for Causal ABA, which combines them with data-derived independence or arrow constraints and
+background knowledge to infer a set of causal graphs. Expert knowledge can be injected in the LLM prompts or
+as defeasible facts. Variables descriptions and LLM parsing are optional components of the pipeline but enhance
+the quality of the generated assumptions. Detailed prompts and parsing rules are provided in Appendix A.
+
+
+The LLM is instructed to format its response us-             spurious constraints (see Appendix A.3 for details).
+ing clear headers and a line-by-line structure for each      Consensus does not guarantee correctness; it is a prag-
+prior, followed by a brief justification. The complete       matic variance-reduction step aimed at improving pre-
+prompt is provided in Appendix A.                            cision before constraints are passed to the solver.
+Schema-Guided Output Extraction. To ensure
+reliability and avoid constraining the LLM’s reason-         4.2   Integration into Causal ABA
+ing process with rigid formatting requirements (Tam
+                                                             We integrate the consensus-filtered LLM constraints
+et al., 2024), we decouple the complex reasoning task
+                                                             as required and forbidden arrow facts, which are en-
+of prior generation from the simpler structured output
+                                                             forced as constraints to further prune the search space.
+extraction task. The free text output from the primary
+                                                             To avoid forcing semantic constraints that directly
+LLM is passed to a separate, dedicated process that
+                                                             contradict strong statistical evidence, we apply them
+uses a schema-enforcing tool (567-labs, 2025) to guide
+                                                             only after the one-off data-driven skeleton reduction
+a second, lightweight LLM (gemini-2.5-flash-lite,
+                                                             described below, and we discard any required arrow
+LLM 3 in Figure 1) in robustly extracting and val-
+                                                             whose corresponding undirected edge was removed by
+idating the constraints. This second LLM is highly
+                                                             this reduction. The remaining CI statements are han-
+effective at interpreting the semi-structured text and
+                                                             dled within Causal ABA as weighted constraints and
+handling minor formatting inconsistencies, making the
+                                                             are progressively relaxed until the program admits a
+extraction process significantly more robust than tra-
+                                                             stable extension (and thus a DAG).
+ditional methods like regular expressions. This pro-
+duces a structured list of constraints for the next stage.   Data-Driven Skeleton Reduction. To improve
+                                                             the scalability of Causal ABA we perform an initial,
+Consensus for High Precision. To mitigate the
+                                                             one-off skeleton reduction: edges corresponding to a
+stochasticity of LLM outputs and adhere to the high-
+                                                             high-confidence independence test are removed from
+precision requirement of causal discovery, we adapt the
+                                                             the graph. This follows causal theory and the strat-
+majority voting idea from (Cohrs et al., 2023) and in-
+                                                             egy employed by both PC (Spirtes et al., 2000) and
+troduce a consensus-based filtering step. We query the
+                                                             Causal ABA, with the difference that, during the sub-
+primary LLM five times independently with the same
+                                                             sequent iterative relaxation of lower-confidence CI con-
+prompt. The final sets of constraints consist only of
+                                                             straints,2 these edges are not reintroduced. This modi-
+the intersection of each of the forbidden and required
+                                                             fication of Causal ABA avoids the computationally ex-
+arrows sets, across all five parsed responses. This con-
+                                                                2
+servative approach ensures that only the most con-                This is implemented in clingo (Gebser et al., 2019) by
+sistently suggested constraints are passed to Causal         changing from a hard constraint to a soft, weighted con-
+ABA, significantly reducing the risk of incorporating        straint that the solver can either satisfy or violate, remov-
+                                                             ing its enforcing power without full program regeneration.
+                           Leveraging Large Language Models for Causal Discovery
+
+
+pensive re-grounding of the logic program representing     Our protocol, illustrated in Figure 2, embeds randomly
+the ABAF, making the framework tractable for larger        generated graph structures within CauseNet, a large-
+problems, at the cost of being unable to fully assess      scale knowledge graph of real-world cause-and-effect
+the relations around these hard constraints. This scal-    relationships (Heindorf et al., 2020). The pipeline con-
+ability optimisation is applied to both ABAPC and          sists of three main stages, as follows:
+ABAPC-LLM in all experiments. Overall, ABAPC-
+                                                           1. Structural Scaffolding. We begin by generat-
+LLM inherits the CI-testing cost of PC/MPC but adds
+                                                           ing a structural “scaffold”. To ensure structural diver-
+overhead from solving the ABAF and from a one-off
+                                                           sity in our benchmarks, we first define a DAG topol-
+set of LLM calls per dataset; empirical runtimes are
+                                                           ogy using one of three methods: generating Erdős-
+reported in Appendix C.3.3.
+                                                           Rényi (Erdös and Rényi, 1959), Scale-Free (Barabási
+LLM Constraints Enforcement.                The LLM-       and Albert, 1999) graphs, or directly constructing a
+derived constraints from the consensus step are then       DAG from a randomly populated lower triangular ad-
+applied as additional hard constraints, further prun-      jacency matrix (details in Appendix B). Once a DAG
+ing the search space, while avoiding conflicts with the    structure is sampled, we build a full BN by assign-
+data-driven skeleton reduction. Specifically:              ing randomly initialised conditional probability tables
+                                                           to each node. This two-step process yields a fully de-
+    • A required arrow (encoded as (X, Y ) ←) is en-
+                                                           fined BN that allows to sample synthetic observational
+      forced only if the edge X − Y was not already
+                                                           data. We sample CPTs at random purely to generate
+      removed during the initial skeleton reduction.
+                                                           data consistent with the sampled structure; since we
+      This prevents semantic constraints from conflict-
+                                                           evaluate structural recovery rather than effect sizes,
+      ing with strong statistical counter-evidence.
+                                                           semantic “strength” need not match synthetic effect
+                                                           magnitudes, and the LLM is queried only about direc-
+    • A forbidden arrow (encoded as (X, Y ) ←) re-
+                                                           tions (required/forbidden), not effect size.
+      stricts the solver from orienting a remaining edge
+      in a certain direction.                              2. Semantic Grounding via Isomorphism. To as-
+                                                           sign meaningful concepts to the nodes of the random
+This two-stage process leverages statistical evidence      DAG, we use CauseNet, a large-scale knowledge graph
+to define the initial search space, then employs high-     of cause-and-effect relationships extracted from web
+precision semantic knowledge to further guide the dis-     text (Heindorf et al., 2020). We search for an induced
+covery process with information that is often orthogo-     sub-graph isomorphism from the random DAG to
+nal to what can be inferred from data alone.               the CauseNet graph. Formally, given a random DAG
+                                                           H = (VH , EH ) and CauseNet G = (VG , EG ), we find
+5     CauseNet Synthetic DAGs                              an injective function f : VH → VG such that for
+                                                           any pair of nodes u, v ∈ VH , an edge (u, v) ∈ EH
+A fundamental challenge in evaluating LLMs for causal      exists if and only if an edge (f (u), f (v)) ∈ EG ex-
+discovery is the risk of data leakage (Balloccu et al.,    ists. This strategy ensures that the selected sub-
+2024; Dong et al., 2024). Standard benchmarks, such        graph from CauseNet has the exact same structure as
+as Asia (Lauritzen and Spiegelhalter, 2018) or Sachs       our random DAG. We employ the efficient VF2 algo-
+(Sachs et al., 2005) in the bnlearn repository (Scu-       rithm (Cordella et al., 2004) for this search.
+tari, 2010), are widely published and likely part of the
+                                                           3. Heuristic-Guided Candidate Selection. A sin-
+LLMs’ pre-training corpora. Consequently, high per-
+                                                           gle random DAG can have thousands or even millions
+formance on these benchmarks may reflect memorisa-
+                                                           of isomorphic matches within CauseNet. To find the
+tion rather than generalisable causal reasoning.
+                                                           most plausible causal scenario, we score and rank all
+                                                           candidate sub-graphs using a flexible, heuristic-based
+Why Semantic Grounding Is Necessary. Be-                   system that combines three distinct cost terms into a
+cause LLM elicitation relies on variable semantics,        single objective function to be minimised.
+anonymising variables (e.g., X1 , . . . , Xn ) would re-
+move the signal and reduce the model to an unin-
+formed oracle. We therefore ground randomly gen-             • Semantic Compactness: Measures the the-
+erated structures in real concepts via CauseNet to ob-         matic coherence of the concepts in a candidate
+tain semantically meaningful yet structurally diverse          graph. Using pre-computed vector embeddings
+graphs; while individual CauseNet facts may appear             for all concepts, we calculate the average cosine
+in pre-training corpora, composing them into random,           distance of each concept’s vector from their geo-
+previously unseen subgraphs makes verbatim retrieval           metric centroid. A low cost indicates that the con-
+of an entire target DAG implausible and helps distin-          cepts form a tight semantic cluster (e.g., virus,
+guish memorisation from generalisation.                        fever, fatigue).
+                                                      Li, Russo
+
+
+
+
+Figure 2: Synthetic Evaluation Protocol: We generate random DAGs and ground them in CauseNet by finding
+sub-graph isomorphisms. Given that there might be many possible isomorphisms, we use a heuristic composed
+of three scores to select the most suitable one. The output is a semantically grounded DAG with variable names
+that can be used to evaluate the robustness of LLMs in generating causal assumptions.
+
+
+    • Node Specificity: Penalises candidate graphs          6.1   Experimental Setup
+      that include overly general or ambiguous “hub”
+      nodes (e.g., illness, problem). The cost is the       Data. We evaluate our approach on both standard
+      average logarithm of each node’s degree in the full   causal discovery benchmarks and our novel synthetic
+      CauseNet graph, favouring sub-graphs composed         datasets derived from CauseNet. For each dataset, we
+      of more specific, well-defined concepts.              generate 5000 observational samples and repeat the
+    • Structural-Semantic Correlation: Ensures              experiment 50 times with different random seeds. The
+      the graph’s topology faithfully reflects the se-      standard pseudo-real BNs used are from the bnlearn
+      mantic relationships between its concepts. We         repository (Scutari, 2010). Our synthetic datasets
+      compute the rank correlation (Spearman, 1904)         consist of 54 random DAGs with number of nodes
+      between all-pairs shortest-path distances in the      |V| ∈ {5, 10, 15}, generated using the protocol de-
+      graph and the corresponding pairwise cosine dis-      scribed in Section 5. We ensure that these synthetic
+      tances between semantic embeddings. Lower cost        graphs are semantically grounded in CauseNet and are
+      (inverse of correlation) means that concepts di-      novel to the LLMs by using random structures and
+      rectly connected in the graph are also semanti-       a heuristic selection process. Detailed statistics of all
+      cally very close, ensuring holistic consistency.      datasets are provided in Appendix B and the synthetic
+                                                            BNs produced are available in our repository, together
+The final objective is the candidate graph that
+                                                            with the code to reproduce the experiments.
+minimises a weighted sum of these three heuris-
+tic cost terms. This pipeline produces high-quality,        The choice of CI testing method is consistent
+semantically-grounded causal graphs that serve as a         across MPC, ABAPC, and ABAPC-LLM: Wilks G2
+robust foundation for evaluating causal discovery in-       likelihood-ratio test (Agresti, 2018), with significance
+volving LLMs. We make our synthetic DAG generator           level α = 0.05. Within ABA-PC and ABA-PC-LLM,
+publicly available as open-source software.                 MPC is only used to compute (an efficient number of)
+                                                            CI tests and their associated p-values.
+6     Experimental Evaluation
+                                                            Metadata Preparation and Prompting. We gen-
+We now present an empirical evaluation of our LLM-          erated variable descriptions for causal graphs using an
+augmented Causal ABA framework. Our experiments             LLM, providing it with the ground-truth graph as a
+aim to assess the accuracy and robustness of the in-        basis for defining each variable’s role. The prompt
+ferred causal graphs, particularly in comparison to es-     was carefully designed to ensure the resulting descrip-
+tablished causal discovery algorithms and under vary-       tions were semantically consistent with the under-
+ing conditions of LLM input quality. Throughout,            lying causal structure without explicitly stating any
+we focus on purely observational data; consequently,        of the causal links. The full prompt is provided
+conditional-independence evidence alone identifies the      in Appendix A. We then used these variable names
+causal graph only up to a Markov equivalence class          and descriptions as input to our constraint elicitation
+(MEC). Semantic constraints can provide additional          pipeline (Section 4) to generate the LLM-derived con-
+orienting information within the MEC, and we evalu-         straints. We used Google’s gemini-2.5-flash for the
+ate their downstream impact via standard structural         primary LLM and gemini-2.5-flash-lite for the
+metrics against the ground-truth DAG.                       structured output extraction, leveraging Anthropic’s
+                           Leveraging Large Language Models for Causal Discovery
+
+
+
+
+Figure 3: Normalised Structural Hamming Distance (SHD, left-axis) and F1-score (right-axis) of LLM-augmented
+Causal ABA against baselines across synthetic datasets generated from the CauseNet Knowledge Graph (see
+Section 5) grouped by number of nodes (|V| ∈ {5, 10, 15}). Error bars are standard deviations over 50 repetitions.
+
+
+prompt improver (Anthropic, 2024) to iteratively re-        6.2   Results and Analysis
+fine our prompts. For each dataset, the same set of
+LLM-derived constraints was used across all 50 data         We summarise the experimental results, comparing
+repetitions. The same variable names are used for           ABAPC-LLM with the baselines. We first examine
+our method and the LLM-only baseline (Jiralerspong          structural learning performance and then analyse how
+et al., 2024) to ensure a fair comparison.                  LLM-derived constraints interact with data-driven in-
+                                                            dependence tests. All details in Appendix C.
+Metrics. We measure the accuracy of the inferred
+causal graphs using three metrics: Structural Ham-
+ming Distance (Tsamardinos et al., 2006, SHD), Struc-       Structural Learning Performance. Figure 3
+tural Intervention Distance (Peters and Bühlmann,          compares the structural accuracy achieved by our
+2015, SID), and F1-score. SHD quantifies the number         method against the baselines across the synthetic
+of edge modifications needed to transform the inferred      CauseNet graphs.3 ABAPC-LLM attains the lowest
+graph into the true graph, while SID measures the cor-      normalised SHD and the highest F1-score for all graph
+rectness of inferred causal effects under interventions.    sizes, with particularly large margins for five- and
+The F1-score provides a balanced measure of preci-          fifteen-node problems over MPC, FGS, NOTEARS-
+sion and recall for the presence of edges in the inferred   MLP, GRaSP, BOSS, and the LLM-only baseline. The
+graph. Additional details are in Appendix C.1.              gains persist on ten-node graphs, although the gap
+                                                            narrows as the statistical signal strengthens.
+Baselines.       We compare our LLM-augmented
+ABAPC (ABAPC-LLM) against several baselines:                BH-corrected (Benjamini and Hochberg, 1995) two-
+ABAPC (Russo et al., 2024), MPC (Colombo                    sample, unequal variance t-tests (Appendix C.3.2)
+and Maathuis, 2014), FGS (Ramsey et al., 2017),             demonstrate that the SHD and F1 improvements over
+NOTEARS-MLP (Zheng et al., 2020), GRaSP (Lam                all baselines are significant for all graph sizes. Differ-
+et al., 2022), and BOSS (Andrews et al., 2023). These       ences with the variant of Causal ABA that relies exclu-
+algorithms represent a mix of constraint-based, score-      sively on independence tests are smaller, but remain
+based, and continuous optimisation approaches, pro-         positive, indicating that the semantic priors comple-
+viding a comprehensive benchmark for our method.            ment rather than contradict the statistical evidence.
+MPC is also the statistical engine underlying ABAPC,        Runtime measurements are reported in Ap-
+allowing us to isolate the impact of LLM-derived con-       pendix C.3.3, showing that ABAPC-LLM remains
+straints. Additionally, we include an LLM-only base-        practical for graphs up to 15 nodes.
+line (Jiralerspong et al., 2024) to gauge impact of our
+data-LLM integration, and a random graph generation            3
+                                                                 SID, precision and recall curves are reported in Ap-
+baseline to establish a lower bound on performance.
+                                                            pendix C.3 and show the same ordering.
+                                                    Li, Russo
+
+
+LLM Constraints Quality and Interaction with
+Data. To understand how our LLM-augmented
+pipeline improves structural accuracy we inspect the
+quality of the priors entering the solver in relation
+to the data-driven constraints. For every dataset we
+compute the F1-score of the LLM-derived constraints
+against the ground-truth graph, the F1-score of the
+retained CI statements, and the resulting change in
+DAG F1 after adding the semantic constraints (∆F1).
+The heatmap in Figure 4 shows a clear synergy: high-
+quality constraints translate into consistent F1 gains
+when the underlying conditional independence infor-
+mation is also reliable, whereas noisy LLM outputs
+are either ignored or mildly detrimental when the sta-     Figure 4: CauseNet Synthetic: Heatmap showing
+tistical evidence is weak. This interaction highlights     how the quality of LLM-derived and data-derived con-
+the role of our structured integration, which privileges   straints relates to changes in final graph reconstruction
+the more trustworthy source while still exploiting com-    accuracy after integration (∆F1 against the true DAG,
+plementary information when both signals agree. The        in brackets the number of constraints n).
+bnlearn benchmarks counterpart are reported in Ap-
+pendix C.3.4 and show the same pattern, albeit with a
+narrower range of LLM constraint quality due to po-        Ahmed Abdulaal, adamos hadjivasiliou, Nina
+tential memorisation. Splits by DAG characteristics         Montana-Brown, Tiantian He, Ayodeji Ijishakin,
+are reported in Appendix C.4 and show that the im-          Ivana Drobnjak, Daniel C. Castro, and Daniel C.
+provements are consistent across structural properties.     Alexander. Causal modelling agents: Causal graph
+                                                            discovery through synergising metadata- and data-
+7   Conclusion                                              driven reasoning. In The Twelfth International Con-
+We introduced a hybrid causal discovery framework           ference on Learning Representations, 2024. URL
+that injects LLM-derived semantic knowledge into            https://openreview.net/forum?id=pAoqRlTBtY.
+Causal ABA, combining symbolic guarantees with rich        Alan Agresti. An Introduction to Categorical Data
+and unstructured semantic information. A dedicated           Analysis. Wiley, 3 edition, 2018.
+elicitation pipeline extracts high-precision structural
+constraints from natural-language metadata, while our      Bryan    Andrews,      Joseph    Ramsey,     Ruben
+CauseNet-grounded synthetic benchmarks provide a             Sanchez Romero, Jazmin Camchong, and Erich
+setting where memorisation is unlikely and improve-          Kummerfeld. Fast scalable and accurate discovery
+ments in structural, interventional and precision–recall     of DAGs using the best order score search and
+metrics become apparent.                                     grow–shrink trees. Advances in Neural Information
+                                                             Processing Systems, 36, 2023.
+Our findings show that consensus-filtered semantic
+                                                           Anthropic. Prompt improver, 2024. URL https://
+constraints can boost structural accuracy complement-
+                                                            www.anthropic.com/news/prompt-improver. Ac-
+ing statistical evidence, and they motivate several av-
+                                                            cessed: 2025-09-29.
+enues for future work. In particular, we plan to en-
+rich the priors with knowledge mined from scientific       Simone Balloccu, Patrı́cia Schmidtová, Mateusz
+corpora, extend the dialogue with LLMs to reason             Lango, and Ondřej Dušek. Leak, cheat, repeat:
+about potential unobserved confounders, and endow            Data contamination and evaluation malpractices in
+the solver with adaptive weighting schemes that cali-        closed-source llms, 2024. URL https://arxiv.
+brate LLM assertions using confidence scores that can        org/abs/2402.03927.
+be used to rank against data-driven learning. Explor-      Taiyu Ban, Lyvzhou Chen, Xiangyu Wang, and Huan-
+ing alternative models and prompt designs will fur-          huan Chen. From query tools to causal archi-
+ther clarify how different LLM capabilities influence        tects: Harnessing large language models for ad-
+the trade-off between coverage and precision.                vanced causal discovery from data, 2023.
+                                                           Albert-László Barabási and Réka Albert. Emer-
+References                                                   gence of scaling in random networks. Science, 286
+567-labs. Instructor: Structured outputs for llms.           (5439):509–512, 1999. doi: 10.1126/science.286.
+  https://github.com/567-labs/instructor,                    5439.509. URL https://www.science.org/doi/
+  2025. GitHub repository.                                   abs/10.1126/science.286.5439.509.
+                          Leveraging Large Language Models for Causal Discovery
+
+
+Pietro Baroni, Martin Caminada, and Massimil-                2023. URL https://openreview.net/forum?id=
+  iano Giacomin. An introduction to argumenta-               NEAoZRWHPN.
+  tion semantics.   Knowl. Eng. Rev., 26(4):365–           Diego Colombo and Marloes H. Maathuis. Order-
+  410, 2011.      URL https://doi.org/10.1017/               independent constraint-based causal structure
+  S0269888911000166.                                         learning. J. Mach. Learn. Res., 15(1):3741–3782,
+Yoav Benjamini and Yosef Hochberg. Controlling the           2014. URL https://dl.acm.org/doi/10.5555/
+  false discovery rate: a practical and powerful ap-         2627435.2750365.
+  proach to multiple testing. Journal of the Royal         Gregory F. Cooper and Edward Herskovits.          A
+  Statistical Society: Series B (Methodological), 57(1):     bayesian method for the induction of probabilistic
+  289–300, 1995.                                             networks from data. Machine Learning, 9(4):309–
+Rishi Bommasani, Drew A. Hudson, Ehsan Adeli,                347, 1992.
+  Russ Altman, Sanjeev Arora, Sydney von Arx, et al.       L.P. Cordella, P. Foggia, C. Sansone, and M. Vento.
+  On the opportunities and risks of foundation mod-          A (sub)graph isomorphism algorithm for matching
+  els. arXiv preprint arXiv:2108.07258, 2021.                large graphs. IEEE Transactions on Pattern Anal-
+Andrei Bondarenko, Phan Minh Dung, Robert A.                 ysis and Machine Intelligence, 26(10):1367–1372,
+ Kowalski, and Francesca Toni.         An abstract,          2004. doi: 10.1109/TPAMI.2004.75.
+ argumentation-theoretic approach to default reason-       Kristijonas Cyras, Xiuyi Fan, Claudia Schulz, and
+ ing. Artif. Intell., 93:63–101, 1997. doi: 10.1016/         Francesca Toni. Assumption-based argumentation:
+ S0004-3702(97)00015-5. URL https://doi.org/                 Disputes, explanations, preferences. FLAP, 4(8),
+ 10.1016/S0004-3702(97)00015-5.                              2017. URL http://www.collegepublications.
+Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie             co.uk/downloads/ifcolog00017.pdf.
+  Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind         Yihong Dong, Xue Jiang, Huanyu Liu, Zhi Jin, Bin
+  Neelakantan, Pranav Shyam, Girish Sastry, Amanda           Gu, Mengfei Yang, and Ge Li. Generalization or
+  Askell, Sandhini Agarwal, Ariel Herbert-Voss,              memorization: Data contamination and trustworthy
+  Gretchen Krueger, Tom Henighan, Rewon Child,               evaluation for large language models, 2024. URL
+  Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,              https://arxiv.org/abs/2402.15938.
+  Clemens Winter, Christopher Hesse, Mark Chen,
+  Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin        Phan Minh Dung. On the acceptability of arguments
+  Chess, Jack Clark, Christopher Berner, Sam Mc-             and its fundamental role in nonmonotonic reasoning,
+  Candlish, Alec Radford, Ilya Sutskever, and Dario          logic programming and n-person games. Artif. In-
+  Amodei. Language models are few-shot learners,             tell., 77(2):321–358, 1995. URL https://doi.org/
+  2020. URL https://arxiv.org/abs/2005.14165.                10.1016/0004-3702(94)00041-X.
+
+Nicholas Carlini, Florian Tramer, Eric Wallace,            P Erdös and A Rényi. On random graphs i. Publica-
+  Matthew Jagielski, Ariel Herbert-Voss, Katherine           tiones Mathematicae Debrecen, 6:290–297, 1959.
+  Lee, Adam Roberts, Tom Brown, Dawn Song, Ulfar           Martin Gebser, Roland Kaminski, Benjamin Kauf-
+  Erlingsson, Alina Oprea, and Nicolas Papernot. Ex-        mann, and Torsten Schaub. Multi-shot ASP solv-
+  tracting training data from large language models.        ing with clingo. Theory Pract. Log. Program., 19
+  In Proceedings of the 30th USENIX Security Sym-           (1):27–82, 2019. URL https://doi.org/10.1017/
+  posium, pages 2633–2650, 2021.                            S1471068418000054.
+Lyuzhou Chen, Taiyu Ban, Xiangyu Wang, Derui Lyu,          John Gkountouras, Matthias Lindemann, Phillip
+  and Huanhuan Chen. Mitigating prior errors in              Lippe, Efstratios Gavves, and Ivan Titov. Lan-
+  causal structure learning: Towards llm driven prior        guage agents meet causality – bridging llms and
+  knowledge, 2023. URL https://arxiv.org/abs/                causal world models, 2024. URL https://arxiv.
+  2306.07032.                                                org/abs/2410.19923.
+David Maxwell Chickering. Optimal structure identi-        Clark Glymour, Kun Zhang, and Peter Spirtes. Re-
+  fication with greedy search. J. Mach. Learn. Res.,         view of causal discovery methods based on graphical
+  3:507–554, 2002. URL https://jmlr.org/papers/              models. Front. Genet., 04 June 2019 Sec. Statisti-
+  v3/chickering02b.html.                                     cal Genetics and Methodology, 10:524, 2019. URL
+Kai-Hendrik Cohrs, Emiliano Diaz, Vasileios Sitokon-         https://doi.org/10.3389/fgene.2019.00524.
+ stantinou, Gherardo Varando, and Gustau Camps-            David Heckerman, Dan Geiger, and David M. Chick-
+ Valls. Large language models for constrained-based          ering. Learning Bayesian Networks: The Combi-
+ causal discovery. In AAAI 2024 Workshop on ”Are             nation of Knowledge and Statistical Data. Ma-
+ Large Language Models Simply Causal Parrots?”,              chine Learning, 20(3):197–243, 1995. ISSN 1573-
+                                                   Li, Russo
+
+
+  0565. doi: 10.1023/A:1022623210503. URL https:              and their application to expert systems. Jour-
+  //doi.org/10.1023/A:1022623210503.                          nal of the Royal Statistical Society: Series B
+Stefan Heindorf, Yan Scholten, Henning Wachsmuth,             (Methodological), 50(2):157–194, 12 2018. ISSN
+  Axel-Cyrille Ngonga Ngomo, and Martin Potthast.             0035-9246. doi: 10.1111/j.2517-6161.1988.tb01721.
+  Causenet: Towards a causality graph extracted from          x. URL https://doi.org/10.1111/j.2517-6161.
+  the web. In Proceedings of the 29th ACM In-                 1988.tb01721.x.
+  ternational Conference on Information & Knowl-         Chenxi Liu, Yongqiang Chen, Tongliang Liu, Ming-
+  edge Management, CIKM ’20, page 3023–3030, New           ming Gong, James Cheng, Bo Han, and Kun Zhang.
+  York, NY, USA, 2020. Association for Comput-             Discovery of the hidden world with large language
+  ing Machinery. ISBN 9781450368599. doi: 10.              models, 2024a. URL https://arxiv.org/abs/
+  1145/3340531.3412763. URL https://doi.org/               2402.03941.
+  10.1145/3340531.3412763.
+                                                         Michael Xieyang Liu, Frederick Liu, Alexander J. Fi-
+Antti Hyttinen, Frederick Eberhardt, and Matti            annaca, Terry Koo, Lucas Dixon, Michael Terry, and
+ Järvisalo. Constraint-based causal discovery: Con-      Carrie J. Cai. ”we need structured output”: To-
+ flict resolution with answer set programming. In         wards user-centered constraints on large language
+ Proceedings of the Thirtieth Conference on Uncer-        model output. In Extended Abstracts of the CHI
+ tainty in Artificial Intelligence, UAI 2014, Quebec      Conference on Human Factors in Computing Sys-
+ City, Quebec, Canada, July 23-27, 2014, pages 340–       tems, CHI ’24, pages 1–9. ACM, may 2024b. doi:
+ 349. AUAI Press, 2014.                                   10.1145/3613905.3650756. URL http://dx.doi.
+Ziwei Ji, Nanyun Lee, Tianyi Yu, Qihui He, Ruibo          org/10.1145/3613905.3650756.
+  Zhang, Xiang Ren, et al. A survey on hallucination
+                                                         Christopher Meek. Causal inference and causal ex-
+  in natural language generation. ACM Computing
+                                                           planation with background knowledge. In UAI
+  Surveys, 55(12):1–38, 2023.
+                                                           ’95: Proceedings of the Eleventh Annual Confer-
+Zhijing Jin, Yuen Chen, Felix Leeb, Luigi Gresele,         ence on Uncertainty in Artificial Intelligence, Mon-
+  Ojasv Kamal, Zhiheng Lyu, Kevin Blin, Fernando           treal, Quebec, Canada, August 18-20, 1995, pages
+  Gonzalez, Max Kleiman-Weiner, Mrinmaya Sachan,           403–410. Morgan Kaufmann, 1995. URL https:
+  and Bernhard Schölkopf.     CLadder: Assessing          //doi.org/10.48550/arXiv.1302.4972.
+  causal reasoning in language models. In NeurIPS,
+                                                         Judea Pearl. Causality: Models, Reasoning, and Infer-
+  2023. URL https://openreview.net/forum?id=
+                                                           ence. Cambridge University Press, 2 edition, 2009.
+  e2wtjx0Yqu.
+Thomas Jiralerspong, Xiaoyin Chen, Yash More,            J.      Peters, D. Janzing, and B. Schölkopf.
+  Vedant Shah, and Yoshua Bengio. Efficient causal            Elements of Causal Inference:       Founda-
+  graph discovery using large language models. In             tions and Learning Algorithms.          MIT
+  ICLR 2024 Workshop: How Far Are We From AGI,                Press, Cambridge, MA, USA, 2017.       URL
+  2024. URL https://openreview.net/forum?id=                  https://mitpress.mit.edu/9780262037310/
+  5RBUTx75yr.                                                 elements-of-causal-inference/.
+Elahe Khatibi, Mahyar Abbasian, Zhongqi Yang, Iman       Jonas Peters and Peter Bühlmann. Structural inter-
+  Azimi, and Amir M. Rahmani. Alcm: Autonomous             vention distance for evaluating causal graphs. Neu-
+  llm-augmented causal discovery framework, 2024.          ral Comput., 27(3):771–799, 2015. URL https:
+  URL https://arxiv.org/abs/2405.01744.                    //doi.org/10.1162/NECO_a_00708.
+Emre Kıcıman, Robert Ness, Amit Sharma, and Chen-        Joseph D. Ramsey, Madelyn Glymour, Ruben
+ hao Tan. Causal reasoning and large language mod-         Sanchez-Romero, and Clark Glymour.           A mil-
+ els: Opening a new frontier for causality, 2023.          lion variables and more: the fast greedy equiva-
+Takeshi Kojima, Shixiang Shane Gu, Machel Reid, Yu-        lence search algorithm for learning high-dimensional
+  taka Matsuo, and Yusuke Iwasawa. Large language          graphical causal models, with an application to func-
+  models are zero-shot reasoners. In Advances in Neu-      tional magnetic resonance images. Int. J. Data Sci.
+  ral Information Processing Systems, 2022.                Anal., 3(2):121–129, 2017. URL https://doi.org/
+                                                           10.1007/s41060-016-0032-z.
+Wai-Yin Lam, Bryan Andrews, and Joseph Ramsey.
+ Greedy relaxations of the sparsest permutation al-      Alexander G. Reisach, Christof Seiler, and Sebastian
+ gorithm. In Proceedings of the 38th Conference on         Weichwald. Beware of the simulated DAG! causal
+ Uncertainty in Artificial Intelligence (UAI), 2022.       discovery benchmarks may be easy to game, 2021.
+S. L. Lauritzen and D. J. Spiegelhalter. Local com-      Fabrizio Russo, Anna Rapberger, and Francesca Toni.
+  putations with probabilities on graphical structures     Argumentative causal discovery. In Proc. of KR
+  2024, 2024. doi: 10.24963/KR.2024/88.           URL      Guangya Wan, Yunsheng Lu, Yuqi Wu, Mengxuan Hu,
+  https://doi.org/10.24963/kr.2024/88.                      and Sheng Li. Large language models for causal dis-
+                                                            covery: Current landscape and future directions, feb
+Karen Sachs, Omar Perez, Dana Pe’er, Dou-
+                                                            2025. URL http://arxiv.org/abs/2402.11068.
+ glas A. Lauffenburger, and Garry P. Nolan.
+ Causal protein-signaling networks derived from            Xingyu Wu, Kui Yu, Jibin Wu, and Kay Chen Tan.
+ multiparameter single-cell data.    Science, 308            Llm cannot discover causality, and should be re-
+ (5721):523–529, 2005.      doi:  10.1126/science.           stricted to non-decisional support in causal discov-
+ 1105809. URL https://www.science.org/doi/                   ery, 2025. URL https://arxiv.org/abs/2506.
+ abs/10.1126/science.1105809.                                00844.
+Marco Scutari. Learning bayesian networks with the         Alessio Zanga, Elif Ozkirimli, and Fabio Stella. A
+ bnlearn R package. Journal of Statistical Software,         survey on causal discovery: Theory and practice.
+ 35(3):1–22, 2010. doi: 10.18637/jss.v035.i03.               Int. J. Approx. Reason., 151:101–129, 2022. URL
+                                                             https://doi.org/10.1016/j.ijar.2022.09.004.
+C. Spearman. The proof and measurement of associ-
+                                                           Matej Zečević, Moritz Willig, Devendra Singh Dhami,
+  ation between two things. The American Journal
+                                                            and Kristian Kersting. Causal parrots: Large lan-
+  of Psychology, 15(1):72–101, 1904. ISSN 00029556.
+                                                            guage models may talk causality but are not causal.
+  URL http://www.jstor.org/stable/1412159.
+                                                            Transactions on Machine Learning Research, 2023.
+Peter Spirtes, Clark Glymour, and Richard Scheines.         ISSN 2835-8856. URL https://openreview.net/
+  Causation, Prediction, and Search. MIT Press,             forum?id=tv46tCzs83.
+  2000.                                                    Zirui Zhao, Wee Sun Lee, and David Hsu. Large lan-
+Zhi Rui Tam, Cheng-Kuang Wu, Yi-Lin Tsai, Chieh-             guage models as commonsense knowledge for large-
+  Yen Lin, Hung-yi Lee, and Yun-Nung Chen. Let               scale task planning, 2023. URL https://arxiv.
+  me speak freely? a study on the impact of for-             org/abs/2305.14078.
+  mat restrictions on large language model perfor-         Xun Zheng, Bryon Aragam, Pradeep Ravikumar, and
+  mance. In Proc. of EMNLP 2024, pages 1218–                Eric P. Xing. Dags with NO TEARS: continu-
+  1236, 2024. URL https://aclanthology.org/                 ous imization for structure learning. In Proc. of
+  2024.emnlp-industry.91/.                                  NeurIPS 2018, pages 9492–9503, 2018. URL https:
+Francesca Toni. A tutorial on assumption-based argu-        //proceedings.neurips.cc/paper/2018/hash/
+  mentation. Argument Comput., 5(1):89–117, 2014.           e347c51419ffb23ca3fd5050202f9c3d-Abstract.
+  URL https://doi.org/10.1080/19462166.2013.                html.
+  869878.                                                  Xun Zheng, Chen Dan, Bryon Aragam, Pradeep
+Ioannis Tsamardinos, Laura E. Brown, and Con-               Ravikumar, and Eric P. Xing. Learning sparse
+  stantin F. Aliferis. The max-min hill-climbing            nonparametric dags. In Proc. of AISTATS 2020,
+  bayesian network structure learning algorithm.            volume 108 of PMLR, pages 3414–3425. PMLR,
+  Mach. Learn., 65(1):31–78, 2006. URL https:               2020.   URL http://proceedings.mlr.press/
+  //doi.org/10.1007/s10994-006-6889-7.                      v108/zheng20a.html.
+
+Aniket Vashishtha, Abbavaram Gowtham Reddy,
+ Abhinav Kumar, Saketh Bachu, Vineeth N. Bala-
+ subramanian, and Amit Sharma. Causal order: The
+ key to leveraging imperfect experts in causal infer-
+ ence. In 2025 International Conference on Learning
+ Representations, April 2025. URL https://www.
+ microsoft.com/en-us/research/publication/
+ causal-order-the-key-to-leveraging-imperfect-experts-in-causal-inference/.
+Ashish Vaswani, Matthew Shardlow, et al. Attention
+  is all you need. Proceedings of the 34th International
+  Conference on Machine Learning, 70(1), 2017.
+Matthew J. Vowels, Necati Cihan Camgoz, and
+ Richard Bowden. D’ya Like DAGs? A Survey on
+ Structure Learning and Causal Discovery. ACM
+ Comput. Surv., 55(4), November 2022. ISSN 0360-
+ 0300. URL https://doi.org/10.1145/3527154.
+                                                    Li, Russo
+
+
+
+
+          Leveraging Large Language Models for Causal Discovery: a
+              Constraint-based, Argumentation-driven Approach
+                          Supplementary Materials
+
+
+
+In this supplementary material we provide details omitted from the main text due to space limitations. In
+particular, we describe the prompts used for metadata enrichment and constraint elicitation (Appendix A),
+the consensus strategy for stabilising LLM outputs, the generation and semantic grounding of the synthetic
+CauseNet datasets (Appendix B), and the full experimental protocol, metrics, baselines, ablations, and additional
+quantitative analyses (Appendix C).
+
+A      Prompts
+
+This sections covers the details on the prompts used for the different tasks in which LLMs are involved in. See
+Figure 1 in the main text for the pipeline overview. The following prompts were built with various iterations of
+Anthropic’s prompt improver tool (Anthropic, 2024).
+
+A.1      Metadata Enrichment Prompt
+
+Below, we provide the prompt used for eliciting the variable descriptions before interrogating the main LLM
+(LLM 1 in Figure 1) about causal relations amongst variables. The following prompt is related to LLM 2 in
+Figure 1, which we deem an optional block as its necessity may depend on context. Ablations on the importance
+of variable descriptions are in Section 4.
+                                                                                                             
+ You are tasked with generating descriptions for causal variables in a randomly
+     generated causal graph used for synthetic dataset evaluations of causal discovery
+     algorithms . Your goal is to create meaningful descriptions for each variable that
+     accurately reflect their role in the graph without revealing their relationships
+     with other variables .
+
+ Here is the description of the randomly generated causal graph :
+
+< causal_graph >
+{ C A U S A L _ G R A P H _ DE S C R IP T I O N }
+</ causal_graph >
+
+ To complete this task , follow these steps :
+
+ 1. Carefully read and analyze the causal graph description .
+
+ 2. For each variable mentioned in the graph , create a description that :
+    a ) Precisely describes its meaning within the context of the graph
+    b ) Does NOT spoil its relationships with other variables , either explicitly or
+         implicitly
+    c ) Maintains a consistent context or scenario across all variable descriptions
+
+ 3. If a variable has different contextual meanings in its relationships with other
+     variables , provide a general description that could encompass these different
+     meanings without revealing the specific relationships .
+
+ 4. After generating all variable descriptions , assess the quality of the random causal
+      graph based on how well the variables ’ meanings align with each other and how
+     realistic the overall scenario is .
+
+ 5. Present your output in the following format :
+                           Leveraging Large Language Models for Causal Discovery
+
+
+
+ < title >
+ [ Provide a concise title for the causal graph ]
+ </ title >
+
+ < variable_descriptions >
+ [ List each variable and its description ]
+ </ variable_descriptions >
+
+ < graph_quality_assessment >
+ [ Provide your assessment of the graph quality , including how well the variables ’
+      meanings align and how realistic the overall scenario is ]
+ </ graph_quality_assessment >
+
+ Remember , your primary goal is to create meaningful descriptions without revealing any
+      causal relationships . Be creative in developing a consistent context that could
+     plausibly connect all the variables .
+                                                                                                                   
+
+
+A.2    LLM constraints elicitation prompt
+
+Below, we provide the principal prompt used in our proposed LLM elicitation pipeline. Note that this prompt
+significantly differs from prior work on LLMs and causal discovery, e.g. (Jiralerspong et al., 2024; Kıcıman et al.,
+2023), since it involves a single call for all variables in the dataset. This is enabled by the much longer context
+window of modern LLMs (e.g., over 1 million tokens for gemini-2.5-flash). This single-call approach is not
+only more computationally efficient but also allows the LLM to reason holistically about the entire system of
+variables, potentially capturing higher-order interactions that pairwise queries might miss.
+                                                                                                                    
+ You will be analyzing a set of causal variables to determine the required and
+     forbidden causal directions between them . Your goal is to achieve very high
+     precision in identifying these relationships .
+
+ < causal_variables >
+ { CAUSAL_VARIABLES }
+ </ causal_variables >
+
+ Your task is to analyze these causal variables and generate two sets :
+ 1. ** Required directions **: Causal relationships that must exist based on logical
+     necessity , temporal ordering , or fundamental causal principles
+ 2. ** Forbidden directions **: Causal relationships that cannot exist due to logical
+     impossibility , temporal constraints , or definitional contradictions
+
+ Here are the key principles to follow :
+
+ ** Required directions ** should include :
+ - Relationships where one variable definitionally or logically must cause another
+ - Temporal precedence relationships ( causes must precede effects )
+ - Relationships where the causal mechanism is well - established and unavoidable
+
+ ** Forbidden directions ** should include :
+ - Relationships that would violate temporal ordering ( effects cannot cause their own
+      causes )
+ - Relationships that are logically contradictory or definitionally impossible
+ - Relationships where the direction would violate established causal mechanisms
+
+ ** Important guidelines :**
+ - Only include relationships where you have very high confidence
+ - When in doubt about a relationship , do not include it in either set
+ - Consider both direct and indirect causal pathways
+ - Be precise about the direction of causality ( A → B is different from B → A )
+
+ Format your final answer as follows :
+
+ ** Required Directions :**
+                                                     Li, Russo
+
+
+- [ Variable A ] → [ Variable B ]: [ Brief justification ]
+- [ Continue for all required directions ]
+
+** Forbidden Directions :**
+- [ Variable C ] → [ Variable D ]: [ Brief justification ]
+- [ Continue for all forbidden directions ]
+
+Your final answer should only include the Required Directions and Forbidden Directions
+     sections with their respective causal relationships and justifications . Aim for
+    very high precision - only include relationships where you are highly confident in
+     the causal direction requirement or prohibition .
+                                                                                                                        
+
+
+A.3     LLM Consensus Details
+
+The consensus mechanism is designed to generate high-precision causal constraints by aggregating the outputs
+from multiple independent LLM queries. This is due to the inherent stochasticity of LLMs, and inspired by the
+majority voting strategy proposed by (Cohrs et al., 2023).
+For each causal discovery problem, the LLM is queried five times, yielding five distinct sets of constraints. Let
+Ri and Fi represent the set of “required” and “forbidden” arrows, respectively, from run i ∈ {1, . . . , 5}. The final
+                                                                                                              T5
+high-confidence consensus sets are obtained by taking the intersection across the five runs: Rconsensus = i=1 Ri
+                  T5
+and Fconsensus = i=1 Fi . This guarantees that an arrow appears in the final constraints only if it was proposed
+unanimously across all independent evaluations. The repetition count of five was chosen empirically to balance
+precision and recall, with enough repeats to filter out stochastic or low-confidence suggestions while avoiding
+excessive computational cost. The conservative intersection rule therefore substantially improves the precision
+of the resulting constraints, as empirically validated in Appendix C.4.
+
+
+B     Graph and Data Generation Details
+
+The generation of our synthetic datasets is a two-stage process designed to create structurally diverse and
+semantically plausible causal graphs. First, we generate a structural scaffold (a Directed Acyclic Graph, or
+DAG) using one of three different topology generation methods. Second, we ground this abstract structure in
+real-world concepts by finding a matching sub-graph within the CauseNet knowledge graph, guided by specific
+heuristics.
+
+
+B.1     Structural Scaffolding and Graph Types
+
+We generate the initial DAG topologies using three distinct methods to ensure a variety of graph structures:
+
+
+    • Erdős-Rényi (ER) and Scale-Free (SF): These two methods are adapted from the well-established
+      NOTEARS codebase (Zheng et al., 2018). The ER model (Erdös and Rényi, 1959) produces graphs with a
+      random, uniform edge distribution, while the SF model (Barabási and Albert, 1999) generates graphs with
+      power-law degree distributions, characterized by a few high-degree “hub” nodes.
+
+    • Lower Triangle (LT): This custom method constructs a connected DAG by directly populating a lower
+      triangular adjacency matrix. The algorithm proceeds in two stages. First, to guarantee connectivity, it
+      ensures every node from 1 to n − 1 has at least one parent by randomly adding a single incoming edge
+      for each from a node with a lower index. Second, it distributes the remaining specified number of edges
+      by randomly placing them in the unoccupied positions of the lower triangle. This two-step process ensures
+      both connectivity and the desired edge density.
+
+
+While the ER and SF implementations from NOTEARS can produce graphs with a slightly varied number of
+nodes and edges, the LT method allows for precise control over these parameters.
+                          Leveraging Large Language Models for Causal Discovery
+
+
+B.2    Semantic Grounding and Heuristics
+
+Once a structural scaffold is generated, we imbue it with semantic meaning by finding an isomorphic sub-graph
+within our CauseNet knowledge graph. Since multiple isomorphic sub-graphs can exist, we employ one of three
+heuristics to select the most suitable candidate match.
+
+  • none: This baseline heuristic serves as a control. It performs no optimization and simply selects the first
+    isomorphic sub-graph returned by the search algorithm.
+  • degrees: This heuristic aims to find the most specific and least central concepts. It selects the candidate sub-
+    graph that minimises the sum of the in-degrees and out-degrees of all its nodes within the larger CauseNet
+    graph. The intuition is that nodes with lower total degrees represent more niche concepts.
+  • semantics: This composite heuristic, as detailed in the main paper, selects the candidate sub-graph that
+    minimizes a weighted quality score combining three metrics. For a given candidate subgraph with concept
+    (node) set Sc , the metrics are:
+        – Semantic Compactness (Hcompact ): Measures thematic coherence by calculating the average cosine
+          distance of each concept’s vector embedding from their geometric centroid:
+                                                                                     
+                                        Hcompact (Sc ) = avgv∈Sc dcos (emb(v), µSc )
+          where emb(v) is the vector embedding of concept v, µSc is the centroid vector of all concept embeddings
+          in the set Sc , and dcos is the cosine distance.
+        – Node Specificity (Hspec ): Penalises overly general “hub” nodes using the average log-degree of each
+          node in the full CauseNet graph:
+                                          Hspec (Sc ) = avgv∈Sc (log(deg(v) + 1))
+          where deg(v) is the degree (sum of in- and out-degrees) of node v in the full CauseNet graph. The
+          logarithm dampens the penalty for extremely high-degree nodes.
+        – Structural-Semantic Correlation (Hcorr ): Ensures alignment between graph topology and semantic
+          relationships. The score to be minimised is based on the Spearman’s rank correlation:
+                                       Hcorr (Sc ) = 1 − SpearmanCorr(dgraph , dsem )
+          where dgraph is the set of all pairwise shortest-path distances between nodes in the candidate graph,
+          and dsem is the corresponding set of pairwise cosine distances between their semantic embeddings. A
+          high correlation (low score) indicates that structurally close nodes are also semantically close.
+      The final score to be minimised is a weighted sum Hf inal = w1 Hcompact + w2 Hspec + w3 Hcorr , where the
+      weights wi are customisable.
+
+Additionally, our implementation supports user-defined heuristics, allowing researchers to specify custom scoring
+functions to rank candidate sub-graphs according to their own criteria or domain-specific preferences.
+
+B.3    Dataset Schema
+
+The full suite of 54 synthetic datasets was generated by creating one graph for each unique combination of the
+following parameters:
+
+  • Number of Nodes: {5, 10, 15}
+  • Graph Density: Two levels of edge counts for each node size:
+        – 5 nodes: 5 and 7 edges
+        – 10 nodes: 10 and 15 edges
+        – 15 nodes: 15 and 22 edges
+  • Graph Type: {ER, SF, LT}
+  • Heuristic: {none, degrees, semantics}
+
+Some examples of the generated graphs are shown in Figure 5.
+                                                                                  Li, Russo
+
+
+
+                                                                                                                            high_blood_pressure
+
+
+
+
+                                                     tumors                                           eye_problems                     osteoporosis
+
+
+
+
+                                                   dysfunction                                brain_damage             birth_defect             degeneration
+
+
+
+
+                      sleep_apnea                  chronic_pain                                  blindness                    spinal_stenosis
+
+
+
+
+                                    irritability                                                                                                 neck_pain
+
+                     dag_5_nodes_5_edges_semantics_SF
+
+                                                                                                                                                 numbness
+
+                                                                                                             dag_10_nodes_15_edges_none_ER
+
+
+      chronic_pain                  lack_of_appropriate_supervision                    responsibilities           lack_of_sleep           poor_sleep            infertility
+
+
+
+
+                     despair               abandoned_child_syndrome                       burnout              behavioral_problems                     emotional_problems
+
+
+
+
+                                                     alcohol_abuse                     substance_abuse                                drug_abuse
+
+
+
+
+                                                                     social_problems
+
+                                                                      dag_15_nodes_15_edges_degrees_random
+
+
+
+Figure 5: Examples of semantically grounded DAGs from our synthetic data pipeline, generated with different
+structural methods (ER, SF, LT) and semantic heuristics (none, degrees, semantics).
+
+
+
+B.3.1     CPT and Data Generation
+
+After a semantically grounded DAG is finalised, we use the pyAgrum library to construct the corresponding
+Bayesian Network. For each variable in the network, the domain size is set to 2, making all variables binary.
+The Conditional Probability Tables (CPTs) for the BN are randomly generated during the initialisation process.
+The full collection of the 54 generated Bayesian Networks in BIFXML and PNG format is available in the
+project’s public repository, allowing for full reproducibility of our experiments.
+The randomly initialised CPTs are not intended to reflect realistic effect sizes or context-specific independencies.
+Their sole purpose is to generate observational data that respects the sampled graph structure. Our evaluation
+targets structural recovery (presence and orientation of edges), not the calibration of causal effect magnitudes.
+Mismatches between semantic strength and statistical effect size are therefore expected and mirror low-signal
+regimes encountered in practice.
+
+
+
+C    Details on Experiments
+
+We provide here additional details on the experimental setup, metrics, and results that were omitted from the
+main text due to space constraints.
+                         Leveraging Large Language Models for Causal Discovery
+
+
+C.1   Metrics Definitions
+
+We evaluate the performance of causal discovery algorithms using standard metrics that capture different aspects
+of structural accuracy. Let Gtrue = (V, Etrue ) be the ground truth and Gest = (V, Eest ) the estimated DAG.
+
+  • Structural Hamming Distance (SHD): The SHD (Tsamardinos et al., 2006) measures the structural
+    difference between two graphs. It is defined as the number of edge operations (additions, deletions, or
+    reversals) required to transform Gest into Gtrue . A lower SHD indicates a better structural match. In our
+    plots, we report the normalised SHD (NSHD), which is the SHD divided by the number of edges in the true
+    graph, to facilitate comparison across graphs of different sizes.
+  • Structural Intervention Distance (SID): The SID (Peters and Bühlmann, 2015) is a metric that quan-
+    tifies the difference in the interventional distributions implied by two causal graphs. It counts the number
+    of pairs (i, j) for which the causal effect of intervening on node i on node j is incorrectly predicted by Gest
+    compared to Gtrue . A lower SID indicates a better match in terms of causal predictions. We report the
+    normalised SID, dividing by the total number of possible interventions.
+  • Precision, Recall, and F1-Score: These metrics evaluate the accuracy of the learned graph skeleton (the
+    set of adjacencies, ignoring direction). Let TP (True Positives) be the number of correctly identified edges,
+    FP (False Positives) be the number of incorrectly identified edges, and FN (False Negatives) be the number
+    of missed edges.
+      – Precision is the fraction of correctly identified edges among all edges in the estimated graph:
+                     TP
+        Precision = TP+FP .
+                                                                                        TP
+      – Recall is the fraction of true edges that were correctly identified: Recall = TP+FN .
+      – F1-Score is the harmonic mean of Precision and Recall, providing a single balanced measure: F 1 =
+            Precision·Recall
+        2 · Precision+Recall .
+
+C.2   Baselines
+
+We used the following six baselines with respective implementations (see Section 6 for context):
+
+  • A Random baseline (RND) as in (Russo et al., 2024), by just sampling 10 random graphs with the same
+    number of nodes as the ground truth.
+  • Fast Greedy equivalence Search4 (FGS) (Ramsey et al., 2017) is a score-based Causal Discovery algorithm.
+    It is a fast implementation of GES (Chickering, 2002) where graphs are evaluated using the Bayesian Infor-
+    mation Criterion (BIC) upon addition or deletion of an edge, in a greedy fashion, involving the evaluation
+    of insertion and removal of edges in a forward and backward fashion.
+  • NOTEARS-MLP5 (NT) (Zheng et al., 2020) learns a non-linear SEM via continuous optimisation. Having
+    a Multi-Layer Perceptron (MLP) at its core, this method should adapt to different functional dependen-
+    cies among the variables. The optimisation is carried out via augmented Lagrangian with a continuous
+    formulation of acyclicity (Zheng et al., 2018).
+  • GRaSP (Lam et al., 2022) is an order-based method based on greedy relaxations of the sparsest permutation
+    criterion, providing a recent and competitive baseline for structure learning.
+  • BOSS (Andrews et al., 2023) is an order-based score-search method that combines order search with grow–
+    shrink-style neighbourhood exploration for fast DAG discovery.
+  • Majority-PC6 (MPC) (Colombo and Maathuis, 2014) is a constraint-based causal discovery algorithm. It
+    uses independence tests and graphical rules based on d-separation to extract a CPDAG from the data.
+    MPC is an improved version of the original Peter-Clark (PC) algorithm (Spirtes et al., 2000) that renders
+    it order-independent while maintaining soundness and completeness with infinite data. This constitutes the
+    statistical engine underlying ABAPC, isolating the impact of Causal ABA.
+  4
+    https://github.com/bd2kccd/py-causal
+  5
+    https://github.com/xunzheng/notears
+  6
+    https://github.com/briziorusso/ArgCausalDisco/blob/public/cd_algorithms/PC.py
+                                                    Li, Russo
+
+
+
+
+Figure 6: Precision and Recall on Synthetic Datasets. Bar plots comparing the Precision and Recall of LLM-
+augmented Causal ABA against baselines across synthetic datasets generated from the CauseNet Knowledge
+Graph, grouped by number of nodes (|V| ∈ {5, 10, 15}). Error bars represent standard deviations over 50
+repetitions.
+
+
+  • ABAPC7 (ABAPC) (Russo et al., 2024) is an instantiation of Causal ABA, a logic- and constraint-based
+    Causal Discovery algorithm that uses an Assumption-Based Argumentation framework to resolve conflicts
+    and ambiguities within observational data. The method uses the CI tests from the MPC algorithm as inputs
+    into the Causal ABA (hence ABAPC) and excludes a progressively bigger amount of low-confidence tests
+    to find a stable extension of the ABAF that contains a DAG which is guaranteed to imply the d-separations
+    supported by the retained tests. This is the non-LLM variant of our proposed method, allowing us to isolate
+    the impact of LLM-derived constraints.
+  • LLM-BFS8 (BFS) (Jiralerspong et al., 2024) is a breadth-first search-based approach that leverages LLMs for
+    causal discovery. It explores the graph structure by iteratively expanding the search space and incorporating
+    LLM-generated insights to build the causal graph, only leveraging variable names and descriptions. This
+    method is the LLM-only baseline, allowing us to isolate the impact of data-driven constraints.
+
+C.3     Additional Results
+
+The following sections provide additional results and analyses that complement the findings presented in the
+main text. We include further performance metrics, statistical test results, and detailed evaluations on the
+bnlearn benchmark datasets.
+
+C.3.1     Additional Metrics
+
+Figures 6 and 7 complement Figure 3 from the main text by showing the performance on the synthetic CauseNet
+datasets with respect to Precision, Recall, and SID. The results confirm the trend observed with SHD and
+F1-score: our proposed ABAPC-LLM method consistently outperforms the baselines across all graph sizes,
+demonstrating superior precision and recall in edge detection and greater accuracy in predicting interventional
+effects.
+
+C.3.2     Statistical Test Results
+
+Here we provide details for the statistical tests used to measure the significance of the difference in the results
+presented in Figure 3 in the main text. In Table 2 we provide t-statistics and p-values for all comparisons against
+  7
+      https://github.com/briziorusso/ArgCausalDisco/blob/public/cd_algorithms/ABAPC.py
+  8
+      https://github.com/superkaiba/causal-llm-bfs
+                          Leveraging Large Language Models for Causal Discovery
+
+
+
+
+Figure 7: Structural Intervention Distance on Synthetic Datasets. Bar plots comparing the normalised Structural
+Intervention Distance (SID) of LLM-augmented Causal ABA against baselines across synthetic datasets generated
+from the CauseNet Knowledge Graph, grouped by number of nodes (|V| ∈ {5, 10, 15}). Error bars represent
+standard deviations over 50 repetitions.
+
+Table 1: Average runtime in seconds on synthetic CauseNet datasets (mean±std over repetitions). LLM-BFS is
+omitted because its wall-clock time is dominated by external API calls.
+
+
+                           Method                |V| = 5       |V| = 10       |V| = 15
+                           Random              0.00 ± 0.00    0.00 ± 0.00    0.00 ± 0.00
+                           FGS                 0.08 ± 0.00    0.09 ± 0.00    0.10 ± 0.01
+                           MPC                 0.00 ± 0.01    0.02 ± 0.01    0.03 ± 0.01
+                           ABAPC               0.16 ± 0.11    3.31 ± 3.70    5.39 ± 5.19
+                           ABAPC-LLM           0.18 ± 0.14    3.28 ± 3.47    5.31 ± 5.14
+                           NOTEARS-MLP         0.11 ± 0.01    0.27 ± 0.05    0.45 ± 0.04
+                           GRaSP               1.09 ± 0.10    5.45 ± 2.67   14.06 ± 4.80
+                           BOSS                1.29 ± 0.16    7.22 ± 3.20   18.63 ± 7.05
+
+
+our proposed method, ABAPC-LLM, on the synthetic CauseNet datasets. LLM-BFS is not included in these
+tests as it was only run once (due to its high computational cost).
+For all families of pairwise comparisons, we apply the Benjamini–Hochberg procedure to control the false discovery
+rate. Corrected p-values are reported in the pBH column of Tables 2 and subsequent tables. All significance claims
+in the main text refer to BH-corrected results.
+In the table we present pairwise comparisons of means, for F1 and Normalised SHD, scores presented in Figure 3
+of the main text. We use two-sample, unequal variance t-tests, with degrees of freedom of 53 (10 seeds and
+4 noise distributions, minus 1). The null hypothesis is that the means of the two samples are equal, and the
+alternative hypothesis is that they are not equal. We reject the null hypothesis for p-values below 0.05, indicating
+a statistically significant difference between the two methods being compared.
+All comparisons show statistically significant differences (p < 0.001) between ABAPC-LLM and all baselines,
+across all graph sizes and both metrics.
+
+C.3.3   Runtime Analysis
+
+Table 1 reports average wall-clock runtime (in seconds) for all methods on the synthetic datasets, averaged over
+50 repetitions. To focus on algorithmic scaling, we report runtimes excluding external LLM API latency; LLM
+                                                   Li, Russo
+
+Table 2: Two-sample, unequal variance t-tests (ABAPC-LLM vs others) on Synthetic Data for |V | ∈ {5, 10, 15}
+with nobs = 900.0. Metrics: F1 (higher is better) and NSHD (lower is better). Significance levels: 0 ’***’ 0.001
+’**’ 0.01 ’*’ 0.05 ’.’ 0.1 ’ns’ 1. BH-corrected p-values are also reported to account for multiple comparisons.
+ Dataset Metric              Methods                   Means±Std                 t       p-value          pBH
+                     ABAPC-LLM vs ABAPC          0.66 ± 0.09 vs 0.63 ± 0.11     8.05    1.55e-15 ***   1.92e-15 ***
+                      ABAPC-LLM vs FGS           0.66 ± 0.09 vs 0.17 ± 0.07   134.20           0 ***          0 ***
+              F1      ABAPC-LLM vs MPC           0.66 ± 0.09 vs 0.36 ± 0.13    58.89           0 ***          0 ***
+                    ABAPC-LLM vs NOTEARS         0.66 ± 0.09 vs 0.16 ± 0.00   169.62           0 ***          0 ***
+                     ABAPC-LLM vs Random         0.66 ± 0.09 vs 0.19 ± 0.08   114.96           0 ***          0 ***
+ |V | = 10
+                   ABAPC-LLM vs ABAPC            0.44 ± 0.10 vs 0.47 ± 0.11 −6.29       3.92e-10 ***   4.34e-10 ***
+                    ABAPC-LLM vs FGS             0.44 ± 0.10 vs 1.31 ± 0.15 −146.55            0 ***          0 ***
+             NSHD   ABAPC-LLM vs MPC             0.44 ± 0.10 vs 0.88 ± 0.14 −77.21             0 ***          0 ***
+                  ABAPC-LLM vs NOTEARS           0.44 ± 0.10 vs 1.00 ± 0.01 −174.07            0 ***          0 ***
+                   ABAPC-LLM vs Random           0.44 ± 0.10 vs 2.34 ± 0.53 −105.08            0 ***          0 ***
+                     ABAPC-LLM vs ABAPC          0.68 ± 0.08 vs 0.62 ± 0.10    14.28    8.84e-44 ***   1.16e-43 ***
+                      ABAPC-LLM vs FGS           0.68 ± 0.08 vs 0.11 ± 0.04   196.72           0 ***          0 ***
+              F1      ABAPC-LLM vs MPC           0.68 ± 0.08 vs 0.29 ± 0.12    84.89           0 ***          0 ***
+                    ABAPC-LLM vs NOTEARS         0.68 ± 0.08 vs 0.12 ± 0.00   224.45           0 ***          0 ***
+                     ABAPC-LLM vs Random         0.68 ± 0.08 vs 0.13 ± 0.05   183.38           0 ***          0 ***
+ |V | = 15
+                   ABAPC-LLM vs ABAPC            0.38 ± 0.07 vs 0.43 ± 0.09 −12.87      2.93e-36 ***   3.23e-36 ***
+                    ABAPC-LLM vs FGS             0.38 ± 0.07 vs 1.33 ± 0.12 −201.95            0 ***          0 ***
+             NSHD   ABAPC-LLM vs MPC             0.38 ± 0.07 vs 0.84 ± 0.10 −107.23            0 ***          0 ***
+                  ABAPC-LLM vs NOTEARS           0.38 ± 0.07 vs 0.93 ± 0.01 −222.07            0 ***          0 ***
+                   ABAPC-LLM vs Random           0.38 ± 0.07 vs 3.56 ± 1.09 −87.39             0 ***          0 ***
+                     ABAPC-LLM vs ABAPC          0.81 ± 0.07 vs 0.68 ± 0.08    37.41   5.92e-226 *** 8.88e-226 ***
+                      ABAPC-LLM vs FGS           0.81 ± 0.07 vs 0.32 ± 0.10   120.03           0 ***         0 ***
+              F1      ABAPC-LLM vs MPC           0.81 ± 0.07 vs 0.45 ± 0.14    68.68           0 ***         0 ***
+                    ABAPC-LLM vs NOTEARS         0.81 ± 0.07 vs 0.34 ± 0.00   198.82           0 ***         0 ***
+                     ABAPC-LLM vs Random         0.81 ± 0.07 vs 0.34 ± 0.15    87.12           0 ***         0 ***
+ |V | = 5
+                   ABAPC-LLM vs ABAPC            0.21 ± 0.08 vs 0.33 ± 0.08   −31.88 6.47e-177 *** 9.06e-177 ***
+                    ABAPC-LLM vs FGS             0.21 ± 0.08 vs 0.96 ± 0.18   −112.64        0 ***         0 ***
+             NSHD   ABAPC-LLM vs MPC             0.21 ± 0.08 vs 0.83 ± 0.12   −132.23        0 ***         0 ***
+                  ABAPC-LLM vs NOTEARS           0.21 ± 0.08 vs 0.89 ± 0.01   −264.60        0 ***         0 ***
+                   ABAPC-LLM vs Random           0.21 ± 0.08 vs 1.18 ± 0.25   −110.54        0 ***         0 ***
+
+
+inference is performed once per dataset and amortised across repetitions.
+
+C.3.4    Performance on bnlearn Benchmarks
+
+Figures 8, 9, and 10 show the performance of all methods on the standard benchmark datasets from the bnlearn
+repository. As discussed in the main text, these well-known datasets are likely part of the LLMs’ training data,
+which may lead to memorisation effects. This is reflected in the strong performance of both ABAPC-LLM and
+the LLM-only baseline (LLM-BFS) on several datasets like SACHS, ASIA, and CANCER. Nonetheless, our
+method remains competitive or superior across all metrics, and its performance on datasets like CHILD, which
+are more complex, demonstrates that the combination of data-driven reasoning and semantic priors is robust.
+Interesting to note is the 100% recall achieved by LLM-BFS on four of the six datasets (Figure 9), indicating
+that the LLM was able to identify all true edges in these cases, albeit with lower precision. This suggests that
+while the LLM can effectively capture the presence of causal relationships, it may also introduce spurious edges,
+highlighting the importance of combining LLM insights with data-driven methods for balanced performance.
+Additionally, the SID score of LLM-BFS on these same datasets is 0 (no errors in interventional predictions),
+which raises suspitions about the performance on these common benchmarks.
+
+C.4     LLM Constraints Evaluation
+
+We provide here additional analyses on the quality of the causal constraints generated by the LLM, as well as
+ablation studies to assess the impact of different components of our approach. In particular, we investigate the
+role of variable descriptions in enhancing the LLM’s understanding of the causal relationships, and we evaluate
+                                Leveraging Large Language Models for Causal Discovery
+
+
+
+
+Figure 8: Structural Learning Performance on bnlearn benchmarks. Bar plots comparing the normalised Struc-
+tural Hamming Distance (NSHD, left-axis) and F1-score (right-axis) of our method against baselines across
+standard benchmark datasets. Error bars represent standard deviations over 50 repetitions.
+
+
+the effectiveness of our consensus mechanism in improving the reliability of the generated constraints. Finally
+we provide additional heatmaps to illustrate the interaction between constraint quality and structural learning
+performance.
+Table 3 summarises the performance of the LLM in generating causal constraints for bnlearn and our CauseNet
+synthetic datasets, comparing the consensus-based approach with a simple average of single runs, and evaluating
+the impact of providing variable descriptions.
+
+Table 3: LLM-derived constraint quality, including average number of constraints, under different elicitation
+strategies. We compare consensus vs. the average of single runs, and with vs. without descriptions on bnlearn
+and bnlearn. Bold = higher of Average vs. Consensus within each dataset and description column; ↑ “with
+desc” > “w/o desc” (same method), ↓ otherwise. Green = overall best across all settings per row.
+
+
+                                         bnlearn                                                        CauseNet
+ Metric                     Average                      Consensus                         Average                     Consensus
+                 w/o desc         with desc        w/o desc       with desc     w/o desc         with desc     w/o desc        with desc
+                                                              Forbidden constraints
+ # constraints 19.80 ± 13.90  25.47 ± 24.39  8.00 ± 6.60    8.17 ± 1.72   17.59 ± 13.02 20.64 ± 16.60         4.85 ± 4.83      4.07 ± 3.42
+ Precision     0.927 ± 0.186 0.973 ± 0.041↑ 0.833 ± 0.408 0.948 ± 0.085↑ 0.952 ± 0.132 0.942 ± 0.155↓        0.855 ± 0.339   0.877 ± 0.317↑
+ Recall        0.409 ± 0.234 0.472 ± 0.219↑ 0.241 ± 0.240 0.275 ± 0.216↑ 0.293 ± 0.216 0.312 ± 0.221↑        0.123 ± 0.164   0.115 ± 0.168↓
+ F1            0.533 ± 0.260 0.606 ± 0.224↑ 0.338 ± 0.316 0.392 ± 0.281↑ 0.409 ± 0.232 0.431 ± 0.234↑        0.189 ± 0.216   0.174 ± 0.218↓
+                                                              Required constraints
+ # constraints   8.27 ± 6.97  10.80 ± 11.71  4.50 ± 3.73    3.67 ± 4.13   12.57 ± 9.60   14.56 ± 11.52   4.11 ± 3.29    4.74 ± 3.33
+ Precision     0.468 ± 0.288 0.597 ± 0.235↑ 0.375 ± 0.327 0.505 ± 0.422↑ 0.487 ± 0.249  0.464 ± 0.230↓ 0.568 ± 0.353 0.514 ± 0.335↓
+ Recall        0.445 ± 0.352 0.611 ± 0.328↑ 0.303 ± 0.388 0.281 ± 0.375↓ 0.486 ± 0.255 0.516 ± 0.242↑ 0.244 ± 0.210   0.278 ± 0.244↑
+ F1            0.401 ± 0.240 0.555 ± 0.232↑ 0.284 ± 0.284 0.321 ± 0.337↑ 0.450 ± 0.206 0.453 ± 0.190↑ 0.314 ± 0.228   0.334 ± 0.249↑
+
+
+
+The consensus approach is conservative and often results in a smaller set of constraints. In some cases, it may
+yield an empty set, which can artificially lower the aggregated performance metrics since they are set to 0 in such
+instances. To provide a clearer view of the performance when constraints are generated, Table 4 presents the
+same metrics but excludes cases where the number of generated constraints is zero. This is particularly relevant
+for the consensus method, which is more prone to this scenario. Based on the results in these tables, we can
+draw the following observations:
+                                                                       Li, Russo
+
+
+
+
+Figure 9: Precision and Recall on bnlearn benchmarks. Bar plots comparing the Precision and Recall of our
+method against baselines across standard benchmark datasets. Error bars represent standard deviations over 50
+repetitions.
+
+Table 4: LLM-derived constraint quality excluding cases with zero constraints. We include average number of
+constraints, under different elicitation strategies. We compare consensus vs. the average of single runs, and with
+vs. without descriptions on bnlearn and bnlearn. Bold = higher of Average vs. Consensus within each dataset
+and description column; ↑ “with desc” > “w/o desc” (same method), ↓ otherwise. Green = overall best across
+all settings per row.
+
+
+                                              bnlearn                                                           CauseNet
+ Metric                     Average                          Consensus                             Average                    Consensus
+                 w/o desc         with desc          w/o desc          with desc        w/o desc         with desc    w/o desc       with desc
+                                                                Forbidden constraints
+ # constraints 20.48 ± 13.63   25.47 ± 24.39        9.60 ± 5.94        8.17 ± 1.72     17.86 ± 12.94 20.79 ± 16.57    5.57 ± 4.78    4.58 ± 3.29
+ Precision      0.959 ± 0.062 0.973 ± 0.041↑           1.000         0.948 ± 0.085↓    0.966 ± 0.061 0.949 ± 0.132↓ 0.982 ± 0.069 0.986 ± 0.053↑
+ Recall        0.423 ± 0.225 0.472 ± 0.219↑        0.289 ± 0.234     0.275 ± 0.216↓   0.297 ± 0.215 0.314 ± 0.220↑ 0.141 ± 0.168   0.129 ± 0.172↓
+ F1            0.551 ± 0.244 0.606 ± 0.224↑        0.405 ± 0.300     0.392 ± 0.281↓   0.415 ± 0.228 0.434 ± 0.231↑ 0.217 ± 0.218   0.196 ± 0.222↓
+                                                                   Required constraints
+ # constraints   9.92 ± 6.45  11.17 ± 11.74   6.75 ± 1.71    5.50 ± 3.87   12.66 ± 9.57  14.66 ± 11.50    4.53 ± 3.17    5.02 ± 3.22
+ Precision     0.562 ± 0.213 0.618 ± 0.210↑ 0.562 ± 0.195 0.757 ± 0.206↑ 0.491 ± 0.247   0.468 ± 0.227↓ 0.626 ± 0.317 0.544 ± 0.320↓
+ Recall        0.535 ± 0.316 0.632 ± 0.312↑ 0.454 ± 0.399  0.422 ± 0.394↓ 0.490 ± 0.252 0.520 ± 0.239↑ 0.269 ± 0.204   0.294 ± 0.241↑
+ F1            0.482 ± 0.172 0.574 ± 0.211↑ 0.426 ± 0.233  0.481 ± 0.294↑ 0.454 ± 0.203 0.457 ± 0.187↑ 0.346 ± 0.214   0.354 ± 0.242↑
+
+
+
+  • Impact of Descriptions: Providing semantic descriptions alongside variable names generally improves
+    the performance of the LLM in generating both forbidden and required constraints. As shown in Table 3,
+    for forbidden constraints, descriptions lead to a notable increase in F1-score for both bnlearn (from 0.53 to
+    0.61 for average, and 0.34 to 0.39 for consensus) and synthetic datasets. A similar, even more pronounced,
+    improvement is observed for required constraints, where the F1-score on bnlearn jumps from 0.4 to 0.56 for
+    the average method. This suggests that richer context allows LLMs to make more accurate causal judgments.
+  • Consensus vs. Average of Single Runs: The consensus mechanism acts as a high-precision filter. It
+    generates a smaller number of constraints compared to the average of single runs, but with significantly
+    higher precision when zero-constraint cases are excluded (Table 4). For instance, for forbidden constraints
+    on bnlearn without descriptions, consensus precision reaches 1. However, this comes at the cost of lower
+    recall, resulting in a lower F1-score overall compared to the average method. This highlights a trade-off
+    between precision and recall: consensus is preferable when the priority is to avoid false positives, while
+    averaging single runs yields a broader, higher-recall set of constraints.
+                         Leveraging Large Language Models for Causal Discovery
+
+
+
+
+Figure 10: Interventional Accuracy on bnlearn benchmarks. Bar plots comparing the normalised Structural
+Intervention Distance (SID) of our method against baselines across standard benchmark datasets. Error bars
+represent standard deviations over 50 repetitions.
+
+
+  • bnlearn vs. CauseNet Datasets: The LLM generally performs better on the bnlearn datasets compared to
+    the synthetic CauseNet ones, especially shown in terms of F1 in Table 4. This is likely due to the memorisa-
+    tion of common benchmarks present in the LLM’s training data. The performance on the synthetic datasets,
+    while lower, provides a more realistic measure of the LLM’s generalisable causal reasoning capabilities, and
+    shows that the LLM is still capable of generating high-quality constraints for novel problems.
+
+C.4.1   Interaction Between Constraint Quality and Structural Performance
+
+Figures 12 and 13 show heatmaps of the interaction between the F1-score of LLM-derived constraints and data-
+derived independence tests, and their impact on the final DAG F1-score. These complement Figure 4 from the
+main text by providing a more granular view of how the quality of constraints influences structural learning
+performance across different dataset characteristics.
+The results indicate that high-quality constraints from the LLM can significantly enhance the performance of
+Causal ABA, especially when combined with reliable data-driven tests. The effects do not show distinctive trends
+across sizes or graph types, as shown in Figures 12 and 13, respectively.
+LLMs performance on CauseNet vs bnlearn. Figure 11 shows a side-by-side comparison of the interaction
+heatmaps on the CauseNet and bnlearn datasets. Figure 11a is the same as the one in the main text, while
+Figure 11b shows the results for the bnlearn benchmarks. We can see that the trends are consistent across both
+synthetic and real-world datasets, but the overall accuracy of LLM-derived constraints is higher in the bnlearn
+benchmarks, likely due to memorisation effects.
+Figure 14 provides a breakdown of the interaction heatmap for each individual bnlearn dataset using the same
+binning thresholds as the global heatmap in Figure 11b: [0,0.33), [0.33,0.66), [0.66,1]. This is the same as
+Figure 12 and 13 for the synthetic datasets. We can notice a much lower diversity of LLM-derived constraint
+quality within datasets, with high concentration in one or two bins. This is likely due to the smaller number of
+variables in these datasets, which makes it easier for the LLM to memorise the relationships.
+Finally, Figure 15 shows the same breakdown but using quantiles for each dataset to define the bins. This
+allows us to see more clearly the interaction between constraint quality and structural performance within each
+dataset, without being affected by the overall accuracy of the LLM on that dataset. We can see that even in
+datasets where the LLM show lower overall performance (e.g. CHILD), there are still instances where high-quality
+constraints lead to improved structural learning performance.
+                                                Li, Russo
+
+
+
+
+            (a) CauseNet synthetic datasets.                          (b) bnlearn benchmarks.
+
+Figure 11: Interaction between the F1-score of LLM-derived constraints and data-derived independence tests;
+color denotes the mean change in the final DAG F1-score.
+
+
+
+
+Figure 12: CauseNet Synthetic: Heatmaps of the interaction between the F1 of LLM-derived and data-derived
+constraints, split by number of nodes.
+
+
+
+
+Figure 13: CauseNet Synthetic: Heatmaps of the interaction between the F1 of LLM-derived and data-derived
+constraints, split by graph type.
+                       Leveraging Large Language Models for Causal Discovery
+
+
+
+
+Figure 14: bnlearn Benchmarks: Heatmap of the interaction between the F1-score of LLM-derived constraints
+and data-derived independence tests per dataset using the same binning threshold as the global heatmap in
+Figure 11b: [0,0.33), [0.33,0.66), [0.66,1].
+
+
+
+
+Figure 15: bnlearn Benchmarks: Heatmap of the interaction between the F1-score of LLM-derived constraints
+and data-derived independence tests per dataset using quantiles for each dataset to define the bins.
+

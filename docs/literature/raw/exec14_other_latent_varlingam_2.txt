@@ -1,0 +1,257 @@
+//! High-Precision Mathematical Functions
+//!
+//! Implementations of:
+//! - Normal distribution CDF (Cody's rational Chebyshev, error < 2e-15)
+//! - Normal distribution PDF
+//! - Normal distribution quantile (Acklam + Newton-Raphson)
+//!
+//! Reference: Cody, W.J. (1969). Mathematics of Computation, 23:631-637.
+
+/// High-precision erfc using Cody's rational Chebyshev approximation
+/// Relative error < 2e-15 for all x
+pub fn erfc_cody(x: f64) -> f64 {
+    let ax = x.abs();
+    if ax < 0.5 {
+        1.0 - erf_small(ax) * x.signum()
+    } else if ax < 4.0 {
+        let result = erfc_medium(ax);
+        if x < 0.0 {
+            2.0 - result
+        } else {
+            result
+        }
+    } else {
+        let result = erfc_large(ax);
+        if x < 0.0 {
+            2.0 - result
+        } else {
+            result
+        }
+    }
+}
+
+/// erf(x) for |x| < 0.5 using polynomial approximation
+/// Coefficients from Cody (1969), Table II
+fn erf_small(x: f64) -> f64 {
+    const P: [f64; 5] = [
+        3.209377589138469472562e+03,
+        3.774852376853020208137e+02,
+        1.138641541510501556495e+02,
+        3.161123743870565596947e+00,
+        1.857777061846031526730e-01,
+    ];
+    const Q: [f64; 5] = [
+        2.844236833439170622273e+03,
+        1.282616526077372275645e+03,
+        2.440246379344441733056e+02,
+        2.360129095234412093499e+01,
+        1.0,
+    ];
+
+    let x2 = x * x;
+    let num = P[0] + x2 * (P[1] + x2 * (P[2] + x2 * (P[3] + x2 * P[4])));
+    let den = Q[0] + x2 * (Q[1] + x2 * (Q[2] + x2 * (Q[3] + x2 * Q[4])));
+    x * num / den
+}
+
+/// erfc(x) for 0.5 <= x < 4 using rational approximation
+/// Coefficients from Cody (1969), Table II
+fn erfc_medium(x: f64) -> f64 {
+    const P: [f64; 9] = [
+        1.230339354797997253455e+03,
+        2.051078377826071465384e+03,
+        1.712047612634070583494e+03,
+        8.819522212417690904700e+02,
+        2.986351381974001311165e+02,
+        6.611919063714162948938e+01,
+        8.883149794388375941560e+00,
+        5.641884969886700892063e-01,
+        2.153115354744038463157e-08,
+    ];
+    const Q: [f64; 9] = [
+        1.230339354803749420322e+03,
+        3.439367674143721637020e+03,
+        4.362619090143247158436e+03,
+        3.290799235733459627178e+03,
+        1.621389574566690189578e+03,
+        5.371811018620098575097e+02,
+        1.176939508913124993599e+02,
+        1.574492611070983473340e+01,
+        1.0,
+    ];
+
+    let num = P[0]
+        + x * (P[1]
+            + x * (P[2]
+                + x * (P[3] + x * (P[4] + x * (P[5] + x * (P[6] + x * (P[7] + x * P[8])))))));
+    let den = Q[0]
+        + x * (Q[1]
+            + x * (Q[2]
+                + x * (Q[3] + x * (Q[4] + x * (Q[5] + x * (Q[6] + x * (Q[7] + x * Q[8])))))));
+
+    (-x * x).exp() * num / den
+}
+
+/// erfc(x) for x >= 4 using asymptotic expansion
+/// Coefficients from Cody (1969), Table IV
+fn erfc_large(x: f64) -> f64 {
+    const FRAC_1_SQRT_PI: f64 = 0.5641895835477562869480794515607725;
+
+    const P: [f64; 6] = [
+        6.587491615298378032296e-04,
+        1.608378514874227663545e-02,
+        1.257817261112292462123e-01,
+        3.603448999498044394170e-01,
+        3.053266349612323440925e-01,
+        1.631538713730209785200e-02,
+    ];
+    const Q: [f64; 6] = [
+        2.335204976268691854104e-03,
+        6.051834131244131912303e-02,
+        5.279051029514284122495e-01,
+        1.872952849923460472459e+00,
+        2.568520192289822045033e+00,
+        1.0,
+    ];
+
+    let x2 = x * x;
+    let x2_inv = 1.0 / x2;
+
+    let num = P[0]
+        + x2_inv * (P[1] + x2_inv * (P[2] + x2_inv * (P[3] + x2_inv * (P[4] + x2_inv * P[5]))));
+    let den = Q[0]
+        + x2_inv * (Q[1] + x2_inv * (Q[2] + x2_inv * (Q[3] + x2_inv * (Q[4] + x2_inv * Q[5]))));
+
+    (-x2).exp() * (FRAC_1_SQRT_PI - x2_inv * num / den) / x
+}
+
+/// Standard normal CDF (Phi)
+/// Phi(x) = 0.5 * erfc(-x / sqrt(2))
+///
+/// Relative error < 2e-15 for |x| < 37
+pub fn norm_cdf(x: f64) -> f64 {
+    const SQRT_2: f64 = std::f64::consts::SQRT_2;
+    0.5 * erfc_cody(-x / SQRT_2)
+}
+
+/// Standard normal PDF
+/// phi(x) = exp(-x^2/2) / sqrt(2*pi)
+#[inline]
+pub fn norm_pdf(x: f64) -> f64 {
+    const INV_SQRT_2PI: f64 = 0.3989422804014326779399461;
+    INV_SQRT_2PI * (-0.5 * x * x).exp()
+}
+
+/// Standard normal quantile function (Phi^-1)
+/// Using Acklam's algorithm with Newton-Raphson refinement
+/// Relative error < 1e-14 for central region, < 1e-12 for extreme tails
+pub fn norm_ppf(p: f64) -> f64 {
+    if p.is_nan() {
+        return f64::NAN;
+    }
+    if p <= 0.0 {
+        return f64::NEG_INFINITY;
+    }
+    if p >= 1.0 {
+        return f64::INFINITY;
+    }
+    if p == 0.5 {
+        return 0.0;
+    }
+
+    // Use symmetry for p < 0.5
+    if p < 0.5 {
+        return -norm_ppf(1.0 - p);
+    }
+
+    const A: [f64; 6] = [
+        -3.969683028665376e+01,
+        2.209460984245205e+02,
+        -2.759285104469687e+02,
+        1.383577518672690e+02,
+        -3.066479806614716e+01,
+        2.506628277459239e+00,
+    ];
+    const B: [f64; 5] = [
+        -5.447609879822406e+01,
+        1.615858368580409e+02,
+        -1.556989798598866e+02,
+        6.680131188771972e+01,
+        -1.328068155288572e+01,
+    ];
+    const C: [f64; 6] = [
+        -7.784894002430293e-03,
+        -3.223964580411365e-01,
+        -2.400758277161838e+00,
+        -2.549732539343734e+00,
+        4.374664141464968e+00,
+        2.938163982698783e+00,
+    ];
+    const D: [f64; 5] = [
+        7.784695709041462e-03,
+        3.224671290700398e-01,
+        2.445134137142996e+00,
+        3.754408661907416e+00,
+        1.0,
+    ];
+
+    const P_LOW: f64 = 0.02425;
+    const P_HIGH: f64 = 1.0 - P_LOW;
+
+    let mut x = if p < P_LOW {
+        // Lower tail
+        let q = (-2.0 * p.ln()).sqrt();
+        (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
+            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + D[4])
+    } else if p <= P_HIGH {
+        // Central region
+        let q = p - 0.5;
+        let r = q * q;
+        (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5]) * q
+            / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
+    } else {
+        // Upper tail
+        let q = (-2.0 * (1.0 - p).ln()).sqrt();
+        -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
+            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + D[4])
+    };
+
+    // Two Newton-Raphson iterations for high precision
+    for _ in 0..2 {
+        let e = norm_cdf(x) - p;
+        let u = e * (std::f64::consts::TAU).sqrt() * (0.5 * x * x).exp();
+        x -= u / (1.0 + 0.5 * x * u);
+    }
+
+    x
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_norm_cdf_symmetry() {
+        for x in [0.5, 1.0, 2.0, 3.0] {
+            let diff = (norm_cdf(-x) - (1.0 - norm_cdf(x))).abs();
+            assert!(diff < 1e-14, "Symmetry failed at x={x}: diff={diff}");
+        }
+    }
+
+    #[test]
+    fn test_norm_cdf_known_values() {
+        assert!((norm_cdf(0.0) - 0.5).abs() < 1e-15);
+        assert!((norm_cdf(1.0) - 0.8413447460685429).abs() < 1e-14);
+        assert!((norm_cdf(-1.0) - 0.15865525393145707).abs() < 1e-14);
+        assert!((norm_cdf(2.0) - 0.9772498680518208).abs() < 1e-14);
+    }
+
+    #[test]
+    fn test_norm_ppf_roundtrip() {
+        for p in [0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99] {
+            let x = norm_ppf(p);
+            let p_back = norm_cdf(x);
+            assert!((p - p_back).abs() < 1e-14, "Roundtrip failed at p={p}");
+        }
+    }
+}

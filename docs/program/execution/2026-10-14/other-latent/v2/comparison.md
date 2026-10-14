@@ -1,0 +1,280 @@
+# Latent discovery beyond the principal language interfaces
+
+\label{exec14:other-latent}
+
+A lender may observe that an intensified contact policy accompanies higher
+repayment. Unrecorded borrower distress can influence both contact allocation
+and repayment, while the analysed records may include only accounts that
+reached a particular servicing channel. A discovery component must distinguish
+unmeasured common causes, conditioning on selection and an unresolved causal
+direction. A common matrix interface is useful only if it carries those
+distinctions into the intervention query.
+
+Julia, Rust, MATLAB and JavaScript offer different parts of this workflow. The
+selected implementations below include an FCI path, a functional-model method,
+a recursive skeleton learner, a latent-measurement model, a tuning layer and
+graph analysis. They are not interchangeable implementations of one estimand.
+The bounded repository survey retained the earlier language leads and added
+five targeted searches. The Rust and MATLAB latent searches returned only the
+first twenty of 640 and 74 results; other queries contained mirrors and
+unrelated matches. The search index was accessed after the 7 October 2026
+cutoff, while inspected implementation claims use earlier pinned source
+revisions. These limits preclude a complete historical census or a claim that
+unrepresented languages lack suitable software. \citep{exec14_olatent_search}
+
+## Julia FCI: preserve the graph before improving the interface
+
+CausalInference.jl exposes FCI through an independence-test callback and
+through table interfaces for Gaussian and conditional-mutual-information
+tests. Its result is a marked graph. For vertices $i$ and $j$, the property on
+the stored arc from $i$ to $j$ describes the endpoint at $j$; the reverse arc
+stores the endpoint at $i$. A tail--arrow pair, two arrowheads and two circles
+therefore have different meanings even though the container has two arcs in
+each case. A process adapter should serialize the ordered endpoint pair and
+graph type explicitly. Interpreting two stored arcs as two causal directions
+would invent feedback. \citep{exec14_olatent_causalinference}
+
+The implementation supplies useful components: an initial skeleton, a
+possible-separation search, orientation rules and an option controlling the
+additional orientation rules. The selected tests include a graph with hidden
+variables and a selection example that closes over the selected node in its
+oracle. Those tests show what the authors intended to exercise. They are not
+a measured finite-sample coverage guarantee for the proposed lender.
+\citep{exec14_olatent_causalinference}
+
+Several operational details need to enter a prospective qualification. The
+possible-separation and selected orientation searches request at most one
+hundred shortest paths per endpoint pair. A claim that all relevant witnesses
+have been considered needs an argument for that cap, an explicit restricted
+regime, or a different search. Separating subsets are materialized as power
+sets; a path cap does not make subset enumeration cheap. The initial skeleton
+call also omits the keyword arguments that the later independence calls
+receive. A selection argument passed only through those keywords can therefore
+give the two stages different questions. Binding the intended selection law
+inside one tested callback is a concrete way to avoid that discrepancy, subject
+to comparison with an independent oracle. \citep{exec14_olatent_causalinference}
+
+Graph presentation is another boundary. The inspected plotting preparation
+creates one display edge and assigns styles for several endpoint combinations,
+but has no explicit branch for two arrowheads. The raw result and the upstream
+tests can contain that combination. A new adapter should consume the raw
+endpoint properties and refuse an unsupported display conversion. This is a
+static source finding; no rendered Julia failure has been observed here.
+The root MIT notice makes a narrowly reviewed integration plausible, but
+dependency notices, an installed Julia environment, bounded resource behavior
+and matched graph tests remain necessary. Rewriting the algorithm in another
+language would add obligations without resolving these semantic questions.
+\citep{exec14_olatent_causalinference}
+
+## A Rust RCD label does not establish equivalence to the published method
+
+The original RCD paper specifies a linear acyclic model
+$X=BX+\Lambda F+E$, with mutually independent non-Gaussian external influences.
+Its procedure repeatedly learns ancestor sets, distinguishes parents from
+indirect ancestors and then identifies unresolved confounded pairs. Its stated
+target does not identify the direct relation between a pair that shares a
+latent confounder. This is a stronger distributional regime and a different
+output contract from an arbitrary latent-graph procedure.
+\citep{exec14_olatent_rcd_paper}
+
+The inspected varlingam-rs path instead starts with a DirectLiNGAM adjacency,
+examines residual dependence only for pairs without a direct coefficient above
+$10^{-10}$, and proposes to refine the adjacency by reducing the coefficients
+of those flagged pairs. Its dependence score combines absolute correlation
+with an entropy-based contrast. The threshold is described as a p-value in a
+configuration comment, but the returned quantity is not a calibrated p-value.
+The reported pair confidence is the capped score. Connected groups of
+flagged pairs receive latent effects computed from averages of those
+scores, rather than estimated coefficients of an identified latent-variable
+model. The inspected basic test prints a result without asserting that the
+stipulated confounded pair was recovered. \citep{exec14_olatent_varlingam}
+
+The refinement rule has a useful exact implication. Let $b_{ij}$ denote an
+initial coefficient, let $\epsilon=10^{-10}$, and let $c_{ij}$ be a flagged-pair
+score. A pair is considered for refinement only if both directions have
+magnitude at most $\epsilon$. Refinement multiplies those entries by
+$1-c_{ij}/2$. Therefore every entry whose initial magnitude exceeds
+$\epsilon$ is unchanged throughout the loop. With exact zero entries, the
+proposed correction multiplies zero by a factor and leaves it zero. Stopping
+when the number of flagged pairs is unchanged does not establish convergence
+of a causal objective; the declared coefficient-convergence tolerance is not
+used in this path. This reasoning concerns the inspected formulas, without
+claiming that the upstream engine was executed.
+\citep{exec14_olatent_varlingam,exec14_olatent_oracle}
+
+Consider a declared banking mechanism with independent centered variables
+$U,E_A,E_Y$, each of variance one:
+
+```{=latex}
+\[
+A=U+E_A,\qquad Y=\tfrac12 A+2U+E_Y.
+\]
+```
+
+Here $A$ is contact intensity and $Y$ is a recovery deviation measured in
+hundreds of dollars. The common cause $U$ is hidden borrower state. Since
+$\operatorname{var}(A)=2$ and $\operatorname{cov}(A,Y)=3$, the population
+regression coefficient is $3/2$. The effect of increasing $A$ by one unit is
+$1/2$. At an imposed intervention cost of USD 80, the corresponding net values
+are USD 70 from the associational calculation and minus USD 30 from the
+structural intervention. The projection permits both a directed effect and a
+latent common-cause relation; retaining a directed coefficient alone is
+insufficient. If an adapter receives $3/2$ as an initial substantive
+coefficient, the inspected refinement rule cannot change it. This last
+statement is conditional on that input, not a claim that DirectLiNGAM was run
+and returned it. \citep{exec14_olatent_oracle}
+
+The proposal should reject this path as a default qualified RCD backend and
+defer porting it. The published method remains a substantive alternative,
+alongside a graph-class method when its assumptions are appropriate. A revisit
+requires an explicit algorithmic correspondence or a clearly different method
+claim, an inspected numerical dependency closure, meaningful recovery tests
+and a registered comparison including the failures above. The Rust package's
+MIT/Apache notices do not resolve the scientific discrepancy or the remaining
+dependency review. \citep{exec14_olatent_varlingam,exec14_olatent_rcd_paper}
+
+## MATLAB contributes several distinct kinds of latent analysis
+
+The selected L-MARVEL implementation returns a skeleton, separating sets and
+conditional-independence counts. Its recursive removal logic uses estimated
+Markov boundaries; the supplied initializer tests each pair conditional on all
+other variables. The example evaluates skeleton precision and recall. These
+outputs can support a discovery pipeline, but the selected entrypoint does not
+return a fully oriented PAG or an intervention effect.
+\citep{exec14_olatent_lmarvel}
+
+The matrix is initialized with $-1$ for unresolved entries. If no removable
+variable is found, the routine exits its loop; unresolved entries must not be
+silently converted to present or absent edges. One removability subtest uses
+the fixed significance argument $0.8$, even when the main call uses $0.01$.
+The independence helper inverts a sample correlation matrix and combines a
+Fisher transform with a Student distribution function, without an explicit
+singularity or positive-degrees-of-freedom guard in the inspected function.
+These concrete choices require an explained test contract and adverse cases,
+including nearly collinear risk measurements and too few accounts for the
+conditioning dimension. The root MIT notice is useful, while embedded helper
+attributions and the MATLAB numerical/toolbox environment still require
+review. The appropriate route is an optional skeleton component after those
+checks, not a silent replacement for FCI. \citep{exec14_olatent_lmarvel}
+
+The GIN reference implementation addresses latent measurement structure. It
+takes variables in rows, centers them, finds clusters of observed variables,
+and orders latent variables. That layout differs from the samples-in-rows
+interface of the selected L-MARVEL code. Its inspected condition test derives
+a contrast from a singular-value decomposition of a cross-covariance block
+and tests the contrast against other measurements using a bundled kernel
+independence routine. The default ordering path delegates to a
+mutual-information helper; the alternative independence-test path is not the
+default. Neither cluster labels nor an estimated order identify a monetary
+effect without a further model and query. \citep{exec14_olatent_gin}
+
+A small algebraic diagnostic clarifies one implementation risk. Suppose
+$Y_1=U+E_1$, $Y_2=U+E_2$ and $Z=U+E_Z$, with mutually independent centered
+components of variance one. The cross-covariance vector is $(1,1)^\top$.
+The nonzero vector $\omega=(1,-1)^\top$ satisfies
+$\omega^\top\operatorname{cov}(Y,Z)=0$, and its contrast
+$Y_1-Y_2=E_1-E_2$ is independent of $Z$ by construction. Nevertheless,
+$\sum_i\omega_i=0$. The selected source treats a zero sum of the contrast
+coefficients as a trivial solution. A zero sum is not a zero vector; the
+example has squared norm two and contrast variance two. A real SVD returns a
+normalized vector subject to rounding, so the runtime outcome requires an
+actual fixture rather than an assumption about exact floating-point equality.
+The diagnostic still identifies the invariant the proposed adapter must check.
+\citep{exec14_olatent_gin,exec14_olatent_oracle}
+
+The complete pinned GIN tree contains component notices for the bundled kernel
+code but no inspected repository-wide grant covering the whole method. The
+component notice cannot be promoted into permission for every file. Full
+theorem support, the delegated ordering and independence routines, applicable
+rights and a qualified environment remain unresolved. Retain the package as a
+reference candidate and defer direct adoption or porting. Its missing
+scientific and dependency evidence is explicit, rather than treated as an
+exception to the proposal's source standard. \citep{exec14_olatent_gin}
+
+OCT addresses yet another problem: tuning discovery configurations. Its MATLAB
+driver delegates FCI-family searches to a separately supplied Tetrad jar; the
+README requests version 6.8.1. This is a wrapper relationship, not independent
+corroboration from two discovery engines. The code retains both a PAG and a
+selected MAG, and the latent converter distinguishes circles, arrowheads and
+tails using codes 1, 2 and 3. Its ordinary converter, by contrast, maps several
+different paired endpoints to the same symmetric binary entries. The graph
+type must determine which conversion is permitted.
+\citep{exec14_olatent_oct}
+
+OCT's selected tuning function uses ten row folds, fits predictive models to
+estimated Markov-boundary variables, and compares prediction information with
+a sparsity comparison. In the MAG branch it uses a selected MAG produced from
+the PAG. A good prediction score does not prove the selected MAG or its effect
+query correct. Random row folds also require reconsideration when banking
+records share borrower histories or calendar shocks. The proposed reuse is the
+explicit configuration-and-comparison pattern, with a dependence-aware split
+and retained class uncertainty. The root GPLv3 text, commercial MATLAB
+requirements, historical Java dependency and uninspected tuning helpers make
+whole-workflow adoption conditional. \citep{exec14_olatent_oct}
+
+## JavaScript graph analysis is a separate component
+
+DAGitty's JavaScript core can analyse supplied graph and query objects,
+including selected adjustment operations on DAG, PDAG, MAG and PAG types. It
+can therefore help an analyst inspect a diagram or compare admissible
+adjustment choices after discovery. Its function call does not establish the
+diagram from repayment data. The selected validator explicitly leaves proper
+MAG and PAG validation as unfinished work, while performing some checks such
+as the absence of semidirected cycles. An affirmative result from that
+validator cannot alone certify every graph invariant required by the proposal.
+\citep{exec14_olatent_dagitty}
+
+An internal PAG-to-PDAG transformation maps unresolved endpoint classes to
+ordinary edge classes for downstream graph operations. A transformation may
+be useful inside a justified calculation without being an acceptable export
+of the original causal knowledge. The service should retain the input graph,
+its endpoint marks, the query and the transformation's purpose; it should not
+return the transformed object as a newly learned unique DAG. The selected
+tests include PAG and conditioning examples, providing useful prospective
+fixtures. The root GPLv2 text requires a distribution-specific review before
+reuse; a browser or process boundary does not itself settle those obligations.
+\citep{exec14_olatent_dagitty}
+
+Selection needs its own diagnostic beside latent-confounding examples. Let
+$A$ and $Y$ be independent fair binary variables, and retain records only when
+$S=1\{A=Y\}$. In the full population the causal effect of intervening on $A$
+is zero. Among retained records, $P(Y=1\mid A=1,S=1)=1$ and
+$P(Y=1\mid A=0,S=1)=0$. A lender analysing a channel selected jointly by
+allocation and repayment can therefore encounter a large conditional
+association with no treatment benefit. This declared mechanism tests whether
+the interface retains the selection rule; it does not establish a general
+finite-sample discovery guarantee or satisfy every algorithm's faithfulness
+assumption. \citep{exec14_olatent_oracle}
+
+## A practical reuse portfolio
+
+The immediate design can use one typed graph contract with distinct skeleton,
+equivalence-class, selected-graph and latent-measurement outputs. Endpoint
+pairs, separating sets where available, test settings, variable order,
+selection declarations, unresolved entries and resource limits belong in that
+contract. An effect request should either receive an identification argument
+for its stated graph information or an explicit unresolved result. A successful
+serialization or predictive score cannot supply that argument.
+
+For the next public or generated prototype, Julia FCI and a previously
+reviewed FCI implementation can be compared through exact conditional-
+independence oracles before sampling error is introduced. L-MARVEL can enter a
+separate skeleton comparison. DAGitty can contribute graph analysis subject to
+its validation boundary. OCT supplies a tuning design to examine, with its
+Tetrad backend counted once. The inspected Rust RCD path and GIN code require
+the particular scientific, numerical and rights repairs above before adoption.
+This portfolio gives each component an attainable next test while preserving
+the alternatives when a component cannot satisfy its contract.
+
+The unanswered coverage questions remain concrete. The bounded search leaves
+additional Rust and MATLAB pages, previously identified measurement-error,
+triad-constraint and ETIO implementations, and other language registries to
+inspect. The L-MARVEL and GIN scholarly originals and remaining dependency
+paths are necessary before inheriting their full scientific guarantees. None
+of the selected packages has been executed in this review, and no banking
+accuracy, latency or return on investment is inferred. Those limitations
+restrict the proposed claims and adoption decisions; they do not prevent
+source-grounded architecture and inexpensive diagnostic work.
+\citep{exec14_olatent_search}
+
+\label{exec14:other-latent-end}
