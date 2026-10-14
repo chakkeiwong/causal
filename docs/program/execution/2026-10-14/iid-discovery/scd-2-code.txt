@@ -1,0 +1,370 @@
+# Notebook cell 2
+!pip install numpy==1.25.0
+
+# Notebook cell 3
+!pip install openai
+!pip install lingam
+!pip install factor_analyzer
+!pip install igraph
+!pip install pygam
+!pip install causal-learn
+!pip install semopy
+
+# Notebook cell 5
+df = pd.read_csv('') #read the csv file of the dataset here.
+df.head()
+
+# Notebook cell 6
+# standardization
+scaler = StandardScaler()
+X = scaler.fit_transform(df)
+X =pd.DataFrame(X,columns=df.columns)
+X.head()
+
+# Notebook cell 8
+#function for evaluating the of model fitting
+
+def evaluate_model_fit(adjacency_matrix, X, is_ordinal=None):
+    """ evaluate the given adjacency matrix and return fit indices
+
+    Parameters
+    ----------
+    adjacency_matrix : array-like, shape (n_features, n_features)
+        Adjacency matrix representing a causal graph.
+        The i-th column and row correspond to the i-th column of X.
+    X : array-like, shape (n_samples, n_features)
+        Training data.
+    is_ordinal : array-like, shape (n_features,)
+        Binary list. The i-th element represents that the i-th column of X is ordinal or not.
+        0 means not ordinal, otherwise ordinal.
+
+    Return
+    ------
+    fit_indices : pandas.DataFrame
+        Fit indices. This API uses semopy's calc_stats(). See semopy's reference for details.
+    """
+
+    # check inputs
+    adj = check_array(adjacency_matrix, force_all_finite="allow-nan")
+    if adj.ndim != 2 or (adj.shape[0] != adj.shape[1]):
+        raise ValueError("adj must be an square matrix.")
+
+    X = check_array(X)
+    if X.shape[1] != adj.shape[1]:
+        raise ValueError("X.shape[1] and adj.shape[1] must be the same.")
+
+    if is_ordinal is None:
+        is_ordinal = np.zeros(X.shape[1])
+    else:
+        is_ordinal = check_array(is_ordinal, ensure_2d=False).flatten()
+    if is_ordinal.shape[0] != adj.shape[1]:
+        raise ValueError("is_ordinal.shape[0] and adj.shape[1] must be the same.")
+
+    # build desc
+    desc = ""
+    eta_names = []
+
+    for i, row in enumerate(adj):
+        # exogenous
+        if np.sum(np.isnan(row)) == 0 and np.sum(np.isclose(row, 0)) == row.shape[0]:
+            continue
+
+        desc += f"x{i:d} ~ "
+
+        for j, elem in enumerate(row):
+            if np.isnan(elem):
+                eta_name = f"eta_{i}_{j}" if i < j else f"eta_{j}_{i}"
+                desc += f"{eta_name} + "
+                if eta_name not in eta_names:
+                    eta_names.append(eta_name)
+            elif not np.isclose(elem, 0):
+                desc += f"x{j:d} + "
+        desc = desc[:-len(" * ")] + "\n"
+
+    if len(eta_names) > 0:
+        desc += "DEFINE(latent) " + " ".join(eta_names) + "\n"
+
+    if sum(is_ordinal) > 0:
+        indices = np.argwhere(is_ordinal).flatten()
+
+        desc += "DEFINE(ordinal)"
+        for i in indices:
+            desc += f" x{i}"
+        desc += "\n"
+
+    columns = [f"x{i:d}" for i in range(X.shape[1])]
+    X = pd.DataFrame(X, columns=columns)
+
+    m = semopy.Model(desc)
+    m.fit(X)
+
+    stats = semopy.calc_stats(m)
+
+    return stats
+
+# Notebook cell 9
+# adjacency matrix generation from the default output of PC algorithm in causal-learn
+def create_adjacency_matrix(cg):
+
+    num_nodes = len(cg.G.nodes)
+    adj_matrix = np.zeros((num_nodes, num_nodes),dtype=int)
+
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+                # i <- j
+                if cg.G.graph[i][j] == 1 and cg.G.graph[j][i] == -1:
+                    adj_matrix[i, j] = 1
+                # i -- j
+                elif cg.G.graph[i][j] == -1 and cg.G.graph[j][i] == -1:
+                    adj_matrix[i, j] = -1
+                # i <->
+                elif cg.G.graph[i][j] == 1 and cg.G.graph[j][i] == 1:
+                    adj_matrix[i, j] = 2
+    return adj_matrix
+
+# Notebook cell 10
+#function for bootstrap in PC and Exact Search
+def bootstrap_PC_edge_probabilities(data, n_sampling):
+
+    num_nodes = data.shape[1]
+    directed_edge_counts = np.zeros((num_nodes, num_nodes))
+    undirected_edge_counts = np.zeros((num_nodes, num_nodes))
+    bidirected_edge_counts = np.zeros((num_nodes, num_nodes))
+
+    for _ in range(n_sampling):
+
+        bootstrap_sample = resample(data)
+        bootstrap_sample_array = bootstrap_sample.to_numpy()
+
+
+        cg = pc(bootstrap_sample_array, independence_test_method="fisherz",verbose=False, show_progress=False)
+
+
+        for i in range(num_nodes):
+            for j in range(num_nodes):
+                if i != j:
+                    if cg.G.graph[i][j] == 1 and cg.G.graph[j][i] == -1:  # i <- j
+                        directed_edge_counts[i, j] += 1
+                    elif cg.G.graph[i][j] == -1 and cg.G.graph[j][i] == -1:  # i -- j
+                        undirected_edge_counts[i, j] += 1
+                    elif cg.G.graph[i][j] == 1 and cg.G.graph[j][i] == 1:  # i <-> j
+                        bidirected_edge_counts[i, j] += 1
+
+
+    directed_edge_probabilities = directed_edge_counts / n_sampling
+    undirected_edge_probabilities = undirected_edge_counts / n_sampling
+    bidirected_edge_probabilities = bidirected_edge_counts / n_sampling
+
+    return directed_edge_probabilities, undirected_edge_probabilities, bidirected_edge_probabilities
+
+def bootstrap_ExactSearch_edge_probabilities(data, n_sampling,super_graph):
+
+    num_nodes = data.shape[1]
+    directed_edge_counts = np.zeros((num_nodes, num_nodes))
+
+    for _ in range(n_sampling):
+
+        bootstrap_sample = resample(data)
+        bootstrap_sample_array = bootstrap_sample.to_numpy()
+
+
+        dag_est, search_stats = bic_exact_search(bootstrap_sample_array, super_graph=super_graph,verbose=False)
+
+        for i in range(num_nodes):
+            for j in range(num_nodes):
+                if i != j:
+                    if dag_est[i][j] == 1:  # i <- j
+                        directed_edge_counts[i, j] += 1
+
+    directed_edge_probabilities = directed_edge_counts / n_sampling
+
+    return directed_edge_probabilities
+
+# Notebook cell 13
+# causal discovery
+X_array = X.to_numpy()
+pcg = pc(X_array, independence_test_method="fisherz")
+total_adj_matrix_pc = create_adjacency_matrix(pcg)
+np.savetxt('total_adj_matrix_pc.csv', total_adj_matrix_pc, delimiter=',')
+total_adj_matrix_pc
+
+# Notebook cell 14
+#evaluation of model fittng stats
+model_stats_pc_total = evaluate_model_fit(total_adj_matrix_pc, X)
+model_stats_pc_total.to_csv('model_stats_pc_total.csv', index=False)
+model_stats_pc_total
+
+# Notebook cell 15
+#bootstrap for 1000 times
+PC_directed_prob_total,PC_undirected_prob_total,PC_bidirected_prob_total = bootstrap_PC_edge_probabilities(X, n_sampling=1000)
+
+np.savetxt('PC_directed_prob_total.csv', PC_directed_prob_total, delimiter=',')
+np.savetxt('PC_undirected_prob_total.csv', PC_undirected_prob_total, delimiter=',')
+np.savetxt('PC_bidirected_prob_total.csv', PC_bidirected_prob_total, delimiter=',')
+PC_directed_prob_total,PC_undirected_prob_total,PC_bidirected_prob_total
+
+# Notebook cell 17
+# causal discovery
+X_array = X.to_numpy()
+total_adj_matrix_ES, search_stats = bic_exact_search(X_array)
+np.savetxt('total_adj_matrix_ES.csv', total_adj_matrix_ES, delimiter=',')
+total_adj_matrix_ES
+
+# Notebook cell 18
+#evaluation of model fittng stats
+model_stats_ES_total = evaluate_model_fit(total_adj_matrix_ES, X)
+model_stats_ES_total.to_csv('model_stats_ES_total.csv', index=False)
+model_stats_ES_total
+
+# Notebook cell 19
+#bootstrap for 1000 times
+ES_prob_total = bootstrap_ExactSearch_edge_probabilities(X, n_sampling=1000,super_graph=None)
+
+np.savetxt('ES_prob_total.csv', ES_prob_total, delimiter=',')
+ES_prob_total
+
+# Notebook cell 21
+# causal discovery
+total_LiNGAM = lingam.DirectLiNGAM(prior_knowledge=None)
+total_LiNGAM.fit(df)
+np.savetxt('total_adj_matrix_LiNGAM.csv', total_LiNGAM.adjacency_matrix_, delimiter=',')
+total_LiNGAM.adjacency_matrix_
+
+# Notebook cell 22
+#evaluation of model fittng stats
+evaluate_model_fit(total_LiNGAM.adjacency_matrix_, X)
+
+# Notebook cell 23
+#bootstrap for 1000 times
+bootstrap_LiNGAM_total = total_LiNGAM.bootstrap(X, n_sampling=1000)
+LiNGAM_prob_total = bootstrap_LiNGAM_total.get_probabilities(min_causal_effect=0.01)
+np.savetxt('LiNGAM_prob_total.csv', LiNGAM_prob_total, delimiter=',')
+LiNGAM_prob_total
+
+# Notebook cell 26
+def sampling_many_patterns(data, n_samples, sampling_times):
+  sampled_dfs = []
+  #data: pandasのデータフレーム形式で。
+  #n_samples: 抽出件数
+  #sampling_times: 抽出回数
+  for m in range(sampling_times):
+    sampled_df = data.sample(n = n_samples, replace = False)
+    sampled_dfs.append(sampled_df)
+  return sampled_dfs
+
+# Notebook cell 27
+#searchng the subset where x_i <--- x_j does not apprear with PC, Exact Search and DirectLiNGAM
+def search_unbelievable_sampling(i, j, data, n_samples, sampling_times,boot_number):
+  #i:index of the effected variable in  ground truth
+  #j:index of the caus variable in  ground truth
+  #data:
+  #n_samples: number of sampling
+  #sampling_times: repeating times of sampling
+  #boot_number: number of bootstrap sampling
+
+  sampled_dfs = sampling_many_patterns(data, n_samples, sampling_times)
+  for m in range(sampling_times):
+    sample_df = sampled_dfs[m]
+    scaler = StandardScaler()
+    sample_X = scaler.fit_transform(sample_df)
+    sample_X =pd.DataFrame(sample_X,columns=sample_df.columns)
+
+
+    sample_X_array = sample_X.to_numpy()
+    pcg = pc(sample_X_array, independence_test_method="fisherz")
+    adj_matrix_PC = create_adjacency_matrix(pcg)
+
+    adj_matrix_ES, search_stats = bic_exact_search(sample_X_array)
+
+    LiNGAM_model = lingam.DirectLiNGAM(prior_knowledge=None)
+    LiNGAM_model.fit(sample_X)
+    adj_matrix_LiNGAM = LiNGAM_model.adjacency_matrix_
+
+    output_data = None
+
+    if (adj_matrix_PC[i,j]!=1) & (adj_matrix_ES[i,j]==0) & (adj_matrix_LiNGAM[i,j]==0):
+      output_data = sample_df
+      output_adj_PC = adj_matrix_PC
+      output_adj_ES = adj_matrix_ES
+      output_adj_LiNGAM = adj_matrix_LiNGAM
+      break
+    else:
+      continue
+
+  if output_data is None or output_data.empty:
+    return "Error: let's try increasing n_samples"
+  else:
+    print("A sub-dataset missing x_i<---x_j detected!")
+    #bootstrap
+    PC_directed_prob,PC_undirected_prob,PC_bidirected_prob = bootstrap_PC_edge_probabilities(sample_X, n_sampling=boot_number)
+    print("Bootstrap in PC finished.")
+    ES_prob_total = bootstrap_ExactSearch_edge_probabilities(sample_X, n_sampling=1000,super_graph=None)
+    print("Bootstrap in Exact Search finished.")
+    bootstrap_LiNGAM = total_LiNGAM.bootstrap(sample_X, n_sampling=1000)
+    LiNGAM_prob = bootstrap_LiNGAM.get_probabilities(min_causal_effect=0.01)
+    print("Bootstrap in DirecLiNGAM finished.")
+
+    model_stats_PC = evaluate_model_fit(output_adj_PC, sample_X)
+    model_stats_ES = evaluate_model_fit(output_adj_ES, sample_X)
+    model_stats_LiNGAM = evaluate_model_fit(output_adj_LiNGAM, sample_X)
+
+    return output_data, output_adj_PC, output_adj_ES,output_adj_LiNGAM, PC_directed_prob, PC_undirected_prob, PC_bidirected_prob, ES_prob_total, LiNGAM_prob, model_stats_PC, model_stats_ES, model_stats_LiNGAM
+
+# Notebook cell 28
+#example
+i = 1
+j = 3
+n_samples=100
+sampling_times=100
+boot_number=100
+
+sampled_X, sampled_adj_PC, sampled_adj_ES,sampled_adj_LiNGAM, PC_directed_prob_sampled, PC_undirected_prob_sampled, PC_bidirected_prob_sampled,  ES_prob_total_sampled, LiNGAM_prob_sampled, model_stats_PC_sampled, model_stats_ES_sampled, model_stats_LiNGAM_sampled = search_unbelievable_sampling(i, j, df, n_samples, sampling_times,boot_number)
+
+sampled_X.to_csv('sampled_data.csv', index=False)
+
+
+np.savetxt('sampled_adj_PC.csv', sampled_adj_PC, delimiter=',')
+np.savetxt('sampled_adj_ES.csv', sampled_adj_ES, delimiter=',')
+np.savetxt('sampled_adj_LiNGAM.csv', sampled_adj_LiNGAM, delimiter=',')
+np.savetxt('PC_directed_prob_sampled.csv', PC_directed_prob_sampled, delimiter=',')
+np.savetxt('PC_undirected_prob_sampled.csv', PC_undirected_prob_sampled, delimiter=',')
+np.savetxt('PC_bidirected_prob_sampled.csv', PC_bidirected_prob_sampled, delimiter=',')
+np.savetxt('ES_prob_total_sampled.csv', ES_prob_total_sampled, delimiter=',')
+np.savetxt('LiNGAM_prob_sampled.csv', LiNGAM_prob_sampled, delimiter=',')
+
+model_stats_PC_sampled.to_csv('model_stats_PC_sampled.csv', index=False)
+model_stats_ES_sampled.to_csv('model_stats_ES_sampled.csv', index=False)
+model_stats_LiNGAM_sampled.to_csv('model_stats_LiNGAM_sampled.csv', index=False)
+
+# Notebook cell 29
+sampled_X
+
+# Notebook cell 30
+sampled_adj_PC
+
+# Notebook cell 31
+sampled_adj_ES
+
+# Notebook cell 32
+sampled_adj_LiNGAM
+
+# Notebook cell 33
+PC_directed_prob_sampled
+
+# Notebook cell 34
+PC_undirected_prob_sampled
+
+# Notebook cell 35
+ES_prob_total_sampled
+
+# Notebook cell 36
+LiNGAM_prob_sampled
+
+# Notebook cell 37
+model_stats_PC_sampled
+
+# Notebook cell 38
+model_stats_ES_sampled
+
+# Notebook cell 39
+model_stats_LiNGAM_sampled

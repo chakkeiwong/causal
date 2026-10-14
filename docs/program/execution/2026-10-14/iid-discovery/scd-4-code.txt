@@ -1,0 +1,393 @@
+# Notebook cell 2
+!pip install numpy==1.25.0
+
+# Notebook cell 3
+!pip install lingam
+!pip install factor_analyzer
+!pip install igraph
+!pip install pygam
+!pip install causal-learn
+!pip install semopy
+
+# Notebook cell 4
+import os
+import numpy as np
+import pandas as pd
+import graphviz
+import lingam
+import semopy
+from sklearn.preprocessing import StandardScaler
+from lingam.utils import print_causal_directions, print_dagc, make_dot, make_prior_knowledge
+import matplotlib.pyplot as plt
+import seaborn as sns
+from causallearn.utils.GraphUtils import GraphUtils
+import matplotlib.image as mpimg
+import io
+from scipy.stats import norm
+from copy import deepcopy
+from itertools import combinations
+from sklearn.linear_model import LassoLarsIC, LinearRegression
+from sklearn.utils import check_array, check_scalar
+
+from causallearn.search.ConstraintBased.PC import pc
+from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+from causallearn.graph.GraphNode import GraphNode
+from causallearn.search.ScoreBased.ExactSearch import bic_exact_search
+
+print("NumPy",  "ver:", np.__version__)
+print("Pandas", "ver:", pd.__version__)
+print("Graphviz",   "ver:", graphviz.__version__)
+print("LiNGAM", "ver:", lingam.__version__)
+
+
+np.set_printoptions(precision=3, suppress=True)
+
+# Notebook cell 7
+X_row = pd.read_csv('') #read the csv file of the dataset
+X_row.head()
+
+# Notebook cell 8
+#standardization
+scaler = StandardScaler()
+X = scaler.fit_transform(X_row)
+X =pd.DataFrame(X,columns=X_row.columns)
+X.head()
+
+# Notebook cell 10
+# shared reference(Pattern 0)
+probability_X0_pattern0_df = pd.read_csv('probability_X0_pattern0_L.csv', index_col=0, header=0)
+probability_X0_pattern0 = probability_X0_pattern0_df.to_numpy()
+
+# for PC algorithm
+probability_X0_pattern1_PC_df = pd.read_csv('probability_X0_pattern1_P.csv', index_col=0, header=0)
+probability_X0_pattern2_PC_df = pd.read_csv('probability_X0_pattern2_P.csv', index_col=0, header=0)
+
+probability_X0_pattern1_PC = probability_X0_pattern1_PC_df.to_numpy()
+probability_X0_pattern2_PC = probability_X0_pattern2_PC_df.to_numpy()
+
+# for Exact Search algorithm
+probability_X0_pattern1_ExactSearch_df = pd.read_csv('probability_X0_pattern1_E.csv', index_col=0, header=0)
+probability_X0_pattern2_ExactSearch_df = pd.read_csv('probability_X0_pattern2_E.csv', index_col=0, header=0)
+
+probability_X0_pattern1_ExactSearch = probability_X0_pattern1_ExactSearch_df.to_numpy()
+probability_X0_pattern2_ExactSearch = probability_X0_pattern2_ExactSearch_df.to_numpy()
+
+# for DirectLiNGAM algorithm
+probability_X0_pattern1_LiNGAM_df = pd.read_csv('probability_X0_pattern1_L.csv', index_col=0, header=0)
+probability_X0_pattern2_LiNGAM_df = pd.read_csv('probability_X0_pattern2_L.csv', index_col=0, header=0)
+probability_X0_pattern3_LiNGAM_df = pd.read_csv('probability_X0_pattern3_L.csv', index_col=0, header=0)
+probability_X0_pattern4_LiNGAM_df = pd.read_csv('probability_X0_pattern4_L.csv', index_col=0, header=0)
+
+probability_X0_pattern1_LiNGAM = probability_X0_pattern1_LiNGAM_df.to_numpy()
+probability_X0_pattern2_LiNGAM = probability_X0_pattern2_LiNGAM_df.to_numpy()
+probability_X0_pattern3_LiNGAM = probability_X0_pattern3_LiNGAM_df.to_numpy()
+probability_X0_pattern4_LiNGAM = probability_X0_pattern4_LiNGAM_df.to_numpy()
+
+# Notebook cell 12
+#prior knowledge matrix generation from the probability marix for LiNGAM and PC
+def LLMprobability_to_pk(probability):
+  prior_knowledge = np.empty(probability.shape, dtype=object)
+  for i in range(prior_knowledge.shape[0]):
+    for j in range(prior_knowledge.shape[0]):
+      if i == j:
+        prior_knowledge[i, j]= -1
+      else:
+        if probability[i, j]<0.05:
+          prior_knowledge[i, j]= 0
+        elif probability[i, j]>0.95:
+          prior_knowledge[i, j]= 1
+        else:
+          prior_knowledge[i, j]= -1
+  return prior_knowledge
+
+#prior knowledge matrix generation from the probability marix for for Exact Search
+def LLMprobability_to_super_structure(probability):
+  prior_knowledge = np.empty(probability.shape, dtype=object)
+  for i in range(prior_knowledge.shape[0]):
+    for j in range(prior_knowledge.shape[0]):
+      if i == j:
+        prior_knowledge[i, j]= 0
+      else:
+        if probability[i, j]<0.05:
+          prior_knowledge[i, j]= 0
+        else:
+          prior_knowledge[i, j]= 1
+  return prior_knowledge
+
+# Notebook cell 13
+#calculation of the stats of model fitting
+def evaluate_model_fit(adjacency_matrix, X, is_ordinal=None):
+    """ evaluate the given adjacency matrix and return fit indices
+
+    Parameters
+    ----------
+    adjacency_matrix : array-like, shape (n_features, n_features)
+        Adjacency matrix representing a causal graph.
+        The i-th column and row correspond to the i-th column of X.
+    X : array-like, shape (n_samples, n_features)
+        Training data.
+    is_ordinal : array-like, shape (n_features,)
+        Binary list. The i-th element represents that the i-th column of X is ordinal or not.
+        0 means not ordinal, otherwise ordinal.
+
+    Return
+    ------
+    fit_indices : pandas.DataFrame
+        Fit indices. This API uses semopy's calc_stats(). See semopy's reference for details.
+    """
+
+    # check inputs
+    adj = check_array(adjacency_matrix, force_all_finite="allow-nan")
+    if adj.ndim != 2 or (adj.shape[0] != adj.shape[1]):
+        raise ValueError("adj must be an square matrix.")
+
+    X = check_array(X)
+    if X.shape[1] != adj.shape[1]:
+        raise ValueError("X.shape[1] and adj.shape[1] must be the same.")
+
+    if is_ordinal is None:
+        is_ordinal = np.zeros(X.shape[1])
+    else:
+        is_ordinal = check_array(is_ordinal, ensure_2d=False).flatten()
+    if is_ordinal.shape[0] != adj.shape[1]:
+        raise ValueError("is_ordinal.shape[0] and adj.shape[1] must be the same.")
+
+    # build desc
+    desc = ""
+    eta_names = []
+
+    for i, row in enumerate(adj):
+        # exogenous
+        if np.sum(np.isnan(row)) == 0 and np.sum(np.isclose(row, 0)) == row.shape[0]:
+            continue
+
+        desc += f"x{i:d} ~ "
+
+        for j, elem in enumerate(row):
+            if np.isnan(elem):
+                eta_name = f"eta_{i}_{j}" if i < j else f"eta_{j}_{i}"
+                desc += f"{eta_name} + "
+                if eta_name not in eta_names:
+                    eta_names.append(eta_name)
+            elif not np.isclose(elem, 0):
+                desc += f"x{j:d} + "
+        desc = desc[:-len(" * ")] + "\n"
+
+    if len(eta_names) > 0:
+        desc += "DEFINE(latent) " + " ".join(eta_names) + "\n"
+
+    if sum(is_ordinal) > 0:
+        indices = np.argwhere(is_ordinal).flatten()
+
+        desc += "DEFINE(ordinal)"
+        for i in indices:
+            desc += f" x{i}"
+        desc += "\n"
+
+    columns = [f"x{i:d}" for i in range(X.shape[1])]
+    X = pd.DataFrame(X, columns=columns)
+
+    m = semopy.Model(desc)
+    m.fit(X)
+
+    stats = semopy.calc_stats(m)
+
+    return stats
+
+# Notebook cell 14
+#transformation into binary matrix
+def create_0or1_causal_matrix(adjacency_matrix):
+    num_nodes = adjacency_matrix.shape[0]
+    causal_0or1_matrix = np.empty(adjacency_matrix.shape, dtype = object)
+
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+          if i==j:
+            causal_0or1_matrix[i, j] = 0
+          else:
+            if adjacency_matrix[i, j] == 0:
+                causal_0or1_matrix[i, j] = 0
+            else:
+                causal_0or1_matrix[i, j] = 1
+
+    return causal_0or1_matrix
+
+# Notebook cell 16
+def create_adjacency_matrix(cg):
+
+    num_nodes = len(cg.G.nodes)
+    adj_matrix = np.zeros((num_nodes, num_nodes),dtype=int)
+
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+                # i <- j
+                if cg.G.graph[i][j] == 1 and cg.G.graph[j][i] == -1:
+                    adj_matrix[i, j] = 1
+                # i -- j
+                elif cg.G.graph[i][j] == -1 and cg.G.graph[j][i] == -1:
+                    adj_matrix[i, j] = -1
+                # i <-> j
+                elif cg.G.graph[i][j] == 1 and cg.G.graph[j][i] == 1:
+                    adj_matrix[i, j] = 2
+    return adj_matrix
+
+# Notebook cell 17
+def convert_adj_matrix_to_bk(adj_matrix, data):
+
+    data_array = data.to_numpy()
+    cg_without_background_knowledge = pc(data_array, independence_test_method="fisherz")  # Run PC and obtain the estimated graph (CausalGraph object)
+    nodes = cg_without_background_knowledge.G.get_nodes()
+    bk = BackgroundKnowledge()
+    num_nodes = adj_matrix.shape[0]
+
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if adj_matrix[i, j] == 1:
+                # j -> i required
+                bk.add_required_by_node(nodes[j], nodes[i])
+            elif adj_matrix[i, j] == 0:
+                #  j -> i forbidden
+                bk.add_forbidden_by_node(nodes[j], nodes[i])
+
+    return bk
+
+
+# Notebook cell 18
+#wo prior knowledge
+X_array = X.to_numpy()
+pcg_wo_pk = pc(X_array, independence_test_method="fisherz")
+dag_est_pc_wo_pk = create_adjacency_matrix(pcg_wo_pk)
+dag_est_pc_wo_pk
+
+# Notebook cell 19
+#pattern 0
+X_array = X.to_numpy()
+pcg_pattern0 = pc(X_array, independence_test_method="fisherz", background_knowledge = convert_adj_matrix_to_bk(LLMprobability_to_pk(probability_X0_pattern0_L), X))
+dag_est_pc_pattern0 = create_adjacency_matrix(pcg_pattern0)
+np.savetxt('adj_PC_pattern0.csv', dag_est_pc_pattern0, delimiter=',')
+model_stats_pc_pattern0 = evaluate_model_fit(dag_est_pc_pattern0, X)
+model_stats_pc_pattern0.to_csv('model_stats_PC_pattern0.csv', index=False)
+dag_est_pc_pattern0
+
+# Notebook cell 20
+# pattern 1
+X_array = X.to_numpy()
+pcg_pattern1 = pc(X_array, independence_test_method="fisherz", background_knowledge = convert_adj_matrix_to_bk(LLMprobability_to_pk(probability_X0_pattern1_P), X))
+dag_est_pc_pattern1 = create_adjacency_matrix(pcg_pattern1)
+np.savetxt('adj_PC_pattern1.csv', dag_est_pc_pattern1, delimiter=',')
+model_stats_pc_pattern1 = evaluate_model_fit(dag_est_pc_pattern1, X)
+model_stats_pc_pattern1.to_csv('model_stats_PC_pattern1.csv', index=False)
+dag_est_pc_pattern1
+
+# Notebook cell 21
+# pattern 2
+X_array = X.to_numpy()
+pcg_pattern2 = pc(X_array, independence_test_method="fisherz", background_knowledge = convert_adj_matrix_to_bk(LLMprobability_to_pk(probability_X0_pattern2_P), X))
+dag_est_pc_pattern2 = create_adjacency_matrix(pcg_pattern2)
+np.savetxt('adj_PC_pattern2.csv', dag_est_pc_pattern2, delimiter=',')
+model_stats_pc_pattern2 = evaluate_model_fit(dag_est_pc_pattern2, X)
+model_stats_pc_pattern2.to_csv('model_stats_PC_pattern2.csv', index=False)
+dag_est_pc_pattern2
+
+# Notebook cell 23
+#wo prior knowledge
+X_array = X.to_numpy()
+dag_est_ES_wo_pk, search_stats = bic_exact_search(X_array, super_graph=None, verbose=False)
+dag_est_ES_wo_pk
+
+# Notebook cell 24
+#pattern 0
+X_array = X.to_numpy()
+dag_est_ES_pattern0, search_stats = bic_exact_search(X_array, super_graph=LLMprobability_to_super_structure(probability_X0_pattern0_L), verbose=False)
+np.savetxt('adj_ES_pattern0.csv', dag_est_ES_pattern0, delimiter=',')
+model_stats_ES_pattern0 = evaluate_model_fit(dag_est_ES_pattern0, X)
+model_stats_ES_pattern0.to_csv('model_stats_ES_pattern0.csv', index=False)
+dag_est_ES_pattern0
+
+# Notebook cell 25
+#pattern 1
+X_array = X.to_numpy()
+dag_est_ES_pattern1, search_stats = bic_exact_search(X_array, super_graph=LLMprobability_to_super_structure(probability_X0_pattern1_E), verbose=False)
+np.savetxt('adj_ES_pattern1.csv', dag_est_ES_pattern1, delimiter=',')
+model_stats_ES_pattern1 = evaluate_model_fit(dag_est_ES_pattern1, X)
+model_stats_ES_pattern1.to_csv('model_stats_ES_pattern1.csv', index=False)
+dag_est_ES_pattern1
+
+# Notebook cell 26
+#pattern 2
+X_array = X.to_numpy()
+dag_est_ES_pattern2, search_stats = bic_exact_search(X_array, super_graph=LLMprobability_to_super_structure(probability_X0_pattern2_ES), verbose=False)
+np.savetxt('adj_ES_pattern2.csv', dag_est_ES_pattern2, delimiter=',')
+model_stats_ES_pattern2 = evaluate_model_fit(dag_est_ES_pattern2, X)
+model_stats_ES_pattern2.to_csv('model_stats_ES_pattern2.csv', index=False)
+dag_est_ES_pattern2
+
+# Notebook cell 28
+def make_prior_knowledge_graph(prior_knowledge_matrix):
+    d = graphviz.Digraph(engine='dot')
+
+    labels = [f'x{i}' for i in range(prior_knowledge_matrix.shape[0])]
+    for label in labels:
+        d.node(label, label)
+
+    dirs = np.where(prior_knowledge_matrix > 0)
+    for to, from_ in zip(dirs[0], dirs[1]):
+        d.edge(labels[from_], labels[to])
+
+    dirs = np.where(prior_knowledge_matrix < 0)
+    for to, from_ in zip(dirs[0], dirs[1]):
+        if to != from_:
+            d.edge(labels[from_], labels[to], style='dashed')
+    return d
+
+# Notebook cell 29
+#wo prior knowledge
+model_wo_pk = lingam.DirectLiNGAM(prior_knowledge=None)
+model_wo_pk.fit(X)
+dag_est_LiNGAM_wo_pk = make_dot(model_wo_pk.adjacency_matrix_)
+create_0or1_causal_matrix(model_wo_pk.adjacency_matrix_)
+
+# Notebook cell 30
+#pattern0
+model_pattern0 = lingam.DirectLiNGAM(prior_knowledge=LLMprobability_to_pk(probability_X0_pattern0_L))
+model_pattern0.fit(X)
+np.savetxt('adj_LiNGAM_pattern0.csv', model_pattern0.adjacency_matrix_, delimiter=',')
+model_stats_LiNGAM_pattern0 = evaluate_model_fit(model_pattern0.adjacency_matrix_, X)
+model_stats_LiNGAM_pattern0.to_csv('model_stats_LiNGAM_pattern0.csv', index=False)
+create_0or1_causal_matrix(model_pattern0.adjacency_matrix_)
+
+# Notebook cell 31
+#pattern1
+model_pattern1 = lingam.DirectLiNGAM(prior_knowledge=LLMprobability_to_pk(probability_X0_pattern1_LiNGAM))
+model_pattern1.fit(X)
+np.savetxt('adj_LiNGAM_pattern1.csv', model_pattern1.adjacency_matrix_, delimiter=',')
+model_stats_LiNGAM_pattern1 = evaluate_model_fit(model_pattern1.adjacency_matrix_, X)
+model_stats_LiNGAM_pattern1.to_csv('model_stats_LiNGAM_pattern1.csv', index=False)
+create_0or1_causal_matrix(model_pattern1.adjacency_matrix_)
+
+# Notebook cell 32
+#pattern2
+model_pattern2 = lingam.DirectLiNGAM(prior_knowledge=LLMprobability_to_pk(probability_X0_pattern2_L))
+model_pattern2.fit(X)
+np.savetxt('adj_LiNGAM_pattern2.csv', model_pattern2.adjacency_matrix_, delimiter=',')
+model_stats_LiNGAM_pattern2 = evaluate_model_fit(model_pattern2.adjacency_matrix_, X)
+model_stats_LiNGAM_pattern2.to_csv('model_stats_LiNGAM_pattern2.csv', index=False)
+create_0or1_causal_matrix(model_pattern2.adjacency_matrix_)
+
+# Notebook cell 33
+#pattern3
+model_pattern3 = lingam.DirectLiNGAM(prior_knowledge=LLMprobability_to_pk(probability_X0_pattern3_L))
+model_pattern3.fit(X)
+np.savetxt('adj_LiNGAM_pattern3.csv', model_pattern3.adjacency_matrix_, delimiter=',')
+model_stats_LiNGAM_pattern3 = evaluate_model_fit(model_pattern3.adjacency_matrix_, X)
+model_stats_LiNGAM_pattern3.to_csv('model_stats_LiNGAM_pattern3.csv', index=False)
+create_0or1_causal_matrix(model_pattern3.adjacency_matrix_)
+
+# Notebook cell 34
+#pattern4
+model_pattern4 = lingam.DirectLiNGAM(prior_knowledge=probability_X0_pattern4_L)
+model_pattern4.fit(X)
+np.savetxt('adj_LiNGAM_pattern4.csv', model_pattern4.adjacency_matrix_, delimiter=',')
+model_stats_LiNGAM_pattern4 = evaluate_model_fit(model_pattern4.adjacency_matrix_, X)
+model_stats_LiNGAM_pattern4.to_csv('model_stats_LiNGAM_pattern4.csv', index=False)
+create_0or1_causal_matrix(model_pattern4.adjacency_matrix_)

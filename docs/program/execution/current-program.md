@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 95 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 760-page working reader;
+Recovery and continuation recorded 96 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 766-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[760 pages](../../causal_proposal_causica_contracts_2026-10-14.pdf), hash
-`4ab23719e529ce7cb6ccfbedac404b56a098e86dffe612cfbced28d651f2bdf7`.
-Its traceability review covers 577 cited records and 163 genuine scholarly
+[766 pages](../../causal_proposal_iid_discovery_2026-10-14.pdf), hash
+`21cb9f628b18d0a726da5c332900d6c578a4a684be692ec3a4b830ed101f4218`.
+Its traceability review covers 582 cited records and 164 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -117,7 +117,19 @@ not upstream runtime results. A generated/public prototype must verify and
 repair or constrain those paths before an adapter is enabled. The 760-page
 reader preserves all 573 earlier records and adds four. Whole-manuscript
 coverage/depth and sponsor/rendered acceptance remain open. Continue
-LL.TASK.iid_discovery, reassessing primary evidence and full package paths.
+the Python temporal/interventional software cell. LL.TASK.iid_discovery now
+has a reviewed synthesis integrated on printed pages415–420. Fourteen verified
+source blobs trace three package families; seven primary papers were reread
+and a materials-science author original was recovered after a metadata miss.
+Exact Gaussian, token, constraint and decision examples reproduce. Missing
+answers, unsupported aggregation, fixed metadata and edge/path conversions
+have concrete proposed adapter remedies. Live LLM and upstream execution
+remain unclaimed; the public/generated comparison is still a design. All577
+inherited source records and contexts remain, with five additions. The766-page
+reader and Q2–Q4 successor reviews are canonical. No Q1 or Q5 acceptance is
+inferred from page count. The initial checkpoint schema rejection and exact
+JSON-comparison failure were preserved and corrected without changing
+scientific results.
 The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
@@ -171,3 +183,8 @@ was verified. Temporal work and failure trials were subsequently committed and p
 9a6c1fecdc811a728a012f4e23c9e97d28ea2b12; remote main was independently
 verified. L7, the IV/RD comparison and Causica reuse now have recorded outcomes;
 their publication proceeds with the next eligible discovery synthesis.
+
+L7, the IV/RD comparison and Causica reader were committed and pushed at
+`9b7e8d477b74bda7a924aeec333f468f16b06083`; remote main was verified. The
+[publication receipt](2026-10-14/program-refresh/git-publication-9b7e8d47.json)
+records the successful LFS transfer and preserved author-identity repair.

@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**95 / 376 proposal operations have recorded outcomes; 237 are ready.** Next: **LL.TASK.iid_discovery**.
+**96 / 376 proposal operations have recorded outcomes; 236 are ready.** Next: **SW.CELL.discovery_temporal_interventional.Python**.
 
-LA03 and LA06 compare data-only baselines and registered label, retrieval and prompt perturbations; preserve every failed case. Reassess the relevant unresolved candidates, conflicting results and full package paths; keep documented search failures.
+Other temporal/interventional families and complete cell searches remain open. Specify lags, contemporaneous edges, sampling frequency, stationarity, regimes and intervention types; banking example: funding shocks under common calendars.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_causica_contracts_2026-10-14.pdf) — 760 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_iid_discovery_2026-10-14.pdf) — 766 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

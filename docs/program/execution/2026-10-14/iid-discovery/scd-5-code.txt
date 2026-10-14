@@ -1,0 +1,172 @@
+# Notebook cell 0
+!pip install numpy==1.25.0
+
+# Notebook cell 1
+!pip install lingam
+!pip install factor_analyzer
+!pip install igraph
+!pip install pygam
+
+# Notebook cell 2
+import os
+import sys
+import numpy as np
+import pandas as pd
+import graphviz
+import lingam
+import semopy
+from sklearn.preprocessing import StandardScaler
+import hashlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib.image as mpimg
+import io
+from scipy.stats import norm
+from copy import deepcopy
+import networkx as nx
+from networkx.algorithms import cycles
+from itertools import combinations
+from sklearn.linear_model import LassoLarsIC, LinearRegression
+from sklearn.utils import check_array, check_scalar
+
+print("NumPy",  "ver:", np.__version__)
+print("Pandas", "ver:", pd.__version__)
+print("Graphviz",   "ver:", graphviz.__version__)
+print("LiNGAM", "ver:", lingam.__version__)
+
+np.set_printoptions(precision=3, suppress=True)
+
+# Notebook cell 4
+def remove_cycles_with_networkx(matrix):
+
+    negative_indices = np.where(matrix < 0)
+
+    temp_matrix = np.where(matrix < 0, 1, matrix).astype(int)
+
+    G = nx.DiGraph(temp_matrix)
+    cycles = list(nx.simple_cycles(G))
+
+    edges_to_remove = set()
+    for cycle in cycles:
+        for i in range(len(cycle)):
+            j = (i + 1) % len(cycle)
+            edges_to_remove.add((cycle[i], cycle[j]))
+
+    valid_solutions = []
+    for k in range(1, len(edges_to_remove) + 1):
+        for edges in combinations(edges_to_remove, k):
+            H = G.copy()
+            H.remove_edges_from(edges)
+            if nx.is_directed_acyclic_graph(H):
+                result_matrix = nx.to_numpy_array(H, dtype=int)
+
+                result_matrix[negative_indices] = matrix[negative_indices]
+                valid_solutions.append(result_matrix)
+        if valid_solutions:
+            break
+
+    return valid_solutions
+
+# Notebook cell 6
+#calculation of the stats of model fitting
+def evaluate_model_fit(adjacency_matrix, X, is_ordinal=None):
+    """ evaluate the given adjacency matrix and return fit indices
+
+    Parameters
+    ----------
+    adjacency_matrix : array-like, shape (n_features, n_features)
+        Adjacency matrix representing a causal graph.
+        The i-th column and row correspond to the i-th column of X.
+    X : array-like, shape (n_samples, n_features)
+        Training data.
+    is_ordinal : array-like, shape (n_features,)
+        Binary list. The i-th element represents that the i-th column of X is ordinal or not.
+        0 means not ordinal, otherwise ordinal.
+
+    Return
+    ------
+    fit_indices : pandas.DataFrame
+        Fit indices. This API uses semopy's calc_stats(). See semopy's reference for details.
+    """
+
+    # check inputs
+    adj = check_array(adjacency_matrix, force_all_finite="allow-nan")
+    if adj.ndim != 2 or (adj.shape[0] != adj.shape[1]):
+        raise ValueError("adj must be an square matrix.")
+
+    X = check_array(X)
+    if X.shape[1] != adj.shape[1]:
+        raise ValueError("X.shape[1] and adj.shape[1] must be the same.")
+
+    if is_ordinal is None:
+        is_ordinal = np.zeros(X.shape[1])
+    else:
+        is_ordinal = check_array(is_ordinal, ensure_2d=False).flatten()
+    if is_ordinal.shape[0] != adj.shape[1]:
+        raise ValueError("is_ordinal.shape[0] and adj.shape[1] must be the same.")
+
+    # build desc
+    desc = ""
+    eta_names = []
+
+    for i, row in enumerate(adj):
+        # exogenous
+        if np.sum(np.isnan(row)) == 0 and np.sum(np.isclose(row, 0)) == row.shape[0]:
+            continue
+
+        desc += f"x{i:d} ~ "
+
+        for j, elem in enumerate(row):
+            if np.isnan(elem):
+                eta_name = f"eta_{i}_{j}" if i < j else f"eta_{j}_{i}"
+                desc += f"{eta_name} + "
+                if eta_name not in eta_names:
+                    eta_names.append(eta_name)
+            elif not np.isclose(elem, 0):
+                desc += f"x{j:d} + "
+        desc = desc[:-len(" * ")] + "\n"
+
+    if len(eta_names) > 0:
+        desc += "DEFINE(latent) " + " ".join(eta_names) + "\n"
+
+    if sum(is_ordinal) > 0:
+        indices = np.argwhere(is_ordinal).flatten()
+
+        desc += "DEFINE(ordinal)"
+        for i in indices:
+            desc += f" x{i}"
+        desc += "\n"
+
+    columns = [f"x{i:d}" for i in range(X.shape[1])]
+    X = pd.DataFrame(X, columns=columns)
+
+    m = semopy.Model(desc)
+    m.fit(X)
+
+    stats = semopy.calc_stats(m)
+
+    return stats
+
+# Notebook cell 7
+#Selection of the Optimal Matrix for LiNGAM with BIC
+def find_best_LiNGAM_result(X, acyclic_prior_knowledge):
+  # X: dataset(pd.dataframe)
+  # acyclic_prior_knowledge: list of acyclic matrices
+    best_bic = np.inf
+    best_model = None
+    best_prior_knowledge = None
+    for pk in acyclic_prior_knowledge:
+
+        model = lingam.DirectLiNGAM(X, prior_knowledge=pk)
+        model.fit(X)
+        B = model.adjacency_matrix_
+        bic = evaluate_model_fit(B, X, is_ordinal=None).BIC.iloc[0]
+
+        if bic < best_bic:
+            best_bic = bic
+            best_model = model
+            best_prior_knowledge = pk
+        else:
+            continue
+
+    return best_prior_knowledge, best_model
