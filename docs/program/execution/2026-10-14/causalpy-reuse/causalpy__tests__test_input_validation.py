@@ -1,0 +1,1297 @@
+#   Copyright 2022 - 2026 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Input validation tests"""
+
+import numpy as np  # noqa: I001
+import pandas as pd
+import pytest
+from matplotlib import pyplot as plt
+from matplotlib.collections import PolyCollection
+
+import causalpy as cp
+from causalpy.custom_exceptions import BadIndexException
+from causalpy.custom_exceptions import DataException, FormulaException
+from causalpy.tests.conftest import setup_regression_kink_data
+
+from sklearn.linear_model import LinearRegression
+
+
+sample_kwargs = {"tune": 20, "draws": 20, "chains": 2, "cores": 2}
+
+# DiD
+
+
+def test_did_validation_post_treatment_formula():
+    """Test that we get a FormulaException for invalid formulas and missing post_treatment variables"""
+    df = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 1],
+            "t": [0, 1, 0, 1],
+            "unit": [0, 0, 1, 1],
+            "post_treatment": [0, 1, 0, 1],
+            "male": [0, 1, 0, 1],  # Additional variable for testing
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    df_with_custom = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 1],
+            "t": [0, 1, 0, 1],
+            "unit": [0, 0, 1, 1],
+            "custom_post": [0, 1, 0, 1],  # Custom column name
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    # Test 1: Missing post_treatment variable in formula
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_SOMETHING",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 2: Missing post_treatment variable in formula (duplicate test)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_SOMETHING",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 3: Custom post_treatment_variable_name but formula uses different name
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df_with_custom,
+            formula="y ~ 1 + group*post_treatment",  # Formula uses 'post_treatment'
+            time_variable_name="t",
+            group_variable_name="group",
+            post_treatment_variable_name="custom_post",  # But user specifies 'custom_post'
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 4: Default post_treatment_variable_name but formula uses different name
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*custom_post",  # Formula uses 'custom_post'
+            time_variable_name="t",
+            group_variable_name="group",
+            # post_treatment_variable_name defaults to "post_treatment"
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 5: Patsy collapses repeated terms into one design-matrix term
+    result = cp.DifferenceInDifferences(
+        df,
+        formula="y ~ 1 + group + group*post_treatment + group*post_treatment",
+        time_variable_name="t",
+        group_variable_name="group",
+        model=LinearRegression(),
+    ).fit()
+    assert result.result.causal_impact is not None
+
+    # Test 6: Three-way interactions using * (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + group*post_treatment*male",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 7: Three-way interactions using : (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + group:post_treatment:male",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 8: Multiple different interaction terms using * (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + group*post_treatment + group*male",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 9: Multiple different interaction terms using : (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + group:post_treatment + group:male",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 10: Mixed issues - multiple terms + three-way interaction (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + group*post_treatment + group:post_treatment:male",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 11: No interaction term at all (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 12: Interaction term between unrelated variables, not group/post_treatment
+    # (should be invalid)
+    with pytest.raises(FormulaException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group + post_treatment + male*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+
+def test_did_validation_interaction_term_order_independent():
+    """Test that the group*post_treatment interaction term is accepted
+    regardless of which variable is written first in the formula."""
+    df = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 1],
+            "t": [0, 1, 0, 1],
+            "unit": [0, 0, 1, 1],
+            "post_treatment": [0, 1, 0, 1],
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    # group*post_treatment and post_treatment*group are statistically identical;
+    # construction must succeed either way.
+    result = cp.DifferenceInDifferences(
+        df,
+        formula="y ~ 1 + post_treatment*group",
+        time_variable_name="t",
+        group_variable_name="group",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+    ).fit()
+    assert result.result.causal_impact is not None
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        "y ~ 1 + I(x**2) + group*post_treatment",
+        "y ~ 1 + group*post_treatment + I(t**2)",
+        "y ~ 1 + I(x * 2) + group*post_treatment",
+        "y ~ 1 + (group + post_treatment)**2",
+    ],
+)
+def test_did_validation_uses_patsy_interaction_terms(did_data, formula):
+    """Arithmetic and power expressions must follow Patsy's term semantics."""
+    df = did_data.assign(x=np.arange(len(did_data)))
+
+    result = cp.DifferenceInDifferences(
+        df,
+        formula=formula,
+        time_variable_name="t",
+        group_variable_name="group",
+        model=LinearRegression(),
+    ).fit()
+
+    assert result.result.causal_impact is not None
+
+
+def test_did_validation_rejects_substring_only_interaction(did_data):
+    """Variable-name substrings must not count as the required interaction."""
+    df = did_data.rename(columns={"group": "g", "post_treatment": "post"}).copy()
+    df["group"] = df["g"]
+    df["post_treatment"] = df["post"]
+
+    with pytest.raises(FormulaException):
+        cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="g",
+            post_treatment_variable_name="post",
+            model=LinearRegression(),
+        )
+
+
+def test_did_exact_interaction_matching_preserves_categorical_wrapper(did_data):
+    """Exact matching still accepts patsy's categorical wrapper."""
+    df = did_data.rename(columns={"group": "g", "post_treatment": "post"}).copy()
+
+    result = cp.DifferenceInDifferences(
+        df,
+        formula="y ~ 1 + C(g)*post",
+        time_variable_name="t",
+        group_variable_name="g",
+        post_treatment_variable_name="post",
+        model=LinearRegression(),
+    ).fit()
+
+    assert result.result.causal_impact is not None
+
+
+def test_did_ols_matches_only_exact_interaction(did_data):
+    """OLS lookup and counterfactual construction use the exact interaction."""
+    df = did_data.rename(columns={"group": "g", "post_treatment": "post"}).copy()
+    df["g_post"] = np.arange(len(df))
+    df["y"] = (
+        1 + 2 * df["g"] + 3 * df["post"] + 4 * df["g"] * df["post"] + 5 * df["g_post"]
+    )
+
+    result = cp.DifferenceInDifferences(
+        df,
+        formula="y ~ 1 + post*g + g_post",
+        time_variable_name="t",
+        group_variable_name="g",
+        post_treatment_variable_name="post",
+        model=LinearRegression(),
+    ).fit()
+
+    assert result.result.causal_impact == pytest.approx(4)
+    expected_counterfactual = (
+        1
+        + 2
+        + 3
+        + 5 * result.result.scenario_counterfactual.inputs["g_post"].to_numpy()
+    )
+    np.testing.assert_allclose(
+        np.squeeze(result.result.scenario_counterfactual.prediction),
+        expected_counterfactual,
+    )
+
+
+def test_did_bayesian_matches_only_exact_interaction(did_data):
+    """Bayesian lookup must not confuse a similarly named main effect."""
+    df = did_data.rename(columns={"group": "g", "post_treatment": "post"}).copy()
+    df["g_post"] = np.arange(len(df))
+
+    result = cp.DifferenceInDifferences(
+        df,
+        formula="y ~ 1 + post*g + g_post",
+        time_variable_name="t",
+        group_variable_name="g",
+        post_treatment_variable_name="post",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+    ).fit()
+
+    assert result.result.causal_impact.coords["coeffs"].item() == "post[T.True]:g"
+
+
+def test_did_validation_post_treatment_data():
+    """Test that we get a DataException if do not include post_treatment in the data"""
+    df = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 1],
+            "t": [0, 1, 0, 1],
+            "unit": [0, 0, 1, 1],
+            #    "post_treatment": [0, 1, 0, 1],
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    # Test 2: Custom post_treatment_variable_name but column doesn't exist in data
+    df_with_post = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 1],
+            "t": [0, 1, 0, 1],
+            "unit": [0, 0, 1, 1],
+            "post_treatment": [0, 1, 0, 1],  # Data has 'post_treatment'
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df_with_post,
+            formula="y ~ 1 + group*custom_post",  # Formula uses 'custom_post'
+            time_variable_name="t",
+            group_variable_name="group",
+            post_treatment_variable_name="custom_post",  # User specifies 'custom_post'
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+
+def test_did_validation_unit_data():
+    """Test that we get a DataException if do not include unit in the data"""
+    df = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 1],
+            "t": [0, 1, 0, 1],
+            # "unit": [0, 0, 1, 1],
+            "post_treatment": [0, 1, 0, 1],
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+
+def test_did_validation_group_dummy_coded():
+    """Test that we get a DataException if the group variable is not dummy coded"""
+    df = pd.DataFrame(
+        {
+            "group": ["a", "a", "b", "b"],
+            "t": [0, 1, 0, 1],
+            "unit": [0, 0, 1, 1],
+            "post_treatment": [0, 1, 0, 1],
+            "y": [1, 2, 3, 4],
+        }
+    )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+    with pytest.raises(DataException):
+        _ = cp.DifferenceInDifferences(
+            df,
+            formula="y ~ 1 + group*post_treatment",
+            time_variable_name="t",
+            group_variable_name="group",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+
+# Synthetic Control
+
+
+def test_sc_input_error(sc_data):
+    """Confirm that a BadIndexException is raised treatment_time is pd.Timestamp
+    and df.index is not pd.DatetimeIndex."""
+    with pytest.raises(BadIndexException):
+        treatment_time = pd.to_datetime("2016 June 24")
+        _ = cp.SyntheticControl(
+            sc_data,
+            treatment_time,
+            control_units=["a", "b", "c", "d", "e", "f", "g"],
+            treated_units=["actual"],
+            model=cp.pymc_models.WeightedSumFitter(sample_kwargs=sample_kwargs),
+        )
+
+    with pytest.raises(BadIndexException):
+        treatment_time = pd.to_datetime("2016 June 24")
+        _ = cp.SyntheticControl(
+            sc_data,
+            treatment_time,
+            control_units=["a", "b", "c", "d", "e", "f", "g"],
+            treated_units=["actual"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+
+def test_sc_ols_multiple_treated_units_error(sc_data):
+    """OLS/sklearn synthetic control supports only a single treated unit."""
+    with pytest.raises(ValueError, match="single treated"):
+        _ = cp.SyntheticControl(
+            sc_data,
+            70,
+            control_units=["a", "b", "c", "d", "e"],
+            treated_units=["actual", "f"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+
+def test_sc_brexit_input_error():
+    """Confirm a BadIndexException is raised if the data index is datetime and the
+    treatment time is not pd.Timestamp."""
+    with pytest.raises(BadIndexException):
+        df = cp.load_data("brexit")
+        df["Time"] = pd.to_datetime(df["Time"])
+        df.set_index("Time", inplace=True)
+        df = df.iloc[df.index > "2009", :]
+        treatment_time = "2016 June 24"  # NOTE This is not of type pd.Timestamp
+        df = df.drop(["Japan", "Italy", "US", "Spain"], axis=1)
+        target_country = "UK"
+        all_countries = df.columns
+        other_countries = all_countries.difference({target_country})
+        all_countries = list(all_countries)
+        other_countries = list(other_countries)
+        _ = cp.SyntheticControl(
+            df,
+            treatment_time,
+            control_units=other_countries,
+            treated_units=[target_country],
+            model=cp.pymc_models.WeightedSumFitter(sample_kwargs=sample_kwargs),
+        )
+
+
+# Pre-post NEGD
+
+
+def test_ancova_validation_2_levels():
+    """Test that we get a DataException group variable is not dummy coded"""
+    df = pd.DataFrame(
+        {
+            "group": [0, 0, 1, 2],
+            "pre": [1, 1, 3, 4],
+            "post": [1, 2, 3, 4],
+        }
+    )
+
+    with pytest.raises(DataException):
+        _ = cp.PrePostNEGD(
+            df,
+            formula="post ~ 1 + C(group) + pre",
+            group_variable_name="group",
+            pretreatment_variable_name="pre",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        )
+
+
+# Regression discontinuity
+
+
+def test_rd_validation_treated_in_formula():
+    """Test that we get a FormulaException if treated is not in the model formula"""
+    df = pd.DataFrame(
+        {
+            "x": [0, 1, 2, 3],
+            "treated": [0, 0, 1, 1],
+            "y": [1, 1, 2, 2],
+        }
+    )
+
+    with pytest.raises(FormulaException):
+        _ = cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=0.5,
+        )
+
+    with pytest.raises(FormulaException):
+        _ = cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x",
+            model=LinearRegression(),
+            treatment_threshold=0.5,
+        )
+
+
+def test_rd_validation_treated_is_dummy():
+    """Test that we get a DataException if treated is not dummy coded"""
+    df = pd.DataFrame(
+        {
+            "x": [0, 1, 2, 3],
+            "treated": ["control", "control", "treated", "treated"],
+            "y": [1, 1, 2, 2],
+        }
+    )
+
+    with pytest.raises(DataException):
+        _ = cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=0.5,
+        )
+
+    with pytest.raises(DataException):
+        _ = cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated",
+            model=LinearRegression(),
+            treatment_threshold=0.5,
+        )
+
+
+@pytest.mark.parametrize(
+    ("experiment", "threshold_argument"),
+    [
+        (cp.RegressionDiscontinuity, "treatment_threshold"),
+        (cp.RegressionKink, "kink_point"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("formula", "extra_columns", "exception"),
+    [
+        ("y ~ 1 + x + untreated", {"untreated": [0, 0, 1, 1]}, FormulaException),
+        ("treated ~ 1 + x", {"treated": [0, 0, 1, 1]}, FormulaException),
+        ("y ~ 1 + x + treated", {}, DataException),
+    ],
+)
+def test_rd_rk_validation_requires_treated_rhs_column(
+    experiment, threshold_argument, formula, extra_columns, exception
+):
+    """The exact treated column must exist and be referenced on the RHS."""
+    df = pd.DataFrame({"x": [0, 1, 2, 3], "y": [1, 1, 2, 2], **extra_columns})
+
+    with pytest.raises(exception):
+        experiment(
+            df,
+            formula=formula,
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            **{threshold_argument: 0.5},
+        )
+
+
+def test_iv_treatment_var_is_present():
+    """Test the treatment variable is present for Instrumental Variable experiment"""
+    data = pd.DataFrame({"x": [1, 2, 3], "y": [2, 4, 5]})
+    instruments_formula = "risk  ~ 1 + logmort0"
+    formula = "loggdp ~  1 + risk"
+    instruments_data = pd.DataFrame({"z": [1, 3, 4], "w": [2, 3, 4]})
+
+    with pytest.raises(DataException):
+        _ = cp.InstrumentalVariable(
+            instruments_data=instruments_data,
+            data=data,
+            instruments_formula=instruments_formula,
+            formula=formula,
+            model=cp.pymc_models.InstrumentalVariableRegression(
+                sample_kwargs=sample_kwargs
+            ),
+        )
+
+
+# Regression kink design
+
+
+def test_rkink_bandwidth_check():
+    """Test that we get exceptions when bandwidth parameter is <= 0"""
+    with pytest.raises(ValueError):
+        kink = 0.5
+        df = setup_regression_kink_data(kink)
+        _ = cp.RegressionKink(
+            df,
+            formula=f"y ~ 1 + x + I((x-{kink})*treated)",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            kink_point=kink,
+            bandwidth=0,
+        )
+
+    with pytest.raises(ValueError):
+        kink = 0.5
+        df = setup_regression_kink_data(kink)
+        _ = cp.RegressionKink(
+            df,
+            formula=f"y ~ 1 + x + I((x-{kink})*treated)",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            kink_point=kink,
+            bandwidth=-1,
+        )
+
+
+def test_rkink_epsilon_check():
+    """Test that we get exceptions when epsilon parameter is <= 0"""
+    with pytest.raises(ValueError):
+        kink = 0.5
+        df = setup_regression_kink_data(kink)
+        _ = cp.RegressionKink(
+            df,
+            formula=f"y ~ 1 + x + I((x-{kink})*treated)",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            kink_point=kink,
+            epsilon=0,
+        )
+
+    with pytest.raises(ValueError):
+        kink = 0.5
+        df = setup_regression_kink_data(kink)
+        _ = cp.RegressionKink(
+            df,
+            formula=f"y ~ 1 + x + I((x-{kink})*treated)",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            kink_point=kink,
+            epsilon=-1,
+        )
+
+
+# RegressionDiscontinuity
+
+
+def setup_regression_discontinuity_data(threshold=0.5):
+    """Create data for a regression discontinuity test."""
+    np.random.seed(42)
+    x = np.random.uniform(0, 1, 100)
+    treated = np.where(x > threshold, 1, 0)
+    y = 2 * x + treated + np.random.normal(0, 1, 100)
+    return pd.DataFrame({"x": x, "treated": treated, "y": y})
+
+
+def test_regression_discontinuity_int_treatment():
+    """Test that RegressionDiscontinuity works with integer treatment variables."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+    assert pd.api.types.is_integer_dtype(df["treated"])  # Ensure treatment is int
+
+    # This should work now with our fix
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+    )
+
+    # Check that the treatment variable was converted to bool
+    assert pd.api.types.is_bool_dtype(result.data["treated"])
+
+
+def test_regression_discontinuity_bool_treatment():
+    """Test that RegressionDiscontinuity works with boolean treatment variables."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+    df["treated"] = df["treated"].astype(bool)  # Convert to bool
+    assert pd.api.types.is_bool_dtype(df["treated"])  # Ensure treatment is bool
+
+    # This should work as before
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+    )
+
+    # Check that the treatment variable is still bool
+    assert pd.api.types.is_bool_dtype(result.data["treated"])
+
+
+def test_rd_donut_hole_zero_same_as_default():
+    """Test that donut_hole=0 reproduces current behavior (no filtering)."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+        donut_hole=0.0,
+    )
+
+    # With donut_hole=0, fit_data should equal data
+    assert len(result.fit_data) == len(result.data)
+
+
+def test_rd_donut_hole_filters_data():
+    """Test that donut_hole filters out observations near threshold."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+        donut_hole=0.1,
+    )
+
+    # fit_data should have fewer observations than data
+    assert len(result.fit_data) < len(result.data)
+
+    # No observations in fit_data should be within 0.1 of threshold
+    x_vals = result.fit_data["x"]
+    assert all(np.abs(x_vals - threshold) >= 0.1)
+
+
+def test_rd_donut_hole_with_bandwidth():
+    """Test that donut_hole works correctly with bandwidth."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+        bandwidth=0.3,
+        donut_hole=0.05,
+    )
+
+    # Check that fit_data respects both constraints
+    x_vals = result.fit_data["x"]
+    assert all(np.abs(x_vals - threshold) <= 0.3)  # within bandwidth
+    assert all(np.abs(x_vals - threshold) >= 0.05)  # outside donut
+
+
+def test_rd_donut_hole_validation_negative():
+    """Test that negative donut_hole raises ValueError."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    with pytest.raises(ValueError):
+        cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated + x:treated",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=threshold,
+            donut_hole=-0.1,
+        )
+
+
+def test_rd_donut_hole_validation_exceeds_bandwidth():
+    """Test that donut_hole >= bandwidth raises ValueError."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    with pytest.raises(ValueError):
+        cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated + x:treated",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=threshold,
+            bandwidth=0.3,
+            donut_hole=0.3,  # Equal to bandwidth, should fail
+        )
+
+    with pytest.raises(ValueError):
+        cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated + x:treated",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=threshold,
+            bandwidth=0.3,
+            donut_hole=0.4,  # Greater than bandwidth, should fail
+        )
+
+
+def test_rd_running_variable_name_not_x():
+    """Test that running_variable_name works correctly with non-default names."""
+    np.random.seed(42)
+    threshold = 21
+    age = np.random.uniform(18, 25, 100)
+    treated = np.where(age >= threshold, 1, 0)
+    y = 2 * age + treated * 0.5 + np.random.normal(0, 1, 100)
+    df = pd.DataFrame({"age": age, "treated": treated, "y": y})
+
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + age + treated + age:treated",
+        running_variable_name="age",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+        bandwidth=2.0,
+        donut_hole=0.5,
+    )
+
+    # Check that filtering works with non-default running variable name
+    age_vals = result.fit_data["age"]
+    assert all(np.abs(age_vals - threshold) <= 2.0)
+    assert all(np.abs(age_vals - threshold) >= 0.5)
+
+
+def test_rd_few_datapoints_warning():
+    """Test that a warning is raised when bandwidth/donut_hole filter too aggressively."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    # Use aggressive bandwidth that leaves very few datapoints
+    with pytest.warns(UserWarning, match="remaining datapoints"):
+        cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated + x:treated",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=threshold,
+            bandwidth=0.05,  # Very narrow bandwidth
+        )
+
+
+def test_rd_few_datapoints_warning_with_donut():
+    """Test warning when both bandwidth and donut_hole are mentioned."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    # Use aggressive settings that leave very few datapoints
+    with pytest.warns(UserWarning, match="bandwidth.*donut_hole"):
+        cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated + x:treated",
+            model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+            treatment_threshold=threshold,
+            bandwidth=0.1,
+            donut_hole=0.08,  # Large donut relative to bandwidth
+        )
+
+
+def test_rd_unrecognized_model_type():
+    """Test that an unrecognized model type raises ValueError."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    class FakeModel:
+        """A fake model that is neither PyMCModel nor RegressorMixin."""
+
+        pass
+
+    with pytest.raises(ValueError, match="Unsupported model type"):
+        cp.RegressionDiscontinuity(
+            df,
+            formula="y ~ 1 + x + treated + x:treated",
+            model=FakeModel(),
+            treatment_threshold=threshold,
+        )
+
+
+def test_rd_ols_plot_with_donut_hole():
+    """Test that the OLS hybrid plot preserves its rendering contract."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=LinearRegression(),
+        treatment_threshold=threshold,
+        donut_hole=0.1,
+    ).fit()
+
+    fig, ax = result.plot(show=False)
+    try:
+        assert ax in fig.axes
+        threshold_lines = [
+            line
+            for line in ax.get_lines()
+            if line.get_linestyle() == "-" and line.get_color() == "r"
+        ]
+        assert len(threshold_lines) == 1
+        np.testing.assert_allclose(
+            threshold_lines[0].get_xdata(), [threshold, threshold]
+        )
+
+        donut_lines = [
+            line
+            for line in ax.get_lines()
+            if line.get_linestyle() == "--" and line.get_color() == "orange"
+        ]
+        assert len(donut_lines) == 2
+        np.testing.assert_allclose(
+            sorted(line.get_xdata()[0] for line in donut_lines),
+            [threshold - 0.1, threshold + 0.1],
+        )
+        assert {
+            "fit data",
+            "excluded data",
+            "model fit",
+            "treatment threshold",
+            "donut boundary",
+        } <= {text.get_text() for text in ax.get_legend().get_texts()}
+    finally:
+        plt.close(fig)
+
+
+def test_rd_plot_isolated_from_user_column_names() -> None:
+    """Test Plotnine renderer columns cannot collide with user column names."""
+    prediction = np.linspace(-2, 2, 12)
+    data = pd.DataFrame(
+        {
+            "prediction": prediction,
+            "series": prediction + 2 * (prediction >= 0),
+            "treated": (prediction >= 0).astype(int),
+        }
+    )
+    result = cp.RegressionDiscontinuity(
+        data,
+        formula="series ~ 1 + prediction + treated + prediction:treated",
+        model=LinearRegression(),
+        running_variable_name="prediction",
+        treatment_threshold=0,
+    ).fit()
+
+    fig, ax = result.plot(show=False)
+    try:
+        point_offsets = np.concatenate(
+            [collection.get_offsets() for collection in ax.collections]
+        )
+        np.testing.assert_allclose(
+            np.sort(point_offsets[:, 0]), np.sort(data["prediction"].to_numpy())
+        )
+        np.testing.assert_allclose(
+            np.sort(point_offsets[:, 1]), np.sort(data["series"].to_numpy())
+        )
+
+        model_fit = next(
+            line
+            for line in ax.get_lines()
+            if len(line.get_xdata()) == len(result.x_pred)
+        )
+        np.testing.assert_allclose(
+            model_fit.get_xdata(), result.x_pred["prediction"].to_numpy()
+        )
+        np.testing.assert_allclose(
+            model_fit.get_ydata(),
+            result.result.predictions.isel(chain=0, draw=0, treated_units=0).to_numpy(),
+        )
+    finally:
+        plt.close(fig)
+
+
+def test_rd_bayesian_plot_with_donut_hole():
+    """Test that the Bayesian hybrid plot preserves its rendering contract."""
+    threshold = 0.5
+    df = setup_regression_discontinuity_data(threshold)
+
+    result = cp.RegressionDiscontinuity(
+        df,
+        formula="y ~ 1 + x + treated + x:treated",
+        model=cp.pymc_models.LinearRegression(sample_kwargs=sample_kwargs),
+        treatment_threshold=threshold,
+        donut_hole=0.1,
+    ).fit()
+
+    fig, ax = result.plot(show=False)
+    try:
+        assert ax in fig.axes
+        assert any(
+            isinstance(collection, PolyCollection) for collection in ax.collections
+        )
+        threshold_lines = [
+            line
+            for line in ax.get_lines()
+            if line.get_linestyle() == "-" and line.get_color() == "r"
+        ]
+        assert len(threshold_lines) == 1
+        np.testing.assert_allclose(
+            threshold_lines[0].get_xdata(), [threshold, threshold]
+        )
+
+        donut_lines = [
+            line
+            for line in ax.get_lines()
+            if line.get_linestyle() == "--" and line.get_color() == "orange"
+        ]
+        assert len(donut_lines) == 2
+        np.testing.assert_allclose(
+            sorted(line.get_xdata()[0] for line in donut_lines),
+            [threshold - 0.1, threshold + 0.1],
+        )
+        assert {
+            "fit data",
+            "excluded data",
+            "treatment threshold",
+            "donut boundary",
+            "Posterior mean",
+        } <= {text.get_text() for text in ax.get_legend().get_texts()}
+    finally:
+        plt.close(fig)
+
+
+# Synthetic Control - Convex Hull Assumption
+
+
+def test_synthetic_control_convex_hull_warning():
+    """Test that SyntheticControl issues a warning when convex hull assumption is violated"""
+    # Create synthetic data where treated is above all controls
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    # Create control units that are consistently lower than the treated
+    controls = pd.DataFrame(
+        {
+            "control_1": 1.0 + 0.5 * time_idx + np.random.normal(0, 0.5, n_time),
+            "control_2": 0.5 + 0.5 * time_idx + np.random.normal(0, 0.5, n_time),
+            "control_3": 0.8 + 0.5 * time_idx + np.random.normal(0, 0.5, n_time),
+        }
+    )
+
+    # Create treated unit that is consistently above all controls
+    treated = 5.0 + 0.5 * time_idx + np.random.normal(0, 0.5, n_time)
+
+    df = controls.copy()
+    df["treated"] = treated
+
+    treatment_time = 30
+
+    # Should issue a warning
+    with pytest.warns(UserWarning, match="Convex hull assumption may be violated"):
+        result = cp.SyntheticControl(
+            df,
+            treatment_time,
+            control_units=["control_1", "control_2", "control_3"],
+            treated_units=["treated"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+    # The model should still run and produce results
+    assert isinstance(result, cp.SyntheticControl)
+
+
+def test_synthetic_control_no_warning_when_assumption_satisfied():
+    """Test that SyntheticControl does not issue a warning when assumption is satisfied"""
+    # Create synthetic data where treated is within control range
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    # Create control units with varying levels that span a wide range
+    controls = pd.DataFrame(
+        {
+            "control_1": 1.0 + 0.5 * time_idx + np.random.normal(0, 0.3, n_time),
+            "control_2": 0.0 + 0.5 * time_idx + np.random.normal(0, 0.3, n_time),
+            "control_3": 4.0 + 0.5 * time_idx + np.random.normal(0, 0.3, n_time),
+        }
+    )
+
+    # Create treated unit that falls within the control range
+    treated = 2.0 + 0.5 * time_idx + np.random.normal(0, 0.2, n_time)
+
+    df = controls.copy()
+    df["treated"] = treated
+
+    treatment_time = 30
+
+    # Should NOT issue a warning
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warning_list:
+        warnings.simplefilter("always")
+        result = cp.SyntheticControl(
+            df,
+            treatment_time,
+            control_units=["control_1", "control_2", "control_3"],
+            treated_units=["treated"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+    # Check that no UserWarning about convex hull was issued
+    convex_hull_warnings = [w for w in warning_list if "Convex hull" in str(w.message)]
+    assert len(convex_hull_warnings) == 0
+
+    # The model should run successfully
+    assert isinstance(result, cp.SyntheticControl)
+
+
+# Synthetic Control - Donor Pool Correlation Warning
+
+
+def test_synthetic_control_donor_correlation_warning():
+    """Test that SyntheticControl warns when a control unit is negatively correlated."""
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    trend = 0.5 * time_idx
+    controls = pd.DataFrame(
+        {
+            "good_1": trend + np.random.normal(0, 0.3, n_time),
+            "good_2": trend + np.random.normal(0, 0.3, n_time),
+            "bad": -trend + np.random.normal(0, 0.3, n_time),
+        }
+    )
+    controls["treated"] = trend + np.random.normal(0, 0.3, n_time)
+
+    with pytest.warns(
+        UserWarning, match=r"pre-treatment correlation below .+ or undefined"
+    ):
+        result = cp.SyntheticControl(
+            controls,
+            treatment_time=30,
+            control_units=["good_1", "good_2", "bad"],
+            treated_units=["treated"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+    assert isinstance(result, cp.SyntheticControl)
+
+
+def test_synthetic_control_donor_correlation_no_warning():
+    """Test that no warning is issued when all donors are well correlated."""
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    trend = 0.5 * time_idx
+    df = pd.DataFrame(
+        {
+            "c1": trend + np.random.normal(0, 0.3, n_time),
+            "c2": trend + np.random.normal(0, 0.3, n_time),
+            "c3": trend + np.random.normal(0, 0.3, n_time),
+            "treated": trend + np.random.normal(0, 0.3, n_time),
+        }
+    )
+
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warning_list:
+        warnings.simplefilter("always")
+        result = cp.SyntheticControl(
+            df,
+            treatment_time=30,
+            control_units=["c1", "c2", "c3"],
+            treated_units=["treated"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+    corr_warnings = [
+        w for w in warning_list if "pre-treatment correlation" in str(w.message)
+    ]
+    assert len(corr_warnings) == 0
+    assert isinstance(result, cp.SyntheticControl)
+
+
+def test_synthetic_control_donor_correlation_custom_threshold():
+    """Test that a custom min_donor_correlation threshold triggers warnings."""
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    trend = 0.5 * time_idx
+    df = pd.DataFrame(
+        {
+            "high_corr": trend + np.random.normal(0, 0.1, n_time),
+            "low_corr": 10 + np.random.normal(0, 5, n_time),
+            "treated": trend + np.random.normal(0, 0.1, n_time),
+        }
+    )
+
+    with pytest.warns(
+        UserWarning, match=r"pre-treatment correlation below 0.8 or undefined"
+    ):
+        cp.SyntheticControl(
+            df,
+            treatment_time=30,
+            control_units=["high_corr", "low_corr"],
+            treated_units=["treated"],
+            min_donor_correlation=0.8,
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+
+def test_synthetic_control_donor_correlation_warning_message_contents():
+    """Test that the warning includes r values, plot_correlations, and Abadie."""
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    trend = 0.5 * time_idx
+    df = pd.DataFrame(
+        {
+            "good": trend + np.random.normal(0, 0.3, n_time),
+            "bad": -trend + np.random.normal(0, 0.3, n_time),
+            "treated": trend + np.random.normal(0, 0.3, n_time),
+        }
+    )
+
+    with pytest.warns(UserWarning) as record:
+        cp.SyntheticControl(
+            df,
+            treatment_time=30,
+            control_units=["good", "bad"],
+            treated_units=["treated"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+    corr_warnings = [w for w in record if "pre-treatment correlation" in str(w.message)]
+    assert len(corr_warnings) == 1
+    msg = str(corr_warnings[0].message)
+    assert "'bad'" in msg
+    assert "r=-" in msg
+    assert "cp.plot_correlations()" in msg
+    assert "Abadie (2021)" in msg
+
+
+def test_synthetic_control_donor_correlation_constant_donor():
+    """Test that a constant-valued (zero-variance) control unit triggers the warning."""
+    np.random.seed(42)
+    n_time = 50
+    time_idx = np.arange(n_time)
+
+    trend = 0.5 * time_idx
+    df = pd.DataFrame(
+        {
+            "good": trend + np.random.normal(0, 0.3, n_time),
+            "constant": np.full(n_time, 5.0),
+            "treated": trend + np.random.normal(0, 0.3, n_time),
+        }
+    )
+
+    with pytest.warns(UserWarning, match="r=undefined, likely constant") as record:
+        result = cp.SyntheticControl(
+            df,
+            treatment_time=30,
+            control_units=["good", "constant"],
+            treated_units=["treated"],
+            model=cp.skl_models.WeightedProportion(),
+        )
+
+    corr_warnings = [w for w in record if "pre-treatment correlation" in str(w.message)]
+    msg = str(corr_warnings[0].message)
+    assert "'constant'" in msg
+    assert isinstance(result, cp.SyntheticControl)
+
+
+def test_synthetic_control_donor_correlation_invalid_threshold():
+    """Test that min_donor_correlation outside [-1, 1] raises ValueError."""
+    df = pd.DataFrame(
+        {"c1": [1, 2, 3, 4], "treated": [1, 2, 3, 4]},
+    )
+
+    with pytest.raises(ValueError, match="min_donor_correlation must be between"):
+        cp.SyntheticControl(
+            df,
+            treatment_time=2,
+            control_units=["c1"],
+            treated_units=["treated"],
+            min_donor_correlation=2.0,
+            model=cp.skl_models.WeightedProportion(),
+        )

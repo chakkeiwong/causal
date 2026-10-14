@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 87 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 734-page working reader;
+Recovery and continuation recorded 88 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 738-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[734 pages](../../causal_proposal_commercial_contracts_v2_2026-10-14.pdf), hash
-`30b84c062c6a8b620af34efc718bc732b30dd7f38f97efded64cf9b39feff2b2`.
-Its traceability review covers 549 cited records and 156 genuine scholarly
+[738 pages](../../causal_proposal_causalpy_contracts_2026-10-14.pdf), hash
+`5545aa5a927bf74aa84de238d02feeec93bfb006d35ea54a03a9b631ecc70126`.
+Its traceability review covers 552 cited records and 156 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -63,9 +63,15 @@ Bayes Server manuals, two API references, release/version evidence and public
 Commercial/GBP prices. The linked benchmark-disclosure restriction and
 uncertain-abduction behavior remain explicit. Existing JMP sources repaired
 a cross-lane omission. A failed TeX inclusion was preserved and repaired in
-a successor; extracted text and all-page bounds pass. Continue
-`SW.DECISION.inherited_causalpy`: pinned source and license inspection for a
-narrow regression-discontinuity reuse decision.
+a successor; extracted text and all-page bounds pass. The CausalPy reuse decision is complete and integrated: twelve pinned source
+files, exact threshold/unit/design examples and a conversion/failure contract
+support a reference decision with production integration deferred. The section
+distinguishes finite prediction contrasts, local causal targets and point versus
+posterior uncertainty. Two inaccurate source-anchor labels were corrected in a
+preserved successor review. No upstream runtime or bank qualification is claimed.
+Continue LL.TASK.identification: compare frontier evidence and formal-engine
+contracts for LLM-assisted identification, retaining unknown and unsupported
+results separately from proven nonidentification.
 The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
@@ -78,9 +84,9 @@ LFS upload completed, the branch push succeeded, and `git ls-remote` verified
 `0217f743821c5948ede968fbdb86aaafbeb43320` on remote `main`.
 The [publication receipt](2026-10-14/program-refresh/git-initial-publication.json)
 preserves this observation. Later commits retain that ancestry. Remote `main`
-was independently verified at `a74c83eaa1396017d1827340228678189e85f58c`, including
-the L6 reader and reviews; the
-[verification receipt](2026-10-14/program-refresh/git-publication-a74c83ea.json)
+was independently verified at `93e8de78db4739923c65aebaedca3bb69d50c7ad`, including
+the commercial-contracts reader and reviews; the
+[verification receipt](2026-10-14/program-refresh/git-publication-93e8de78.json)
 records the exact observation. Later commercial-comparison and reuse work
 continues as successors; use Git status for pending changes.
 
