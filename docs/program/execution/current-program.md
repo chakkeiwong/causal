@@ -6,8 +6,8 @@ Use **`python3 tools/run_program.py`** from the repository root. The canonical l
 
 ## Refresh on 14 October 2026
 
-Recovery and continuation recorded 91 of 376 proposal operations, with no
-global research blocker. Q2–Q4 passed for the exact 750-page working reader;
+Recovery and continuation recorded 95 of 376 proposal operations, with no
+global research blocker. Q2–Q4 passed for the exact 760-page working reader;
 Q1 (whole-manuscript coverage and depth) and Q5 (sponsor coherence and rendered
 release review) remain open. These are recovery observations; use `status`
 and [Mission Control](../../mission-control.md) for the advancing ledger.
@@ -24,9 +24,9 @@ review are complete: its longitudinal/panel/observation development receives
 8.5-page shortfall is preserved. Exact sequential nuisance-error and conditional
 panel-composition derivations repair that shortfall; no fitted coverage or
 bank ROI is inferred. The integrated reader is
-[750 pages](../../causal_proposal_failure_recovery_2026-10-14.pdf), hash
-`99ce4757232dda841b51e9749be9871f341aa44adc5ec06f35b108a16ab82ccb`.
-Its traceability review covers 568 cited records and 160 genuine scholarly
+[760 pages](../../causal_proposal_causica_contracts_2026-10-14.pdf), hash
+`4ab23719e529ce7cb6ccfbedac404b56a098e86dffe612cfbced28d651f2bdf7`.
+Its traceability review covers 577 cited records and 163 genuine scholarly
 PDFs. The commercial heterogeneity comparison is recorded as inconclusive:
 four pathways from three vendor families have bounded evidence, while matched
 edition/runtime/pricing and wider family coverage remain open. The CausalNex
@@ -92,8 +92,32 @@ identities; corrupted checkpoints refuse. A valid request with corrupted replay
 is incorrectly classified by the CLI as invalid_request; a concrete repair and
 acceptance plan is proposed, with library sources unchanged. The original CLI
 probe's post-save summary-print failure is retained and repaired in a successor.
-Continue TEXT.DRAFT.L7 by reviewing existing benchmarking material for genuine
-coverage/depth and adding only missing analysis.
+L7 drafting and topic/depth review are now recorded. Twelve nonduplicate
+substantive pages across 21 physical pages develop exposure sensitivity,
+selective adjudication, consistency counterexamples and benchmark reuse.
+Two authentic benchmark originals extend the comparison. All 568 inherited
+source records and 1,592 citation uses are preserved, with two deterministic
+punctuation repairs. The initial receipt listed an extra deliverable; its
+controller rejection is preserved and a schema-correct successor recorded.
+The 756-page reader and renewed Q2–Q4 reviews are now canonical. Wider
+literature coverage, benchmark artifact qualification and Q1/Q5 remain open.
+The commercial IV/RD comparison is also recorded as inconclusive: six vendor
+families and two RD companions support detailed decisions, while MATLAB,
+PcGive and LIMDEP originals, EViews edition identity and matched rights,
+costs and runtime trials remain unresolved. No new manuscript claim was
+required because the substantive comparison was already integrated.
+Causica now has a recorded reference decision and a four-page integrated
+development. Eighteen source blobs verified against the cutoff-compatible
+commit and the genuine DECI paper support its assumptions and proposed
+conversion contract. Exact authored examples distinguish conditioning,
+intervention and factual-noise reuse; identify cyclic graph admission and a
+component-reducing ATE reference calculation; and separate graph disagreement
+from Monte Carlo error. These are static-source and mathematical findings,
+not upstream runtime results. A generated/public prototype must verify and
+repair or constrain those paths before an adapter is enabled. The 760-page
+reader preserves all 573 earlier records and adds four. Whole-manuscript
+coverage/depth and sponsor/rendered acceptance remain open. Continue
+LL.TASK.iid_discovery, reassessing primary evidence and full package paths.
 The
 [initial Git observation](2026-10-14/program-refresh/git-publication-blocker.json)
 preserves the failed attempt before the user clarified that this is the initial
@@ -143,4 +167,7 @@ No unattended research worker is installed or running. The controller can select
 
 The identification reader and temporal acquisition checkpoint were committed
 and pushed at 55668a7156fc7af5a2e7613795865069f5684e11; the exact remote main
-was verified. Later temporal work and failure trials await the next publication.
+was verified. Temporal work and failure trials were subsequently committed and pushed at
+9a6c1fecdc811a728a012f4e23c9e97d28ea2b12; remote main was independently
+verified. L7, the IV/RD comparison and Causica reuse now have recorded outcomes;
+their publication proceeds with the next eligible discovery synthesis.
