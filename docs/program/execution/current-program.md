@@ -4,7 +4,38 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: recovered native temporal comparison
+## Current continuation: recovered interface evidence
+
+The recovered program has recorded 112 of 376 proposal operations. The current
+working reader is [836 pages](../../causal_proposal_semantic_parity_2026-10-16.pdf),
+SHA-256 `eca7dd805bea9402608ab8940da62ffed585e6c48072468a6aaf4843c24b331a`.
+Section 42.17, printed pages 603–605, develops exact agreement across library,
+CLI and actual MCP stdio for thirteen generated scientific requests and three
+lifecycle calls. Together these exercise all nine advertised operations.
+Three adverse cases retain capability asymmetry, schema rejection and the
+real stored-replay corruption attribution defect. The proposed repair,
+validation ownership, complete transport identity and remaining acceptance
+cases are explicit; no universal parity or completed implementation repair
+is claimed.
+
+Recovery verified the frozen requests, responses, harness and runtime identity
+without rerunning trials. Six installed SDK originals match their saved copies;
+separate arithmetic checks the set, weak-moment and clock meanings. All 656
+inherited citation records and contexts remain; the new reader has 658 records
+and 175 genuine scholarly PDFs. Compilation and all-page text bounds pass.
+Q2–Q4 are renewed for this exact reader. Q1 coverage/depth, Q5 sponsor coherence
+and rendered visual acceptance remain open. The inherited six-preview
+allowance is exhausted; no further image payloads are used.
+
+Continue `TEXT.DRAFT.S2`: reconcile the discovery chapter allocation with the
+integrated IID, latent, temporal and experimental source comparisons, develop
+the missing connected argument and banking examples, and review substantive
+depth without double-counting existing sections. Then continue the next
+eligible operation. The verified remote baseline is `c15594cac18595b02077822ff105b1a4c582bd99`;
+the recovered interface successor is ready for repository publication.
+No unattended worker is running.
+
+## Preserved native temporal comparison
 
 The recovered program has recorded 111 of 376 proposal operations. The current
 working reader is [833 pages](../../causal_proposal_cxx_temporal_v2_2026-10-16.pdf),
