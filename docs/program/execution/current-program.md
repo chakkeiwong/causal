@@ -4,7 +4,39 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: reviewed discovery synthesis
+## Current continuation: crash recovery and commercial policy comparison
+
+The program has recorded **115 of 376 proposal operations**. The current
+working reader is [850 pages](../../causal_proposal_commercial_policy_2026-10-16.pdf),
+SHA-256 `1ce815f2ba1a7bd6cd9000d37f1207f89d22229f7c1634359f868e77d98d8fe4`.
+Section 25.17, printed pages 344–348 (physical 363–367), compares commercial
+policy questions across eleven named families. It recognizes Stata's static
+policy evaluation, Azure's historical workflow and documented retirement,
+Amazon's recommendation metrics, and BayesFusion's supplied-model utilities.
+Four reproduced exact examples explain history weighting, matching, selection
+and capacity. Three actual local dispatcher refusals are kept distinct from
+separate research modules and unexecuted vendor software.
+
+The coverage outcome is **inconclusive**: broader search, missing technical
+originals, exact historical editions, rights and commercial runtime comparisons
+remain open. The [coverage review](../comprehensive-v14/work/SW.CELL.policies_offpolicy.commercial/coverage-review.json)
+binds the sources, omissions and concrete public/generated prototype route.
+All 660 predecessor records, citation contexts and compiled sources survive;
+the reader contains 666 records and 175 genuine scholarly PDFs. Compilation,
+all-page text bounds and exact-example reproduction pass. Q2–Q4 are renewed
+for this reader. Q1 coverage/depth, Q5 sponsor coherence and rendered visual
+acceptance remain open; no mandatory manuscript repair is declared closed.
+
+Continue `SW.DECISION.inherited_datahub`: resolve the mutable inherited catalog
+lead into a pinned source/license/dependency review, distinguish lineage and
+metadata from causal assumptions and availability clocks, and specify a bounded
+conversion/failure oracle before granting any integration permission. An
+unavailable source blocks only that branch. Continue the next eligible operation
+after recording its scoped outcome. The recovered S2 baseline is commit
+`22858da80fbfe32d5bf0ea6bdcc3c834c9e5fa49`; this commercial successor is ready
+for repository publication. No unattended worker is running.
+
+## Preserved reviewed discovery synthesis
 
 The recovered program has recorded **114 of 376 proposal operations**. The
 current working reader is [845 pages](../../causal_proposal_discovery_synthesis_2026-10-16.pdf),
