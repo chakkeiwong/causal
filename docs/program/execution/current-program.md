@@ -4,7 +4,37 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: reviewed reporting and monitoring synthesis
+## Current continuation: reviewed variable meaning and ontology
+
+The program has recorded **118 of 376 proposal operations**. The current
+working reader is [871 pages](../../causal_proposal_ontology_2026-10-17.pdf),
+SHA-256 `6ab9e324ceb5e757c61fb32daed608d9244af6b1153f30cc97eba4c9ed65727d`.
+Chapter 36, printed pages 415–421 (physical 435–441), connects the thirty-day
+support-offer question to measured and latent constructs, original observations,
+entity aggregation, units, availability and selection. Ten primary-paper
+comparisons, five additional pinned source originals and current local schemas
+support a bounded ontology and extraction proposal.
+
+Six new genuine papers resolve six mapped candidates; two original routes
+remain unresolved. OntoURL score inconsistencies and exact modified-edition
+uncertainty remain explicit. Six exact authored families reproduce differential
+measurement, household weighting, units, clocks, selective notes and document
+identity. All 677 inherited records, citation contexts and compiled sources
+remain; the reader has 686 audited records and 185 genuine scholarly PDFs.
+Compilation, all-page text bounds, source traceability and arithmetic pass.
+Q2–Q4 are renewed for this reader; Q1 coverage/depth, Q5 sponsor coherence and
+rendered visual acceptance remain open. No mandatory repair is declared closed.
+
+Continue `SW.CELL.discovery_temporal_interventional.other_relevant` under the
+[reviewed plan](2026-10-17/other-temporal/plan.md). Thirteen pinned original
+files and six bounded ecosystem searches have been acquired for Julia, Rust
+and MATLAB temporal/interventional paths. Preserve predictive versus causal
+meaning, clocks and regimes; keep incomplete coverage and runtime/rights
+qualification explicit. The reporting predecessor is pushed and independently
+verified at `d5b281ada6e559178df95b3646c8b72332f834b9`. This ontology successor
+is ready for repository publication. No unattended worker is running.
+
+## Preserved reviewed reporting and monitoring synthesis
 
 The program has recorded **117 of 376 proposal operations**. The current
 working reader is [862 pages](../../causal_proposal_reporting_v2_2026-10-17.pdf),
