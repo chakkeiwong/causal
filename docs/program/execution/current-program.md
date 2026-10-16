@@ -4,7 +4,37 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: longitudinal policy synthesis
+## Current continuation: recovered native temporal comparison
+
+The recovered program has recorded 111 of 376 proposal operations. The current
+working reader is [833 pages](../../causal_proposal_cxx_temporal_v2_2026-10-16.pdf),
+SHA-256 `325628c15eaba9956b9a7399f8649b3e55294f2d38ac8ec2218a0f74748f7d37`. Printed pages 298–304 compare
+pcalg, aGrUM, Mocapy++, sDBN and BayesNetty with conditional reuse decisions.
+Thirty-eight new original files match retrieval hashes and pinned Git blobs;
+two inherited license originals and the genuine GIES paper support the review.
+Five exact reference families distinguish regimes, intercepts, dependent rows,
+state identity and graph constraints. Mocapy license discrepancies and sDBN
+output-channel/constraint concerns remain explicit, with concrete prototype
+remedies. No upstream execution or integration capability is claimed.
+
+The software-cell outcome is bounded inconclusive: thirty returned leads and
+aliases are retained, but omitted native candidates and limited search depth
+remain open. All 649 earlier citation records and contexts survive; the reader
+contains 656 records and 175 genuine scholarly PDFs. Compilation has no material
+warnings and all-page text bounds pass. Q2–Q4 pass for this exact reader;
+Q1 coverage/depth, Q5 sponsor coherence and rendered visual acceptance remain
+open. The initial candidate, citation-spacing defect and extraction phrase-check
+failure are preserved in the successor repair record.
+
+Continue `IN.REQ.library_cli_mcp_semantic_parity`: bind current source and
+historical demonstrations, freeze a bounded local cross-transport comparison,
+execute where the existing runtime permits, and specify remaining scientific,
+transport and owner acceptance cases. Missing external acceptance does not
+block this proposal review. The six-preview session allowance remains exhausted;
+no further images or unattended worker are used. Remote main was independently
+verified at `e8e055e2e6dcff881fe8224d3549121353390ae9` before this publication.
+
+## Preserved longitudinal policy synthesis
 
 The program has recorded 110 of 376 proposal operations. The current working
 reader is [827 pages](../../causal_proposal_longitudinal_policy_2026-10-16.pdf),
