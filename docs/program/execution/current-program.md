@@ -4,7 +4,46 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: reviewed variable meaning and ontology
+## Current continuation: recovered temporal software comparison
+
+The program has recorded **119 of 376 proposal operations**. The current
+working reader is [879 pages](../../causal_proposal_other_temporal_2026-10-17.pdf),
+SHA-256 `88c8169c632060126c4a430df2df22922fea217069988965c89e9a0548cb0bd0`.
+Section 24.30, printed pages 312–319 (physical 332–339), compares
+Associations.jl, varlingam-rs, BNT, MVGC1, TRENTOOL3 and CD-NOD. Forty
+pinned original files, inherited license originals, two new genuine papers
+and the inherited structural-VAR paper support the source-specific findings.
+Six exact authored families distinguish calendar information, structural
+lags, units, finite ranks, supplied-model interventions and changing eras.
+
+The crash recovery retained the completed acquisitions, source review and
+mathematics rather than starting them again. The manuscript now distinguishes
+CD-NOD's classical soft-intervention definition from its explicit broader
+extension. All 686 inherited records, compiled sources and citation-context
+multisets remain; the reader has 696 audited records and 187 genuine scholarly
+PDFs. Compilation, all-page text bounds, traceability and exact replay pass.
+Q2–Q4 are renewed for this reader; Q1 coverage/depth, Q5 sponsor coherence
+and rendered visual acceptance remain open. No mandatory repair is closed.
+
+The software-cell outcome is **inconclusive**: all 43 returned entries and
+aliases survive, with ten concrete omission/remedy routes. Selected package
+semantics have useful comparison and prototype routes; broader coverage,
+complete dependency rights, actual engines and temporal calibration remain
+unqualified. Unknown confounding requires justified information or narrower
+claims. The [review and publication](2026-10-17/other-temporal/publication/release-source-review.json)
+preserve the observed failures, repairs and exact evidence.
+
+Continue `IN.REQ.long_jobs_resume_cancel`, followed by the independently ready
+shared-operation and version-negotiation requirements. Inspect the current
+local implementation and pinned protocol originals, preserve terminal and
+failure semantics, and develop bounded public/generated acceptance cases.
+Group related substantive integration material for the reader while retaining
+separate operation receipts. Do not wait for target-platform owners or treat
+publication as a stopping point. The ontology predecessor is pushed and
+independently remote-verified at `677f01acbb0aacbe0319aabd21d94205d32bae8b`.
+No unattended worker is running.
+
+## Preserved reviewed variable meaning and ontology
 
 The program has recorded **118 of 376 proposal operations**. The current
 working reader is [871 pages](../../causal_proposal_ontology_2026-10-17.pdf),
@@ -31,8 +70,9 @@ files and six bounded ecosystem searches have been acquired for Julia, Rust
 and MATLAB temporal/interventional paths. Preserve predictive versus causal
 meaning, clocks and regimes; keep incomplete coverage and runtime/rights
 qualification explicit. The reporting predecessor is pushed and independently
-verified at `d5b281ada6e559178df95b3646c8b72332f834b9`. This ontology successor
-is ready for repository publication. No unattended worker is running.
+verified at `d5b281ada6e559178df95b3646c8b72332f834b9`. The ontology successor
+was pushed and remote-verified at `677f01acbb0aacbe0319aabd21d94205d32bae8b`.
+No unattended worker is running.
 
 ## Preserved reviewed reporting and monitoring synthesis
 

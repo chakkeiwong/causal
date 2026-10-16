@@ -1,0 +1,273 @@
+//! Vector Autoregression (VAR) model estimation
+//!
+//! Estimates coefficients for: X_t = M_1 * X_{t-1} + ... + M_p * X_{t-p} + e_t
+//!
+//! Uses OLS with efficient matrix operations via nalgebra.
+
+use super::utils::{ols_multi, residuals};
+use nalgebra::{DMatrix, DVector};
+use rayon::prelude::*;
+
+/// VAR model estimation result
+#[derive(Clone, Debug)]
+pub struct VarResult {
+    /// Coefficient matrices [M_1, M_2, ..., M_p] where M_i is (n_features x n_features)
+    pub coefs: Vec<DMatrix<f64>>,
+    /// Number of lags used
+    pub lags: usize,
+    /// Residuals (n_samples - lags, n_features)
+    pub residuals: DMatrix<f64>,
+    /// Information criteria for model selection
+    pub aic: f64,
+    pub bic: f64,
+}
+
+/// Build design matrix for VAR estimation
+///
+/// Creates X matrix with lagged values:
+/// X[t] = [x_{t-1}, x_{t-2}, ..., x_{t-p}] flattened
+///
+/// # Arguments
+/// * `data` - Original time series (n_samples x n_features)
+/// * `lags` - Number of lags
+///
+/// # Returns
+/// * (design_matrix, target_matrix)
+pub fn build_var_matrices(data: &DMatrix<f64>, lags: usize) -> (DMatrix<f64>, DMatrix<f64>) {
+    let n_samples = data.nrows();
+    let n_features = data.ncols();
+    let n_obs = n_samples - lags;
+
+    // Design matrix: each row has all lagged values
+    let mut x = DMatrix::zeros(n_obs, n_features * lags);
+    let mut y = DMatrix::zeros(n_obs, n_features);
+
+    for t in lags..n_samples {
+        let row_idx = t - lags;
+
+        // Target: X_t
+        y.set_row(row_idx, &data.row(t));
+
+        // Predictors: [X_{t-1}, X_{t-2}, ..., X_{t-p}]
+        for lag in 1..=lags {
+            let start_col = (lag - 1) * n_features;
+            for j in 0..n_features {
+                x[(row_idx, start_col + j)] = data[(t - lag, j)];
+            }
+        }
+    }
+
+    (x, y)
+}
+
+/// Fit VAR model with specified number of lags
+///
+/// # Arguments
+/// * `data` - Time series data (n_samples x n_features)
+/// * `lags` - Number of lags
+///
+/// # Returns
+/// * VarResult with coefficients and residuals
+pub fn fit_var(data: &DMatrix<f64>, lags: usize) -> VarResult {
+    let n_features = data.ncols();
+    let (x, y) = build_var_matrices(data, lags);
+
+    // OLS estimation: B = (X'X)^(-1) X'Y
+    let coefs_flat = ols_multi(&x, &y);
+
+    // Reshape into lag matrices
+    let mut coefs = Vec::with_capacity(lags);
+    for lag in 0..lags {
+        let start_row = lag * n_features;
+        let m = coefs_flat
+            .rows(start_row, n_features)
+            .transpose()
+            .into_owned();
+        coefs.push(m);
+    }
+
+    // Compute residuals
+    let resid = residuals(&x, &y, &coefs_flat);
+
+    // Information criteria
+    let n_obs = x.nrows() as f64;
+    let n_params = (n_features * n_features * lags) as f64;
+
+    // Log-likelihood approximation (assuming Gaussian errors)
+    let sse: f64 = resid.iter().map(|r| r * r).sum();
+    let sigma2 = sse / (n_obs * n_features as f64);
+    let log_likelihood =
+        -0.5 * n_obs * n_features as f64 * (1.0 + (2.0 * std::f64::consts::PI * sigma2).ln());
+
+    let aic = -2.0 * log_likelihood + 2.0 * n_params;
+    let bic = -2.0 * log_likelihood + n_params * n_obs.ln();
+
+    VarResult {
+        coefs,
+        lags,
+        residuals: resid,
+        aic,
+        bic,
+    }
+}
+
+/// Fit VAR model with automatic lag selection using BIC
+///
+/// # Arguments
+/// * `data` - Time series data (n_samples x n_features)
+/// * `max_lags` - Maximum number of lags to try
+/// * `criterion` - "aic" or "bic"
+///
+/// # Returns
+/// * VarResult with optimal lags (defaults to 1 lag if insufficient samples)
+pub fn fit_var_auto(data: &DMatrix<f64>, max_lags: usize, criterion: &str) -> VarResult {
+    let min_samples = max_lags + 10;
+
+    // Handle insufficient samples gracefully: use available lags or minimum 1
+    let effective_max_lags = if data.nrows() < min_samples {
+        // Use at most (n_samples - 10) lags, minimum 1
+        (data.nrows().saturating_sub(10)).max(1)
+    } else {
+        max_lags
+    };
+
+    // Try all lag values in parallel
+    let results: Vec<VarResult> = (1..=effective_max_lags)
+        .into_par_iter()
+        .map(|lags| fit_var(data, lags))
+        .collect();
+
+    // Select best based on criterion
+    // Handle NaN in scores by treating them as infinite (worst)
+    // Fallback to 1 lag
+
+    results
+        .into_iter()
+        .min_by(|a, b| {
+            let score_a = if criterion == "aic" { a.aic } else { a.bic };
+            let score_b = if criterion == "aic" { b.aic } else { b.bic };
+
+            // Handle NaN: treat NaN as f64::INFINITY (worst score)
+            let score_a = if score_a.is_nan() {
+                f64::INFINITY
+            } else {
+                score_a
+            };
+            let score_b = if score_b.is_nan() {
+                f64::INFINITY
+            } else {
+                score_b
+            };
+
+            score_a
+                .partial_cmp(&score_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or_else(|| fit_var(data, 1))
+}
+
+/// Compute one-step-ahead forecasts
+///
+/// # Arguments
+/// * `data` - Historical data
+/// * `coefs` - VAR coefficient matrices
+///
+/// # Returns
+/// * Forecast vector
+pub fn forecast_one_step(data: &DMatrix<f64>, coefs: &[DMatrix<f64>]) -> DVector<f64> {
+    let n_features = data.ncols();
+    let t = data.nrows();
+
+    let mut forecast = DVector::zeros(n_features);
+
+    for (lag_idx, m) in coefs.iter().enumerate() {
+        let lag = lag_idx + 1;
+        if t >= lag {
+            let x_lag = data.row(t - lag).transpose();
+            forecast += m * x_lag;
+        }
+    }
+
+    forecast
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nalgebra::dmatrix;
+
+    #[test]
+    fn test_build_var_matrices() {
+        // Simple 2D time series
+        let data = dmatrix![
+            1.0, 2.0;
+            2.0, 3.0;
+            3.0, 4.0;
+            4.0, 5.0;
+            5.0, 6.0
+        ];
+
+        let (x, y) = build_var_matrices(&data, 2);
+
+        // With 2 lags and 5 samples, we get 3 observations
+        assert_eq!(x.nrows(), 3);
+        assert_eq!(y.nrows(), 3);
+
+        // Design matrix has 2 lags * 2 features = 4 columns
+        assert_eq!(x.ncols(), 4);
+
+        // Target has 2 features
+        assert_eq!(y.ncols(), 2);
+
+        // First observation: X[2] predicted by X[1], X[0]
+        assert_eq!(y[(0, 0)], 3.0); // X_2[0] = 3
+        assert_eq!(x[(0, 0)], 2.0); // X_1[0] = 2
+        assert_eq!(x[(0, 2)], 1.0); // X_0[0] = 1
+    }
+
+    #[test]
+    fn test_fit_var_simple() {
+        // AR(1) process: X_t = 0.5 * X_{t-1} + e_t
+        // Use PRNG noise for reproducibility
+        let n = 500;
+        let mut data = DMatrix::zeros(n, 1);
+        data[(0, 0)] = 0.0;
+
+        let mut rng_state: u64 = 42;
+        for t in 1..n {
+            // Simple LCG for reproducible noise
+            rng_state = rng_state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let noise = ((rng_state >> 33) as f64 / (1u64 << 31) as f64 - 0.5) * 0.5;
+            data[(t, 0)] = 0.5 * data[(t - 1, 0)] + noise;
+        }
+
+        let result = fit_var(&data, 1);
+
+        assert_eq!(result.lags, 1);
+        assert_eq!(result.coefs.len(), 1);
+
+        // Coefficient should be close to 0.5
+        let coef = result.coefs[0][(0, 0)];
+        assert!((coef - 0.5).abs() < 0.15, "Expected ~0.5, got {}", coef);
+    }
+
+    #[test]
+    fn test_fit_var_auto() {
+        // Generate some data
+        let n = 200;
+        let mut data = DMatrix::zeros(n, 2);
+
+        for t in 0..n {
+            data[(t, 0)] = (t as f64 * 0.1).sin();
+            data[(t, 1)] = (t as f64 * 0.1).cos();
+        }
+
+        let result = fit_var_auto(&data, 5, "bic");
+
+        // Should select some reasonable number of lags
+        assert!(result.lags >= 1);
+        assert!(result.lags <= 5);
+    }
+}
