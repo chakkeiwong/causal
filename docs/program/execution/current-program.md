@@ -4,7 +4,40 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: recovered interface evidence
+## Current continuation: reviewed discovery synthesis
+
+The recovered program has recorded **114 of 376 proposal operations**. The
+current working reader is [845 pages](../../causal_proposal_discovery_synthesis_2026-10-16.pdf),
+SHA-256 `be6978c434cf91b668f7a3dd5cdf5cff71f716abf795a4f1efafe0608973dba0`.
+Chapter 19, printed pages 173–180, connects independent, latent, temporal and
+experimental discovery to banking decisions. Exact authored examples distinguish
+cancellation, observational equivalence, intervention measurements, selection,
+decision criteria and outcome horizons. No new upstream or bank experiment is
+claimed.
+
+The S2 author review assigns 16.5 nonduplicate substantive page equivalents
+across the new synthesis and explicitly selected inherited discovery sections.
+The 16-page minimum is met; the 20-page planning target remains unmet. Repeated
+arguments, catalogs, common survey/qualification prose and integration material
+are excluded. This chapter review does not close the broader software census
+or MR01. Its source-specific omissions and proposed remedies remain explicit.
+
+All 658 earlier citation records, compiled content and citation contexts survive;
+the reader contains 660 records and 175 genuine scholarly PDFs. Compilation and
+all-page text bounds pass. Q2–Q4 are renewed for this exact reader. Q1 coverage
+and depth, Q5 sponsor coherence and rendered visual acceptance remain open.
+The inherited six-preview allowance is exhausted; no new image payload is used.
+
+Continue `SW.CELL.policies_offpolicy.commercial`: inspect the saved commercial
+candidate evidence and cutoff-compatible official technical sources; compare
+fixed-policy evaluation, policy learning and unknown-optimum claims, logging,
+support, hidden-state assumptions and dynamic-servicing consequences. Preserve
+unresolved sources and capability claims with concrete revisit routes, record a
+bounded verdict, and continue the next eligible lane. The recovered interface
+release was pushed and remote-verified at
+`98f6ece42c7d43d01747af9590844927d488253c`. No unattended worker is running.
+
+## Preserved recovered interface evidence
 
 The recovered program has recorded 112 of 376 proposal operations. The current
 working reader is [836 pages](../../causal_proposal_semantic_parity_2026-10-16.pdf),
