@@ -4,7 +4,44 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: longitudinal chapter recovered, reviewed and integrated
+## Current continuation: panel chapter recovered, reviewed and integrated
+
+The program has recorded **131 of 376 proposal operations**. The working
+reader is [963 pages](../../causal_proposal_panels_reviewed_v2_2026-10-17.pdf),
+SHA-256 `f8e55ae180ecdb48032d5b4ef13f3f42942e943b709e2445871e58b9186eb515`.
+Recovery verified the completed compilation, finished the saved publication
+and renewed Q2–Q4 on this exact reader. Chapter 23, printed pages 236–258
+(physical 257–279), develops heterogeneous event-time projections, sharp
+trend budgets, donor/calendar uncertainty, joint unit/time oracle weights and
+whole feedback-policy values with action expenses and convergence limits.
+
+The initial 10.25-page depth failure and 957-page candidate remain preserved.
+The reviewed successor has **14.75 exclusive substantive page equivalents**,
+meeting the minimum of 14; the planning target of 17 remains unmet. All 712
+canonical records and citation-context multisets survive; all 716 first-candidate
+records remain unchanged. The reader contains 717 audited records and 188
+genuine scholarly PDFs. Primary excerpts, exact reference calculations,
+equations 23.1–23.62, compilation, traceability and all-page text bounds pass.
+Visual acceptance remains false under the inherited image limit.
+
+The [release review](2026-10-17/s6/publication-v2/release-source-review.json)
+and [depth review](../comprehensive-v14/work/TEXT.REVIEW.S6/chapter-review.json)
+retain the restrictions and failures. Fixed oracle weights do not qualify
+learned weights. The supplied structural sensitivity range does not identify
+bank behavior, and exact monetary examples do not establish bank ROI. Q1
+coverage/depth, Q5 sponsor coherence, all three mandatory manuscript repairs
+and overall proposal acceptance remain open.
+
+Continue **TEXT.DRAFT.S7**, observation, sensitivity, transport and network
+software, against its exclusive 8/9/11-page allocation. Develop observation
+uncertainty jointly with policy exposure and transport; exclude duplicate
+credit for inherited missingness, linkage, generic sensitivity and the earlier
+network catalog. Inspect primary technical originals, derive exact examples
+and review a concrete plan before drafting. Record this release's pushed Git
+identity. No unattended worker is running; publication preserves a checkpoint
+and eligible execution continues.
+
+## Preserved longitudinal chapter recovered, reviewed and integrated
 
 The program has recorded **129 of 376 proposal operations**. The current
 working reader is [939 pages](../../causal_proposal_longitudinal_reviewed_v3_2026-10-17.pdf),
