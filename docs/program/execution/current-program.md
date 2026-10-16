@@ -4,7 +4,36 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: crash recovery and commercial policy comparison
+## Current continuation: reviewed DataHub reference decision
+
+The program has recorded **116 of 376 proposal operations**. The current
+working reader is [855 pages](../../causal_proposal_datahub_2026-10-16.pdf),
+SHA-256 `424e75bc0da456b56e77cb65c624d8b76626cd5199735492b4f34730eda2ebe0`.
+Chapter 31, printed pages 377–381 (physical 396–400), develops catalog context,
+causal ambiguity, historical feature clocks and a bounded metadata export.
+Sixteen originals match retrieval SHA-256 and Git blob identities at revision
+`2b17746ac0fd46ebe86505646250975197d7347a`, dated within the client cutoff.
+Four exact generated reference families and five missing-context cases clarify
+the conversion contract. The decision is **reference**; no integration_allowed
+capability, SDK/server execution or bank truth is claimed.
+
+All 666 predecessor records, citation contexts and compiled content remain;
+the reader has 670 audited records and 175 genuine scholarly PDFs. Build,
+all-page text bounds and exact-example reproduction pass. Q2–Q4 are renewed
+for this reader; Q1 coverage/depth, Q5 sponsor coherence and rendered visual
+acceptance remain open. Complete package/dependency rights, actual SDK/server
+behavior and separate Cloud/MCP packages have concrete successor routes in
+the [reference decision](../comprehensive-v14/work/SW.DECISION.inherited_datahub/decision.json).
+
+Continue `LL.TASK.reporting_monitoring`: reassess the inherited primary papers
+and package paths; develop fixed-result reporting, assumption/source/version
+invalidation, monitoring ownership and bounded banking examples. Keep reported
+literature findings, actual local behavior, proposed remedies and live-model
+claims distinct. The commercial comparison was pushed and remote-verified at
+`779bf3fe90dbe4b7a629afaf771a17300fa2cfce`; the DataHub successor is ready for
+repository publication. No unattended worker is running.
+
+## Preserved crash recovery and commercial policy comparison
 
 The program has recorded **115 of 376 proposal operations**. The current
 working reader is [850 pages](../../causal_proposal_commercial_policy_2026-10-16.pdf),
