@@ -4,7 +4,32 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: latent and temporal discovery
+## Current continuation: crash recovery and Java temporal discovery
+
+Recovery on 16 October 2026 preserved the ledger and the interrupted compiler
+logs. The program has recorded 104 of 376 proposal operations. The current
+working reader is [804 pages](../../causal_proposal_java_temporal_v3_2026-10-16.pdf),
+SHA-256 `95e54d7490c9042b6657f6320102aa62fe040961e8497f30524cbba7588caffd`.
+The Java temporal/interventional review is integrated on printed pages 290–295.
+Thirty-one pinned original source/document blobs support six repository
+decisions, nineteen candidate/alias dispositions and nine exact reference
+families. These distinguish physical clocks, series boundaries, dependent
+uncertainty, score weights, financial targets and interventions. The review
+records conditional reuse paths and concrete prototype repairs; no native Java
+execution or complete software census is claimed. Its coverage outcome is
+inconclusive, with technical and omissions criteria passing.
+
+All 626 inherited citation records and citation contexts remain; the reader
+contains 634 records and 175 genuine scholarly PDFs. The recovered successor
+compiled without material warnings and passed source, mathematical and
+all-page text-bounds checks. Q2–Q4 reviews are renewed for this exact reader;
+Q1/Q5 and visual acceptance remain open. The exhausted six-image allowance
+under `/home/ubuntu/AGENTS.md` limits visual inspection only. Continue
+`IN.REQ.graph_and_set_topology`: reproduce graph-class, coordinate-identity,
+set-topology and cross-language counterexamples, then integrate the proposed
+acceptance contract. No background worker is running.
+
+## Preserved latent and temporal discovery continuation
 
 The active continuation has recorded 103 of 376 proposal operations. The
 current working reader is [799 pages](../../causal_proposal_latent_temporal_2026-10-15.pdf),
