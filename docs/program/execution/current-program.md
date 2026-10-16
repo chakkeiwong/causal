@@ -4,7 +4,31 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: recovered commercial survival comparison
+## Current continuation: DAGMA reference decision
+
+The program has recorded 109 of 376 proposal operations. The current working
+reader is [821 pages](../../causal_proposal_dagma_2026-10-16.pdf), SHA-256
+`0eba7a72c3c0cbd1d570389a19892af48e680ddad46a9bee59da981a90a2a221`.
+Printed pages 230–233 integrate the original Python DAGMA reference decision.
+Five source blobs match the pinned tree; seven actual bounded linear-module
+cases expose input mutation, constraint validation, cyclic finite output and
+diagnostic identity. Domain/gradient, unit-transform and nonlinear signed-value
+references explain the proposed adapter obligations. The decision grants no
+integration capability. Complete distribution/dependency closure, nonlinear
+execution, calibration and later bank acceptance remain open.
+
+All 643 inherited source records and citation uses remain; the reader has
+646 records and 175 genuine scholarly PDFs. Compilation has no material
+warnings and all-page text bounds pass. Q2–Q4 are renewed for this exact
+reader; Q1 and Q5 remain open. An initial insertion-point error was preserved
+and corrected before compilation in a separate successor preparation.
+Continue `LL.TASK.longitudinal_policy`: reconcile the earlier missing-evidence
+claim with later CausalCollab and adjacent primary sources, develop the
+longitudinal target/clock/assignment and failure contract, and preserve
+unresolved implementation/search limits. Recovery commit `0922e0b1` was
+pushed and remote-verified. No background worker is running.
+
+## Preserved recovered commercial survival comparison
 
 The recovered ledger has recorded 108 of 376 proposal operations. The current
 working reader is [818 pages](../../causal_proposal_commercial_matrix_2026-10-16.pdf),

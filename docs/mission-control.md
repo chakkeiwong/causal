@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**108 / 376 proposal operations have recorded outcomes; 227 are ready.** Next: **SW.DECISION.inherited_dagma**.
+**109 / 376 proposal operations have recorded outcomes; 226 are ready.** Next: **LL.TASK.longitudinal_policy**.
 
-Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+Develop the explicit longitudinal target/clock/assignment contract in LA02/LA04, retain missing primary implementation evidence and the failed targeted searches, and do not invent a working package. Reassess the relevant unresolved candidates, conflicting results and full package paths; keep documented search failures.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_commercial_matrix_2026-10-16.pdf) — 818 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_dagma_2026-10-16.pdf) — 821 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 
