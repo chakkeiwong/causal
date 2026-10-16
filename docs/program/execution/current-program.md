@@ -4,7 +4,31 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: matched software qualification
+## Current continuation: recovered commercial survival comparison
+
+The recovered ledger has recorded 108 of 376 proposal operations. The current
+working reader is [818 pages](../../causal_proposal_commercial_matrix_2026-10-16.pdf),
+SHA-256 `6699674b56af4b24d7bce9799fae3c582893617dff6be379d72eb050603378e5`.
+Printed pages 325–326 integrate the nine-family commercial comparison against
+observed local behavior and proposed profiles. Fourteen official originals
+support eight families; MATLAB originals, some exact editions, entitlements,
+prices and vendor runtime evidence remain unresolved. The operation is
+recorded inconclusive, with concrete revisit triggers. Three local method
+dispatch probes returned `unsupported`; these are not vendor benchmarks.
+
+The interrupted compiler completed without a replacement build. All 641 prior
+citation records and their contexts remain; the reader has 643 records and
+175 genuine scholarly PDFs. Source and all-page text-boundary checks pass.
+Q2–Q4 are renewed for this exact reader. Q1 coverage/depth and Q5 sponsor and
+rendered acceptance remain open. The six-preview session allowance in
+`/home/ubuntu/AGENTS.md` is exhausted and limits visual inspection only.
+Continue `SW.DECISION.inherited_dagma`: inspect the saved pinned source,
+license, dependencies and primary paper; review target, output and failure
+semantics against a behavioral oracle; decide reuse without implying an
+implemented adapter. The preceding qualification release was pushed at
+`662d430e`. No background worker is running.
+
+## Preserved matched software qualification continuation
 
 The program has recorded 107 of 376 proposal operations. The current working
 reader is [816 pages](../../causal_proposal_qualification_2026-10-16.pdf),
