@@ -4,7 +4,31 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: graph and set topology
+## Current continuation: matched software qualification
+
+The program has recorded 107 of 376 proposal operations. The current working
+reader is [816 pages](../../causal_proposal_qualification_2026-10-16.pdf),
+SHA-256 `62e341613501ab9dc493b4c460625edfdfd015dee177095df673ec89989bb79a`.
+Chapter 30, printed pages 353–359, develops matched qualification and
+build/buy/integrate decisions. Four exact authored families cover paired
+outcomes, fixed-sample failure bounds, numerical decision tolerances and
+maintenance-adjusted bridge/port costs. All figures are stipulated; no native
+package comparison, vendor pricing or bank ROI is claimed. The author review
+credits four nonduplicate substantive pages against the 4/6/7 allocation.
+The minimum is met; the six-page planning target is explicitly not claimed.
+
+All 639 inherited citation records and contexts remain; the reader contains
+641 records and 175 genuine scholarly PDFs. Source, mathematical and all-page
+text-bounds checks pass without material warnings. Q2–Q4 pass for this exact
+reader; whole-manuscript coverage/depth, sponsor reconciliation and rendered
+visual acceptance remain open. Continue `SW.COMM.longitudinal_survival`: bind
+the saved commercial source survey to edition-specific proposed/current
+capability comparisons, preserve missing vendor evidence and unknown prices,
+and continue other eligible work after a scoped outcome. The topology milestone
+was pushed and remote-verified at `c069b84b9a9d46274acc119b88aef9ff82776636`.
+No background worker is running.
+
+## Preserved graph and set topology continuation
 
 The recovered program has recorded 105 of 376 proposal operations. The current
 working reader is [809 pages](../../causal_proposal_topology_2026-10-16.pdf),
