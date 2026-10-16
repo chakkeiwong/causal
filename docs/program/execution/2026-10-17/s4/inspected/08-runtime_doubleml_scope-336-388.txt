@@ -1,0 +1,53 @@
+            )
+            _check_finite_predictions(m_hat["preds"], self._learner["ml_m"], "ml_m", smpls)
+
+        m_hat["preds"] = self._ps_processor.adjust_ps(m_hat["preds"], d, cv=smpls, learner_name="ml_m")
+
+        psi_a, psi_b = self._score_elements(y, d, g_hat0["preds"], g_hat1["preds"], m_hat["preds"], smpls)
+        psi_elements = {"psi_a": psi_a, "psi_b": psi_b}
+        preds = {
+            "predictions": {"ml_g0": g_hat0["preds"], "ml_g1": g_hat1["preds"], "ml_m": m_hat["preds"]},
+            "targets": {"ml_g0": g_hat0["targets"], "ml_g1": g_hat1["targets"], "ml_m": m_hat["targets"]},
+            "models": {"ml_g0": g_hat0["models"], "ml_g1": g_hat1["models"], "ml_m": m_hat["models"]},
+        }
+
+        return psi_elements, preds
+
+    def _score_elements(self, y, d, g_hat0, g_hat1, m_hat, smpls):
+        m_hat_adj = _propensity_score_adjustment(
+            propensity_score=m_hat, treatment_indicator=d, normalize_ipw=self.normalize_ipw
+        )
+
+        # compute residuals
+        u_hat0 = y - g_hat0
+        u_hat1 = y - g_hat1
+
+        if (self.score == "ATE") or (self.score == "ATTE"):
+            weights, weights_bar = self._get_weights(m_hat=m_hat_adj)
+            psi_b = weights * (g_hat1 - g_hat0) + weights_bar * (
+                np.divide(np.multiply(d, u_hat1), m_hat_adj) - np.divide(np.multiply(1.0 - d, u_hat0), 1.0 - m_hat_adj)
+            )
+            psi_a = -1.0 * np.divide(weights, np.mean(weights))
+        else:
+            assert callable(self.score)
+            psi_a, psi_b = self.score(y=y, d=d, g_hat0=g_hat0, g_hat1=g_hat1, m_hat=m_hat_adj, smpls=smpls)
+
+        return psi_a, psi_b
+
+    def _sensitivity_element_est(self, preds):
+        # set elments for readability
+        y = self._dml_data.y
+        d = self._dml_data.d
+
+        m_hat = preds["predictions"]["ml_m"]
+        m_hat_adj = _propensity_score_adjustment(
+            propensity_score=m_hat, treatment_indicator=d, normalize_ipw=self.normalize_ipw
+        )
+        g_hat0 = preds["predictions"]["ml_g0"]
+        g_hat1 = preds["predictions"]["ml_g1"]
+
+        # use weights make this extendable
+        weights, weights_bar = self._get_weights(m_hat=m_hat_adj)
+
+        sigma2_score_element = np.square(y - np.multiply(d, g_hat1) - np.multiply(1.0 - d, g_hat0))
+        sigma2 = np.mean(sigma2_score_element)

@@ -1,0 +1,90 @@
+  if (method == "AIPW" && target.sample == "all") {
+    # This is the most general workflow, that shares codepaths with best linear projection
+    # and other average effect estimators.
+
+    .sigma2.hat <- function(DR.scores, tau.hat) {
+      correction.clust <- Matrix::sparse.model.matrix(~ factor(subset.clusters) + 0, transpose = TRUE) %*%
+        (sweep(as.matrix(DR.scores), 2, tau.hat, "-") * subset.weights)
+      n.adj <- sum(rowsum(subset.weights, subset.clusters) > 0) # effective number of samples(clusters) is all with > 0 weight.
+
+      Matrix::colSums(correction.clust^2) / sum(subset.weights)^2 *
+        n.adj / (n.adj - 1)
+    }
+
+    if (any(c("causal_forest", "instrumental_forest", "multi_arm_causal_forest", "causal_survival_forest")
+            %in% class(forest))) {
+      DR.scores <- get_scores(forest, subset = subset, debiasing.weights = debiasing.weights,
+                              compliance.score = compliance.score, num.trees.for.weights = num.trees.for.weights)
+    } else {
+      stop("Average treatment effects are not implemented for this forest type.")
+    }
+
+    if ("multi_arm_causal_forest" %in% class(forest)) {
+      tau.hats <- lapply(1:NCOL(forest$Y.orig), function(col) {
+        apply(DR.scores[, , col, drop = FALSE], 2, function(dr) weighted.mean(dr, subset.weights))
+      })
+      sigma2.hats <- lapply(1:NCOL(forest$Y.orig), function(col) {
+        .sigma2.hat(DR.scores[, , col], tau.hats[[col]])
+      })
+      out <- data.frame(
+        estimate = unlist(tau.hats),
+        std.err = sqrt(unlist(sigma2.hats)),
+        contrast = names(unlist(tau.hats)),
+        outcome = dimnames(DR.scores)[[3]][rep(1:NCOL(forest$Y.orig), each = dim(DR.scores)[2])],
+        stringsAsFactors = FALSE
+      )
+      return(out) # rownames will be `contrast` when suitable, allowing a convenient `ate["contrast", "estimate"]` access.
+    } else {
+      tau.hat <- weighted.mean(DR.scores, subset.weights)
+      sigma2.hat <- .sigma2.hat(DR.scores, tau.hat)
+      return(c(estimate = tau.hat, std.err = sqrt(sigma2.hat)))
+    }
+  }
+
+  #
+  #
+  # From here on out, we follow a code path that is specific to causal forests.
+  #
+  #
+
+  if (!("causal_forest" %in% class(forest))) {
+    stop(paste("For any forest type other than causal_forest, the only",
+               "implemented option is method=AIPW and target.sample=all"))
+  }
+
+  # Only use data selected via subsetting.
+  subset.W.orig <- forest$W.orig[subset]
+  subset.W.hat <- forest$W.hat[subset]
+  subset.Y.orig <- forest$Y.orig[subset]
+  subset.Y.hat <- forest$Y.hat[subset]
+  tau.hat.pointwise <- predict(forest)$predictions[subset]
+
+  # Get estimates for the regression surfaces E[Y|X, W=0/1]
+  subset.Y.hat.0 <- subset.Y.hat - subset.W.hat * tau.hat.pointwise
+  subset.Y.hat.1 <- subset.Y.hat + (1 - subset.W.hat) * tau.hat.pointwise
+
+  if (target.sample == "overlap") {
+    validate_sandwich(subset.weights)
+
+    # Address the overlap case separately, as this is a very different estimation problem.
+    # The method argument (AIPW vs TMLE) is ignored in this case, as both methods are effectively
+    # the same here. Also, note that the overlap-weighted estimator generalizes naturally to the
+    # non-binary W case -- see, e.g., Robinson (Econometrica, 1988) -- and so we do not require
+    # W to be binary here.
+
+    W.residual <- subset.W.orig - subset.W.hat
+    Y.residual <- subset.Y.orig - subset.Y.hat
+    tau.ols <- lm(Y.residual ~ W.residual, weights = subset.weights)
+    tau.est <- coef(summary(tau.ols))[2, 1]
+
+    if (cluster.se) {
+      tau.se <- sqrt(sandwich::vcovCL(tau.ols, cluster = subset.clusters)[2, 2])
+    } else {
+      tau.se <- sqrt(sandwich::vcovHC(tau.ols)[2, 2])
+    }
+    return(c(estimate = tau.est, std.err = tau.se))
+  }
+
+  if (!all(forest$W.orig %in% c(0, 1))) {
+    stop(paste("With a continuous treatment, only the options target.sample = {all",
+               "or overlap} and method=AIPW are implemented."))

@@ -1,0 +1,71 @@
+        """Estimate the Average Treatment Effect (ATE).
+
+        Args:
+            X (np.matrix, np.array, pd.DataFrame, pl.DataFrame, or pl.LazyFrame): a feature matrix
+            treatment (np.array, pd.Series, or pl.Series): a treatment vector
+            y (np.array, pd.Series, or pl.Series): an outcome vector
+            bootstrap_ci (bool): whether to return confidence intervals
+            n_bootstraps (int): number of bootstrap iterations
+            bootstrap_size (int): number of samples per bootstrap
+            pretrain (bool): whether a model has been fit, default False.
+        Returns:
+            The mean and confidence interval (LB, UB) of the ATE estimate.
+        """
+        X = collect_if_lazy(X)
+        treatment_np = to_numpy(treatment)
+        y_np = to_numpy(y)
+
+        if pretrain:
+            te, yhat_cs, yhat_ts = self.predict(
+                X, treatment_np, y_np, return_components=True
+            )
+        else:
+            te, yhat_cs, yhat_ts = self.fit_predict(
+                X, treatment_np, y_np, return_components=True
+            )
+
+        ate = np.zeros(self.t_groups.shape[0])
+        ate_lb = np.zeros(self.t_groups.shape[0])
+        ate_ub = np.zeros(self.t_groups.shape[0])
+
+        for i, group in enumerate(self.t_groups):
+            _ate = te[:, i].mean()
+
+            mask = (treatment_np == group) | (treatment_np == self.control_name)
+            treatment_filt = treatment_np[mask]
+            y_filt = y_np[mask]
+            w = (treatment_filt == group).astype(int)
+            prob_treatment = float(sum(w)) / w.shape[0]
+
+            yhat_c = yhat_cs[group][mask]
+            yhat_t = yhat_ts[group][mask]
+
+            se = np.sqrt(
+                (
+                    (y_filt[w == 0] - yhat_c[w == 0]).var() / (1 - prob_treatment)
+                    + (y_filt[w == 1] - yhat_t[w == 1]).var() / prob_treatment
+                    + (yhat_t - yhat_c).var()
+                )
+                / y_filt.shape[0]
+            )
+
+            _ate_lb = _ate - se * norm.ppf(1 - self.ate_alpha / 2)
+            _ate_ub = _ate + se * norm.ppf(1 - self.ate_alpha / 2)
+
+            ate[i] = _ate
+            ate_lb[i] = _ate_lb
+            ate_ub[i] = _ate_ub
+
+        if not bootstrap_ci:
+            return ate, ate_lb, ate_ub
+        else:
+            t_groups_global = self.t_groups
+            _classes_global = self._classes
+            model_c_global = deepcopy(self.model_c)
+            models_t_global = deepcopy(self.models_t)
+
+            logger.info("Bootstrap Confidence Intervals for ATE")
+            ate_bootstraps = np.zeros(shape=(self.t_groups.shape[0], n_bootstraps))
+
+            for n in tqdm(range(n_bootstraps)):
+                ate_b = self.bootstrap(X, treatment_np, y_np, size=bootstrap_size)

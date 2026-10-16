@@ -4,7 +4,43 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: identification chapter reviewed and integrated
+## Current continuation: effects chapter recovered, reviewed and integrated
+
+The program has recorded **127 of 376 proposal operations**. The current
+working reader is [917 pages](../../causal_proposal_effects_reviewed_2026-10-17.pdf),
+SHA-256 `b6d7958ffe308d3c936c510c52e4ba297b62d77683cc0bcec92bf3b8ddac92b8`.
+Crash recovery completed the saved build and the exact-reader Q2–Q4 renewal.
+Chapter 21, printed pages 197–214 (physical 217–234), connects
+assignment-dependent estimands, joint multiarm comparisons, precision design,
+resource allocation, finite-policy evaluation and threshold support restrictions.
+
+The initial eight-page depth failure and unpublished 912-page candidate remain
+preserved. The extension brings exclusive substantive credit to 12, meeting
+the minimum of 10 while leaving the planning target of 14 unmet. Seven initial
+and five extension exact reference families reproduce with separate author
+checks. All 703 canonical and 706 initial-candidate records and citation-context
+multisets survive; the current reader has 707 audited records and 187 genuine
+scholarly PDFs. Compilation, traceability, equations and all-page text bounds
+pass. These are scoped proposal findings, not new package or bank experiments.
+
+The [release review](2026-10-17/s4/publication-v2/release-source-review.json)
+and [chapter-depth review](../comprehensive-v14/work/TEXT.REVIEW.S4/chapter-review.json)
+preserve the failed attempt, exact restrictions and remaining limitations.
+Q1 coverage/depth, Q5 sponsor coherence, rendered visual acceptance and all
+three mandatory manuscript repairs remain open. Proposal acceptance and
+product qualification remain false.
+
+Continue **TEXT.DRAFT.S5**: review the longitudinal/survival corpus and develop
+new survival-horizon, competing-event, dynamic-intervention and uncertainty
+comparisons. Preserve the existing g-formula, gradient and sequential remainder
+material without awarding duplicate depth. Review a concrete plan against the
+14/17/20 exclusive allocation before drafting. An unavailable source blocks
+only the claims that need it. The predecessor is pushed and remote-verified at
+`a53935c33c2351e613c3580522bf050b5b71181a`; save this successor's Git identity
+after pushing. No unattended worker is running. Publication preserves a
+checkpoint and eligible execution continues.
+
+## Preserved identification chapter reviewed and integrated
 
 The program has recorded **125 of 376 proposal operations**. The current
 working reader is [899 pages](../../causal_proposal_identification_reviewed_2026-10-17.pdf),

@@ -1,0 +1,79 @@
+
+        self._fit_mask = mask.to_numpy(dtype=bool)
+        self.fit_data = self.data.loc[mask]
+
+        if len(self.fit_data) <= 10:
+            filter_desc = []
+            if self.bandwidth is not np.inf:
+                filter_desc.append(f"bandwidth={self.bandwidth}")
+            if self.donut_hole > 0:
+                filter_desc.append(f"donut_hole={self.donut_hole}")
+            if filter_desc:
+                msg = (
+                    f"Choice of {' and '.join(filter_desc)} parameters has led to only "
+                    f"{len(self.fit_data)} remaining datapoints. "
+                    f"Consider adjusting these parameters."
+                )
+            else:
+                msg = f"Only {len(self.fit_data)} datapoints in the dataset."
+            warnings.warn(msg, UserWarning, stacklevel=2)
+
+        y, X = build_formula_matrices(self.formula, self.fit_data)
+
+        self._y_design_info = y.design_info
+        self._x_design_info = X.design_info
+        self.labels = X.design_info.column_names
+        self._y_raw, self._X_raw = np.asarray(y), np.asarray(X)
+        self.outcome_variable_name = y.design_info.column_names[0]
+
+    def _prepare_data(self) -> None:
+        """Bundle design matrices into an ``xr.Dataset``."""
+        n = self._X_raw.shape[0]
+        self.design = self._build_design_dataset(
+            self._X_raw,
+            self._y_raw,
+            obs_ind=np.arange(n),
+            coeffs=self.labels,
+        )
+        del self._X_raw, self._y_raw
+
+    def _prepare_prediction_grids(self) -> None:
+        """Build the deterministic prediction grids consumed by plotting.
+
+        Draw-independent design-stage artifacts: the running-variable grid
+        behind ``result.predictions`` and the two threshold rows whose
+        expectation contrast defines the discontinuity. Computed once at
+        configure time — never re-assigned per draw group.
+        """
+        if self.bandwidth is not np.inf:
+            fmin = self.treatment_threshold - self.bandwidth
+            fmax = self.treatment_threshold + self.bandwidth
+            xi = np.linspace(fmin, fmax, 200)
+        else:
+            xi = np.linspace(
+                np.min(self.data[self.running_variable_name]),
+                np.max(self.data[self.running_variable_name]),
+                200,
+            )
+        self.x_pred = pd.DataFrame(
+            {self.running_variable_name: xi, "treated": self._is_treated(xi)}
+        )
+        # NOTE: `"treated": np.array([0, 1])`` assumes treatment is applied above
+        # (not below) the threshold
+        self.x_discon = pd.DataFrame(
+            {
+                self.running_variable_name: np.array(
+                    [
+                        self.treatment_threshold - self.epsilon,
+                        self.treatment_threshold + self.epsilon,
+                    ]
+                ),
+                "treated": np.array([0, 1]),
+            }
+        )
+        (new_x,) = build_design_matrices([self._x_design_info], self.x_discon)
+        # Preserve the design rows used for the threshold prediction contrast:
+        # row 0 is below the threshold and row 1 is above it.
+        self.x_discon_design = np.asarray(new_x)
+
+    def _fit_inputs(self) -> tuple[Any, Any, dict[str, Any]]:
