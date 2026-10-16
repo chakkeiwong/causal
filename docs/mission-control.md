@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**109 / 376 proposal operations have recorded outcomes; 226 are ready.** Next: **LL.TASK.longitudinal_policy**.
+**110 / 376 proposal operations have recorded outcomes; 225 are ready.** Next: **SW.CELL.discovery_temporal_interventional.Cxx**.
 
-Develop the explicit longitudinal target/clock/assignment contract in LA02/LA04, retain missing primary implementation evidence and the failed targeted searches, and do not invent a working package. Reassess the relevant unresolved candidates, conflicting results and full package paths; keep documented search failures.
+A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Specify lags, contemporaneous edges, sampling frequency, stationarity, regimes and intervention types; banking example: funding shocks under common calendars.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_dagma_2026-10-16.pdf) — 821 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_longitudinal_policy_2026-10-16.pdf) — 827 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

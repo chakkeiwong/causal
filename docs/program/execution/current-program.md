@@ -4,7 +4,35 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: DAGMA reference decision
+## Current continuation: longitudinal policy synthesis
+
+The program has recorded 110 of 376 proposal operations. The current working
+reader is [827 pages](../../causal_proposal_longitudinal_policy_2026-10-16.pdf),
+SHA-256 `2719b7f383f1dec5bb79f725be7a955bd4de3c0c3c974670e5ea363e75e95901`. Printed pages 490–496 connect six primary papers and 22 verified
+CausalCollab source blobs to dynamic banking policy meaning. Exact authored
+references distinguish text-version mixtures, adaptive rollout, local effects,
+path support and information clocks. Concrete CLI/MCP and public/generated
+prototype requirements are proposed; no live model, upstream execution or
+integration permission is claimed.
+
+All 646 earlier citation records and contexts remain. The reader has 649
+source records and 175 genuine scholarly PDFs. Compilation and all-page text
+bounds pass; Q2–Q4 are renewed for this exact hash. Q1 coverage/depth and Q5
+sponsor/rendered acceptance remain open. The initial authoring tool error,
+optional unavailable PyMuPDF read and rejected publication metadata are
+preserved; the metadata-only successor repaired publication without changing
+PDF bytes or relaxing criteria.
+
+Continue SW.CELL.discovery_temporal_interventional.Cxx: reconcile the saved
+candidate matrix, perform bounded cutoff-compatible native-source searches,
+inspect actual lag/regime semantics and rights, and integrate the comparison
+without equating forecasting or constraints with intervention identification.
+Missing rights/originals block only their branches; other work remains eligible.
+The six-preview session allowance remains exhausted. No background worker
+is running. Remote main was verified at 8bea91d62ea5c91e6ebe5fe591850f432f2bf312
+before this continuation; the new longitudinal work is ready for publication.
+
+## Preserved DAGMA reference decision
 
 The program has recorded 109 of 376 proposal operations. The current working
 reader is [821 pages](../../causal_proposal_dagma_2026-10-16.pdf), SHA-256
