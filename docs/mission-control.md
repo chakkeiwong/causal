@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**119 / 376 proposal operations have recorded outcomes; 218 are ready.** Next: **IN.REQ.long_jobs_resume_cancel**.
+**123 / 376 proposal operations have recorded outcomes; 214 are ready.** Next: **TEXT.DRAFT.S3**.
 
-Retain terminal-state semantics; add whole-workload and target-platform failure measurements after genuine workload input.
+Develop a full identification/counterfactual chapter and typed numerical failure comparisons. Use the currently inspected corpus and reusable examples; incorporate later findings without blocking current scholarly development.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_other_temporal_2026-10-17.pdf) — 879 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_continuity_2026-10-17.pdf) — 883 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

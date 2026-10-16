@@ -4,7 +4,44 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: recovered temporal software comparison
+## Current continuation: recovered integration continuity release
+
+The program has recorded **123 of 376 proposal operations**. The current
+working reader is [883 pages](../../causal_proposal_continuity_2026-10-17.pdf),
+SHA-256 `4a723c1ae31a994251b92d728dd6793e56d60fb5c170dd788231de47143ca92b`.
+The crash left this successor built but unpublished. Recovery verified its
+saved hashes, source records, exact reference calculations and extracted-text
+checks before promoting it into canonical state. No saved runtime trial was
+rerun or represented as a new observation.
+
+Section 46.18, printed pages 645–649 (physical 665–669), develops report
+resumption, publication/cancellation boundaries, shared operations and
+independent version axes. Section 49.12, printed pages 691–692 (physical
+711–712), develops exact-release authentic adoption evidence. Four requirement
+operations have proposal-development outcomes; no runtime repair or capability
+grant follows. All 696 inherited records, 206 compiled sources and citation
+contexts remain. The reader has 699 audited records and 187 genuine scholarly
+PDFs; source, exact arithmetic, compilation and all-page text bounds pass.
+
+The [release review](2026-10-17/integration-continuity/publication/release-source-review.json)
+and [twelve-gap register](2026-10-17/integration-continuity/open-gap-register.json)
+retain clock policy, publication reconciliation, replay error origin, complete
+identity, descriptor/FIFO preflight, operation registry, modern MCP, estimator
+checkpoints, platform scale, authentic adoption, scientific truth and economics.
+Concrete generated/public routes are specified; institutional owners, bank
+truth, accepted thresholds and actual costs remain missing. Q2–Q4 are renewed
+for this exact reader. Q1 coverage/depth, Q5 sponsor coherence and rendered
+visual acceptance remain open. No mandatory manuscript repair is closed.
+
+Continue **TEXT.DRAFT.S3**: assess the inherited identification corpus, develop
+the identification/counterfactual/effect-set chapter with exact banking
+examples and typed numerical-failure comparisons, then review its substantive
+depth and integrate a preserving successor. Public/generated proposal work
+continues while external qualification inputs are absent. The predecessor is
+pushed and remote-verified at `cc96f31e8ad32382668e8c6f40af0ddfbf985e84`.
+No unattended worker is running; publication is a checkpoint, not a phase stop.
+
+## Preserved recovered temporal software comparison
 
 The program has recorded **119 of 376 proposal operations**. The current
 working reader is [879 pages](../../causal_proposal_other_temporal_2026-10-17.pdf),
