@@ -1,0 +1,953 @@
+                                              Diagnosis-Driven Automatic Repair for Agentic
+                                                    Workflow via Symbolic Inference
+                                          Xuyan Ma, Yawen Wang∗ , Junjie Wang∗ , Xiaofei Xie, Boyu Wu, Mingyang Li, Dandan Wang, Qing Wang∗
+
+
+                                           Abstract—Platform-orchestrated agentic workflows have be-                  software engineering assistants [8], and enterprise automation
+                                        come a popular paradigm for developing LLM-based applications.                systems [9].
+                                        However, their reliability remains a major challenge due to the                  Despite their growing adoption, the reliability of agentic
+                                        uncertainty of LLM outputs, complex inter-node dependencies,
+                                        and heterogeneous tool interactions. Existing agentic workflow                workflows remains a concern [10]. Unlike traditional software
+                                        optimization and agent enhancement methods primarily rely                     systems, whose execution is largely governed by explicit control
+                                        on trajectory-level feedback. Without explicitly identifying the              flow and deterministic program logic, agentic workflows exhibit
+                                        underlying failure root causes, their resulting repair plans are              highly dynamic and uncertain behaviors. Such uncertainty arises
+arXiv:2607.02882v1 [cs.SE] 3 Jul 2026
+
+
+
+
+                                        often insufficiently targeted. We propose FlowFixer, a diagnosis-             from probabilistic LLM outputs [11], context-sensitive tool
+                                        driven automated repair framework for agentic workflows.
+                                        FlowFixer first transforms workflow executions into unified                   interactions [12], and implicit coupling between node configu-
+                                        symbolic traces and performs symbolic inference to derive                     rations, intermediate variables, and downstream execution logic
+                                        executable behavioral specifications that capture node correctness,           [13]. As a result, failures are difficult to predict, localize, and
+                                        temporal dependencies, and causal relationships. Based on                     repair, since an error in one node may silently propagate through
+                                        specification verification, it conducts failure attribution and root          the workflow and manifest as a downstream symptom. These
+                                        cause analysis, and then generates targeted repair patches. To
+                                        reduce verification costs, FlowFixer further employs a multi-                 failures substantially hinder the reliability, maintainability, and
+                                        dimensional pre-execution assessment to filter infeasible repairs             deployment readiness of real-world agentic workflows.
+                                        before dynamic verification. We evaluate FlowFixer on workflow                   Program repair has long been a central concern in soft-
+                                        failures collected from three popular development platforms: Dify,            ware engineering [14]. Traditional automated program repair
+                                        Coze and n8n. Results show that FlowFixer achieves a repair                   techniques typically leverage issue descriptions, execution
+                                        success rate of 71.3%, outperforming state-of-the-art baselines
+                                        by 11.9% to 27.6%. It also improves failure attribution accuracy              traces, and test results to localize defective code regions,
+                                        by 4.8% to 33.1% and root cause analysis accuracy by 15.3% to                 generate candidate patches, and validate them against test
+                                        38.8%. This work offers a new perspective on reliable diagnosis               suites [15]–[17]. However, due to the low-code nature of
+                                        and repair of agentic workflows through symbolic modeling and                 agentic workflows, such code-centric repair techniques cannot
+                                        inference.                                                                    be directly applied to them; furthermore, failures in these
+                                           Index Terms—symbolization, inference, agentic workflow, repair.
+                                                                                                                      workflows may stem from prompts, node configurations, inter-
+                                                                                                                      node dependencies, or tool interfaces, rather than from isolated
+                                                                    I. INTRODUCTION                                   source code issues [18], [19]. Therefore, recent studies have
+                                                                                                                      begun to explore repair and optimization techniques for agent
+                                           Large Language Model (LLM)-based agents have rapidly
+                                                                                                                      systems, including prompt evolution [20], [21], workflow
+                                        evolved beyond prompt-based conversational applications into
+                                                                                                                      restructuring [22], [23], trajectory reduction [24], and runtime
+                                        autonomous systems capable of planning, tool use, and multi-
+                                                                                                                      supervision [25]. Most existing techniques formulate agent
+                                        step task execution [1]. Modern development platforms such as
+                                                                                                                      improvement as an optimization problem, using trajectories,
+                                        Dify [2], Coze [3], and n8n [4] have further popularized agentic
+                                                                                                                      feedback, or final task-level metrics to search for improved
+                                        workflows, a node-based construction paradigm in which
+                                                                                                                      system variants. Although such optimizations may result in
+                                        heterogeneous components are connected through explicit
+                                                                                                                      better overall performance, they are often weakly linked to
+                                        control and data dependencies to form executable pipelines.
+                                                                                                                      the root causes of concrete failures, leading to coarse-grained
+                                        Users can develop workflows in low-code environments by
+                                                                                                                      and less targeted modifications. These limitations motivate the
+                                        dragging and configuring nodes. Such platform-orchestrated
+                                                                                                                      need for diagnosis-driven agent repair, where failure attribution
+                                        agentic workflows have been widely adopted in practical LLM
+                                                                                                                      and root cause analysis provide explicit guidance for targeted
+                                        applications [5], [6], including autonomous task planning [7],
+                                                                                                                      workflow corrections.
+                                                                                                                         Realizing such diagnosis-driven workflow repair, however,
+                                          X. Ma, Y. Wang, J. Wang, B. Wu, M. Li, D. Wang, and Q. Wang are with        faces two key challenges. First, workflow failures are only par-
+                                        State Key Laboratory of Complex System Modeling and Simulation Technology, tially observable from execution trajectories. Agentic workflow
+                                        Institute of Software, Chinese Academy of Sciences, and University of Chinese
+                                        Academy of Sciences, Beijing, China.                                          executions involve probabilistic LLM reasoning, external tool
+                                        E-mail: {maxuyan2021, yawen2018, junjie, mingyang2017, dandan, invocations, and complex interactions among heterogeneous
+                                        wq}@iscas.ac.cn, boyu wu2021@163.com                                          nodes [26], [27]. As failures propagate through dependent work-
+                                          X. Xie is with Singapore Management University, Singapore.
+                                        E-mail: xfxie@smu.edu.sg                                                      flow nodes, downstream symptoms are often intertwined with
+                                          *Corresponding Authors.                                                     upstream causes, making it difficult to accurately determine
+where a failure originates and how it evolves throughout the             workflows and reduce verification costs.
+execution process [28], [29]. Second, workflow repair requires        • We demonstrate the effectiveness of FlowFixer on real-
+reasoning beyond local modifications [30]. A workflow node               world agentic workflows, showing its capability on accu-
+is often coupled with prompts, variables, model configurations,          rately failure diagnosis and successfully workflow repair.
+and downstream execution behaviors [31]. As a result, a
+                                                                                          II. BACKGROUND
+seemingly correct local change may introduce unintended
+side effects or violate implicit assumptions elsewhere in the          Modern agentic AI development platforms (e.g., Dify,
+workflow. Effective repair therefore requires not only correcting   Coze, n8n) achieve agentic workflow construction through
+the localized failure, but also preserves the consistency of the    a node-based paradigm. Instead of implementing complex
+overall workflow logic and task objectives.                         logic through source code, users construct workflows by
+   To bridge this gap, we propose FlowFixer, a diagnosis-           visually connecting predefined nodes and configuring their
+driven repair approach for agentic workflows. The core idea         parameters through graphical user interfaces. A workflow
+is to combine symbolic modeling and symbolic inference to           typically consists of multiple interconnected nodes, where
+make workflow failures analyzable and repairable. Specifically,     each node encapsulates a specific functionality, such as LLM
+FlowFixer first transforms the execution trajectories into          invocation, text processing, tool execution, knowledge retrieval,
+unified symbolic representations, making node configurations,       conditional routing, or data transformation.
+node behaviors, inter-node dependencies, and execution states          The node types supported by the platform are summarized
+explicitly observable. It then performs symbolic inference over     as follows: 1) Start and Termination Nodes; 2) LLM and
+the symbolic trace to derive and verify node-level behavioral       Agent Nodes; 3) Knowledge Nodes; 4) Logic and Control
+assertions, producing structured diagnosis evidence for failure     Nodes; 5) Code and Template Nodes; 6) Tool and Integration
+attribution and root cause analysis. Based on the resulting         Nodes. These nodes extend the platform’s capability enabling
+diagnosis information, FlowFixer generates targeted repair          workflows to interact with external services, databases or tools.
+candidates that not only address the localized errors, but also     Formally, a workflow is defined as:
+takes into account the dependencies of other related nodes                                    W = (N, E)                          (1)
+as well as the overall task objectives. Before applying them,
+it performs a lightweight pre-execution assessment against          where N = {n1 , n2 , ..., nm } is the set of nodes, E ⊆ N × N
+symbolic constraints of the overall workflow, checking whether      denotes control dependencies between nodes, determining the
+each candidate is compatible with inferred node behaviors,          execution order and information flow.
+preserves inter-node dependencies and execution-state con-            Each node ni is defined as:
+straints, and remains aligned with the global task objective.
+                                                                                            ni = (Ii , Ti , Ci )                  (2)
+By filtering out infeasible candidates before execution, this
+assessment reduces unnecessary dynamic verification overhead        where Ii represents the node name, Ti is node type and Ci
+and leaves only viable candidates for dynamic verification          is its configuration. The configuration determines the runtime
+of actual repair effectiveness. Furthermore, FlowFixer also         action of the node and varies across different node categories.
+maintains an experience pool that records online repair feedback    For example, LLM nodes contain prompts and model parame-
+and continuously accumulates repair experience, enabling pro-       ters; retrieval nodes specify knowledge sources and retrieval
+gressively improved failure diagnosis and repair effectiveness      strategies; tool nodes define tool selections and invocation
+across repeated workflow failures.                                  parameters; and code nodes contain executable scripts. During
+   Experimental results demonstrate the effectiveness of Flow-      workflow execution, nodes transform incoming information
+Fixer. FlowFixer achieves a repair success rate of 71.3%,           (V in ) into output (V out ) based on their configurations and
+outperforming all repair baselines by 11.9% to 27.6%. In            propagate the output to downstream nodes: V out = Ci (V in ).
+failure diagnosis, it improves failure attribution accuracy by
+                                                                                            III. A PPROACH
+4.8% to 33.1% and root cause analysis accuracy by 15.3% to
+38.8% over baseline methods. Ablation studies further confirm       A. Overview
+the effectiveness of symbolic modeling, root cause taxonomy,           We propose FlowFixer, an agentic workflow automated repair
+repair knowledge, execution information, and experience accu-       framework leveraging symbolic modeling and inference. As
+mulation in improving both diagnosis and repair performance.        illustrated in Fig. 1, FlowFixer contains two core stages: Failure
+In summary, this paper makes the following contributions:           Diagnosis, which identifies the failure-responsible node (i.e.,
+   • We present a symbolic modeling & inference based               the root node that leads to the final failure) and the root cause,
+      framework for failure diagnosis and automated repair of       and Workflow Repair, which generates and verifies repair
+      agentic workflows.                                            patches to produce repaired workflows. The two stages are
+   • We propose a unified node behavioral specification that is     tightly coupled through a “diagnosis ↔ repair” loop.
+      instantiated as executable assertions to produce structured      Specifically, FlowFixer first constructs formal behavioral
+      evidence for failure diagnosis.                               specifications for each workflow node through symbolic
+   • We construct a multi-dimension assessment mechanism            modeling and inference. These specifications are statically
+      which can effectively eliminate unreasonable modified         checked against the observed execution results to identify
+                          Stage 1: Failure Diagnosis                                               Failure Info                                        Stage 2: Workflow Repair
+
+                                                                                                                                                                       Pre-execution
+
+
+
+
+                                                                                     Attribution
+                                                                                                                                                                        Assessment
+
+
+
+
+                                                                                       Failure
+   Workflow & Traj                                                                                   Failure
+                                                                                                   Responsible
+
+
+
+
+                                                                                                                   Repair Patch
+                                                   Verification
+
+
+
+
+                                                                                                                                           Apply
+
+
+
+
+                                                                                                                                                                                                         Verification
+                                                                                                                    Generation
+      Symbolic              Node                                                                      Node
+
+
+
+
+                                                                                                                                                                                                 Pass
+
+
+
+
+                                                                                                                                                                                                                        Pass
+                                                                                                                                                                                                          Dynamic
+                                                     Static
+      Modeling             Asserts
+                                                                                                                                                                    Structure Semantics
+
+
+
+
+                                                                                     Root Cause
+                                                                  Verification                                                    Patch        Modified
+
+
+
+
+                                                                                      Analysis
+                                                                                                                                                                                                                           Verified
+                          Symbolic                                 Evidence                                                                    Workflow
+                                                                                                                                                                   Consistency Offset                                      Workflow
+                         Inference                                                                 Root Cause
+     Symbol for
+                                                                                                                                                                                  Fail                  Fail
+     Each Node
+
+                                                                                                                                   Re-generation
+
+                   Agent-Level     Root Cause 1                                                                                                    workflow_oracle_verify_info    failed_verification_summary
+                                   Root Cause 2              Root Cause 1   Strategy 1
+    External      Workflow-Level                                                                   Retry Stage1               Experience           dynamic_verify_info            node_info, root_cause                        Pass
+                                                                    …
+
+
+
+
+                                                                                 …
+                                                                                                                                                   repair action
+                                        …
+
+
+
+
+   Knowledge      Platform-Level    Root Cause N            Root Cause N    Strategy M                                           Pool                                             repair_patch
+                                                                                                                                                   new_trajectory                 success advice / fail reflection
+                 Root Cause Taxonomy                          Repair Knowledge                                                                      Online Feedback              Accumulated Experience
+
+
+
+
+                                                                                          Fig. 1: Overview of FlowFixer.
+
+
+violations and collect node-level verification evidence. Based                                                       Specifically, existence constraints check whether
+on such evidence and workflow structure, FlowFixer locates                                                        necessary fields, inputs, outputs and configuration elements
+the failure-responsible node and analyzes its root cause. It then                                                 are present. Temporal constraints ensure that node
+generates repair patches through a set of atomic edit operations                                                  executions follow semantically meaningful orders required
+and applies them to the original workflow to obtain a modified                                                    by the task, such as retrieving information before summa-
+workflow. The modified workflow undergoes a lightweight pre-                                                      rization or validating inputs before tool invocation. Causal
+execution assessment that reuses the constructed symbolic                                                         constraints characterize the expected semantic relation-
+specifications to efficiently filter infeasible patches before                                                    ships among workflow entities, including variable consistency,
+costly dynamic execution. Repair experiences collected during                                                     interface compatibility, task-specific requirements, and causal
+this process are stored and leveraged in subsequent iterations,                                                   dependencies between upstream and downstream behaviors.
+enabling a continuous diagnosis and repair refinement loop.                                                       For example, generated travel schedules should satisfy budget
+                                                                                                                  limits and duration requirements specified by the task.
+B. Symbolic Modeling & Inference                                                                                     This three-dimensional decomposition enables FlowFixer
+   1) Symbolic Modeling: When faced with a failed execution                                                       to infer from local node validity to workflow-level failure
+trajectory, in order to eliminate the impact of different trajectory                                              propagation. It also provides structured diagnosis signals
+formats on different platform and remove redundant informa-                                                       for subsequent failure attribution and repair, enabling more
+tion, we define a unified trajectory format based on symbolic                                                     systematic identification and localization of underlying failure
+representation. FlowFixer normalizes theses trajectories into                                                     sources.
+a sequence of nodes, {node1 , ..., noden }, each node consists                                                       FlowFixer uses an LLM-based specification generator to
+of id, type, input & output, status, configuration contexts and                                                   synthesize node-wise behavioral specifications. Given each
+parameters, as shown in the “Input” part in Fig. 2. All nodes                                                     node’s context, inputs and outputs, workflow connections and
+are assembled in execution order to form a standardized trace                                                     the overall task goal, the generator translates the expected node
+with a unified symbolic format.                                                                                   behavior into formal constraints along the three dimensions
+   2) Symbolic Inference: For each node in the trace, Flow-                                                       described above.
+Fixer infers its formal behavioral specifications that characterize                                                  A lightweight assertion-based DSL [32], [33], summarized
+the expected behaviors of the node and interactions with the rest                                                 in Table I, is adopted as the format for inferred specifications.
+of the workflow. These specifications are derived from three                                                      It expresses each constraint as a top-level assertion assert
+complementary dimensions that reflect the fundamental correct-                                                    Pred, where predicates are constructed from Boolean con-
+ness requirements of these agentic workflows: existence,                                                          nectives, comparison operators, and field or method access to
+temporal and causal constraints. These dimensions are                                                             workflow entities. For example, existence constraints can check
+chosen because workflow failures typically manifest as missing                                                    required fields through expressions such as node.output
+or malformed workflow entities, invalid data/control dependen-                                                    != None; temporal constraints can compare execution order
+cies, incorrect execution ordering, or causal propagation of                                                      using order comparisons such as < or >; and causal constraints
+upstream errors to downstream symptoms.                                                                           can combine multiple predicates with if, or, and not to
+                         TABLE I: BNF syntax of DSL.                                                             flight details (A2).
+       1: Φ ::= assert Pred                            Top-level assertion                                       C. Stage 1: Failure Diagnosis
+       2: Pred ::= Pred and Pred                       Boolean logic and comparisons
+                                                                                                                    This stage aims to localize failure-responsible node and
+       3: | Pred or Pred
+                                                                                                                 identify the underlying root causes of a failed trajectory.
+       4: | not Pred
+                                                                                                                    1) Failure Attribution: Given the formal behavioral specifi-
+       5: | (Pred)
+       6: | Expr comp Expr
+                                                                                                                 cations obtained from symbolic inference, FlowFixer compares
+       7: Expr ::= value                               Values, variables, field/method
+                                                                                                                 them against the actual outputs of each node. By evaluating
+       8: | var                                        access
+                                                                                                                 whether the observed node behaviors satisfy the inferred
+       9: | var.attr                                                                                             specifications, it can identify violated behavioral requirements.
+       10: | var.method(args)                                                                                       For each node, we calculate a suspicious score indicating its
+       11: comp ::= ==, !=, >, ≧, <, ≦, in,            Comparison operators                                      contribution to the final failure. The score combines two sources
+       not in                                                                                                    of factors: (1) behavioral abnormality revealed by assertion
+       12: edit ::= insert(), remove(), re-            Edit operators for patch genera-                          violations and (2) the node’s potential influence on downstream
+       place(), append(), swap()                       tion                                                      executions. Specifically, nodes with higher assertion violation
+       13: args ::= Expr (‘,’ Expr)*                   Argument       list    (comma-                            rates are more likely to exhibit anomalous behavior and are
+                                                       separated)
+                                                                                                                 thus assigned higher suspicious scores. However, assertion
+       14: var ::= identifier                          Valid variable name
+       15: attr ::= id | input | output | · · ·        Of Node object
+                                                                                                                 violations alone are insufficient because failures may propagate
+                                                                                                                 through workflow dependencies and cause downstream nodes
+                                                                                                                 to appear abnormal. To account for this effect, we additionally
+            Input:
+                                                                                                                 consider the structural position of a node as its potential
+              Task : "Generate a travel plan for Paris, July 1st, 5 days, 1000$ budget"                          propagation impact. Nodes located earlier in the workflow
+              Node_name : "Generate_itinerary”                                                                                                              Input:
+              Node_Type: “LLM”                                                                                   can influence a larger portion of subsequent         executions
+                                                                                                                                                              Node_name                     and are
+                                                                                                                                                                            : "Generate_itinerary"
+              Input : "There are the following attractions…"
+              Config : {“Prompt”:”Please summarize all travel info to generate a                                 therefore more likely to be the origin of Node_index
+                                                                                                                                                              failures.     : "itinerary"
+                                                                                                                                                                               By     combining
+                                                                                                                                                              Node_input : "There are the following attractions…"
+                       complete itinerary,…”,…}                                                                  assertion violations with propagation characteristics,                FlowFixer
+                                                                                                                                                              Config : "Please summarize      all travel info to generate a com
+              Connected_upstream_node : "Travel_guide, Select_plane"                                                                                        itinerary,…"
+              Connected_downstream_node : "end"                                                                  prioritizes nodes that are both highly abnormal             and
+                                                                                                                                                              Task : "Generate        capable
+                                                                                                                                                                                  a travel            of July 1st, 5 days, 100
+                                                                                                                                                                                           plan for Paris,
+              Rule: "Follow the BNF syntax, generate the formal specifications, …."                                                                           Connected_upstream_node : "Travel_guide, Select_plane"
+                                                                                                                 explaining downstream failure symptoms.      Connected_downstream_node : "end"
+Inference
+
+
+
+
+            Behavioral Specifications:
+            (A1) assert node[“Input”] != None and node[“Output”] != None,
+                                                                                                                    2) Root Cause Analysis: The module        Rule: maps
+                                                                                                                                                                    "Follow the node       failures
+                                                                                                                                                                                   BNF syntax,    generate the formal specifica
+                 //Whether include necessary fields                                                              to corresponding root causes (e.g., poor   Output:prompt design) and
+            (A2) assert “Flight” in node[“Output”].keys(), //Whether include flight info                                                                      assert node["Status"] == "Success", "Execution failed."
+               if "cost" in node["Output"].keys():                                                               generates structured failure data coveringassertroot    cause
+                                                                                                                                                                     "Flight"         and failure
+                                                                                                                                                                               in node["Output"],    "Flight info missing"
+            (A3) assert node["Output"]["Cost"] < 1000, //Whether meet budget                                                                                  assert "Hotel" in node["Output"], "Hotel info missing"
+                 requirement                                                                                     responsible node.                            if "cost" in node["Output"].keys():
+              else (A4) assert False, “Budget info missing” //Whether include                                       To make root cause analysis more targeted    assert node["Output"]["Cost"]
+                                                                                                                                                                            and systematic,         < 1000, "Over budget"
+                 budget info                                                                                                                                  else assert False, "Budget info missing"
+            (A5) assert len(node[“Output”][”Schedule“]) == 5, // Whether meet                                    FlowFixer constructs a root cause taxonomy                         from prior == 5, "Wrong sched
+                                                                                                                                                              assert len(node["Output"]["schedule"])
+                 schedule requirement                                                                                                                         assert trace.index(Travel_guide_node) < trace.index(node),
+                                                                                                                 studies on agent and workflow failures       node[28],
+                                                                                                                                                                    missing.” [34]–[36],
+                                                                                                                                                                                  //index() indicatesas
+                                                                                           Static Verification
+
+
+
+
+            (A6) assert trace.index(Travel_guide_node) < trace.index(node),                                                                                                                            the position of the node
+                //Whether the execution sequence is right, index() obtains the                                   summarized in Fig. 4. It contains sixteenassert roottrace.index(Select_plane_node) < trace.index(node),
+                                                                                                                                                                          cause       types       with
+                node position in the trace                                                                                                                    node missing.”
+            Actual Output of Generate_itinerary node:
+                                                                                                                 their detailed description grouped into node capability, node
+            { “Title” : “5 Days Travel Itinerary for Paris”,                                                     orchestration, and node execution, and serves as structured prior
+              “Flight”: {“airline”:”Air France ”, …},
+              “Hotel”: {“hotel_name”: “Hotel Moulin Vert”,…},                                                    knowledge for interpreting failure symptoms. Given the failure-
+              “Schedule”: [{“DAY1”:”Arrival and Eiffel Tower Sunset”},…],
+              “Cost”: 1200,                                                                                      responsible node identified by failure attribution, FlowFixer
+              “Tips”: [“1. Carry small euro cash”,…] }                                                           feeds its symbolic context, inferred behavioral specifications,
+                                                                                                                 and assertion verification results (include both satisfied and
+Fig. 2: Symbolic Inference Example. “node” represents the                                                        violated assertions) into the analysis module, to produce the
+Generate itinerary node for short.                                                                               root cause type.
+                                                               D. Stage 2: Workflow Repair
+to help determine whether logical relationships are satisfied    Given the failure information from Stage 1, the second stage
+between nodes.                                                 generates, verifies, and applies repair patches to the workflow.
+   Fig. 2 presents an example of the specification inference     1) Repair Patch Generation: This module aims to generate
+process. For the Generate itinerary node, the inferred spec- repair patches that directly address the failure root cause.
+ifications involve several constraints: Existence constraints    To make patch generation targeted rather than exploratory,
+require the generated itinerary cannot be empty (A1); temporal FlowFixer introduces root-cause-aware repair knowledge,
+constraints require Generate itinerary node must execute after which maps each diagnosed root cause to a corresponding
+the upstream node (Travel guide) has completed its operations repair strategy, as shown in Fig. 4. These strategies do not
+(A6); and causal constraints ensure consistency with user- directly specify concrete workflow edits. Instead, they guide
+provided inputs such as the budget and schedule (A3, A4, patch generation by restricting the search space to modifications
+A5) while providing necessary itinerary information such as that are causally relevant to the diagnosed failure. Similar to
+                                                        (a) Structural Correctness                                                  (b) Semantic Correctness
+ Structure Violation:               Checks whether the modified workflow compiles with the                       Verifies whether each component meets inherent semantic
+                                                                                                                                                                                                           Semantic Violation:
+ “Filter” node defines the             grammatical specifications for workflow structure.                             requirements and aligns with the task semantics.
+                                                                                                                                                                                                           Lack of search
+ upstream node as
+                                                                                                                                                                                                                        v
+                                                                    Wrong Connection                                                                                                                       capabilities
+ “Extract”.
+                                                                                                                Input                Extract                                                               for transportation and
+ But “Extract” node            Input                 Extract              Filter       Summarize    Output
+                                                                                                             Generate a                                      Filter            Summarize          Output
+                                                                                                                                   Search for                                                              hotels results in the
+ connects “Summarize”
+                                                                                                             travel plan           attractions                                                             final output unusable.
+ node incorrectly.
+                                                                                                              for Paris             and food
+                                                               Upstream
+
+
+ Inconsistent Violation :
+                                                         (c) Behavioral Consistency                                                    (d) Offset Rationality                                               Modification Summary
+     patch dose not            Checks whether the repair patch directly addresses the root cause                 Evaluates whether the modification magnitude of the original
+     target the real                       rather than making irrelevant changes.                                         workflow is within a reasonable threshold.                                       + Add: 2 (Rephrase, Validate)
+                                                                                                                                                                                                           + Remove: 0
+       root cause.            Root Cause (Diagnosed)                                                          Before                                                                                       ↔ Modify: 0
+                                                                                                                           Input         Extract         Filter                Summarize     Output
+
+                                       Extract
+ Patch      Change model
+                                                                    Filter         Summarize       Output     After (Modified Workflow)                                                                     Modification Magnitude
+Applied   parameters of the    Incorrect parsing
+          "summarize” node      leads to wrong
+                              downstream results.                                                                  Input           Rephrase        Extract            Filter           Validate       …       Small Reasonable Large
+
+
+
+
+                                                                     Fig. 3: Multi-dimension Pre-execution Assessment.
+
+
+  Root Cause                                                                                                     invalid execution branches.
+  Node Capability                                Node Orchestration                                            • Replace. Replace an existing faulty node or node config-
+  • Tool or Action Planning                      •     Missing Input Verification (R2)                           uration with a correct or more appropriate alternative to
+    Error (R1)                                   •     Unreasonable Node Dependency (R5)                         fix functional or semantic errors.
+  • Response Format Error (R2)                   •     Loops and Deadlocks (R5)                                • Append. Add a new node or node configuration to the end
+  • Response Content Deviation                   •     Faulty Conditional Judgement (R5)
+                                                                                                                 of the workflow to extend execution logic or supplement
+    (R1)                                         •     Improper Task Decomposition (R5)
+  • Knowledge Limitation (R3)                    •     Context Conflict (R6)                                     post-processing steps.
+  • Poor Prompt Design (R1)                      Node Execution                                                • Swap. Exchange the execution order of two nodes to
+  • Language or Encoding Issue                                                                                   correct causal or sequential errors in the workflow.
+    (R4)                                         • Network and Resource Fluctuation
+  • Tool Invocation or KB                          (R7)                                                        A repair patch is represented as:
+    Retrieval Error (R2)                         • Service Unavailability (R7)
+  Repair Strategy
+                                                                                                                                        Patch = {edit1 , edit2 , . . . , editk },                                                    (3)
+  R1: Prompt constraint enforcement and specification                                                          where each edit can be instantiated as:
+  R2: Format validation and interface alignment
+  R3: Model capability upgrade or augmentation
+  R4: Encoding and content normalization                                                                                            edit = op(target, content, position)                                                             (4)
+  R5: Workflow structural refactoring
+  R6: Explicit context declaration and isolation                    Here, op is one of the atomic edit operators, target is the
+  R7: Runtime robustness enhancement (e.g., retry)               workflow component to be modified, content is the newly
+                                                                 inserted or replacement content, and position specifies where
+Fig. 4: Root Cause Taxonomy and Repair Strategies. Root
+                                                                 the edit should be applied. After generation, the patch is applied
+cause-specific repair strategies are shown in parentheses.
+                                                                 to the original workflow to produce a modified workflow.
+                                                                    2) Pre-execution Assessment: To minimize verification
+                                                                 costs by eliminating problematic workflows before actual
+the root cause taxonomy, this repair knowledge is summarized execution, FlowFixer performs workflow assessment from four
+from prior studies on agent and workflow failures, and platform- different perspectives.
+specific repair practices [34], [37], [38].                         Structural Correctness ensures that the workflow can be
+   Based on this knowledge, FlowFixer first determines the correctly parsed and executed without structural errors such
+repair direction for the diagnosed failure. For instance, poor as missing nodes, invalid connections, or malformed node
+prompt design is addressed through prompt constraint enforce- configuration information. The assessment criteria are directly
+ment, response format errors through format validation and derived from the workflow platform specifications and node
+interface alignment. Guided by the selected repair strategy, definitions. These predefined structural rules ensure that the
+FlowFixer performs patch planning using the failure-responsible repaired workflow conforms to valid workflow syntax and
+node, its symbolic context, violated behavioral specifications, execution constraints.
+and upstream/downstream dependencies. To represent concrete         Semantic Correctness verifies whether the repaired work-
+modifications, FlowFixer defines five atomic edit operators:     flow satisfies both node-level functional requirements and task-
+   • Insert. Insert a new node or node configuration into the    level semantic objectives. For this assessment, FlowFixer first
+     workflow at a specific position to supplement missing masks the actual configurations of the modified nodes and
+     logic or data processing steps.                             provides the LLM with the formalized workflow representation
+   • Remove. Remove redundant, wrong, or unnecessary nodes       (mentioned in Sec. III-B2) and the task description, which
+     and node configurations from the workflow to eliminate jointly specify the execution context of the modified nodes
+and the overall semantic objective. Based on these information, distilled from historical cases, providing reusable insights into
+LLM infers the expected configuration specifications for the recurring failure patterns, root-cause associations, and effective
+modified nodes and subsequently compares them against the repair strategies. Together, they support both failure diagnosis
+nodes’ actual configurations in the repaired workflow to assess and repair generation in future repair iterations.
+semantic correctness.
+   Behavioral Consistency assesses whether the generated                                 IV. E XPERIMENT
+repair actions are aligned with the diagnosed root cause and A. Research Questions
+the behavior specifications. FlowFixer first summarizes the          We consider the following research questions:
+repair patch into a high-level description and then provides the     RQ1: (Repair Effectiveness) Can FlowFixer effectively
+diagnosed root cause and the violated behavioral specification repair failures for agentic workflow?
+to LLM. Based on these information, it reasons whether the           RQ2: (Diagnosis Effectiveness) Can FlowFixer effectively
+proposed modifications are causally relevant to the identified conduct failure attribution and identify root cause?
+failure causes and are expected to address the violated specifi-     RQ3: (Ablation Study) Can each designed component in
+cations rather than introducing unrelated changes.                 FlowFixer contribute to failure diagnosis and repair?
+   Offset Rationality evaluates whether the modification
+magnitude of the original workflow caused by the repair patch is B. Dataset
+within a reasonable threshold. The modification should neither       We adopt the publicly available AgentFail [34] dataset
+be excessively large (which may introduce new defects or as the primary experimental benchmark for our evaluation,
+deviate from the original workflow logic) nor excessively small which consists of 307 annotated failure logs collected from
+(which may fail to effectively fix the identified root cause).     10 real-world agentic systems built on popular workflow
+   3) Dynamic Verification and Iterative Loop: Patches that orchestration platforms, Dify and Coze. It covers diverse task
+pass pre-execution assessment proceed to dynamic verification, domains such as information retrieval, task planning, and code
+where the modified workflow is executed against the original generation, and each data record contains complete execution
+test inputs. If the workflow executes successfully, the patch is trajectories, original workflow configurations and fine-grained
+accepted as the final repair.                                      expert annotations of root causes of the failures.
+   If the generated repair fails the verification stage, FlowFixer   To further increase the diversity of workflow platforms
+does not immediately terminate the repair process. Instead, it and failure patterns, we additionally collect 136 failure cases
+will retry to generate new patch or the workflow is fed back from the n8n platform [4], covering various tasks, including
+into the failure diagnosis stage. The diagnosis-repair cycle information retrieval, task planning and automated design
+continues until either a valid repaired workflow is obtained assistant. Similarly, each collected case contains the workflow
+or the retry budget is exhausted. If the retry count exceeds configuration, execution trajectory and manually annotated root
+the test budget, the workflow is regarded as a failed repair. causes, following the annotation pipeline in AgentFail.
+The corresponding diagnosis and repair experiences are still         In the subsequent result and analysis section, we merge the
+recorded in the experience pool to support future debugging results from two datasets since the methods have similar results
+and repair tasks.                                                  on the datasets.
+E. Experience Pool                                                   C. Baselines
+   To improve long-term performance, FlowFixer maintains                To evaluate the workflow repair performance, we choose six
+an Experience Pool that stores execution information and             methods as baselines which can be divided into two categories.
+summarized repair knowledge:                                            The first category focuses on traditional program repair: 1)
+   Online Repair Feedback: feedback collected during the             SWE-agent [15], which is a popular agent resolving issues in
+current repair process, such as pre-execution assessment results,    software code repositories. 2) RepairAgent [17] treats the LLM
+applied repair operations, and execution trajectories of modified    as an agent capable of autonomously planning and executing
+workflows.                                                           actions to fix bugs by invoking tools.
+   Accumulated Repair Experience: knowledge distilled from              The second category focuses on bug repair for agents or
+historical cases, such as recurring failure patterns, root-cause     agent evolution and enhancement: 3) Recreate [21] is based on
+associations, effective repair strategies, and lessons from failed   the complete interactive experience of agents. It uses reasoning
+attempts.                                                            to identify the causes of success or failure and modifies agent’s
+   After each repair cycle, FlowFixer stores both online repair      architecture. 4) GEPA [39] enables LLM to directly read and
+feedback and accumulated repair experience in the experience         reflect on the trajectories during the task execution, thereby
+pool. When subsequent failures occur, relevant records are           facilitating more efficient learning. 5) Scope [20] achieves
+retrieved as auxiliary knowledge. Online repair feedback serves      the agent’s prompt evolution by balancing tactical specificity
+as short-term memory within the current repair process, captur-      (resolving immediate errors) with strategic generality (evolving
+ing the outcomes of previous repair attempts and helping the         long-term principles). 6) SelfHeal [37] consists of fix agent and
+framework avoid repeating ineffective modifications. In contrast,    critic agent, leveraging fix rules and web search to automatically
+accumulated repair experience serves as long-term knowledge          repair agent bugs.
+   Furthermore, to evaluate the failure attribution performance TABLE II: Performance comparison. (RQ1 & RQ2, values in
+of FlowFixer (Stage 1), we select representative methods for parentheses indicate the relative improvement of FlowFixer
+trajectory failure attribution as baselines for comparison: 1) over the baselines.)
+FAMAS [40] locates the responsible agents through trajectory        Method     Repair (RSR)     Failure Attribution (FAA) Root Cause (RCA)
+replay and spectrum analysis. 2) Dover [41] is an intervention-
+                                                                                   Traditional Automatic Program Repair
+driven debugging framework, which augments hypothesis gen-
+                                                                  SWE-agent   43.7% (+27.6%)         51.9% (+32.5%)        49.1% (+38.8%)
+eration with active verification through targeted interventions.  RepairAgent 51.2% (+20.1%)         64.4% (+20.0%)        61.7% (+26.2%)
+3) AgentFixer [38] constructs fifteen failure-detection tools                               Agent Enhancement
+and two root-cause analysis modules.                                ReCreat   59.4% (+11.9%)         70.9% (+13.5%)        69.8% (+18.1%)
+                                                                           GEPA       58.8% (+12.5%)           69.6% (+14.8%)   68.3% (+19.6%)
+D. Evaluation Metrics
+                                                                           Scope      52.9% (+18.4%)           71.3% (+13.1%)   72.6% (+15.3%)
+   To comprehensively evaluate the performance of FlowFixer               SelfHeal    55.4% (+15.9%)           68.0% (+16.4%)   70.1% (+17.8%)
+in workflow repair and failure diagnosis, we use the following
+                                                                                                       Failure Attribution
+three metrics:                                                            FAMAS             -                  51.3% (+33.1%)         -
+   Repair Success Rate (RSR): The ratio of cases where the                DOVER             -                   79.6% (+4.8%)         -
+modified workflow passes the dynamic verification.                       AgentFixer         -                  66.8% (+17.6%)   62.1% (+25.8%)
+   Failure Attribution Accuracy (FAA): The ratio of cases                 FlowFixer       71.3%                     84.4%           87.9%
+where the method correctly locates the specific node to the
+total number of failure cases.
+   Root Cause Accuracy (RCA): It refers to the proportion
+                                                                (column 2). Overall, FlowFixer consistently achieves the best
+of cases in which the root cause is correctly identified among
+                                                                performance, demonstrating the effectiveness of symbolic
+the cases where failure attribution is correctly predicted.
+                                                                inference-guided workflow repair.
+E. Experiment Setup                                                FlowFixer achieves a repair success rate of 71.3%, sub-
+   The Overall Setup. In all experiments, we use FlowFixer and stantially surpassing SWE-agent (43.7%) and RepairAgent
+baselines to respectively repair workflows in the experimental (51.2%), yielding absolute improvements of 27.6% and 20.1%,
+dataset. For each case in dataset, repair process is repeated respectively. This result indicates that directly applying program
+three times to avoid randomness, and the average performance repair techniques designed for traditional software systems is
+is presented. All experiments are conducted on a server with an insufficient for agentic workflows, whose failures often arise
+Intel Xeon E5-2690 v4 CPU, 128GB RAM, and an NVIDIA from unpredictable outputs and complex interactions between
+A100 GPU. For the LLM involved in FlowFixer, we adopt workflow structures, rather than deterministic code defects.
+GPT-5.2 as the backbone model.                                     FlowFixer also consistently outperforms agent enhancement
+   For RQ3, we assess the effectiveness of designed component, methods. Compared with each baseline, FlowFixer improves
+including symbolization, external knowledge and the experience repair success rates by 11.9% (ReCreat), 12.5% (GEPA),
+pool. The detailed settings of variants are as follows:         18.4% (Scope), and 15.9% (SelfHeal), respectively. Although
+   • w/o symbol: This variant performs failure diagnosis and    these methods leverage self-reflection, prompt refinement, or
+     workflow repair based on the original raw trajectory.      iterative improvement mechanisms, they primarily focus on
+   • Variants related to external knowledge: We evaluate        enhancing overall agent performance rather than explicitly
+      three variants by progressively removing external knowl- diagnosing workflow failures. Such approaches lack explicit
+      edge sources. w/o Taxonomy removes the predefined root modeling of workflow semantics and causal relationships,
+      cause taxonomy during diagnosis, w/o Repair removes limiting their ability to accurately identify root causes and
+      the repair knowledge used for patch generation, and w/o generate targeted repair solutions. Consequently, they often
+      External removes both components, disabling all external make blind modifications without accurately identifying the
+      knowledge throughout the diagnosis and repair process.    specific workflow components responsible for the failures.
+   • Variants related to the experience pool: We further        Moreover, these methods mainly improve agent performance
+      evaluate the contribution of the experience pool through through prompt optimization, while many issues originate from
+      three variants. w/o Feedback removes online repair feed- node configurations, or inter-node dependencies, which cannot
+      back, preventing iterative optimization between diagnosis be effectively repaired through prompt modifications alone.
+      and repair. w/o Experience removes accumulated repair        Overall, these results demonstrate that symbolic modeling
+      experience while retaining online repair feedback. w/o & inference jointly enable FlowFixer to generate more precise
+      Pool removes both components, relying solely on the and effective repairs for complex agentic workflows.
+      execution trajectory for failure diagnosis and repair.
+              V. R ESULTS AND A NALYSIS                               B. RQ2: Diagnosis Effectiveness of FlowFixer
+A. RQ1: Repair Effectiveness of FlowFixer                                Table II also presents the performance about failure diagnosis.
+  Table II presents the overall performance comparison                Since FAMAS and DOVER only locate nodes that introduce
+between FlowFixer and the baselines on workflow repair                failures without further analyzing underlying root causes, these
+            TABLE III: Ablation study of FlowFixer.                                and the entire experience pool. The results indicate that the
+     Method        Repair (RSR)     Failure Attribution (FAA)   Root Cause (RCA)
+                                                                                   two components play complementary roles. Online repair
+                                                                                   feedback enables iterative refinement between diagnosis and
+   w/o Symbol      47.0% (+24.3%)       59.8% (+24.6%)           58.3% (+29.6%)
+                                                                                   repair, and removing it decreases the repair success rate by
+                           External Knowledge Related
+  w/o Taxonomy     53.5% (+17.8%)        80.2% (+4.2%)           54.4% (+33.5%)
+                                                                                   17.1%. In contrast, accumulated repair experience provides
+    w/o Repair     60.2% (+11.1%)        78.9% (+5.5%)           70.4% (+17.5%)    reusable knowledge from historical cases, and removing it
+  w/o Knowledge    51.1% (+20.2%)        75.0% (+9.4%)           52.7% (+35.2%)    reduces failure attribution accuracy by 21.9%. Together, they
+                               Experience Related                                  enable FlowFixer to continuously refine failure diagnosis and
+    w/o Online     54.2% (+17.1%)        77.7% (+6.7%)           72.2% (+15.7%)
+                                                                                   generate more effective repair strategies through experience-
+  w/o Experience   48.4% (+22.9%)       62.5% (+21.9%)           70.9% (+17.0%)
+                                                                                   guided repair.
+     w/o Pool      41.7% (+29.6%)       55.1% (+29.3%)           61.4% (+26.5%)
+    FlowFixer          71.3%                 84.4%                   87.9%
+                                                                                                         VI. C ASE S TUDY
+                                                                                      Fig. 5 and 6 illustrate two examples, in which the first
+two methods can only be evaluated in terms of FAA and do                           example focuses on the process of symbolic modeling and
+not support RCA calculation.                                                       inference; The second one focuses on demonstrating the process
+   FAMAS achieves only 51.3% FAA, substantially lower                              of generating the patch and verifying modified workflow.
+than the 84.4% achieved by FlowFixer. As a spectrum-                                  Diagnosis Case. This workflow is for generating a summer
+based fault localization approach, FAMAS identifies suspicious                     travel itinerary for Iceland. However, the final output contains
+execution steps according to the correlation between failures                      activities that are unsuitable for summer travel and lacks hotel-
+and execution traces. It lacks an understanding of workflow                        related information.
+semantics and cannot infer the functional roles of workflow
+                                                                                      In the failure diagnosis, FlowFixer performs symbolic
+nodes or the dependencies between them. Although DoVer
+                                                                                   modeling and inferring for each node. Taking the “Problem
+leverages intervention-based execution analysis to achieve good
+                                                                                   Decomposition” node as an example, FlowFixer derives that its
+failure attribution performance (79.6%), it relies on repeatedly
+                                                                                   formal behavioral specifications should require: the generated
+modifying and replaying agent behaviors to estimate causal
+                                                                                   sub-tasks should include location information; adhere to user-
+effects, incurring substantial computational overhead. Moreover,
+                                                                                   specified time constraints; and cover essential travel-related
+FlowFixer consistently outperforms DoVer, indicating that
+                                                                                   elements such as hotel planning.
+precise failure attribution can be achieved without resorting to
+                                                                                      By verifying these specifications against actual output,
+costly intervention-based analysis. AgentFixer achieves 66.8%
+                                                                                   FlowFixer identifies multiple violations, including missing time
+FAA and 62.1% RCA. This is because, although it diagnoses
+                                                                                   constraints (the summer travel period) and the absence of hotel-
+agent failures from multiple perspectives and offers valuable
+                                                                                   related sub-tasks. Combining these violation evidences with
+insights into their root causes, its analysis operates primarily at
+                                                                                   the workflow, FlowFixer attributes the failure to the “Problem
+the trajectory level; it relies on the overall execution trajectory
+                                                                                   Decomposition” node and identifies the root cause as “Poor
+rather than performing fine grained reasoning focused on
+                                                                                   Prompt Design” as the prompt fails to instruct the model to
+workflow nodes and their semantic dependencies.
+                                                                                   preserve critical travel constraints during task decomposition.
+C. RQ3: Ablation Study                                                                Guided by the diagnosed root cause and the corresponding
+   Effect of Symbolization. Removing symbolization causes                          repair strategy, FlowFixer generates a repair patch consisting
+substantial performance degradation across all three tasks,                        of atomic workflow edits. In this example, the repair removes
+with repair success rate dropping by 24.3%, failure attribution                    the original decomposition prompt and appends additional
+accuracy by 24.6%, and root cause analysis accuracy by 29.6%.                      instructions requiring the model to explicitly consider user-
+This result demonstrates that symbolic modeling and symbolic                       specified feasibility factors and travel constraints. FlowFixer
+inference provide the foundation for accurate failure diagnosis                    then produces a modified workflow based on the patch and
+and workflow repair by making workflow semantics and inter-                        submits it to the assessment and verification stage.
+node dependencies explicitly analyzable.                                              Repair Case. This workflow implements a Q&A assistant.
+   Effect of External Knowledge. We progressively remove                           However, when users provide inputs with an invalid format or
+the root cause taxonomy, repair knowledge, and both compo-                         excessively long queries, the workflow lacks an input validation
+nents. The results show that the root cause taxonomy mainly                        mechanism, causing downstream nodes to receive unexpected
+contributes to accurate root cause analysis, whose removal                         inputs and ultimately leading to a crash.
+reduces RCA by 33.5%. In contrast, repair knowledge primarily                         Guided by the corresponding repair strategy, FlowFixer
+improves repair generation, and removing it decreases the repair                   first generates a repair patch by inserting a validation node
+success rate by 11.1%. Together, they bridge failure diagnosis                     immediately after the “Begin” node. After applying the patch,
+and workflow repair, enabling FlowFixer to translate diagnosed                     the pre-execution assessment analyzes the modified workflow
+failure causes into effective repair strategies.                                   and detects a structure violation: the upstream dependency of
+   Effect of Experience Pool. We further evaluate the contribu-                    the “Classification” node has not yet been changed from “Begin”
+tions of online repair feedback, accumulated repair experience,                    to the newly inserted “Checker” node, breaking the expected
+                                                                                     Subtask Processing
+                                                 Problem Decomposition             Execute subtask1: search
+                                                                                                                            Aggregate Results
+                                                                                   for attractions
+                                                Divide the generation
+                               Begin            of the travel plan into
+                                                                                              …                             Generate the final
+                                                                                                                                                                  End
+                                                                                                                             travel itinerary
+                                                several sub-tasks                  Execute subtask3: query
+                                                                                   local transportation                 Wrong results (Output non-summer
+     Workflow Structure                       Failure Responsible Node                                                  tourism activities, without hotel info)
+
+                                Symbolic Modeling
+                                                                                            Symbolic Inference
+                                                                                                                                       Root Cause Analysis
+
+
+
+
+                                          …
+                                                                                                                                                                           Repair Patch
+                   <Symbolization_Problem_decomposition>
+                    <Symbolization_Node>                                                                                               Failure Description:
+                                                                             assert node.Output != None, “Output Missing” ✅                                             Remove(Problem_de
+                    {"Node": Problem_decomposition,                          assert len(node.Output) > 1, “No subtasks” ✅              Due to the omission
+                    "Input": “I plan to travel to Iceland from July                                                                                                     composition, Prompt,
+                                                                             assert trace.index(node) < trace.index(subtask_           of travel season
+                    1st to 8th , generate the travel plan.",                                                                                                            “break down the
+                                                                             processing) ✅                                             constraints during
+                    ”Previous_Node": “Begin”,                                                                                                                           user's task into
+                                                                             for sub_task in node.Output:                              planning, the
+                    "Output": “[“1. Search for attractions in Iceland”,                                                                                                 several sub-tasks”)
+                    “2. Check weather conditions in Iceland”, “3.                assert “Iceland” in subtask, “Missing location        generated itinerary
+  Workflow                                                                                                                                                              Append(Problem_de
+                    Query local transportation”]”                                constraint” ❌                                         includes
+                                                                                                                                                                        composition, Prompt,
+                    “Next_Node": “Subtask_processing”,                           keywords = [“activities”, “attractions”,"spots"]      destinations and
+                                                                                                                                                                        “you should follow
+                    "Config":                                                    if any(kw in sub_task for kw in keywords):            activities that are
+                          {“Type": “LLM",                                                                                                                               the instructions:
+                                                                                     assert “July” in subtask or “7” in                unsuitable for
+                          “Prompt": “You are a problem decomposition                                                                                                    Step 1: Identify any
+                                                                                     subtask,“Time constraints ignored" ❌              summer travel.
+  Trajectory               expert, you should break down the user’s                                                                                                     feasibility factors
+                           task into several sub-tasks.",                    assert any(“hotel” in sub_task for sub_task in                                             implied by the
+                                                                             node.Output[:]), “No hotel related subtask found          Root Cause:
+                          "model": ["gpt-4o-mini",0.2]}                                                                                                                 user…”)
+                    "Status": Success}                                       in the sub-tasks” ❌                                       Poor Prompt Design
+                                          …
+
+
+
+
+                                                Fig. 5: Example of the process of failure diagnosis and repair.
+
+
+                 Root Cause                                                                       assessment results (pass/fail) with the corresponding dynamic
+                                                                                                  execution results to measure its ability to filter out invalid
+          Missing Input Verification
+                                                           Verified Workflow                      workflows while retaining correct repair candidates. We use
+                                                                          Apply & Verify
+                                                                                                  Precision and Recall to evaluate the effectiveness of pre-
+          Repair Patch_Version 1                                                                  execution assessment: Precision quantifies the accuracy of
+                                                      Repair Patch_Version 2
+          Insert(After_Begin,
+                                                                                                  pre-execution failure assessment, Recall reflects the detection
+                                                      Insert(Between_Begin_Cl                     coverage of real wrong workflows.
+          “Code Block for validating
+                                                      assification, “Code Block
+          user input format &                                                                        Experimental results show that pre-execution assessment
+                                                      for validating user input
+          length”)
+                                                      format & length”)                           module achieves a 99.7% Precision, indicating that almost all
+  Apply        Modified Workflow                                                                  workflows identified as wrong by the assessment indeed fail
+                    Begin                                                                         during dynamic execution. This demonstrates that the assess-
+                                                       Pre-execution Assessment
+                                                                                                  ment can effectively filter out low-quality repair candidates with
+                                                       Structure Violation:
+                  Checker                                                                         very few false alarms, thereby avoiding unnecessary execution
+                                                       Classification.upstream !=
+                                                       Checker                                    costs caused by obviously incorrect workflows.
+                Classification
+                                                                                                     The assessment further achieves a Recall of 84.6%, suggest-
+                      …                                                                           ing that the majority of invalid workflows can be detected before
+                                                                                                  execution. Nevertheless, a small portion of failures remain
+               Fig. 6: Example of the process of repair.                                          undetected. These cases typically involve model capability
+                                                                                                  limitation or external tool invocation that cannot be fully
+                                                                                                  revealed through static assessment alone and only manifest
+workflow structure. Consequently, this repair candidate is                                        during actual workflow execution.
+rejected before expensive dynamic execution.                                                         These results indicate that FlowFixer can effectively elimi-
+   FlowFixer then generates a new repair patch by inserting                                       nate most invalid repair candidates prior to dynamic validation
+“Checker” between “Begin” and “Classification”, preserving the                                    while retaining correct workflows, substantially reducing the
+original execution dependencies while introducing the required                                    cost of workflow repair and verification.
+input validation. The repaired workflow successfully passes the
+pre-execution assessment and is subsequently verified through                                     B. Repair Condition Analysis
+dynamic execution, producing a valid repaired workflow.
+                                                                                                     We further analyze the repair patches generated by FlowFixer
+                               VII. D ISCUSSION                                                   from the perspectives of repair operators and modified workflow
+                                                                                                  nodes, as shown in Fig. 7.
+A. Effectiveness of Pre-execution Assessment                                                         Repair Operators. We can observe that Remove (35%) is
+  In this section, we evaluate whether the proposed pre-                                          the most frequently used operator, Append (22%), Replace
+execution assessment can accurately identify wrong repair                                         (21%), and Insert (18%) are also widely adopted, while even
+candidates before costly dynamic execution. We compare its                                        Swap (4%) is required in a subset of repairs. Rather than
+            Swap                             Logic &
+                                                                   structural & workflow enhancement [22], [23], [42], [43], agent
+             4%     Insert                   Control               internal enhancement [20], [21], [44] and runtime & supervisory
+                     18%             Tool &    11%
+                                   Integration                     optimization [24], [25].
+                                       7%
+   Remove                                                             The first category aims to enhance system robustness by
+     35%                                                   LLM &
+               Repair                             Repaired  Agent  optimizing    the external architecture: Aegis [22] aimed to
+             Operators                Code &       Nodes
+                          Append                             47%
+                           22%
+                                     Template                      improve    agent-environment   observability and computation
+                                       20%
+                                                                   offloading; Maestro [23] optimized workflow graphs and
+                                              Knowledge
+                                                                   agent configurations guided by trajectory feedback; CE-Graph
+              Replace
+                21%
+                                                 15%               [42] refined workflows based on failure distribution to avoid
+                                                                   repeated errors. The second line upgrades the agent’s intrinsic
+  Fig. 7: Distribution of repair operators and repaired node.      capabilities: SCOPE [20] achieved online prompt evolution to
+                                                                   balance error correction and long-term strategy improvement;
+                                                                   AgentDevel [44] formalized self-improvement as a release-
+relying on a single editing strategy, FlowFixer employs diverse like pipeline with diagnostic scripting and gating mechanisms;
+repair operators to accommodate different failure scenarios. ReCreate [21] constructed domain agents by extracting ex-
+This observation suggests that repairing agentic workflows perience from successful and failed trajectories. The last line
+is inherently complex and requires flexible combinations of enhances stability during execution: AgentDiet [24] compressed
+workflow modifications, instead of being addressed through a redundant trajectory information to improve efficiency; SU-
+single type of repair operation.                                   PERVISORAGENT [25] added a lightweight supervisor to
+   Repaired Nodes. LLM & Agent Nodes account for the largest proactively correct misbehavior and purify observations.
+proportion of repairs (47%), followed by Code & Template
+Nodes (20%), Knowledge Nodes (15%), Logic & Control Nodes B. Failure Attribution
+(11%), and Tool Integration Nodes (7%). The repaired nodes are        Failure attribution is the cornerstone of diagnosing and
+distributed across all major workflow components, indicating improving LLM-based agent systems. Deshpande et al. [45]
+that failures can arise from diverse parts of agentic workflows introduced a dataset and error taxonomy for evaluating agent
+rather than being concentrated in a single node category. This traces, showing that current LLMs failed significantly at
+result highlights the necessity of diagnosis and repair techniques automated debugging. Current research on failure attribution in
+that can reason over heterogeneous workflow components and LLM-based agent systems can be broadly categorized into four
+support diverse repair operations.                                 types: pattern-based analysis [40], [46], [47], LLM reasoning-
+                                                                   based methods [19], [48], [49], model fine-tuning techniques
+C. Repair Cost
+                                                                   [50]–[52], and intervention-based methods [28], [41], [53].
+   We further evaluate the computational cost of FlowFixer            For pattern-based methods, FAMAS [40] is a spectrum-based
+by measuring the average token consumption throughout the failure attribution technique that ranks the suspiciousness of
+repair process. Among the repair methods, Scope incurs the agents based on their occurrence patterns in successful versus
+lowest cost at around 14K tokens per repair, while SWE- failed executions. For the second category, Who&When [19]
+agent has the highest cost at approximately 38K tokens. In is a representative approach that employs prompting strategies
+comparison, FlowFixer requires 17K tokens on average, indicat- such as all-at-once and step-by-step reasoning to identify the
+ing a competitive computational overhead. The relatively low responsible agent and failure step directly from execution
+overhead of FlowFixer is largely attributed to the proposed pre- logs. In model fine-tuning-based methods, AgenTracer [50]
+execution assessment module, which filters out infeasible repair constructs a dedicated failure attribution dataset through fault
+candidates before workflow execution. By eliminating low- injection and counterfactual replay, and fine-tunes a lightweight
+quality modifications in advance, FlowFixer avoids unnecessary model to recognize error propagation patterns and localize
+workflow execution and reduces the overall repair cost. We failures efficiently. As a dynamic intervention-based method,
+also observe that the remaining overhead mainly comes from DoVer [41] formulates failure attribution as an intervention-
+symbolic inference and iterative repair retries. In future work, driven debugging process, validating attribution hypotheses
+we plan to try more efficient framework (such as symbolic by modifying intermediate states and observing whether the
+inference techniques combined with inference caching) to failure can be eliminated.
+further reduce cost while maintaining repair effectiveness.
+                                                                                          IX. C ONCLUSION
+                      VIII. R ELATED W ORK
+                                                                      This paper presents FlowFixer, a diagnosis-driven automated
+A. Agent Enhancement                                               repair framework for platform-orchestrated agentic workflows.
+   With the widespread application of agents, some new tasks By combining symbolic modeling and symbolic inference,
+have emerged, aiming to enhance the capabilities of these FlowFixer enables accurate failure diagnosis and targeted
+agents specifically to address the failures they encounter in workflow repair. Experimental results on real-world workflow
+practical applications. Existing agent enhancement techniques failures show that FlowFixer consistently outperforms existing
+can be generally categorized into three mainstream paradigms: repair and diagnosis approaches in terms of repair success rate,
+failure attribution accuracy, and root cause analysis accuracy.                  [20] Z. Pei, H.-L. Zhen, S. Kai, S. J. Pan, Y. Wang, M. Yuan, and B. Yu,
+These results demonstrate the effectiveness of diagnosis-                             “Scope: Prompt evolution for enhancing agent effectiveness,” arXiv
+                                                                                      preprint arXiv:2512.15374, 2025.
+driven symbolic inference for improving the reliability and                      [21] Z. Hao, H. Wang, J. Luo, J. Zhang, Y. Zhou, Q. Lin, C. Wang, H. Dong,
+maintainability of agentic workflows.                                                 and J. Chen, “Recreate: Reasoning and creating domain agents driven by
+                                                                                      experience,” 2026. [Online]. Available: https://arxiv.org/abs/2601.11100
+                              R EFERENCES                                        [22] K. Song, A. Jayarajan, Y. Ding, Q. Su, Z. Zhu, S. Liu, and G. Pekhimenko,
+                                                                                      “Aegis: Taxonomy and optimizations for overcoming agent-environment
+ [1] S. S. Chowa, R. Alvi, S. S. Rahman, M. A. Rahman, M. A. K. Raiaan,               failures in llm agents,” arXiv preprint arXiv:2508.19504, 2025.
+     M. R. Islam, M. Hussain, and S. Azam, “From language to action: a           [23] W. Wang, P. Kattakinda, and S. Feizi, “Maestro: Joint graph & config
+     review of large language models as autonomous agents and tool users,”            optimization for reliable ai agents,” arXiv preprint arXiv:2509.04642,
+     Artificial Intelligence Review, 2026.                                            2025.
+ [2] Dify Contributors, “Dify,” https://dify.ai, 2023.                           [24] Y.-A. Xiao, P. Gao, C. Peng, and Y. Xiong, “Reducing cost of
+ [3] Coze Contributors, “Coze,” https://www.coze.com/, 2025.                          llm agents with trajectory reduction,” 2026. [Online]. Available:
+ [4] n8n Contributors, “n8n,” https://n8n.io, 2019.                                   https://arxiv.org/abs/2509.23586
+ [5] A. Leatherwood and V. Matta, “Workshop: Building ai applications with       [25] F. Lin, S. Chen, R. Fang, H. Wang, and T. Lin, “Stop wasting your
+     dify. ai: A hands-on workshop,” 2025.                                            tokens: Towards efficient runtime multi-agent systems,” arXiv preprint
+ [6] WorkFlows.so. (2025) What is dify? build powerful ai apps & agents               arXiv:2510.26585, 2025.
+     with ease. Accessed: 2026-05-30. [Online]. Available: https://workflows.    [26] Q. Wu, G. Bansal, J. Zhang, Y. Wu, B. Li, E. Zhu, L. Jiang, X. Zhang,
+     so/blog/what-is-dify-build-powerful-ai-apps-agents-with-ease                     S. Zhang, J. Liu et al., “Autogen: Enabling next-gen llm applications
+ [7] L. Wang, W. Xu, Y. Lan, Z. Hu, Y. Lan, R. K.-W. Lee, and E.-P.                   via multi-agent conversation,” arXiv preprint arXiv:2308.08155, 2023.
+     Lim, “Plan-and-solve prompting: Improving zero-shot chain-of-thought        [27] Y. Shen, K. Song, X. Tan, D. Li, W. Lu, and Y. Zhuang, “Hugginggpt:
+     reasoning by large language models,” in Proceedings of the 61st annual           Solving ai tasks with chatgpt and its friends in hugging face,” Advances
+     meeting of the association for computational linguistics (volume 1: long         in Neural Information Processing Systems, vol. 36, pp. 38 154–38 180,
+     papers), 2023, pp. 2609–2634.                                                    2023.
+ [8] C. Qian, W. Liu, H. Liu, N. Chen, Y. Dang, J. Li, C. Yang, W. Chen,         [28] K. Zhu, Z. Liu, B. Li, M. Tian, Y. Yang, J. Zhang, P. Han, Q. Xie, F. Cui,
+     Y. Su, X. Cong et al., “Chatdev: Communicative agents for software               W. Zhang et al., “Where llm agents fail and how they can learn from
+     development,” in Proceedings of the 62nd annual meeting of the                   failures,” arXiv preprint arXiv:2509.25370, 2025.
+     association for computational linguistics (volume 1: Long papers), 2024,
+                                                                                 [29] Y. Xie, C. Zhu, X. Zhang, T. Zhu, D. Ye, M. Qi, H. Chen, and W. Zhou,
+     pp. 15 174–15 186.
+                                                                                      “From spark to fire: Modeling and mitigating error cascades in llm-based
+ [9] S. Hong, M. Zhuge, J. Chen, X. Zheng, Y. Cheng, J. Wang, C. Zhang,               multi-agent collaboration,” arXiv preprint arXiv:2603.04474, 2026.
+     S. Yau, Z. Lin, L. Zhou et al., “Metagpt: Meta programming for a
+                                                                                 [30] Z. Xinjie, F. Gao, X. Song, Y. Chen, R. Yang, Y. Fu, Y. Wang,
+     multi-agent collaborative framework,” in International Conference on
+                                                                                      Y. Iwasawa, Y. Matsuo, and I. Li, “Reagent: Reversible multi-agent
+     Learning Representations, vol. 2024, 2024, pp. 23 247–23 275.
+                                                                                      reasoning for knowledge-enhanced multi-hop qa,” in Proceedings of the
+[10] L. Hughes, Y. K. Dwivedi, T. Malik, M. Shawosh, M. A. Albashrawi,
+                                                                                      2025 Conference on Empirical Methods in Natural Language Processing,
+     I. Jeon, V. Dutot, M. Appanderanda, T. Crick, R. De’ et al., “Ai agents
+                                                                                      2025, pp. 4067–4089.
+     and agentic systems: A multi-expert analysis,” Journal of Computer
+     Information Systems, vol. 65, no. 4, pp. 489–517, 2025.                     [31] Y. Wu, Y. Fan, S. Y. Min, S. Prabhumoye, S. McAleer, Y. Bisk,
+                                                                                      R. Salakhutdinov, Y. Li, and T. Mitchell, “Agentkit: structured llm
+[11] B. L. Ross, N. Vouitsis, A. A. Ghomi, R. Hosseinzadeh, J. Xin,
+                                                                                      reasoning with dynamic graphs,” arXiv preprint arXiv:2404.11483, 2024.
+     Z. Liu, Y. Sui, S. Hou, K. K. Leung, G. Loaiza-Ganem et al., “Textual
+     bayes: Quantifying uncertainty in llm-based systems,” arXiv preprint        [32] X. Teoh, Y. Lin, D.-M. Nguyen, R. Ren, W. Zhang, and J. S. Dong,
+     arXiv:2506.10060, 2025.                                                          “Webtestpilot: Agentic end-to-end web testing against natural language
+[12] P. Lymperopoulos and V. Sarathy, “Tools in the loop: Quantifying                 specification by inferring oracles with symbolized gui elements,” arXiv
+     uncertainty of llm question answering systems that use tools,” arXiv             preprint arXiv:2602.11724, 2026.
+     preprint arXiv:2505.16113, 2025.                                            [33] B. Rabern, P. Mondorf, and B. Plank, “Logicskills: A structured
+[13] S. Yao, J. Zhao, D. Yu, N. Du, I. Shafran, K. Narasimhan, and Y. Cao,            benchmark for formal reasoning in large language models,” arXiv preprint
+     “React: Synergizing reasoning and acting in language models,” 2023,              arXiv:2602.06533, 2026.
+     publisher Copyright: © 2023 11th International Conference on Learning       [34] X. Ma, X. Xie, Y. Wang, J. Wang, B. Wu, M. Li, and Q. Wang,
+     Representations, ICLR 2023. All rights reserved.; 11th International             “Demystifying the lifecycle of failures in platform-orchestrated agentic
+     Conference on Learning Representations, ICLR 2023 ; Conference date:             workflows,” arXiv preprint arXiv:2509.23735, 2026.
+     01-05-2023 Through 05-05-2023.                                              [35] M. Cemri, M. Z. Pan, S. Yang, L. A. Agrawal, B. Chopra, R. Tiwari,
+[14] M. R. Lyu, B. Ray, A. Roychoudhury, S. H. Tan, and P. Thongtanunam,              K. Keutzer, A. Parameswaran, D. Klein, K. Ramchandran et al., “Why do
+     “Automatic programming: Large language models and beyond,” ACM                   multi-agent llm systems fail?” Advances in Neural Information Processing
+     Transactions on Software Engineering and Methodology, vol. 34, no. 5,            Systems, vol. 38, 2026.
+     pp. 1–33, 2025.                                                             [36] R. Lu, Y. Li, and Y. Huo, “Exploring autonomous agents: A closer
+[15] J. Yang, C. E. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan,             look at why they fail when completing tasks,” in 2025 40th IEEE/ACM
+     and O. Press, “Swe-agent: Agent-computer interfaces enable automated             International Conference on Automated Software Engineering (ASE).
+     software engineering,” Advances in Neural Information Processing                 IEEE, 2025, pp. 3856–3860.
+     Systems, vol. 37, pp. 50 528–50 652, 2024.                                  [37] N. Islam, M. A. Raza, and M. Wardat, “Selfheal: Empirical fix pattern
+[16] C. S. Xia, Y. Deng, S. Dunn, and L. Zhang, “Demystifying llm-based               analysis and bug repair in llm agents,” 2026. [Online]. Available:
+     software engineering agents,” Proc. ACM Softw. Eng., vol. 2, no. FSE,            https://arxiv.org/abs/2604.17699
+     Jun. 2025. [Online]. Available: https://doi.org/10.1145/3715754             [38] H. Mulian, S. Zeltyn, I. Levy, L. Galanti, A. Yaeli, and S. Shlomov,
+[17] I. Bouzenia, P. Devanbu, and M. Pradel, “Repairagent: An autonomous,             “Agentfixer: From failure detection to fix recommendations in agentic
+     llm-based agent for program repair,” in Proceedings of the                       systems,” in Proceedings of the 2026 International Workshop on Agentic
+     IEEE/ACM 47th International Conference on Software Engineering,                  Engineering, ser. AGENT ’26. New York, NY, USA: Association
+     ser. ICSE ’25. IEEE Press, 2025, p. 2188–2200. [Online]. Available:              for Computing Machinery, 2026, p. 96–103. [Online]. Available:
+     https://doi.org/10.1109/ICSE55347.2025.00157                                     https://doi.org/10.1145/3786167.3788427
+[18] I. Bouzenia and M. Pradel, “Understanding software engineering              [39] L. A. Agrawal, S. Tan, D. Soylu, N. Ziems, R. Khare, K. Opsahl-Ong,
+     agents: A study of thought-action-result trajectories,” arXiv preprint           A. Singhvi, H. Shandilya, M. J. Ryan, M. Jiang, C. Potts, K. Sen,
+     arXiv:2506.18824, 2025.                                                          A. Dimakis, I. Stoica, D. Klein, M. Zaharia, and O. Khattab,
+[19] S. Zhang, M. Yin, J. Zhang, J. Liu, Z. Han, J. Zhang, B. Li, C. Wang,            “Gepa: Reflective prompt evolution can outperform reinforcement
+     H. Wang, Y. Chen et al., “Which agent causes task failures and when? on          learning,” in International Conference on Learning Representations
+     automated failure attribution of llm multi-agent systems,” arXiv preprint        (ICLR). OpenReview, 2026, oral Presentation. [Online]. Available:
+     arXiv:2505.00212, 2025.                                                          https://openreview.net/forum?id=RQm2KQTM5r
+[40] Y. Ge, L. Xie, Z. Li, Y. Pei, and T. Zhang, “Who is introducing the
+     failure? automatically attributing failures of multi-agent systems via
+     spectrum analysis,” arXiv preprint arXiv:2509.13782, 2025.
+[41] M. Ma, J. Zhang, F. Yang, Y. Kang, Q. Lin, T. Yang, S. Rajmohan, and
+     D. Zhang, “Dover: Intervention-driven auto debugging for llm multi-agent
+     systems, 2025,” URL https://arxiv. org/abs/2512.06749.
+[42] J. Zhang, K. Cai, Q. Zeng, N. Liu, S. Fan, Z. Chen, and
+     K. Wang, “Failure-driven workflow refinement,” 2025. [Online].
+     Available: https://arxiv.org/abs/2510.10035
+[43] R. Costa, “Instruction-level weight shaping: A framework for self-
+     improving ai agents,” arXiv preprint arXiv:2509.00251, 2025.
+[44] D. Zhang, “Agentdevel: Reframing self-evolving llm agents as release
+     engineering,” 2026. [Online]. Available: https://arxiv.org/abs/2601.04620
+[45] D. Deshpande, V. Gangal, H. Mehta, J. Krishnan, A. Kannappan, and
+     R. Qian, “Trail: Trace reasoning and agentic issue localization,” arXiv
+     preprint arXiv:2505.08638, 2025.
+[46] A. Barrak, “Traceability and accountability in role-specialized multi-agent
+     llm pipelines,” 2025. [Online]. Available: https://arxiv.org/abs/2510.07614
+[47] Y. Yu, M. Li, S. Xu, J. Fu, X. Hou, F. Lai, and B. Wang, “Correct:
+     Condensed error recognition via knowledge transfer in multi-agent
+     systems,” arXiv preprint arXiv:2509.24088, 2025.
+[48] A. Banerjee, A. Nair, and T. Borogovac, “Where did it all go wrong?
+     a hierarchical look into multi-agent error attribution,” arXiv preprint
+     arXiv:2510.04886, 2025.
+[49] C. Zhu, S. Hong, J. Wu, K. Chawla, Y. Tang, Y. Yin, N. Wolfe,
+     E. Babinsky, and D. Liu, “Raffles: Reasoning-based attribution of faults
+     for llm systems,” in Proceedings of the 19th Conference of the European
+     Chapter of the Association for Computational Linguistics (Volume 1:
+     Long Papers), 2026, pp. 7659–7688.
+[50] G. Zhang, J. Wang, J. Chen, W. Zhou, K. Wang, and S. Yan, “Agentracer:
+     Who is inducing failure in the llm agentic systems?” arXiv preprint
+     arXiv:2509.03312, 2025.
+[51] H. Zhang, Y. Shi, X. Gu, H. You, Z. Zhang, L. Gan, Y. Yuan, and
+     J. Huang, “Graphtracer: Graph-guided failure tracing in llm agents for
+     robust multi-turn deep search,” arXiv preprint arXiv:2510.10581, 2025.
+[52] F. Kong, R. Zhang, H. Yin, G. Zhang, X. Zhang, Z. Chen, Z. Zhang,
+     X. Zhang, S.-C. Zhu, and X. Feng, “Aegis: Automated error generation
+     and attribution for multi-agent systems,” arXiv preprint arXiv:2509.14295,
+     2025.
+[53] M. Chen, J. Wang, F. Mu, Y. Wang, Z. Liu, H. Feng, and
+     Q. Wang, “Seeing the whole elephant: A benchmark for failure
+     attribution in llm-based multi-agent systems,” 2026. [Online]. Available:
+     https://arxiv.org/abs/2604.22708
+

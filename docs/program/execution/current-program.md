@@ -4,7 +4,40 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: reviewed DataHub reference decision
+## Current continuation: reviewed reporting and monitoring synthesis
+
+The program has recorded **117 of 376 proposal operations**. The current
+working reader is [862 pages](../../causal_proposal_reporting_v2_2026-10-17.pdf),
+SHA-256 `41d01b4055652c890fbe58a132011b6503d0837985d1c2f5b3bf9eaf873243f6`.
+Chapter 41, printed pages 548–554 (physical 567–573), develops faithful
+causal reporting, selective uncertainty, repeated alarms and version
+applicability for thirty-day servicing value. Nine primary papers, two pinned
+package reviews and actual local report source distinguish reported research,
+static implementation, exact authored examples and proposed capability.
+
+Four new genuine scholarly PDFs resolve four previously uninspected candidates;
+three original-source gaps remain with concrete retrieval outcomes and revisit
+routes. Five exact reference families reproduce finite-set money, complete
+request denominators, selection, repeated tests and dependency invalidation.
+All 670 predecessor source records, citation contexts and compiled content
+survive. The reader has 677 audited records and 179 genuine scholarly PDFs.
+Compilation, all-page text bounds and mathematical reproduction pass. The first
+candidate and subsequent author-formatting/copyedit repair are preserved.
+Q2–Q4 are renewed for this reader; Q1 coverage/depth, Q5 sponsor coherence and
+rendered visual acceptance remain open. No mandatory repair is declared closed.
+
+Continue `LL.TASK.variable_ontology`: review the eight mapped pending candidates,
+measurement and knowledge-graph primary texts, OntoLearner and current local
+schemas. Develop measured/latent distinctions, units, entity aggregation,
+value-availability clocks and a bounded public/generated extraction comparison.
+Keep missing originals and unknown causal sufficiency explicit. Primary
+acquisition and a reviewed plan are staged in
+[the task directory](2026-10-17/variable-ontology/plan.md).
+The DataHub publication was independently remote-verified at
+`acd62b41e0fb0c297079e82ec7b2f2a95741674f`; this reporting successor is ready
+for repository publication. No unattended worker is running.
+
+## Preserved reviewed DataHub reference decision
 
 The program has recorded **116 of 376 proposal operations**. The current
 working reader is [855 pages](../../causal_proposal_datahub_2026-10-16.pdf),
