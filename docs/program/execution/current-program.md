@@ -4,7 +4,30 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: crash recovery and Java temporal discovery
+## Current continuation: graph and set topology
+
+The recovered program has recorded 105 of 376 proposal operations. The current
+working reader is [809 pages](../../causal_proposal_topology_2026-10-16.pdf),
+SHA-256 `3178595940d8c4e6ee9e43f32bdbafa9484e6edfd7d70d5f0403dd613b5ad8cf`.
+Printed pages 568–572 integrate twelve actual local semantic case families,
+Python–Node JSON round trips, exact graph/set/monetary references, and six
+proposed acceptance-contract groups. Existing 62 selected tests pass. New
+observations preserve syntax-only graph admissions, coordinate-order mismatch,
+large-integer rounding and context-number hash rejection. A probe setup error
+was preserved and corrected in a successor script; no product source changed.
+
+All 634 inherited citation records and contexts remain; the new reader contains
+639 records and 175 genuine scholarly PDFs. Source, mathematical and all-page
+text-bounds checks pass without material compile warnings. Q2–Q4 pass for this
+exact reader; Q1/Q5 and rendered visual acceptance remain open. Continue
+`TEXT.DRAFT.S10`, matched qualification and build/buy/integrate decisions, then
+review its substantive depth and integrate a preserving successor. Native
+adapter implementation, graph-class recognition, general effect calibration
+and later owner acceptance remain distinct from this proposal review.
+The recovered Java release was pushed and remote-verified at
+`1533afc31fc4d7bcf736881862e59535a8b62763`. No background worker is running.
+
+## Preserved crash recovery and Java temporal discovery
 
 Recovery on 16 October 2026 preserved the ledger and the interrupted compiler
 logs. The program has recorded 104 of 376 proposal operations. The current
