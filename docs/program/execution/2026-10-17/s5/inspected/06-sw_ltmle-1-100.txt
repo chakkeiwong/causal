@@ -1,0 +1,100 @@
+#' Longitudinal Targeted Maximum Likelihood Estimation
+#'
+#' \code{ltmle} is Targeted Maximum Likelihood Estimation (TMLE) of
+#' treatment/censoring specific mean outcome for point-treatment and
+#' longitudinal data. \code{ltmleMSM} adds Marginal Structural Models. Both
+#' always provide Inverse Probability of Treatment/Censoring Weighted estimate
+#' (IPTW) as well. Maximum likelihood based G-computation estimate (G-comp) can
+#' be obtained instead of TMLE. \code{ltmle} can be used to calculate additive
+#' treatment effect, risk ratio, and odds ratio.
+#'
+#' The estimates returned by \code{ltmle} are of a treatment specific mean,
+#' \eqn{E[Y_{\bar{a}}]}, the mean of the final treatment node, where all
+#' treatment nodes, \eqn{A}, are set to \eqn{\bar{a}} (\code{abar}) and all
+#' censoring nodes \eqn{C} are set to 1 (uncensored). The estimates returned by
+#' \code{ltmleMSM} are similar but are the parameters in a working marginal
+#' structural model.
+#'
+#' \code{data} should be a data frame where the order of the columns
+#' corresponds to the time-ordering of the model.  \itemize{ \item in censoring
+#' columns (Cnodes): factor with two levels: "censored" and "uncensored". The
+#' helper function \code{BinaryToCensoring} can be used to create these
+#' factors.  \item in treatment columns (Anodes): 1 = treated, 0 = untreated
+#' (must be binary) \item in event columns (Ynodes): If \code{survivalOutcome}
+#' is \code{TRUE}, then Y nodes are treated as indicators of a one-time event.
+#' See details for \code{survivalOutocme}. If \code{survivalOutcome} is
+#' \code{FALSE}, Y nodes are treated as binary if all values are 0 or 1, and
+#' are treated as continuous otherwise. If Y nodes are continuous, they may be
+#' automatically scaled. See details for \code{Yrange}.  \item time-dependent
+#' covariate columns (Lnodes): can be any numeric data \item Data in
+#' \code{Cnodes}, \code{Anodes}, \code{Lnodes} and \code{Ynodes} are not used
+#' after (to the right of) censoring (or an event when
+#' \code{survivalOutcome==TRUE}) and may be coded as \code{NA} or any other
+#' value.  \item Columns in \code{data} that are before (to the left of) the
+#' first of \code{Cnodes} or \code{Anodes} are treated as baseline variables,
+#' even if they are specified as \code{Lnodes}.  \item After the first of
+#' \code{Cnodes}, \code{Anodes}, \code{Ynodes}, or \code{Lnodes}, every column
+#' must be in one of \code{Cnodes}, \code{Anodes}, \code{Ynodes}, or
+#' \code{Lnodes}.  }
+#'
+#' If \code{survivalOutcome} is \code{TRUE}, all Y values are indicators of an
+#' event (e.g. death) at or before the current time, where 1 = event and 0 = no
+#' event. The events in Ynodes must be of the form where once Y jumps to 1, Y
+#' remains 1 at subsequent nodes.
+#'
+#' For continuous outcomes, (\code{survivalOutcome==FALSE} and some Y nodes are
+#' not 0 or 1,) Y values are truncated at the minimum and maximum of
+#' \code{Yrange} if specified, and then transformed and scaled to be in [0,1].
+#' That is, transformed to \code{(Y-min(Yrange))/(max(Yrange)-min(Yrange))}. If
+#' \code{Yrange} is \code{NULL}, it is set to the range of all Y nodes. In that
+#' case, Y nodes are only scaled if any values fall outside of [0,1]. For
+#' intervention specific means (\code{ltmle}), parameter estimates are
+#' transformed back based \code{Yrange}.
+#'
+#' \code{Qform} should be \code{NULL}, in which case all parent nodes of each L
+#' and Y node will be used as regressors, or a named character vector that can
+#' be coerced to class "\code{\link{formula}}". The length of \code{Qform} must
+#' be equal to \code{length(Lnodes) + length(Ynodes)}** and the names and order
+#' of the formulas must be the same as the names and order of the L and Y nodes
+#' in \code{data}. The left hand side of each formula should be
+#' "\code{Q.kplus1}". If \code{SL.library} is \code{NULL}, \code{glm} will be
+#' called using the elements of \code{Qform}. If \code{SL.library} is
+#' specified, \code{\link[SuperLearner:SuperLearner]{SuperLearner}} will be
+#' called after a design matrix is created using \code{Qform.}
+#'
+#' ** If there is a "block" of L and Y nodes not separated by A or C nodes,
+#' only one regression is required at the first L/Y node in a block. You can
+#' pass regression formulas for the other L/Y nodes, but they will be ignored
+#' (with a message). See example 5.
+#'
+#' \code{gform} should be \code{NULL}, in which case all parent nodes of each L
+#' and Y node will be used as regressors, or a character vector that can be
+#' coerced to class "\code{\link{formula}}", or a matrix/array of Prob(A=1). If
+#' \code{gform} is a character vector, the length of \code{gform} must be equal
+#' to \code{length(Anodes) + length(Cnodes)} and the order of the formulas must
+#' be the same as the order the A and C nodes appear in \code{data}. The left
+#' hand side of each formula should be the name of the Anode or Cnode. If
+#' \code{SL.library} is \code{NULL}, \code{glm} will be called using the
+#' elements of \code{gform}. If \code{SL.library} is specified,
+#' \code{\link[SuperLearner:SuperLearner]{SuperLearner}} will be called after a
+#' design matrix is created using \code{gform}.
+#'
+#' In \code{ltmle}, \code{gform} can also be a n x numACnodes matrix where
+#' entry (i, j) is the probability that the ith observation of the jth A/C node
+#' is 1 (if an Anode) or uncensored (if a Cnode), conditional on following abar
+#' up to that node. In \code{ltmleMSM}, \code{gform} can similarly be a n x
+#' numACnodes x numRegimes array, where entry (i, j, k) is the probability that
+#' the ith observation of the jth A/C node is 1 (if an Anode) or uncensored (if
+#' a Cnode), conditional on following regime k up to that node. If \code{gform}
+#' is a matrix/array, \code{deterministic.g.function} will not be used and
+#' should be \code{NULL}.
+#'
+#' \code{abar} specifies the counterfactual values of the Anodes, using the
+#' order they appear in \code{data} and should have the same length (if abar is
+#' a vector) or number of columns (if abar is a matrix) as \code{Anodes}.
+#'
+#' \code{rule} can be used to specify a dynamic treatment rule. \code{rule} is
+#' a function applied to each row of \code{data} which returns a numeric
+#' vector of the same length as \code{Anodes}.
+#'
+#' \code{abar} and \code{rule} cannot both be specified. If one of them if a

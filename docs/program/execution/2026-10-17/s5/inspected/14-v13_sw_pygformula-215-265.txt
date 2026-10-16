@@ -1,0 +1,51 @@
+            if covnames is not None:
+                update_precoded_history(pool, covnames, cov_hist, covtypes, time_name, id, below_zero_indicator,
+                                      baselags, ts_visit_names)
+                if custom_histvars is not None:
+                    update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
+            new_df = pool[pool[time_name] == t].copy()
+
+            if competing and not compevent_cens:
+                prob_D = compevent_fit.predict(new_df)
+                new_df['prob_D'] = prob_D
+
+                if compevent_restrictions is not None:
+                    for restriction in compevent_restrictions:
+                        conditions = restriction[0]
+                        masks = []
+                        for cond_var, condition in conditions.items():
+                            mask = new_df[cond_var].apply(condition)
+                            masks.append(mask)
+                        comp_restrict_mask = reduce(operator.and_, masks)
+                        new_df.loc[~comp_restrict_mask, 'prob_D'] = restriction[1]
+
+                new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)
+
+            if ymodel_predict_custom is not None:
+                pre_y = ymodel_predict_custom(ymodel=ymodel, new_df=new_df, fit=outcome_fit)
+            else:
+                pre_y = outcome_fit.predict(new_df)
+
+            if outcome_type == 'survival':
+                new_df['prob1'] = pre_y
+
+                if yrestrictions is not None:
+                    for restriction in yrestrictions:
+                        conditions = restriction[0]
+                        masks = []
+                        for cond_var, condition in conditions.items():
+                            mask = new_df[cond_var].apply(condition)
+                            masks.append(mask)
+                        restrict_mask = reduce(operator.and_, masks)
+                        new_df.loc[~restrict_mask, 'prob1'] = restriction[1]
+
+                new_df['prob0'] = 1 - new_df['prob1']
+                new_df[outcome_name] = new_df['prob1'].apply(binorm_sample)
+
+            if outcome_type == 'binary_eof':
+                new_df['Py'] = 'NA' if t < time_points - 1 else pre_y
+            if outcome_type == 'continuous_eof':
+                new_df['Ey'] = 'NA' if t < time_points - 1 else pre_y
+
+            if competing and not compevent_cens:
+                new_df.loc[new_df[compevent_name] == 1, outcome_name] = pd.NA

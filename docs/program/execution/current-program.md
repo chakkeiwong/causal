@@ -4,7 +4,46 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: effects chapter recovered, reviewed and integrated
+## Current continuation: longitudinal chapter recovered, reviewed and integrated
+
+The program has recorded **129 of 376 proposal operations**. The current
+working reader is [939 pages](../../causal_proposal_longitudinal_reviewed_v3_2026-10-17.pdf),
+SHA-256 `e9e6dd8ad1d8cfed99cc0869988c226aaa1e949f7c128b7cfe99c9d3122b133b`.
+Recovery resumed the interrupted author review and verified the saved build,
+source bindings, exact references and extracted-text findings before
+publication. Chapter 22, printed pages 215–235 (physical 236–256), develops
+survival horizons, survivor selection, competing-event semantics, natural and
+modified policy targets, joint uncertainty and occupied-history model error.
+
+The initial depth failure at 10.75 exclusive page equivalents remains
+preserved. The corrected successor has 14.25, meeting the minimum of 14;
+the planning target of 17 remains unmet. All 707 canonical source records
+and citation-context multisets survive; all 711 v2 records remain unchanged.
+The reader contains 712 audited records and 187 genuine scholarly PDFs.
+Compilation, traceability, equations 22.1–22.40, exact reference calculations
+and all-page text bounds pass. Visual acceptance remains false under the
+inherited image limit. These findings do not qualify an upstream package or
+establish empirical coverage, authentic bank validation or ROI.
+
+The [release review](2026-10-17/s5/publication-v3/release-source-review.json)
+and [chapter-depth review](../comprehensive-v14/work/TEXT.REVIEW.S5/chapter-review.json)
+retain the failed attempt, mathematical restrictions and follow-up routes.
+Q2–Q4 are renewed for this exact reader; Q1 coverage/depth, Q5 sponsor
+coherence, all three mandatory manuscript repairs and final acceptance remain
+open. Equal survival can conceal USD 20.805 in event-value error in the exact
+example; the prospective validation radius still cannot certify its sign.
+
+Continue **TEXT.DRAFT.S6** with the current selection recorded in canonical
+state: develop panel, event-study, synthetic-control and dependent-time-series
+comparisons from inspected originals and reproducible banking examples.
+Review a concrete plan against the 14/17/20 exclusive allocation and avoid
+duplicate credit for inherited DiD, donor weighting, dynamic-panel and temporal
+discovery discussions. Preserve unavailable-original and external qualification
+limits locally. Record this successor's Git identity after pushing. No
+unattended worker is running; publication is a checkpoint and eligible
+execution continues.
+
+## Preserved effects chapter recovered, reviewed and integrated
 
 The program has recorded **127 of 376 proposal operations**. The current
 working reader is [917 pages](../../causal_proposal_effects_reviewed_2026-10-17.pdf),
