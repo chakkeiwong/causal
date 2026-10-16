@@ -4,7 +4,47 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: recovered integration continuity release
+## Current continuation: identification chapter reviewed and integrated
+
+The program has recorded **125 of 376 proposal operations**. The current
+working reader is [899 pages](../../causal_proposal_identification_reviewed_2026-10-17.pdf),
+SHA-256 `c4d1492dfef1e14fdeaf1ae192625a91fde90a832256a223b79a95972238cf9c`.
+Crash recovery resumed the saved build and preserved both earlier unpublished
+candidates. Chapter 20, printed pages 181–196 (physical 201–216), develops
+identification, individual counterfactuals, instrumental-variable targets and
+effect sets. Its extension proves full-table sharp bounds under a bounded
+defier assumption and distinguishes those from outer exclusion envelopes.
+
+The initial author depth review failed at 6.5 substantive page equivalents.
+The extension brings exclusive credit to 10, meeting the minimum while leaving
+the 12-page planning target unmet. Numerical, software and interface discussion
+already credited to I1 receives no S3 credit. Five incorrectly unnumbered
+equation references were repaired in a preserving copy. All 699 canonical
+records and their citation-context multisets remain; all 703 sensitivity-candidate
+records are unchanged. Five genuine primary-paper rereads, exact rational
+examples, separate algebra, all eight observed-cell checks, 36 feasible-domain
+vertices, source traceability and all-page text bounds support the review.
+No upstream or bank experiment is inferred.
+
+The [exact-reader review](2026-10-17/s3/publication-v3/release-source-review.json)
+and [chapter-depth review](../comprehensive-v14/work/TEXT.REVIEW.S3/chapter-review.json)
+retain the failed initial review, repairs and limitations. Q2–Q4 are renewed
+for this reader. Q1 coverage/depth, Q5 sponsor coherence, rendered visual
+acceptance and all three mandatory manuscript repairs remain open. Proposal
+acceptance and product qualification are false.
+
+Continue **TEXT.DRAFT.S4**: develop effect estimation, heterogeneous effects
+and quasi-experiments from the inspected corpus. Derive target-specific
+orthogonal and weighting comparisons, heterogeneous-action consequences,
+and matched quasi-experimental examples. Keep later longitudinal/panel
+allocations distinct and assess exclusive substantive depth against 10/14/17.
+An unavailable original or external qualification input blocks only its own
+branch. The canonical predecessor was pushed and remote-verified at
+`31ac3fab92fa0c5924a1892f385bf81fdaa79213`. Record this successor's Git identity
+in its publication receipt after pushing. No unattended worker is running;
+publication is a checkpoint and eligible execution continues.
+
+## Preserved recovered integration continuity release
 
 The program has recorded **123 of 376 proposal operations**. The current
 working reader is [883 pages](../../causal_proposal_continuity_2026-10-17.pdf),
