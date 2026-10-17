@@ -4,7 +4,52 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: observation chapter recovered, reviewed and integrated
+## Current continuation: commercial chapter recovered, reviewed and integrated
+
+The program has recorded **135 of 376 proposal operations**. The working
+reader is [998 pages](../../causal_proposal_commercial_gap_reviewed_v3_2026-10-17.pdf).
+Its exact identity is bound in the [working release](2026-10-17/s8/publication-v3/working-release.json).
+Chapter25, printed273–293 (physical294–314), develops commercial purchasing
+units across four banking journeys, a17-area capability map, source-specific
+information/rights boundaries, capacity scheduling and conditional economics.
+
+The 993-page candidate failed depth at6.25 exclusive page equivalents and had
+eight overflowing table labels. The 997-page successor repaired typography and
+added loaded-model residency but still failed depth at9.25. Both remain
+preserved. The accepted successor has **10.75 exclusive substantive page
+equivalents**, meeting minimum10 within maximum15; target12 remains unmet.
+It distinguishes known-batch, random-workload and hard-deadline capacity choices
+and derives the ceiling imposed by a shared cold-recovery validation dependency.
+
+All721 canonical source records, compiled sources and citation-context multisets
+survive. All724 initial-candidate and725 second-candidate records remain unchanged.
+The reader has726 audited records and188 genuine scholarly PDFs. Eighteen
+primary excerpts, exact finite enumerations, equations25.1–25.23, traceability
+and all-page text bounds pass; no material compilation warnings remain. The
+[release review](2026-10-17/s8/publication-v3/release-source-review.json) and
+[depth review](../comprehensive-v14/work/TEXT.REVIEW.S8/chapter-review.json)
+retain scientific and commercial limits. Visual acceptance remains false under
+the inherited image allowance.
+
+All costs, durations, utilities, failure probabilities and workload laws are
+hypothetical. No paid vendor engine or new upstream package trial was run. Exact
+edition parity, deployment rights, prices, support, several uninspected families
+and historical cutoff bytes remain [scoped omissions](2026-10-17/s8/omissions.json).
+The complete-choice compatibility test has gross valueUSD7,250; aUSD15,000 test
+has negative net value. This corrects the incomplete two-route development draft.
+The cold-recovery model does not assert that a loaded engine stops when license
+validation is unavailable.
+
+Continue **TEXT.DRAFT.S9**, R/Python/Java/C++ reuse, bridges and justified ports,
+against6/8/10 exclusive pages. Its [reviewed plan](2026-10-17/s9/plan.md), eight
+initial authentic source excerpts and exact threshold/shared-randomness/resampling
+references are saved. Preserve original-language and actual runtime boundaries;
+exclude repeated graph algorithms, catalogs, generic economics and interfaces.
+Q2–Q4 are renewed for this exact reader. Record Git publication and continue
+eligible work. Q1/Q5, all three mandatory repairs and final acceptance remain open.
+No unattended worker is running.
+
+## Preserved observation chapter recovered, reviewed and integrated
 
 The program has recorded **133 of 376 proposal operations**. The working
 reader is [977 pages](../../causal_proposal_observation_reviewed_v2_2026-10-17.pdf),

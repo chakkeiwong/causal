@@ -1,0 +1,41 @@
+        if (self.learner is None) and (
+            (self.control_learner is None) or (self.treatment_learner is None)
+        ):
+            raise ValueError(
+                "Either `learner` or both `control_learner` and `treatment_learner` "
+                "must be specified."
+            )
+        check_treatment_vector(treatment, self.control_name)
+        treatment_np = to_numpy(treatment)
+        y_np = to_numpy(y)
+
+        self.t_groups = np.unique(treatment_np[treatment_np != self.control_name])
+        self.t_groups.sort()
+        self._classes = {group: i for i, group in enumerate(self.t_groups)}
+
+        # Resolve base models from stored constructor args (no templates needed).
+        _control_learner = (
+            self.control_learner
+            if self.control_learner is not None
+            else deepcopy(self.learner)
+        )
+        _treatment_learner = (
+            self.treatment_learner
+            if self.treatment_learner is not None
+            else deepcopy(self.learner)
+        )
+
+        self.models_t = {group: deepcopy(_treatment_learner) for group in self.t_groups}
+
+        # model_c is trained on the control group, which is identical for every
+        # treatment group, so fit it once.
+        control_mask = treatment_np == self.control_name
+        self.model_c = deepcopy(_control_learner)
+        self.model_c.fit(filter_mask(X, control_mask), y_np[control_mask])
+        # Expose as a shared-reference dict to preserve the public models_c API.
+        self.models_c = {group: self.model_c for group in self.t_groups}
+
+        for group in self.t_groups:
+            treatment_mask = treatment_np == group
+            self.models_t[group].fit(
+                filter_mask(X, treatment_mask), y_np[treatment_mask]
