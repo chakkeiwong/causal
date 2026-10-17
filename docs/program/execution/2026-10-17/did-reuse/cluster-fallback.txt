@@ -1,0 +1,99 @@
+552:   # All inference below requires the influence functions. With compute_inffunc = FALSE
+553:   # (point estimates only) skip it entirely; see the else-branch before return().
+554:   if (compute_inffunc) {
+555:   # Analytical variance of the ATT(g,t)'s. With a cluster variable (beyond idname) and no bootstrap, use
+556:   # the cluster-robust form -- the cluster sums of the influence function -- mirroring the cluster-sum
+557:   # aggregation of the multiplier bootstrap (Callaway & Sant'Anna 2021, Remark 10). It is kept on the same
+558:   # 1/n scaling as the i.i.d. V so that se = sqrt(diag(V)/n) and the Wald statistic n * b' V^{-1} b stay
+559:   # valid for either form.
+560:   # cluster variables beyond the unit id; clustering on the unit id alone is just the unit-level (i.i.d.)
+561:   # SE. Use the *internal* unit id dp$idname -- the user's idname for panels, and ".rowid" for repeated
+562:   # cross-sections / unbalanced panels (where the user may omit idname), mirroring how mboot() identifies units.
+563:   unit_id <- dp$idname
+564:   extra_clustervars <- clustervars[!(clustervars %in% c(unit_id, idname, ""))]
+565:   # Per-unit cluster identifiers aligned with the rows of inffunc. faster_mode supplies dp$cluster_vector,
+566:   # but for unbalanced panels (internally panel = FALSE, so the time-invariant data keeps every
+567:   # observation) that vector is observation-length rather than unit-length and no longer aligns with the
+568:   # unit-level influence function. Derive the vector from the data exactly as mboot() does -- one row per
+569:   # cross-sectional unit, keyed on the internal unit id -- and store it back whenever it is missing OR does
+570:   # not align with inffunc. This keeps the analytical clustered SE and aggte() working for faster_mode TRUE
+571:   # and FALSE and for balanced and unbalanced panels; repeated cross sections (where the per-observation
+572:   # vector already has one row per unit and aligns) fall through unchanged.
+573:   if (length(extra_clustervars) > 0 && !is.null(dp$data) && !is.null(unit_id) &&
+574:       (is.null(dp$cluster_vector) || length(dp$cluster_vector) != nrow(inffunc))) {
+575:     cdat <- as.data.frame(dp$data)
+576:     if (all(c(unit_id, extra_clustervars[1L]) %in% names(cdat))) {
+577:       rebuilt_cv <- as.vector(unique(cdat[, c(unit_id, extra_clustervars[1L])])[, 2L])
+578:       # only adopt the rebuilt vector if it lines up with the influence-function rows
+579:       if (length(rebuilt_cv) == nrow(inffunc)) dp$cluster_vector <- rebuilt_cv
+580:     }
+581:   }
+582:   cluster_vec <- dp$cluster_vector
+583:   # Record which variable cluster_vec represents (when it is valid), so aggte() can tell whether an
+584:   # inherited or overridden clustervars can be honored from this object -- and refuse to silently cluster
+585:   # on the wrong variable.
+586:   if (length(extra_clustervars) > 0 && !is.null(cluster_vec) && length(cluster_vec) == nrow(inffunc)) {
+587:     dp$cluster_vector_var <- extra_clustervars[1L]
+588:   }
+589:   cluster_analytic <- (length(extra_clustervars) > 0) && !bstrap &&
+590:     !is.null(cluster_vec) && length(cluster_vec) == nrow(inffunc)
+591:   if (cluster_analytic) {
+592:     Sc <- rowsum(as.matrix(inffunc), cluster_vec)   # n_clusters x k cluster sums
+593:     V  <- Matrix::Matrix(crossprod(Sc) / n)
+594:   } else {
+595:     V <- Matrix::t(inffunc) %*% inffunc / (n)
+596:   }
+597:   se <- sqrt(Matrix::diag(V) / n)
+598: 
+599:   # Zero standard error replaced by NA
+600:   se[se <= sqrt(.Machine$double.eps) * 10] <- NA
+601: 
+602:   # If a cluster variable beyond idname is requested without the bootstrap but the cluster-robust variance
+603:   # could not be formed (e.g. cluster identifiers unavailable), fall back to i.i.d. and let the user know.
+604:   if ((length(extra_clustervars) > 0) & !bstrap & !cluster_analytic) {
+605:     warning("Clustered standard errors could not be computed analytically; the reported standard errors do NOT account for clustering. Set bstrap = TRUE for the cluster-robust multiplier bootstrap.")
+606:   }
+607: 
+608:   # Identify entries of main diagonal V that are zero or NA
+609:   zero_na_sd_entry <- unique(which(is.na(se)))
+610: 
+611:   # bootstrap variance matrix
+612:   if (bstrap) {
+613:     bout <- mboot(inffunc, DIDparams = dp, pl = pl, cores = cores, return_V = FALSE)
+614:     bres <- bout$bres
+615: 
+616:     if (length(zero_na_sd_entry) > 0) {
+617:       se[-zero_na_sd_entry] <- bout$se[-zero_na_sd_entry]
+618:     } else {
+619:       se <- bout$se
+620:     }
+621:   }
+622:   # Zero standard error replaced by NA
+623:   se[se <= sqrt(.Machine$double.eps) * 10] <- NA
+624: 
+625: 
+626:   #-----------------------------------------------------------------------------
+627:   # compute Wald pre-test
+628:   #-----------------------------------------------------------------------------
+629: 
+630:   # Determine whether the variance matrix V is a valid basis for the Wald pre-test. The i.i.d. form
+631:   # V = t(inffunc) %*% inffunc / n is valid for balanced panels, unbalanced panels (influence functions
+632:   # are aggregated to the unit level), and repeated cross-sections (CLT applies per independent
+633:   # observation). When a cluster variable beyond idname is specified and V is built from cluster sums
+634:   # (cluster_analytic, above), V is cluster-robust and the Wald test remains valid. It is only skipped
+635:   # when an extra cluster variable is present but V is the i.i.d. form (e.g. bstrap = TRUE), since then
+636:   # V ignores between-cluster correlation; in that case we rely on the bootstrap confidence bands.
+637: 
+638:   wald_invalid <- NULL
+639:   if (length(extra_clustervars) > 0 && !cluster_analytic) {
+640:     wald_invalid <- paste0(
+641:       "The Wald pre-test is not reported when clustering beyond the unit level ",
+642:       "(clustervars = '", paste(extra_clustervars, collapse = "', '"), "') ",
+643:       "because the analytical variance matrix does not account for between-cluster ",
+644:       "correlation. Use the bootstrap confidence intervals to assess pre-trends."
+645:     )
+646:   }
+647: 
+648:   if (!is.null(wald_invalid)) {
+649:     message(wald_invalid)
+650:     W <- NULL

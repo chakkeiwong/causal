@@ -4,7 +4,44 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: commercial chapter recovered, reviewed and integrated
+## Current continuation: S9 recovered, reviewed and integrated
+
+The program has recorded **139 of 376 proposal operations**. The current
+[1,014-page working reader](../../causal_proposal_language_reuse_reviewed_v4_2026-10-17.pdf)
+is bound by the [S9 working release](2026-10-17/s9/publication-v4/working-release.json).
+Chapter26, printed294–308 (physical316–330), develops pinned original-language
+reuse, numerical composition, adaptive conditional laws, outcome-dependent
+retries, persistent failures, fallback value and selection correction.
+
+Three prior S9 candidates remain preserved: their conservative exclusive credits
+were2.5,3.0 and3.0 and did not meet minimum6. The reviewed v4 successor earns
+**7.0 exclusive page equivalents**, meeting minimum6; target8 remains unmet.
+Its15 physical chapter pages are not counted as15 substantive pages. Earlier
+catalogs, shared-control theory and generic interface/evaluation material are
+excluded from credit. The [depth review](../comprehensive-v14/work/TEXT.REVIEW.S9/chapter-review.json)
+records page-by-page reasons.
+
+All726 canonical source records and citation contexts survive; all730 v3
+records remain unchanged. The reader has731 audited records and188 genuine
+scholarly PDFs. Fourteen misleading descriptive provenance pointers have a
+preserving correction; bounded source decisions do not close dependencies or
+rights. Exact finite retry paths,19 equations, source traceability and all-page
+text bounds pass with no material compilation warnings. Visual acceptance
+remains false under the inherited image allowance.
+
+Two retry schemes can both cost11/8 expected calls but have completion55/64
+versus23/32 and returned means3/5 versus9/23. These are authored conditional
+laws, not observed upstream or bank behavior. Numerical bounds, joint kernels,
+completion-law knowledge and positivity need actual implementation evidence.
+
+Q2–Q4 are renewed for this exact reader. Q1/Q5, all three mandatory manuscript
+repairs and final proposal acceptance remain open. Continue the queue's next
+eligible operation, including the outstanding L1/L2/I2/I4 chapter reviews.
+The eleven-family policy vendor comparison is recorded as inconclusive: five families have bounded policy-relevant originals, six remain unresolved; exact edition and rights closure is absent. The inherited did entry resolves to bcallaway11/did at a selected API pin; reference use is retained, integration permission is withheld pending complete rights/environment qualification. Continue LL.CENSUS next.
+Do not stop for a phase boundary or let local visual/qualification limits block
+source and proposal work. No unattended scholarly worker is running.
+
+## Preserved commercial chapter recovered, reviewed and integrated
 
 The program has recorded **135 of 376 proposal operations**. The working
 reader is [998 pages](../../causal_proposal_commercial_gap_reviewed_v3_2026-10-17.pdf).
