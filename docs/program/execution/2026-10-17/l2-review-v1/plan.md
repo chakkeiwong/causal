@@ -1,0 +1,10 @@
+# L2 monetary targets and substantive-depth repair
+
+1. Recover the immutable current reader and active L2 findings, confirm controller integrity, and finish the interrupted publication push without duplicating a running process.
+2. Replace only the defective L2 source through a preserving successor. Define average balance, balance-time, monetary valuation, incremental comparator cost, and the funding-cost minimization sign explicitly.
+3. Develop a connected monetary-target analysis with exact rational examples, uncertainty in valuation, marginal versus average funding cost, eligibility/ownership boundaries, and alternative policy targets. Distinguish project constructions from inherited results and bank evidence.
+4. Inspect original title pages for L2 formulation/measurement citations. Correct only verified author fields in successor bibliographies. Preserve every existing source identity and unrelated citation context.
+5. Compile the successor; replay exact examples, verify source and citation preservation, inspect extracted L2 pages and all-page text bounds, then measure exclusive substantive depth against 16/17/18 pages. Visual acceptance remains false under the exhausted inherited image allowance.
+6. Publish only after the bounded review passes, renew exact-reader Q2-Q4, and record the actual L2 coverage/depth outcome without equating physical pages with quality. Continue I2/I4 and census work independently; refresh mission control and commit/push durable progress.
+
+Plan review: the dimensional correction is known and directly testable. A constant-rate illustration is insufficient for arbitrary treasury valuation, so the chapter must state its rate path, horizon, comparator and valuation assumptions. Costs already included in the outcome must not be subtracted twice. Total balance effects, economic effects and feasible policies require separate targets. Public/generated cases can justify prototype experiments, but cannot supply bank truth or acceptance. No source, old review, or frozen tool is overwritten. Failed examples or reviews receive successor repairs and remain preserved.

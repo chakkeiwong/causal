@@ -2,49 +2,67 @@
 
 The substantive program is the [proposal scope and public-evidence portfolio](../master-program-proposal.md). It retains the three manuscript repairs, four banking journeys, source standard and 2026-10-07 literature cutoff. This execution supplement fixes scheduling and resumption; it does not replace the research program or confer acceptance.
 
-Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
+Use **`python3 tools/run_program_reviews_v2.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: recovery completed; frontier coverage reviewed
+## Current continuation: crash recovery and integration repairs
 
-Recovery verified the canonical ledger and completed the interrupted L3/L7
-publication. The current [1,038-page working reader](../../causal_proposal_frontier_authors_reviewed_2026-10-17.pdf)
-is bound by the [working release](2026-10-17/l1-review-v1/working-release.json),
-SHA-256 479b997db10213defb7b1790e1ee833e3a2e094b6d0ce340e426545803ee90ff.
-It preserves all 745 predecessor records, 227 compiled sources and their
-citation-context multisets, with **745 audited records and 196 scholarly PDFs**.
+The current [1,057-page working reader](../../causal_proposal_retention_reviewed_2026-10-17.pdf)
+is bound by its [working release](2026-10-17/integration-review-v1/v3/working-release.json),
+SHA-256 24109fb4afa74b67a4aaff6e4148460f16a86d4921ea298a1c1a1254cd10c8aa.
+It has **749 audited citation records and 196 genuine scholarly PDFs**. All
+748 predecessor records, 231 unchanged compiled inputs and every prior citation
+context are preserved. Source checks, exact references and all-page text bounds
+pass. Q2–Q4 pass on these exact reader bytes; visual and final acceptance remain open.
 
-L3, printed 566–570, develops imperfect advice, joint graph probabilities,
-dependent repeated answers and the distinction between posterior retention
-and learned-class coverage. L7, printed 736–740, develops benchmark semantics,
-conditioning-activated paths, nonsignificant dependent samples and unknown-answer
-selection. Fifteen equations agree with independent exact references.
-Source traceability and all-page text bounds pass. This is a reviewed working
-reader, not final proposal acceptance or an executed upstream implementation.
+L2 now earns **17.25 exclusive substantive pages**, with corrected monetary
+units, comparator costs, signs, target definitions and seven exact example
+families. I2 earns **10.0**, with concrete library/CLI/MCP boundaries and a
+bounded consumer admission reference. I4 initially earned **6.75** after
+retry and scheduling theory already credited to S9/S8 was excluded. Its
+preserving successor earns **9.5**, with a publication-pin invariant, ten
+interleavings, safe rejection, reclamation limits, custody and backup admission.
+The rejected and inconclusive drafts remain intact. These are author chapter
+reviews; no deployed collector, bank product or independent acceptance is implied.
 
-The original census remains **37 inspected and 76 unread of 113**; Copilot,
-imperfect experts and benchmark consistency are three separate citation-chain
-leads. Source/code/rights omissions and source discrepancies remain explicit.
-The recovered ledger has **140 of 376 recorded proposal operations**, with
-independent ready work. Q2–Q4 pass on this exact reader. Active L2 review found a dimensional
-mismatch between balance-time and monetary cost on printed548. Its preserving
-repair is recorded in the [L2 findings](2026-10-17/l2-review-v1/initial-findings.json).
-Continue L2, then I2/I4, software census and sponsor reconciliation.
+A specific execution defect is repaired: the previous controller could reopen
+proposal reviews but could not record a successor to a negative chapter review.
+Use **python3 tools/run_program_reviews_v2.py** for status, next, check and the
+ordinary execution commands. Its narrow chapter-record operation admits a
+versioned review under the unchanged original contract, preserves the original
+outcome and checks exact reader identity, evidence and exclusive depth. The
+predecessor controller remains unchanged; 44 regression cases pass. This is an
+execution repair, not an acceptance waiver.
 
-The [L1 review](../comprehensive-v14/work/TEXT.REVIEW.L1/chapter-review.json)
-records **8.0 exclusive substantive page equivalents** across printed524–537,
-meeting minimum8 while target9 remains unmet. The outcome is **inconclusive**:
-frontier coverage and original-candidate reconciliation remain incomplete.
-Six scholarly author fields were verified against genuine title pages and
-repaired in preserving bibliography copies. Twelve L1 equations and both exact
-reference families reproduce. This local coverage gap does not block L2/I2/I4.
+The ledger has **144 of 376 proposal operations recorded**, with independent
+ready work. Twenty of 22 chapter reviews pass; **L1 and L6 remain inconclusive**
+because their frontier/framework coverage is incomplete, despite meeting their
+minimum depth. Fourteen LLM task reviews pass. All12 integration requirements now have recorded proposal outcomes; the
+standalone-client requirement adds six actual library/CLI calls, four saved
+set-response checks and five rejected malformed replies. No notebook-kernel,
+MCP rerun or deployed client acceptance is inferred. The software ledger still has **80 open cells and
+20 inconclusive cells out of 102**, and **99 open reuse decisions plus one
+inconclusive decision out of 115**. Chapter length does not close these surveys.
 
-**Q1 coverage/depth, Q5 sponsor reconciliation, all three mandatory manuscript
-repairs and final acceptance remain open.** MR01 requires 17 areas across six
-software dimensions and 100–150 substantive pages; MR02 requires eight developed
-LLM/agent chapters and all 14 tasks; MR03 requires four integration chapters,
-all 12 requirements and workspace dispositions. Physical length does not close
-these contracts. Rendered visual acceptance remains false under the exhausted
-inherited image allowance. No unattended scholarly worker is running.
+The latest original-candidate register is
+[census-local-successor/census-register.json](2026-10-17/census-local-successor/census-register.json):
+**39 inspected and 74 unread of 113**, plus four cross-cutting records.
+Copilot, imperfect experts and benchmark consistency remain separate
+citation-chain leads; they do not reduce that original denominator. Failed
+routes and identity mismatches stay recorded. Continue individual primary
+inspections or evidence-backed exclusions/unavailability, never title-only
+technical claims or fabricated census closure.
+
+Next executable lanes are the original-source census, software coverage/reuse
+decisions, L1/L6 coverage successors and sponsor
+reconciliation. They do not wait for one another. The existing sponsor proposal
+is the dated October13 baseline and must be reconciled to the current reader
+before Q5. **Q1, Q5, MR01/MR02/MR03 and final proposal acceptance remain open.**
+MR01 retains17 areas by six dimensions and100–150 substantive pages; MR02
+retains eight chapters and14 tasks; MR03 retains four chapters,12 requirements
+and workspace dispositions. Authentic bank, platform and adoption evidence is
+later conditional work, not a proposal blocker. Rendered visual acceptance is
+pending a fresh session image allowance under /home/ubuntu/AGENTS.md. No
+unattended research worker is running.
 
 ## Preserved S9 continuation: recovered, reviewed and integrated
 

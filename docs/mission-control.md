@@ -2,17 +2,17 @@
 
 [Current program and execution rules](program/execution/current-program.md) · [Scope and public-data portfolio](program/master-program-proposal.md) · [Execution diagnosis and repair](program/execution/review.md)
 
-Current entrypoint: `python3 tools/run_program.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
+Current entrypoint: `python3 tools/run_program_reviews_v2.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**140 / 376 proposal operations have recorded outcomes; 204 are ready.** Next: **TEXT.REVIEW.L2**.
+**144 / 376 proposal operations have recorded outcomes; 200 are ready.** Next: **LL.CENSUS**.
 
-Repair L2 monetary valuation and comparator-cost definitions in preserving successor, verify exact examples and remeasure depth; continue I2/I4 and census independently.
+Inspect remaining originals by explicit identity; prioritize candidate27 small-language-model discovery and candidate194 Bayesian discovery. Preserve failed acquisition routes. Reconcile source-specific L1/L6 coverage and software decisions independently; do not count citation-chain leads as original-census closure.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_frontier_authors_reviewed_2026-10-17.pdf) — 1038 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_retention_reviewed_2026-10-17.pdf) — 1057 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 
