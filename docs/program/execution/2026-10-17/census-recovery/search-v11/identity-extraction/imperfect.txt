@@ -1,0 +1,616 @@
+                                                         Causal Discovery with Language Models as Imperfect Experts
+
+
+                                                Stephanie Long * 1 Alexandre Piché * 2 3 4 Valentina Zantedeschi * 2 Tibor Schuster 1 Alexandre Drouin 2 4
+
+
+                                                                    Abstract                                 estimating the effect of interventions (Maathuis et al., 2009).
+                                                Understanding the causal relationships that                  One approach to reducing such uncertainty is the incorpo-
+                                                underlie a system is a fundamental prerequisite              ration of expert knowledge, e.g., to rule out the existence of
+                                                to accurate decision-making. In this work, we                certain edges and reduce the set of possible solutions (Meek,
+arXiv:2307.02390v1 [cs.AI] 5 Jul 2023
+
+
+
+
+                                                explore how expert knowledge can be used to                  1995). However, such methods typically assume that the
+                                                improve the data-driven identification of causal             knowledge provided by the expert is correct. In this work, we
+                                                graphs, beyond Markov equivalence classes. In                consider a more realistic case, where the expert is potentially
+                                                doing so, we consider a setting where we can query           incorrect. Our approach leverages such imperfect experts,
+                                                an expert about the orientation of causal relation-          e.g., large language models, to reduce uncertainty in the
+                                                ships between variables, but where the expert may            output of a causal discovery algorithm by orienting edges,
+                                                provide erroneous information. We propose strate-            while maintaining fundamental consistency properties, such
+                                                gies for amending such expert knowledge based on             as the acyclicity of the causal graph and the conditional
+                                                consistency properties, e.g., acyclicity and condi-          independencies in the MEC.
+                                                tional independencies in the equivalence class. We
+                                                                                                             Contributions:
+                                                then report a case study, on real data, where a large
+                                                language model is used as an imperfect expert.                  • We formalize the use of imperfect experts in causal
+                                                                                                                  discovery as an optimization problem that minimizes
+                                                                                                                  the size of the MEC while ensuring that the true graph
+                                        1. Introduction                                                           is still included (Section 3).
+
+                                        Understanding the cause-and-effect relationships that under-            • We propose a greedy approach that relies on Bayesian
+                                        lie a complex system is critical to accurate decision-making.             inference to optimize this objective by incrementally
+                                        Unlike any statistical association, causal relationships allow            incorporating expert knowledge (Section 4).
+                                        us to anticipate the system’s response to interventions.                • We empirically evaluate the performance of our ap-
+                                        Currently, randomized control trials (RCTs) serve as the                  proach, on real data, with an expert that returns correct
+                                        gold standard for establishing causation (Peters et al., 2017).           orientations with some fixed probability (Section 5).
+                                        However, RCTs can be costly and oftentimes impractical
+                                                                                                                • We then empirically assess if the approach holds when
+                                        or unethical. As such, there has been growing interest in
+                                                                                                                  taking a large language model as the expert – with
+                                        causal discovery, which aims to uncover causal relationships
+                                                                                                                  mitigated results (Section 5).
+                                        from data collected by passively observing a system (see
+                                        (Glymour et al., 2019) for a review).
+                                                                                                             2. Background and Related Work
+                                        Causal discovery methods have been successfully applied in
+                                        various fields, including genetics (Sachs et al., 2005) and cli-     We now review key background concepts and related work.
+                                        mate science (Runge et al., 2019). Nevertheless, a fundamen-
+                                                                                                             Causal Bayesian networks: Let X := (X1 ,...,Xd ) be a
+                                        tal limitation of such methods is their ability to only recover
+                                                                                                             vector of d random variables with distribution p(X) and
+                                        the true graph of causal relationships up to a set of equivalent
+                                                                                                             G⋆ := ⟨VG⋆ ,EG⋆ ⟩ be a directed acyclic graph (DAG) with
+                                        solutions known as the Markov equivalence class (MEC),
+                                                                                                             vertices VG⋆ = {v1 ,...,vd } and edges EG⋆ ⊂ VG⋆ × VG⋆ .
+                                        leading to uncertainty in downstream applications, such as
+                                                                                                             Each vertex vi ∈ VG⋆ corresponds to a random variable
+                                            *
+                                           Equal contribution 1 McGill University 2 ServiceNow Research      Xi and a directed edge (vi , vj ) ∈ EG⋆ represents a direct
+                                        3
+                                         Université de Montréal 4 Mila - Quebec AI Institute. Correspon-   causal relationship from Xi to Xj . We assume that p(X) is
+                                        dence to: Valentina Zantedeschi <vzantedeschi@gmail.com>.            Markovian with respect to G⋆ , i.e.,
+                                        Accepted to ICML workshop on Structured Probabilistic Inference                                       d
+                                                                                                                                              Y             ⋆
+                                        & Generative Modeling, Honolulu, Hawaii, USA. PMLR 202,                            p(X1 ,...,Xd ) =       p(Xi | paG
+                                                                                                                                                           i ),
+                                        2023. Copyright 2023 by the author(s).                                                                i=1
+                                  Causal Discovery with Language Models as Imperfect Experts
+            ⋆
+where paG                               ⋆
+        i denotes the parents of Xi in G .                          experts within the context of causal discovery. Unlike prior
+Causal discovery: This task consists of recovering G           ⋆    approaches, which typically assume the correctness of ex-
+from data, which are typically sampled from p(X) (Glymour           tracted knowledge,1 we propose strategies to use, potentially
+et al., 2019). Existing methods can be broadly classified as        incorrect, LLM knowledge to eliminate some graphs in
+being: i) constraint-based (Spirtes et al., 2000; 2013), which      MG⋆ , while ensuring that G⋆ ∈ ME with high probability.
+use conditional independence tests to rule-out edges, or ii)
+score-based (Chickering, 2002; Zheng et al., 2018), which           3. Problem Setting
+search for the DAG that optimizes some scoring function.
+One common limitation of these approaches is their inability        We now formalize our problem of interest. Let G⋆ represent
+to fully identify the true underlying graph G⋆ beyond its           the true causal DAG, as defined in Section 2, and let MG⋆
+Markov equivalence class (MEC) (Peters et al., 2017).               be its MEC. We assume that MG⋆ is known, e.g., that it has
+                                                                    been obtained via some causal discovery algorithm. Further,
+Equivalence classes: The MEC, MG⋆ , is a set of graphs              we assume the availability of metadata {µ1 ,...,µd }, where
+that includes G⋆ and all other DAGs with equivalent                 each µi provides some information about Xi , e.g., a name,
+conditional independences. These may have different edge            a brief description, etc. We then assume access to an expert,
+orientations, leading to uncertainty in downstream tasks,           who consumes such metadata and makes decisions:
+such as treatment effect estimation (Maathuis et al., 2009).
+One common approach to reducing the size of MG⋆ is to in-           Definition 3.1. (Expert) An expert is a function that, when
+clude interventional data (Eberhardt et al., 2005; Brouillard       queried with the metadata for a pair of variables (µi , µj ),
+et al., 2020; Mooij et al., 2020). However, similar to RCTs,        returns a hypothetical orientation for the Xi −Xj edge:
+the collection of such data may not always be feasible or ethi-
+                                                                                   
+                                                                                     → if it believes that (vi ,vj ) ∈ EG⋆
+cal. An alternative approach, which we adopt in this work, is         E(µi ,µj ) =                                         . (1)
+                                                                                     ← if it believes that (vj ,vi ) ∈ EG⋆
+to eliminate graphs that are deemed implausible by an expert.
+Expert knowledge: Previous work has considered experts              Of note, E (µi ,µj ) can be incorrect (imperfect expert) and
+that give: (i) forbidden edges (Meek, 1995), (ii) (partial) or-     thus, our problem of interest consists in elaborating strategies
+derings of the variables (Scheines et al., 1998; Andrews et al.,    to maximally make use of such imperfect knowledge.
+2020), (iii) ancestral constraints (de Campos & Castellano,         Let U(MG⋆ ) be the set of indices of all pairs of variables
+2007; Li & Beek, 2018; Chen et al., 2016), and (iv) con-            related by an edge whose orientation is ambiguous in MG⋆ :
+straints on interactions between types of variables (Brouillard
+et al., 2022) (see Constantinou et al. (2023) for a review).                U(MG⋆ ) := {(i,j) | i < j and ∃G,G′ ∈ MG⋆ s.t.
+                                                                                                                                      (2)
+Typically, all DAGs that are contradicted by the expert are                                      (vi ,vj ) ∈ EG ∧(vj ,vi ) ∈ EG′ }.
+discarded, resulting in a new equivalence class ME ⊆ MG⋆ .
+One pitfall is that, realistically, an expert is unlikely to        We aim to elaborate a strategy S that uses the expert’s
+always be correct, and thus, G⋆ might be discarded, i.e.,           knowledge to orient edges in U(MG⋆ ) and obtain a new
+G⋆ ̸∈ ME . In this work, we attempt to reduce MG⋆ as much           equivalence class ME,S , such that uncertainty is reduced
+as possible, while ensuring G⋆ ∈ ME with high probability,          to the minimum, i.e., |ME,S |≪ |MG⋆ |, but G⋆ still belongs
+in the presence of imperfect expert knowledge. We note that         to ME,S with high probability, that is:
+our work is akin to Oates et al. (2017), but a key difference
+is that they assume a directionally informed expert, i.e., that                          min ME,S                                     (3)
+cannot misorient edges in G⋆ . Moreover, their approach is                           such that p G⋆ ∈ M    E,S
+                                                                                                               
+                                                                                                                   ≥ 1−η,
+expert-first, i.e., data is used to expand an initial graph given
+by an expert, while our approach is data-first, i.e., the expert
+                                                                    where η ∈ [0,1] quantifies tolerance to the risk that the true
+is used to refine the solution of a causal discovery algorithm.
+                                                                    graph G⋆ is not in the resulting equivalence class. This prob-
+Large language models: In situations where access to                lem can be viewed as a trade-off between reducing uncer-
+human experts is limited, Large Language Models (LLMs),             tainty, by shrinking the set of plausible DAGs, and the risk as-
+such as GPT-4 (OpenAI, 2023a), offer promising alternatives.        sociated with making decisions based on an imperfect expert.
+Recent studies have demonstrated that certain LLMs possess
+a rich knowledge base that encompasses valuable informa-            4. Strategies for Imperfect Experts
+tion for causal discovery (Choi et al., 2022; Long et al., 2023;
+Hobbhahn et al., 2022; Willig et al., 2022; Kıcıman et al.,         Instead of blindly accepting expert orientations, we leverage
+2023; Tu et al., 2023), achieving state-of-the-art accuracy         the consistency information provided by the true MEC to
+on datasets such as the Tübingen pairs (Mooij et al., 2016).       estimate which decisions are most likely incorrect. Indeed,
+In this work, we investigate the use of LLMs as imperfect              1
+                                                                           The Bayesian approach of Choi et al. (2022) is an exception.
+                                  Causal Discovery with Language Models as Imperfect Experts
+
+among all possible combinations of edge orientations, only          marginalization. Finally, note
+                                                                                                that the posterior can be used
+a few are possible, since many of them would create cycles          to estimate p G⋆ ∈ ME,S , since any mistake in orienting
+or introduce new v-structures. The different strategies that        pi ∈ U(MG⋆ ) results in excluding G⋆ from ME,S .
+we now propose for solving Problem (3) leverage such
+consistency imperatives, as well as Bayesian inference, to
+increase robustness to errors in expert knowledge.                                                        ...
+                                                                                         Op1     Op2                 Opu
+Noise model: First, let us define the noise model that, we
+assume, characterizes mistakes made by the expert. Figure 1                              Ep1     Ep2      ...        Epu
+shows the dependency graph for the decision process of a
+type of imperfect expert that we dub “ε-expert”. For any pair       Figure 1. The ϵ-expert’s dependency graph between true edge ori-
+pi = (pi1 , pi2 ) ∈ U(MG⋆ ), we use the notation Opi to denote      entations (Opi ) and expert decisions (Epi ), where u = |U(MG⋆ )|.
+the unknown true edge orientation and Epi := E(µpi1 ,µpi2 )
+denotes the orientation given by the expert. Further, for any       Greedy approach: We now propose a greedy strategy
+                                                       |I|
+subset of indices I ⊆ U(MG⋆ ), we use OI := {Opi }i=1 ; the         for optimizing Problem (3) that iteratively orients edges in
+same applies to EI . Notice that (i) true edge orientations are,    U(MG⋆ ). Let M(t) denote the MEC at the t-th iteration
+                                                                                                  (t)
+in general, interdependent because of the aforementioned            of the algorithm and let Mpi denote the MEC resulting
+consistency properties of the MEC, and that (ii) edges already      from additionally orienting pi ∈ U(M(t) ) at step t and
+oriented in MG⋆ are not represented since they are constants        propagating any consequential orientations using Meek
+(i.e., the expert is not queried for those). In this model, we      (1995)’s rules. The algorithm starts with M(1) = MG⋆ . We
+assume that, for any pi ∈ U(MG⋆ ), the expert’s response de-        consider two strategies to greedily select the best pi :
+pends only on the true value Opi , i.e., p(Epi | OU (MG⋆ ) ) =
+p(Epi | Opi ) and is incorrect with constant probability ε.           1. Ssize : selects the edge that leads to the smallest
+                                                                         equivalence class:
+We now define the components of our Bayesian approach.                                      argmin |M(t)pi |
+                                                                                                    pi
+Prior: We consider a simple prior that encodes the knowl-
+edge given by the true MEC. It boils down to an uniform prior         2. Srisk : selects the edge that leads to the lowest risk of
+over the graphs in MG⋆ , effectively assigning no mass to any            excluding G⋆ from the equivalence class:
+edge combination that is not consistent (creates a cycle or a                                                             
+new v-structure). Thus, the prior for a partial edge orientation           argmin 1−p OU (M ⋆ )\U M(t) | EU (MG⋆ )
+                                                                                                               
+                                                                                 pi                 G           pi
+OI corresponds to its frequency in the graphs of MG⋆ :
+                                                                                                                     
+                                                                                                                  (t)
+        p(OI ) =
+                   X
+                       p OI , OU (MG⋆ )\I = o¬I ,
+                                                                   This procedure is repeated while p G⋆ ∈ Mpi , estimated
+                    o¬I                                             according to Equation (4), is greater or equal to 1−η.
+
+where we marginalize over all possible combinations of
+values, o¬I , for the remaining unoriented edges OU (MG⋆ )\I .      5. Results and Discussion
+Posterior: The posterior probability that orientations for          We now evaluate the ability of our approach to leverage im-
+all edges in U(MG⋆ ) are correct, given all observed expert         perfect expert knowledge using real-world causal Bayesian
+decisions EU (MG⋆ ) , is then given by:                             networks from the bnlearn repository (Scutari, 2010).
+                                                                   Networks: We considered the following networks: (i)
+  p OU (MG⋆ ) | EU (MG⋆ ) =                                         Asia (Lauritzen & Spiegelhalter, 1988), (ii) ALARM (Bein-
+                                                    
+               p EU (MG⋆ ) | OU (MG⋆ ) p OU (MG⋆ ) , (4)            lich et al., 1989), (iii) CHILD (Spiegelhalter & Cowell,
+                                                                    1992), and (iv) Insurance (Binder et al., 1997). For each
+                                          
+                             p EU (MG⋆ )
+                                                                    network, we extracted variable descriptions from the related
+where, for the ε-expert noise model, the likelihood is s.t.,        publication and used them as metadata µi (see Appendix C).
+                                                                    Experts: We considered two kinds of expert: (i) ε-experts,
+                                     Y
+  p(EU (MG⋆ ) | OU (MG⋆ ) ) =                p(Epi | Opi ).
+                                   pi ∈U (MG⋆ )
+                                                                    as defined in Section 4, with various levels ε, and (ii)
+                                                                    LLM-based experts based on GPT-3.5 (Ouyang et al., 2022).
+In contrast, due to interdependencies between the true edge         Details about prompting can be found at Appendix D. For
+orientations, the posterior probability cannot similarly be         each kind of expert, we considered both strategies: Ssize
+factorized and, in general, p(Opi | EU (MG⋆ ) ) ̸= p(Opi | Epi ).   and Srisk . Moreover, for the LLM-based expert, we also
+Note that the posterior for a subset edges I ⊆ U(MG⋆ ), e.g,        considered a naive strategy that consists of simply orienting
+oriented by an iterative strategy, can be obtained via simple       all edges according to the expert, as in Long et al. (2023).
+                                     Causal Discovery with Language Models as Imperfect Experts
+
+               MEC Size |    E, S|                                   SHD                                         p(G *      E, S)
+                                                                                              1.00
+                                               15
+30                                                                                            0.75
+
+
+
+
+                                                                                                                                               insurance
+20                                             10
+                                                                                              0.50
+10                                              5                                             0.25
+ 0                                              0                                             0.00
+ 6                                              3                                             1.00
+                                                                                              0.75
+ 4                                              2
+                                                                                              0.50
+
+
+
+
+                                                                                                                                               asia
+ 2                                              1                                             0.25
+                                                                                              0.00
+     0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0        0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                 Tolerance ( )                                  Tolerance ( )                                    Tolerance ( )
+                                       0.1-expert           text-davinci-002                  text-davinci-003
+                                       0.3-expert           text-davinci-002-naive            text-davinci-003-naive
+
+
+Figure 2. Results for Insurance and Asia and strategy Srisk . For the ε-experts, we consider ε ∈ {0.1,0.3}. For the LLM-based experts,
+we consider the text-davinci-{002, 003} versions of GPT-3.5. We also report results for naive variants that follow Long et al. (2023)
+and do not make use of our greedy approach. Error bars show a 95% confidence interval. For all experts, except for text-davinci-003,
+both the MEC size and SHD decrease as tolerance is increased and p(G⋆ ∈ ME,S ) ≥ 1−η.
+
+
+Metrics: The expert/strategy combinations were evaluated                 to risk increases. This highlights the effectiveness of our ap-
+based on: (i) the resulting size of their equivalence class,             proach when the expert satisfies the noise model of Section 4.
+|ME,S |, (ii) the structural Hamming distance (SHD)
+                                                                         Results for the LLM-expert: Overall, we observe a clear
+between the completed partially DAG (CP-DAG; see
+                                                                         reduction in SHD for ME,S compared to the starting point
+Glymour et al. (2019)) of ME,S and the true graph G⋆ ,
+                                                                         MG⋆ . This shows that some causally-relevant knowledge
+(iii) an empirical estimate of p(G⋆ ∈ ME,S ), taken over
+                                                                         can be extracted from LLMs, which is in line with the
+repetitions of the experiment.
+                                                                         conclusions of recent work.
+Protocol: For each Bayesian network, we extracted the
+                                                                         On all datasets, the LLM-based experts achieve SHDs that are
+MEC MG⋆ based on the structure of G⋆ . This simulates
+                                                                         on par or better than those of their naive counterparts (Long
+starting from the ideal output of a causal discovery algorithm.
+                                                                         et al., 2023) for η = 1, while additionally enabling the
+We then attempted to reduce the size of MG⋆ by querying
+                                                                         control of the probability of excluding G⋆ . Further, on
+each expert according to the greedy approach in Section 4
+                                                                         every dataset, except for ALARM, each LLM-based expert
+for η ∈ [0.1,1], where η = 1 corresponds to disregarding the
+                                                                         performs comparably to at least one of the ε-experts. For
+constraint of Problem 4. Each ε−expert experiment was
+                                                                         ALARM, we observe that G⋆ is excluded from ME,S , even
+repeated 5 times and LLM-expert experiment was repeated
+                                                                         for small tolerance η. This can be explained by ambiguities
+8 times. Given that the LLM-experts have a deterministic
+                                                                         in the metadata, which are sometimes ambiguous even for
+output for a given prompt, we randomized the causation verb
+                                                                         human experts (see Appendix C).
+in order to introduce stochasticity (see Appendix D). Figure 2
+shows the results of our experiments for Insurance and                   Finally, another key observation is the poor uncertainty
+Asia with strategy Srisk . Results for other networks and                calibration of text-davinci-003 compared to
+strategy Ssize are in Appendix A.                                        text-davinci-002, which is in line with observations
+                                                                         made by OpenAI (2023b). The text-davinci-003
+Results for ε-experts: On all networks, our approach, com-
+                                                                         model is often over-confident in its answers, which leads it to
+bined with both strategies, decreases the MEC’s size for all
+                                                                         underestimate the probability of excluding G⋆ from ME,S .
+noise levels (ε), while keeping the true graph in ME,S with
+                                                                         Consequently, even for small tolerance η, the resulting
+probability at least 1−η, as predicted by our theoretical re-
+                                                                         equivalence classes contain incorrectly oriented edges.
+sults. Consequently, the SHD also decreases as the tolerance
+                                  Causal Discovery with Language Models as Imperfect Experts
+
+6. Conclusion                                                      Chen, E. Y.-J., Shen, Y., Choi, A., and Darwiche, A. Learning
+                                                                     bayesian networks with ancestral constraints. Advances
+This work studied how imperfect expert knowledge can                 in Neural Information Processing Systems, 29, 2016.
+be used to refine the output of causal discovery algorithms.
+We proposed a greedy algorithm that iteratively rejects            Chickering, D. M. Optimal structure identification with
+graphs from a MEC, while controlling the probability of              greedy search. Journal of machine learning research, 3
+excluding the true graph. Our empirical study revealed that          (Nov):507–554, 2002.
+our approach is effective when combined with experts that
+satisfy our assumptions. However, its performance was              Choi, K., Cundy, C., Srivastava, S., and Ermon, S. Lmpriors:
+mitigated when a LLM was used as the expert. Nevertheless,           Pre-trained language models as task-specific priors. arXiv
+our results show the clear potential of LLMs to aid causal           preprint arXiv: 2210.12530, 2022.
+discovery and we believe that further research in this direc-
+tion is warranted. Possible extensions to this work include        Constantinou, A. C., Guo, Z., and Kitson, N. K. The
+the exploration of noise models better-suited for LLMs, as           impact of prior knowledge on causal structure learning.
+well as alternative methods for querying such models (e.g.,          Knowledge and Information Systems, pp. 1–50, 2023.
+different prompt styles, better uncertainty calibration, etc.,).
+                                                                   de Campos, L. M. and Castellano, J. G. Bayesian network
+Further, our approach could be coupled with Bayesian causal
+                                                                     learning algorithms using structural restrictions. Interna-
+discovery methods, replacing our MEC-based prior by one
+                                                                     tional Journal of Approximate Reasoning, 45(2):233–254,
+derived from a learned posterior distribution over graphs.
+                                                                     2007.
+
+References                                                         Eberhardt, F., Glymour, C., and Scheines, R. On the number
+                                                                     of experiments sufficient and in the worst case necessary
+Andrews, B., Spirtes, P., and Cooper, G. F. On the                   to identify all causal relations among n variables. In
+  completeness of causal discovery in the presence of                Conference on Uncertainty in Artificial Intelligence, 2005.
+  latent confounding with tiered background knowledge.
+  In Chiappa, S. and Calandra, R. (eds.), Proceedings of           Glymour, C., Zhang, K., and Spirtes, P. Review of causal dis-
+  the Twenty Third International Conference on Artificial            covery methods based on graphical models. Frontiers in
+ Intelligence and Statistics, volume 108 of Proceedings              Genetics, 10, 2019. ISSN 1664-8021. doi: 10.3389/fgene.
+  of Machine Learning Research, pp. 4002–4011. PMLR,                 2019.00524. URL https://www.frontiersin.
+  26–28 Aug 2020. URL https://proceedings.                           org/articles/10.3389/fgene.2019.00524.
+  mlr.press/v108/andrews20a.html.
+                                                                   Hobbhahn, M., Lieberum, T., and Seiler, D. Investigating
+Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion,               causal understanding in llms. 2022.
+  J., Jones, A., Chen, A., Goldie, A., Mirhoseini, A.,
+  McKinnon, C., et al. Constitutional ai: Harmlessness             Kadavath, S., Conerly, T., Askell, A., Henighan, T., Drain,
+  from ai feedback. arXiv preprint arXiv:2212.08073, 2022.           D., Perez, E., Schiefer, N., Dodds, Z. H., DasSarma, N.,
+                                                                     Tran-Johnson, E., et al. Language models (mostly) know
+Beinlich, I. A., Suermondt, H. J., Chavez, R. M., and Cooper,        what they know. arXiv preprint arXiv:2207.05221, 2022.
+  G. F. The alarm monitoring system: A case study with
+                                                                   Kıcıman, E., Ness, R., Sharma, A., and Tan, C. Causal rea-
+  two probabilistic inference techniques for belief networks.
+                                                                     soning and large language models: Opening a new frontier
+  pp. 247–256, 1989.
+                                                                     for causality. arXiv preprint arXiv:2305.00050, 2023.
+Binder, J., Koller, D., Russell, S., and Kanazawa, K.              Lauritzen, S. L. and Spiegelhalter, D. J. Local computation
+  Adaptive probabilistic networks with hidden variables.             with probabilities on graphical structures and their
+  Machine Learning, 29(2-3):213–244, 1997.                           application to expert systems (with discussion). Journal
+                                                                     of the Royal Statistical Society: Series B (Statistical
+Brouillard, P., Lachapelle, S., Lacoste, A., Lacoste-Julien,         Methodology), 50(2):157–224, 1988.
+  S., and Drouin, A. Differentiable causal discovery from
+  interventional data. Advances in Neural Information              Li, A. and Beek, P. Bayesian network structure learning with
+  Processing Systems, 33:21865–21877, 2020.                           side constraints. In International conference on proba-
+                                                                      bilistic graphical models, pp. 225–236. PMLR, 2018.
+Brouillard, P., Taslakian, P., Lacoste, A., Lachapelle, S., and
+  Drouin, A. Typing assumptions improve identification             Long, S., Schuster, T., and Piché, A. Can large language
+  in causal discovery. In Conference on Causal Learning              models build causal graphs?        arXiv preprint arXiv:
+  and Reasoning, pp. 162–177. PMLR, 2022.                            2303.05279, 2023.
+                                 Causal Discovery with Language Models as Imperfect Experts
+
+Maathuis, M. H., Kalisch, M., and Bühlmann, P. Es-               Scutari, M. Learning bayesian networks with the bnlearn
+ timating high-dimensional intervention effects from                R package. Journal of Statistical Software, 35(3):1–22,
+ observational data. The Annals of Statistics, 37(6A):              2010. doi: 10.18637/jss.v035.i03.
+ 3133 – 3164, 2009. doi: 10.1214/09-AOS685. URL
+ https://doi.org/10.1214/09-AOS685.                               Spiegelhalter, D. J. and Cowell, R. G. Learning in
+                                                                    probabilistic expert systems. pp. 447–466, 1992.
+Meek, C. Causal inference and causal explanation with
+                                                                  Spirtes, P., Glymour, C., and Scheines, R. Constructing
+ background knowledge. In Proceedings of the Eleventh
+                                                                    bayesian network models of gene expression networks
+ Conference on Uncertainty in Artificial Intelligence,
+                                                                    from microarray data. 2000.
+ UAI’95, pp. 403–410, San Francisco, CA, USA, 1995.
+ Morgan Kaufmann Publishers Inc. ISBN 1558603859.                 Spirtes, P. L., Meek, C., and Richardson, T. S. Causal
+                                                                    inference in the presence of latent variables and selection
+Mooij, J. M., Peters, J., Janzing, D., Zscheischler,
+                                                                    bias. arXiv preprint arXiv:1302.4983, 2013.
+ J., and Schölkopf, B.        Distinguishing cause
+ from effect using observational data:      Methods               Tu, R., Ma, C., and Zhang, C. Causal-discovery performance
+ and benchmarks.       Journal of Machine Learn-                    of chatgpt in the context of neuropathic pain diagnosis.
+ ing Research, 17(32):1–102, 2016.      URL http:                   2023.
+ //jmlr.org/papers/v17/14-518.html.
+                                                                  Willig, M., Zečević, M., Dhami, D. S., and Kersting, K.
+Mooij, J. M., Magliacane, S., and Claassen, T. Joint causal        Can foundation models talk causality? arXiv preprint
+ inference from multiple contexts. The Journal of Machine          arXiv:2206.10591, 2022.
+ Learning Research, 21(1):3919–4026, 2020.
+                                                                  Zheng, X., Aragam, B., Ravikumar, P. K., and Xing, E. P.
+Oates, C., Kasza, J., Simpson, J., and Forbes, A. Repair of         Dags with no tears: Continuous optimization for structure
+  partly misspecified causal diagrams. Epidemiology, 28,            learning. Advances in neural information processing
+  2017.                                                             systems, 31, 2018.
+
+OpenAI. Gpt-4 technical report, 2023a.
+
+OpenAI, R. Gpt-4 technical report. arXiv, pp. 2303–08774,
+  2023b.
+
+Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright,
+  C., Mishkin, P., Zhang, C., Agarwal, S., Slama, K., Ray,
+ A., et al. Training language models to follow instructions
+ with human feedback. Advances in Neural Information
+ Processing Systems, 35:27730–27744, 2022.
+
+Peters, J., Janzing, D., and Schölkopf, B. Elements of causal
+  inference: foundations and learning algorithms. The MIT
+  Press, 2017.
+
+Runge, J., Bathiany, S., Bollt, E., Camps-Valls, G., Coumou,
+  D., Deyle, E., Glymour, C., Kretschmer, M., Mahecha,
+  M. D., Muñoz-Marı́, J., et al. Inferring causation from time
+  series in earth system sciences. Nature communications,
+  10(1):2553, 2019.
+
+Sachs, K., Perez, O., Pe’er, D., Lauffenburger, D. A., and
+  Nolan, G. P. Causal protein-signaling networks derived
+  from multiparameter single-cell data. Science, 308(5721):
+  523–529, 2005.
+
+Scheines, R., Spirtes, P., Glymour, C., Meek, C., and
+  Richardson, T. The tetrad project: Constraint based aids
+  to causal model specification. Multivariate Behavioral
+  Research, 33(1):65–117, 1998.
+                                                              Causal Discovery with Language Models as Imperfect Experts
+
+A. Additional Experimental Results
+                                                                                                     Strategy confidence
+                                    alarm                                         insurance                                           child                                              asia
+               15                                                                                               20                                                 6
+  E, S|
+
+
+
+
+                                                                30
+                                                                                                                15
+               10                                                                                                                                                  4
+  MEC Size |
+
+
+
+
+                                                                20                                              10
+                5                                               10                                               5                                                 2
+                                                                 0                                               0
+
+                4                                                                                                                                                  3
+                                                                15                                              10
+                3
+                                                                10                                                                                                 2
+     SHD
+
+
+
+
+                2                                                                                                5
+                                                                 5                                                                                                 1
+                1
+                                                                 0                                               0
+
+        1.00                                                  1.00                                             1.00                                              1.00
+        0.75                                                  0.75                                             0.75                                              0.75
+E, S)
+
+
+
+
+        0.50                                                  0.50                                             0.50                                              0.50
+p(G *
+
+
+
+
+        0.25                                                  0.25                                             0.25                                              0.25
+        0.00                                                  0.00                                             0.00                                              0.00
+                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0           0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                               Tolerance ( )                                    Tolerance ( )                                    Tolerance ( )                                     Tolerance ( )
+                                                                                 0.1-expert           text-davinci-002                  text-davinci-003
+                                                                                 0.3-expert           text-davinci-002-naive            text-davinci-003-naive
+
+
+Figure 3. All results for strategy Srisk . We observe that the MEC size consistently decreases as the tolerance level is increased.
+
+
+                                                                                                       Strategy MEC size
+                                    alarm                                         insurance                                           child                                              asia
+               15                                                                                               20                                                 6
+                                                                30
+  E, S|
+
+
+
+
+                                                                                                                15
+               10                                               20                                                                                                 4
+  MEC Size |
+
+
+
+
+                                                                                                                10
+                5                                               10                                               5                                                 2
+                                                                 0
+
+                4                                                                                                                                                  3
+                                                                15                                             10.0
+                3                                                                                               7.5
+                                                                10                                                                                                 2
+     SHD
+
+
+
+
+                2                                                                                               5.0
+                                                                 5                                              2.5                                                1
+                1
+                                                                 0                                              0.0
+
+        1.00                                                  1.00                                             1.00                                              1.00
+        0.75                                                  0.75                                             0.75                                              0.75
+E, S)
+
+
+
+
+        0.50                                                  0.50                                             0.50                                              0.50
+p(G *
+
+
+
+
+        0.25                                                  0.25                                             0.25                                              0.25
+        0.00                                                  0.00                                             0.00                                              0.00
+                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0           0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                               Tolerance ( )                                    Tolerance ( )                                    Tolerance ( )                                     Tolerance ( )
+                                                                                 0.1-expert           text-davinci-002                  text-davinci-003
+                                                                                 0.3-expert           text-davinci-002-naive            text-davinci-003-naive
+
+
+Figure 4. All results for strategy Ssize . We observe that the MEC size consistently decreases as the tolerance level is increased.
+                                 Causal Discovery with Language Models as Imperfect Experts
+
+
+                                        Table 1. Characteristics of included causal networks
+                                        Dataset      # Nodes      # Edges     Parameters
+                                         Asia           8             8           18
+                                        CHILD           20           25          230
+                                       Insurance        27           52          1008
+                                       ALARM            37           46          509
+
+
+B. Implementation details
+The code for this work is available at https://github.com/StephLong614/Causal-disco.
+
+C. Details for the BnLearn causal Bayesian networks
+Acquisition: All Bayesian network structures were acquired from https://www.bnlearn.com/bnrepository/.
+Variable metadata: For each of the included causal Bayesian networks, we extracted a code book, i.e., a list of variable
+names and an associated description (e.g., ’birth asphyxia’: ’lack of oxygen to the blood during birth’), from the associated
+original paper. For instance, for the CHILD network, this information was extracted from Spiegelhalter & Cowell (1992).
+All code books are available at: https://github.com/StephLong614/Causal-disco/tree/main/codebooks.
+Metadata pitfalls: Certain Bayesian networks contain edge orientations between variable pairs that appear incongruent
+with intuitive reasoning. For example, in the CHILD Network (Figure 6 ), the edge orientation between disease and age
+exhibits a counterintuitive direction: disease → age. Implying the causal relationship of “disease causes age” rather than
+the more intuitive and expected “age causes disease”.
+
+D. Details for LLM-based experts
+D.1. Querying for edge orientations
+In order to obtain a probability distribution over the orientations of an edge, we use a prompt similar to Bai et al. (2022).
+We use the following prompt format:
+ Among these two options which one is the most likely true:
+(A) {µi } {verbk } {µj }
+(B) {µj } {verbk } {µi }
+The answer is:
+where verbk is randomized at each decision and the variables .
+For example, if we wanted to elicit a prediction for the direction of an edge between variables with metadata µi : “lung cancer”,
+µj : “cigarette smoking”, and causation verb verbk : “causes” we would use the following prompt:
+ Among these two options which one is the most likely true:
+(A) lung cancer causes cigarette smoking
+(B) cigarette smoking causes lung cancer’
+The answer is:
+We then compute the log probability of the responses (A) and (B), and use the softmax to obtain a probability distribution
+over the directions of the edge (Kadavath et al., 2022). Since we rely on scoring, instead of generation, the output of the
+LLM-expert is deterministic given a fixed prompt. To foster randomness in the LLM-expert outputs, we randomly draw
+verbk from the following verbs of causation: provokes, triggers, causes, leads to, induces, results in, brings about, yields,
+generates, initiates, produces, stimulates, instigates, fosters, engenders, promotes, catalyzes, gives rise to, spurs, and sparks.
+
+E. Causal Bayesian networks included
+We included the following causal Bayesian networks in this work. All were extracted from the bnlearn Repository
+https://www.bnlearn.com/bnrepository/.
+                                    Causal Discovery with Language Models as Imperfect Experts
+
+
+
+
+Figure 5. Asia Bayesian network representing a fictitious medical illustrating possible causes of shortness-of-breath (dyspnoae) (Lauritzen
+& Spiegelhalter, 1988). Abbreviations: asia = visit to Asia?; tub = Tuberculosis; either = either tuberculosis or lung cancer; lung = lung
+cancer; bronc = bronchitis; dysp = dyspnoae. ]
+
+
+
+
+Figure 6. CHILD Bayesian network which represents the presentation of six possible conditions that lead to “blue babies” i.e., birth asphyxia
+(Spiegelhalter & Cowell, 1992). Abbreviations: LungParench = Lung parenchyma, LVH = left ventricular hypertrophy; HypDistrib =
+hypoxia distribution; RUQO2 = right upper quad oxygen level.
+                                   Causal Discovery with Language Models as Imperfect Experts
+
+
+
+
+Figure 7. ALARM Bayesian network representing a diagnostic application for patient monitoring which includes 8 diagnoses, 16 findings,
+and 13 intermediate variables (Beinlich et al., 1989). Abbreviations: MINVOLSET = minute ventilation; VENTMACH = ventilation
+machine; PULMEMBOLOUS = pulmonary embolism; PAP = pulmonary artery pressure; FIO2 = fraction of inspired oxygen; MINVOL
+= minute volume; VENTALV = alveolar ventilation; PVSAT = pulmonary artery oxygen saturation ; ARTCO2 = arterial CO2; TPR =
+total peripheral resistance; SAO2 = oxygen saturation; EXPCO2 = expelled CO2; LVFAILURE = left ventricular failure; CATECHOL
+= catecholamine; LVEDVOLUME = left ventricular end-diastolic volume; HR = heart rate; ERR = error; PCWP = pulmonary capillary
+wedge pressure; CVP = central venous pressure; CO = cardiac output; HRBP = rate blood pressure; HRSAT = heart rate saturation
+
+
+
+
+Figure 8. Insurance Bayesian network illustrating factors that affect expected claim costs for a car insurance policyholder (Binder et al.,
+1997). Abbreviations: DrivHist = driving history; ILiCost = insurance liability cost; PropCost = property cost
+

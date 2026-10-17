@@ -4,7 +4,49 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: S9 recovered, reviewed and integrated
+## Current continuation: recovery completed; frontier coverage reviewed
+
+Recovery verified the canonical ledger and completed the interrupted L3/L7
+publication. The current [1,038-page working reader](../../causal_proposal_frontier_authors_reviewed_2026-10-17.pdf)
+is bound by the [working release](2026-10-17/l1-review-v1/working-release.json),
+SHA-256 479b997db10213defb7b1790e1ee833e3a2e094b6d0ce340e426545803ee90ff.
+It preserves all 745 predecessor records, 227 compiled sources and their
+citation-context multisets, with **745 audited records and 196 scholarly PDFs**.
+
+L3, printed 566–570, develops imperfect advice, joint graph probabilities,
+dependent repeated answers and the distinction between posterior retention
+and learned-class coverage. L7, printed 736–740, develops benchmark semantics,
+conditioning-activated paths, nonsignificant dependent samples and unknown-answer
+selection. Fifteen equations agree with independent exact references.
+Source traceability and all-page text bounds pass. This is a reviewed working
+reader, not final proposal acceptance or an executed upstream implementation.
+
+The original census remains **37 inspected and 76 unread of 113**; Copilot,
+imperfect experts and benchmark consistency are three separate citation-chain
+leads. Source/code/rights omissions and source discrepancies remain explicit.
+The recovered ledger has **140 of 376 recorded proposal operations**, with
+independent ready work. Q2–Q4 pass on this exact reader. Active L2 review found a dimensional
+mismatch between balance-time and monetary cost on printed548. Its preserving
+repair is recorded in the [L2 findings](2026-10-17/l2-review-v1/initial-findings.json).
+Continue L2, then I2/I4, software census and sponsor reconciliation.
+
+The [L1 review](../comprehensive-v14/work/TEXT.REVIEW.L1/chapter-review.json)
+records **8.0 exclusive substantive page equivalents** across printed524–537,
+meeting minimum8 while target9 remains unmet. The outcome is **inconclusive**:
+frontier coverage and original-candidate reconciliation remain incomplete.
+Six scholarly author fields were verified against genuine title pages and
+repaired in preserving bibliography copies. Twelve L1 equations and both exact
+reference families reproduce. This local coverage gap does not block L2/I2/I4.
+
+**Q1 coverage/depth, Q5 sponsor reconciliation, all three mandatory manuscript
+repairs and final acceptance remain open.** MR01 requires 17 areas across six
+software dimensions and 100–150 substantive pages; MR02 requires eight developed
+LLM/agent chapters and all 14 tasks; MR03 requires four integration chapters,
+all 12 requirements and workspace dispositions. Physical length does not close
+these contracts. Rendered visual acceptance remains false under the exhausted
+inherited image allowance. No unattended scholarly worker is running.
+
+## Preserved S9 continuation: recovered, reviewed and integrated
 
 The program has recorded **139 of 376 proposal operations**. The current
 [1,014-page working reader](../../causal_proposal_language_reuse_reviewed_v4_2026-10-17.pdf)
