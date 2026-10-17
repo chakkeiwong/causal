@@ -1,3 +1,55 @@
+# Current executable proposal program
+
+## Recovered and continued on 18 October 2026
+
+Use the preserving controller: python3 tools/run_program_reviews_v2.py status,
+next, and check. The frozen predecessor controls and receipts remain intact.
+
+The current [1,060-page monograph](../../causal_proposal_bayesian_advice_reviewed_2026-10-18.pdf)
+is paired with the [10-page sponsor proposal](../../sponsor_proposal_2026-10-18.pdf).
+The monograph has 751 audited citation records and 197 genuine scholarly PDFs.
+All 749 predecessor records, citation contexts and 232 compiled inputs survive.
+The new Bayesian-advice discussion is L3, printed pages 578–581 (physical
+600–603); it distinguishes mixed source-reported results, conditional exact
+examples, semantic mismatches and unqualified code reuse. Q2–Q4 pass for these
+exact reader bytes. Visual and final proposal acceptance remain open.
+
+The sponsor successor updates the recommendation, selected new LLM/interface
+findings and remaining work against this reader. It retains the public-first
+prototype approach, all four banking journeys, negative findings and unchanged
+assumed economic calculations. Its 26 cited records and all-page text bounds
+pass author review. This resolves the stale sponsor narrative as a working
+update; full RELEASE.RECONCILE and Q5 acceptance remain open.
+
+There are 145 recorded outcomes among 376 proposal operations and 199 ready
+operations. Twenty of 22 chapter reviews pass; L1 and L6 remain inconclusive.
+The software matrix retains 2 pass, 20 inconclusive and 80 open cells. The reuse
+register now has 15 pass, 2 inconclusive and 98 open decisions. The new DoubleML
+decision is reference-only: selected pinned source and seven historical runtime
+matches are preserved, but complete environment/dependency-rights qualification
+is missing. No integration permission is awarded. The sponsor's 99-open/one-
+inconclusive reuse counts are its preserved pre-DoubleML review snapshot.
+
+The [current original census](2026-10-18/census-successor/census-register.json)
+has 40 inspected and 73 unread originals out of 113. Four cross-cutting records
+and three citation-chain leads remain separate. Candidate194 is now inspected;
+candidate27 still requires an authentic original. A failed acquisition blocks
+only that source's claims. It does not stop software review or another source.
+
+Continue original-source inspections, software cell/reuse decisions and L1/L6
+coverage independently. Then reconcile every remaining obligation, retain the
+exact sponsor pairing, and perform rendered visual review in a fresh session.
+MR01/MR02/MR03, Q1/Q5 and final acceptance remain open. Bank qualification,
+production reliability and adoption are later conditional work, not proposal
+blockers. No unattended research worker is running.
+
+[Complete nonpassing obligation register](2026-10-18/recovery/remaining-operations.json)
+· [Crash recovery checkpoint](2026-10-18/recovery/recovery-checkpoint.json)
+
+---
+
+## Preserved earlier continuation history
+
 # Current proposal program and execution
 
 The substantive program is the [proposal scope and public-evidence portfolio](../master-program-proposal.md). It retains the three manuscript repairs, four banking journeys, source standard and 2026-10-07 literature cutoff. This execution supplement fixes scheduling and resumption; it does not replace the research program or confer acceptance.

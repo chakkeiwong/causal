@@ -1,0 +1,127 @@
+245:             weights_bar = np.divide(np.multiply(m_hat, self._weights["weights"]), subgroup_probability)
+246: 
+247:         return weights, weights_bar
+248: 
+249:     def _check_data(self, obj_dml_data):
+250:         if not isinstance(obj_dml_data, DoubleMLData):
+251:             raise TypeError(
+252:                 f"The data must be of DoubleMLData type. {str(obj_dml_data)} of type {str(type(obj_dml_data))} was passed."
+253:             )
+254:         if obj_dml_data.z_cols is not None:
+255:             raise ValueError(
+256:                 "Incompatible data. " + " and ".join(obj_dml_data.z_cols) + " have been set as instrumental variable(s). "
+257:                 "To fit an interactive IV regression model use DoubleMLIIVM instead of DoubleMLIRM."
+258:             )
+259:         one_treat = obj_dml_data.n_treat == 1
+260:         binary_treat = type_of_target(obj_dml_data.d) == "binary"
+261:         zero_one_treat = np.all((np.power(obj_dml_data.d, 2) - obj_dml_data.d) == 0)
+262:         if not (one_treat & binary_treat & zero_one_treat):
+263:             raise ValueError(
+264:                 "Incompatible data. "
+265:                 "To fit an IRM model with DML "
+266:                 "exactly one binary variable with values 0 and 1 "
+267:                 "needs to be specified as treatment variable."
+268:             )
+269:         return
+270: 
+271:     def _nuisance_est(self, smpls, n_jobs_cv, external_predictions, return_models=False):
+272:         x, y = check_X_y(self._dml_data.x, self._dml_data.y, ensure_all_finite=False)
+273:         x, d = check_X_y(x, self._dml_data.d, ensure_all_finite=False)
+274:         # get train indices for d == 0 and d == 1
+275:         smpls_d0, smpls_d1 = _get_cond_smpls(smpls, d)
+276:         g0_external = external_predictions["ml_g0"] is not None
+277:         g1_external = external_predictions["ml_g1"] is not None
+278:         m_external = external_predictions["ml_m"] is not None
+279: 
+280:         # nuisance g
+281:         if g0_external:
+282:             # use external predictions
+283:             g_hat0 = {"preds": external_predictions["ml_g0"], "targets": None, "models": None}
+284:         else:
+285:             g_hat0 = _dml_cv_predict(
+286:                 self._learner["ml_g"],
+287:                 x,
+288:                 y,
+289:                 smpls=smpls_d0,
+290:                 n_jobs=n_jobs_cv,
+291:                 est_params=self._get_params("ml_g0"),
+292:                 method=self._predict_method["ml_g"],
+293:                 return_models=return_models,
+294:             )
+295:             _check_finite_predictions(g_hat0["preds"], self._learner["ml_g"], "ml_g", smpls)
+296:             g_hat0["targets"] = _cond_targets(g_hat0["targets"], cond_sample=(d == 0))
+297: 
+298:             if self._dml_data.binary_outcome:
+299:                 _check_binary_predictions(g_hat0["preds"], self._learner["ml_g"], "ml_g", self._dml_data.y_col)
+300: 
+301:         if g1_external:
+302:             # use external predictions
+303:             g_hat1 = {"preds": external_predictions["ml_g1"], "targets": None, "models": None}
+304:         else:
+305:             g_hat1 = _dml_cv_predict(
+306:                 self._learner["ml_g"],
+307:                 x,
+308:                 y,
+309:                 smpls=smpls_d1,
+310:                 n_jobs=n_jobs_cv,
+311:                 est_params=self._get_params("ml_g1"),
+312:                 method=self._predict_method["ml_g"],
+313:                 return_models=return_models,
+314:             )
+315:             _check_finite_predictions(g_hat1["preds"], self._learner["ml_g"], "ml_g", smpls)
+316:             # adjust target values to consider only compatible subsamples
+317:             g_hat1["targets"] = _cond_targets(g_hat1["targets"], cond_sample=(d == 1))
+318: 
+319:         if self._dml_data.binary_outcome & (self.score != "ATTE"):
+320:             _check_binary_predictions(g_hat1["preds"], self._learner["ml_g"], "ml_g", self._dml_data.y_col)
+321: 
+322:         # nuisance m
+323:         if m_external:
+324:             # use external predictions
+325:             m_hat = {"preds": external_predictions["ml_m"], "targets": None, "models": None}
+326:         else:
+327:             m_hat = _dml_cv_predict(
+328:                 self._learner["ml_m"],
+329:                 x,
+330:                 d,
+331:                 smpls=smpls,
+332:                 n_jobs=n_jobs_cv,
+333:                 est_params=self._get_params("ml_m"),
+334:                 method=self._predict_method["ml_m"],
+335:                 return_models=return_models,
+336:             )
+337:             _check_finite_predictions(m_hat["preds"], self._learner["ml_m"], "ml_m", smpls)
+338: 
+339:         m_hat["preds"] = self._ps_processor.adjust_ps(m_hat["preds"], d, cv=smpls, learner_name="ml_m")
+340: 
+341:         psi_a, psi_b = self._score_elements(y, d, g_hat0["preds"], g_hat1["preds"], m_hat["preds"], smpls)
+342:         psi_elements = {"psi_a": psi_a, "psi_b": psi_b}
+343:         preds = {
+344:             "predictions": {"ml_g0": g_hat0["preds"], "ml_g1": g_hat1["preds"], "ml_m": m_hat["preds"]},
+345:             "targets": {"ml_g0": g_hat0["targets"], "ml_g1": g_hat1["targets"], "ml_m": m_hat["targets"]},
+346:             "models": {"ml_g0": g_hat0["models"], "ml_g1": g_hat1["models"], "ml_m": m_hat["models"]},
+347:         }
+348: 
+349:         return psi_elements, preds
+350: 
+351:     def _score_elements(self, y, d, g_hat0, g_hat1, m_hat, smpls):
+352:         m_hat_adj = _propensity_score_adjustment(
+353:             propensity_score=m_hat, treatment_indicator=d, normalize_ipw=self.normalize_ipw
+354:         )
+355: 
+356:         # compute residuals
+357:         u_hat0 = y - g_hat0
+358:         u_hat1 = y - g_hat1
+359: 
+360:         if (self.score == "ATE") or (self.score == "ATTE"):
+361:             weights, weights_bar = self._get_weights(m_hat=m_hat_adj)
+362:             psi_b = weights * (g_hat1 - g_hat0) + weights_bar * (
+363:                 np.divide(np.multiply(d, u_hat1), m_hat_adj) - np.divide(np.multiply(1.0 - d, u_hat0), 1.0 - m_hat_adj)
+364:             )
+365:             psi_a = -1.0 * np.divide(weights, np.mean(weights))
+366:         else:
+367:             assert callable(self.score)
+368:             psi_a, psi_b = self.score(y=y, d=d, g_hat0=g_hat0, g_hat1=g_hat1, m_hat=m_hat_adj, smpls=smpls)
+369: 
+370:         return psi_a, psi_b
+371: 

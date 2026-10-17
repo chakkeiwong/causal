@@ -1,0 +1,135 @@
+11: class DoubleMLPanelData(DoubleMLData):
+12:     """Double machine learning data-backend for panel data in long format.
+13: 
+14:     :class:`DoubleMLPanelData` objects can be initialized from
+15:     :class:`pandas.DataFrame` as well as :class:`numpy.ndarray` objects.
+16: 
+17:     Parameters
+18:     ----------
+19:     data : :class:`pandas.DataFrame`
+20:         The data.
+21: 
+22:     y_col : str
+23:         The outcome variable.
+24: 
+25:     d_cols : str or list
+26:         The treatment variable(s) indicating the treatment groups in terms of first time of treatment exposure.
+27: 
+28:     t_col : str
+29:         The time variable indicating the time.
+30: 
+31:     id_col : str
+32:         Unique unit identifier.
+33: 
+34:     x_cols : None, str or list
+35:         The covariates.
+36:         If ``None``, all variables (columns of ``data``) which are neither specified as outcome variable ``y_col``, nor
+37:         treatment variables ``d_cols``, nor instrumental variables ``z_cols`` are used as covariates.
+38:         Default is ``None``.
+39: 
+40:     z_cols : None, str or list
+41:         The instrumental variable(s).
+42:         Default is ``None``.
+43: 
+44:     static_panel : bool
+45:         Indicates whether the data model corresponds to a static
+46:         panel data approach (``True``) or to staggered adoption panel data
+47:         (``False``). In the latter case, the treatment groups/values are defined in terms of the first time of
+48:         treatment exposure.
+49:         Default is ``False``.
+50: 
+51:     use_other_treat_as_covariate : bool
+52:         Indicates whether in the multiple-treatment case the other treatment variables should be added as covariates.
+53:         Default is ``True``.
+54: 
+55:     force_all_x_finite : bool or str
+56:         Indicates whether to raise an error on infinite values and / or missings in the covariates ``x``.
+57:         Possible values are: ``True`` (neither missings ``np.nan``, ``pd.NA`` nor infinite values ``np.inf`` are
+58:         allowed), ``False`` (missings and infinite values are allowed), ``'allow-nan'`` (only missings are allowed).
+59:         Note that the choice ``False`` and ``'allow-nan'`` are only reasonable if the machine learning methods used
+60:         for the nuisance functions are capable to provide valid predictions with missings and / or infinite values
+61:         in the covariates ``x``.
+62:         Default is ``True``.
+63: 
+64:     datetime_unit : str
+65:         The unit of the time and treatment variable (if datetime type).
+66: 
+67:     Examples
+68:     --------
+69:     >>> from doubleml.did.datasets import make_did_CS2021
+70:     >>> from doubleml import DoubleMLPanelData
+71:     >>> df = make_did_CS2021(n_obs=500)
+72:     >>> dml_data = DoubleMLPanelData(
+73:     ...     df,
+74:     ...     y_col="y",
+75:     ...     d_cols="d",
+76:     ...     id_col="id",
+77:     ...     t_col="t",
+78:     ...     x_cols=["Z1", "Z2", "Z3", "Z4"],
+79:     ...     datetime_unit="M"
+80:     ... )
+81:     """
+82: 
+83:     def __init__(
+84:         self,
+85:         data,
+86:         y_col,
+87:         d_cols,
+88:         t_col,
+89:         id_col,
+90:         x_cols=None,
+91:         z_cols=None,
+92:         static_panel=False,
+93:         use_other_treat_as_covariate=True,
+94:         force_all_x_finite=True,
+95:         datetime_unit="M",
+96:     ):
+97:         DoubleMLBaseData.__init__(self, data)
+98: 
+99:         self._static_panel = static_panel
+100: 
+101:         # we need to set id_col (needs _data) before call to the super __init__ because of the x_cols setter
+102:         self.id_col = id_col
+103:         self._set_id_var()
+104:         # Set time column before calling parent constructor
+105:         self.t_col = t_col
+106:         self._datetime_unit = _is_valid_datetime_unit(datetime_unit)
+107: 
+108:         if not self.static_panel:
+109:             cluster_cols = None
+110:             force_all_d_finite = False
+111:         else:
+112:             cluster_cols = id_col
+113:             force_all_d_finite = True
+114: 
+115:         DoubleMLData.__init__(
+116:             self,
+117:             data=data,
+118:             y_col=y_col,
+119:             d_cols=d_cols,
+120:             x_cols=x_cols,
+121:             z_cols=z_cols,
+122:             cluster_cols=cluster_cols,
+123:             use_other_treat_as_covariate=use_other_treat_as_covariate,
+124:             force_all_x_finite=force_all_x_finite,
+125:             force_all_d_finite=force_all_d_finite,
+126:         )
+127: 
+128:         # reset index to ensure a simple RangeIndex
+129:         self.data.reset_index(drop=True, inplace=True)
+130: 
+131:         # Set time variable array after data is loaded
+132:         self._set_time_var()
+133: 
+134:         self._check_disjoint_sets_id_col()
+135: 
+136:         # intialize the unique values of g and t
+137:         self._g_values = np.sort(np.unique(self.d))  # unique values of g
+138:         self._t_values = np.sort(np.unique(self.t))  # unique values of t
+139: 
+140:         if self.n_treat != 1:
+141:             raise ValueError("Only one treatment column is allowed for panel data.")
+142: 
+143:     def __str__(self):
+144:         data_summary = self._data_summary_str()
+145:         buf = io.StringIO()
