@@ -4,7 +4,45 @@ The substantive program is the [proposal scope and public-evidence portfolio](..
 
 Use **`python3 tools/run_program.py`** from the repository root. The canonical ledger is `docs/program/state.json`. Mission control is generated from that ledger. The numbered V11–V15 plans and earlier controllers preserve historical contracts and evidence; use this entrypoint for current work.
 
-## Current continuation: panel chapter recovered, reviewed and integrated
+## Current continuation: observation chapter recovered, reviewed and integrated
+
+The program has recorded **133 of 376 proposal operations**. The working
+reader is [977 pages](../../causal_proposal_observation_reviewed_v2_2026-10-17.pdf),
+SHA-256 `e21560d957ad492bafa951001a3ff13712feadb992b83d667efd5353198a813a`.
+Recovery completed the interrupted build and reviewed Chapter 24, printed
+pages 259–272 (physical 280–293). It develops joint relationship and action
+laws, feasible coordination, graph transport, sharp pooled-information value
+sets and audit design for a specified target decision.
+
+The initial 7.5-page depth failure and 975-page candidate remain preserved.
+The successor has **9.25 exclusive substantive page equivalents**, meeting
+the minimum of 8 and target of 9 within the maximum of 11. Its extension
+uses an exact pooled constraint to choose a linear unbiased estimator and
+audit allocation that minimize a stated conservative variance envelope.
+Estimated pooled information retains its variance, covariance and possible
+systematic error. These results do not establish actual minimax variance,
+sampled coverage, package runtime qualification or observed bank benefit.
+
+All 717 canonical records and citation-context multisets survive; all 720
+first-candidate source records remain unchanged. The reader contains 721
+audited records and 188 genuine scholarly PDFs. Ten authentic primary
+excerpts, exact reference calculations, equations 24.1–24.33, compilation,
+traceability and all-page text bounds pass. The [release review](2026-10-17/s7/publication-v2/release-source-review.json)
+and [depth review](../comprehensive-v14/work/TEXT.REVIEW.S7/chapter-review.json)
+retain the failed candidate and scientific restrictions. Visual acceptance
+remains false under the inherited image allowance. Q1 coverage/depth, Q5
+sponsor coherence, all three mandatory repairs and final acceptance remain open.
+
+Continue **TEXT.DRAFT.S8**, commercial products and the competitive capability
+gap, against its exclusive 10/12/15-page allocation. Reuse inspected vendor
+originals and develop a systematic buying/integration comparison across the
+banking journeys, with actual documented competitor capabilities and explicit
+proposal deficits. Exclude duplicate depth for earlier vendor catalogs and
+mathematical examples. Missing prices, edition parity and paid-engine trials
+remain scoped limitations; they do not block proposal development. Record
+the pushed release identity. No unattended worker is running.
+
+## Preserved panel chapter recovered, reviewed and integrated
 
 The program has recorded **131 of 376 proposal operations**. The working
 reader is [963 pages](../../causal_proposal_panels_reviewed_v2_2026-10-17.pdf),

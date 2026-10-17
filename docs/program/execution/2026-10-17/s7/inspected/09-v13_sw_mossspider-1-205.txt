@@ -1,0 +1,205 @@
+import re
+import warnings
+import patsy
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+import networkx as nx
+import matplotlib.pyplot as plt
+from scipy.stats import poisson, norm
+from scipy.stats.kde import gaussian_kde
+
+from .utils import (network_to_df, fast_exp_map, exp_map_individual, tmle_unit_bounds, tmle_unit_unbound,
+                    probability_to_odds, odds_to_probability, bounding,
+                    outcome_learner_fitting, outcome_learner_predict, exposure_machine_learner,
+                    targeting_step, create_threshold, create_categorical)
+
+
+class NetworkTMLE:
+    r"""Implementation of the Targeted Maximum Likelihood Estimator (TMLE) for network dependent data. The following
+    procedure estimates the expected incidence under a treatment plan of interest. For stochastic treatment plans, the
+    expected incidence is obtained through Monte Carlo integration of a subsample of possible treatment allotments that
+    correspond to the plan of interest.
+
+    Note
+    ----
+    Network-TMLE makes the weak dependence assumption, such that only direct contacts' treatment can interfere with
+    individual i's outcome.
+
+    Parameters
+    ----------
+    network : NetworkX Graph
+        NetworkX undirected network *without* self-loops. Additionally, all variables should be stored as attributes
+        for each node. ``Targetula`` extracts the node data from the graph and creates a ``pandas.DataFrame`` object
+        from that information. It is important that no nodes have missing data. Currently there is no procedure to
+        handle missing data
+    exposure : str
+        String indicating the exposure variable of interest.
+    outcome : str
+        String indicating the outcome variable of interest.
+    degree_restrict : None, list, tuple, optional
+        Restriction on the minimum & maximum degree for nodes to be included in the estimand. Must be a list with a
+        length of two, where the first value corresponds to the lower bound and the second is the upper bound for
+        degree. Values are inclusive. All samples below the first value OR above the second level are considered as
+        "background" features. Hence the intervention does not change their exposure.
+    alpha : float, optional
+        Alpha for confidence interval level. Default is 0.05
+    continuous_bound : float, optional
+        For continuous outcomes, TMLE needs to bound Y between 0 and 1. However, 0/1 cannot be included in these
+        bounded values. This specification sets the bounds for the continuous outcomes. The default is 0.0005.
+    verbose : bool, optional
+        Whether to print all intermediary model results for the estimation process. When set to True, each of the
+        model results are printed to the console. The default is False.
+
+    Note
+    ----
+    ``mossspider`` calculates exposure mapping variables automatically with the input network. These variables are
+    saved as variable-name_map. So for a variable `'A'`, the newly created exposure mapping variable calculated is
+    `'A_map'`
+
+    Note
+    ----
+    For directed networks, the direction of of influence goes from the target node to the source (i.e. opposite of the
+    arrow direction). If `A --> B` then B's covariates will be part of the A's summary measures.
+
+    Examples
+    --------
+    Setting up environment
+
+    >>> from mossspider import NetworkTMLE
+    >>> from mossspider.dgm import uniform_network, generate_observed
+
+    Generating a generic network and some data
+
+    >>> graph = generate_observed(uniform_network(n=500, degree=[1, 6]))
+
+    Estimation with `NetworkTMLE` (nonparametric summary measure in exposure map model)
+
+    >>> tmle = NetworkTMLE(network=graph, exposure='A', outcome='Y')
+    >>> tmle.exposure_model('W + W_map')
+    >>> tmle.exposure_map_model('A + W + W_map', distribution=None)
+    >>> tmle.outcome_model('A + W + A_map + W_map', print_results=False)
+    >>> tmle.fit(p=0.8, bound=10e5)
+    >>> tmle.summary()
+
+    Estimation with `NetworkTMLE` (parametric summary measure in exposure map model)
+
+    >>> tmle = NetworkTMLE(network=graph, exposure='A', outcome='Y')
+    >>> tmle.exposure_model('W + W_map')
+    >>> tmle.exposure_map_model('A + W + W_map', measure='sum', distribution='poisson')
+    >>> tmle.outcome_model('A + W + A_map + W_map', print_results=False)
+    >>> tmle.fit(p=0.8, bound=10e5)
+    >>> tmle.summary()
+
+    Estimation with `NetworkTMLE` and restricting inference by degree
+
+    >>> tmle = NetworkTMLE(network=graph, exposure='A', outcome='Y', degree_restrict=[0, 5])
+    >>> tmle.exposure_model('W + W_map')
+    >>> tmle.exposure_map_model('A + W + W_map', measure='sum', distribution='poisson')
+    >>> tmle.outcome_model('A + W + A_map + W_map', print_results=False)
+    >>> tmle.fit(p=0.8, bound=10e5)
+    >>> tmle.summary()
+
+    Diagnostic plot for support of policy of interest in observed data
+
+    >>> import matplotlib.pyplot as plt
+    >>> tmle.diagnostics()
+    >>> plt.show()
+
+    Generating a threshold measure based on a summary measure
+
+    >>> tmle = NetworkTMLE(network=graph, exposure='A', outcome='Y')
+    >>> tmle.define_threshold(variable='A_sum', threshold=3)  # A_sum_t3
+
+    Generating a category measure based on a binned summary measure
+
+    >>> tmle = NetworkTMLE(network=graph, exposure='A', outcome='Y')
+    >>> tmle.define_category(variable='A_sum', bins=[0, 1, 2, 4, 6])  # A_sum_c
+
+    References
+    ----------
+    van der Laan MJ. (2014). Causal inference for a population of causally connected units.
+    *Journal of Causal Inference*, 2(1), 13-74.
+
+    Sofrygin O & van der Laan MJ. (2017). Semi-parametric estimation and inference for the mean outcome of
+    the single time-point intervention in a causally connected population. *Journal of Causal Inference*, 5(1).
+
+    Ogburn EL, Sofrygin O, Diaz I, & van der Laan MJ. (2017). Causal inference for social network data.
+    *arXiv preprint* arXiv:1705.08527.
+
+    Sofrygin O, Ogburn EL, & van der Laan MJ. (2018). Single Time Point Interventions in Network-Dependent
+    Data. In Targeted Learning in Data Science (pp. 373-396). Springer.
+    """
+    def __init__(self, network, exposure, outcome, degree_restrict=None, alpha=0.05,
+                 continuous_bound=0.0005, verbose=False):
+        # Checking for some common problems that should provide errors
+        if not all([isinstance(x, int) for x in list(network.nodes())]):   # Check if all node IDs are integers
+            raise ValueError("NetworkTMLE requires that "                  # ... possibly not needed?
+                             "all node IDs must be integers")
+
+        if nx.number_of_selfloops(network) > 0:                            # Check for any self-loops in the network
+            raise ValueError("NetworkTMLE does not support networks "      # ... self-loops don't make sense in this
+                             "with self-loops")                            # ... setting
+
+        # Checking for a specified degree restriction
+        if degree_restrict is not None:                                    # not-None means apply a restriction
+            self._check_degree_restrictions_(bounds=degree_restrict)       # ... checks if valid degree restriction
+            self._max_degree_ = degree_restrict[1]                         # ... extract max degree as upper bound
+        else:                                                              # otherwise if no restriction(s)
+            if nx.is_directed(network):                                    # ... directed max degree is max out-degree
+                self._max_degree_ = np.max([d for n, d in network.out_degree])
+            else:                                                          # ... undirected max degree is max degree
+                self._max_degree_ = np.max([d for n, d in network.degree])
+
+        # Generate a fresh copy of the network with ascending node order
+        oid = "_original_id_"                                              # Name to save the original IDs
+        network = nx.convert_node_labels_to_integers(network,              # Copy of new network with new labels
+                                                     first_label=0,        # ... start at 0 for latent variance calc
+                                                     label_attribute=oid)  # ... saving the original ID labels
+
+        # Saving processed data copies
+        self.network = network                       # Network with correct re-labeling
+        self.exposure = exposure                     # Exposure column / attribute name
+        self.outcome = outcome                       # Outcome column / attribute name
+
+        # Background processing to convert network attribute data to pandas DataFrame
+        self.adj_matrix = nx.adjacency_matrix(self.network,   # Convert to adjacency matrix
+                                              weight=None)    # TODO allow for weighted networks
+        df = network_to_df(self.network)                      # Convert node attributes to pandas DataFrame
+
+        # Error checking for exposure types
+        if not df[exposure].value_counts().index.isin([0, 1]).all():        # Only binary exposures allowed currently
+            raise ValueError("NetworkTMLE only supports binary exposures "
+                             "currently")
+
+        # Manage outcome data based on variable type
+        if df[outcome].dropna().value_counts().index.isin([0, 1]).all():    # Binary outcomes
+            self._continuous_outcome = False                                # ... mark as binary outcome
+            self._cb_ = 0.0                                                 # ... set continuous bound to be zero
+            self._continuous_min_ = 0.0                                     # ... saving binary min bound
+            self._continuous_max_ = 1.0                                     # ... saving binary max bound
+        else:                                                               # Continuous outcomes
+            self._continuous_outcome = True                                 # ... mark as continuous outcome
+            self._cb_ = continuous_bound                                    # ... save continuous bound value
+            self._continuous_min_ = np.min(df[outcome]) - self._cb_         # ... determine min (with bound)
+            self._continuous_max_ = np.max(df[outcome]) + self._cb_         # ... determine max (with bound)
+            df[outcome] = tmle_unit_bounds(y=df[self.outcome],              # ... bound the outcomes to be (0,1)
+                                           mini=self._continuous_min_,
+                                           maxi=self._continuous_max_)
+
+        # Creating summary measure mappings for all variables in the network
+        summary_types = ['sum', 'mean', 'var', 'mean_dist', 'var_dist']           # Default summary measures available
+        handle_isolates = ['mean', 'var', 'mean_dist', 'var_dist']                # Whether isolates produce nan's
+        for v in [var for var in list(df.columns) if var not in [oid, outcome]]:  # All cols besides ID and outcome
+            v_vector = np.asarray(df[v])                                          # ... extract array of column
+            for summary_measure in summary_types:                                 # ... for each summary measure
+                df[v+'_'+summary_measure] = fast_exp_map(self.adj_matrix,         # ... calculate corresponding measure
+                                                         v_vector,
+                                                         measure=summary_measure)
+                if summary_measure in handle_isolates:                            # ... set isolates from nan to 0
+                    df[v+'_'+summary_measure] = df[v+'_'+summary_measure].fillna(0)
+
+        # Creating summary measure mappings for non-parametric exposure_map_model()
+        exp_map_cols = exp_map_individual(network=network,               # Generate columns of indicator
+                                          variable=exposure,             # ... for the exposure
