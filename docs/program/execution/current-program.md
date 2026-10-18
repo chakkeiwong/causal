@@ -1,5 +1,80 @@
 # Current executable proposal program
 
+## Crash recovery continued on 18 October 2026
+
+Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.
+The canonical ledger is docs/program/state.json. Earlier numbered programs,
+controllers and the continuation history below are preserved historical views.
+The [proposal scope](../master-program-proposal.md) governs the current deliverable.
+
+The current [1,080-page monograph](../../causal_proposal_agent_reasoning_reviewed_2026-10-18.pdf)
+is paired with the [14-page sponsor brief](../../sponsor_proposal_agent_reasoning_reviewed_2026-10-18.pdf).
+It contains 784 audited citation records and 203 genuine scholarly PDFs. All 781
+predecessor citation records, their prior contexts and 238 unchanged compiled inputs
+survive. Q2–Q4 pass for these exact reader bytes. Source, exact arithmetic and
+all-page text-bound checks pass; visual and final proposal acceptance remain open.
+
+Recovery completed the Python identification comparison and its preserving reader
+and sponsor. New causal-agent material distinguishes a biomedical research agenda
+from validated integration and a philosophical attribution test from statistical
+identification. It preserves observed source citation/transcription defects. An exact
+authored servicing example distinguishes a single intervention from a compound
+intervention and derives hypothetical incremental value of 160 − 190p USD. It is not a
+live model result, DEF-1 implementation or observed bank benefit.
+
+There are **150 recorded outcomes among 376 proposal operations**,
+with **195 ready**. A recorded inconclusive outcome is not a closed gap.
+Software coverage: 2 pass, 23 inconclusive, 77 open of 102. Reuse decisions:
+16 pass, 3 inconclusive, 96 open of 115. Chapter reviews: 20 pass and 2 inconclusive
+of 22; L1 and L6 remain incomplete. The original census is now 44 inspected and
+69 unread of 113; four crosscutting records and three citation-chain leads retain
+separate denominators. All 14 LLM task reviews and 12 integration requirements have
+bounded proposal outcomes, not general runtime or bank qualification.
+
+### Standard and remaining gates
+
+Retain developed scholarly argument, explained notation, assumptions, alternatives,
+derivations, diagnostics, banking examples, authentic PDFs and source identity/version/
+SHA-256/anchor audits. The cutoff is 7 October 2026; length alone earns no acceptance.
+MR01 retains 17 areas by 6 language/commercial dimensions and 100–150 substantive pages.
+MR02 retains 8 chapters, 14 tasks and 96–112 substantive pages. MR03 retains 4 chapters,
+12 requirements and indicative 40–60 pages. Duplicate material earns no duplicate credit.
+All three repair rollups, Q1, Q5, full release reconciliation and final acceptance
+remain open. A complete proposal may retain bounded negative scientific findings;
+it must not claim an implemented, independently accepted bank product.
+
+### Executable continuation
+
+The fair scheduler now selects **SW.DECISION.inherited_duckdb**. Inspect its
+canonical alias, pinned originals, license and proposed role; record an explicit
+adopt/integrate/port/reference/defer/reject decision with limits.
+LL.CENSUS remains independently eligible from the 44/69 successor. Its next
+concrete pair is candidate 18 (evaluation survey, arXiv:2307.03109) and candidate 20
+(code-generation survey, arXiv:2406.00515): verify selected revisions and cutoff,
+inspect technical and adverse anchors, update only actual original dispositions,
+and preserve the 14-task mapping.
+Continue software/reuse lanes independently when a source is blocked. Known routes
+are primary-source inspection, explicit adoption/integration/port/rejection decisions,
+controlled references and preserving manuscript integration. Unrestricted latent
+identification, joint dependence, hidden-state policy and arbitrary-learner guarantees
+remain open research; no general successful repair is promised.
+
+[Every nonpassing operation and prerequisite](2026-10-18/recovery-agent-reasoning-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-18/recovery-agent-reasoning-v1/recovery-checkpoint.json)
+· [Latest source census](2026-10-18/census-biomedical-reasoning-v1/census-register.json)
+
+Source acquisition, public/synthetic prototype design and literature work do not
+require bank truth, institutional approval or paid production trials. Rendered visual
+acceptance requires a fresh image allowance under /home/ubuntu/AGENTS.md; it blocks
+only that review. Continue other eligible work. Commands stay short and their outputs
+bounded; durable receipts identify exact restart actions. No unattended worker runs.
+
+---
+
+## Preserved earlier continuation records
+
+# Current executable proposal program
+
 ## Recovered and continued on 18 October 2026
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next`, and `check`.
