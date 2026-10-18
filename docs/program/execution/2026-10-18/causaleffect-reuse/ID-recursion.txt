@@ -1,0 +1,156 @@
+1: id <- function(y, x, P, G, G.obs, v, topo, tree) {
+2:   .to <- NULL
+3:   .from <- NULL
+4:   description <- NULL
+5:   if (length(P$var) == 0 & !(P$product | P$fraction)) tree$call <- list(y = y, x = x, P = probability(var = v), G = G, line = "", v = v, id = FALSE)
+6:   else tree$call <- list(y = y, x = x, P = P, G = G, line = "", v = v, id = FALSE)
+7: 
+8:   # line 1
+9:   if (length(x) == 0) {
+10:     if (P$product | P$fraction) {
+11:       P$sumset <- union(setdiff(v, y), P$sumset) %ts% topo
+12:     } else {
+13:       P$var <- y
+14:     }
+15:     tree$call$line <- 1
+16:     tree$call$id <- TRUE
+17:     tree$root <- P
+18:     return(list(P = P, tree = tree))
+19:   }
+20: 
+21:   an <- ancestors(y, G.obs, topo)
+22: 
+23:   # line 2
+24:   if (length(setdiff(v, an)) != 0) {
+25:     G.an <- igraph::induced_subgraph(G, an)
+26:     G.an.obs <- observed.graph(G.an)
+27:     if (P$product | P$fraction) {
+28:       P$sumset <- union(setdiff(v, an), P$sumset) %ts% topo
+29:       # P <- simplify.expression(P, NULL)
+30:     } else {
+31:       P$var <- an
+32:     }
+33:     nxt <- id(y, intersect(x, an), P, G.an, G.an.obs, an, topo, list())
+34:     tree$branch[[1]] <- nxt$tree
+35:     tree$call$line <- 2
+36:     tree$call$id <- nxt$tree$call$id
+37:     tree$call$an <- an
+38:     return(list(P = nxt$P, tree = tree))
+39:   }
+40: 
+41:   # line 3
+42:   G.xbar <- igraph::subgraph_from_edges(G, igraph::E(G)[!(.to(x) | (.from(x) & (description == "U" & !is.na(description))))], delete.vertices = FALSE)
+43:   an.xbar <- ancestors(y, observed.graph(G.xbar), topo)
+44:   w <- setdiff(setdiff(v, x), an.xbar)
+45:   w.len <- length(w)
+46:   if (w.len != 0) {
+47:     nxt <- id(y, union(x, w) %ts% topo, P, G, G.obs, v, topo, list())
+48:     tree$branch[[1]] <- nxt$tree
+49:     tree$call$line <- 3
+50:     tree$call$id <- nxt$tree$call$id
+51:     tree$call$w <- w
+52:     tree$call$an.xbar <- an.xbar
+53:     return(list(P = nxt$P, tree = tree))
+54:   }
+55: 
+56:   # line 4
+57:   G.remove.x <- igraph::induced_subgraph(G, v[!(v %in% x)])
+58:   s <- c_components(G.remove.x, topo)
+59:   if (length(s) > 1) {
+60:     tree$call$line <- 4
+61:     nxt <- lapply(s, function(t) {
+62:       return(id(t, setdiff(v, t), P, G, G.obs, v, topo, list()))
+63:     })
+64:     product.list <- lapply(nxt, "[[", "P")
+65:     tree$branch <- lapply(nxt, "[[", "tree")
+66:     tree$call$id <- all(sapply(nxt, function(x) x$tree$call$id))
+67:     return(list(
+68:       P = probability(sumset = setdiff(v, union(y, x)), product = TRUE, children = product.list),
+69:       tree = tree
+70:     ))
+71:   } else {
+72:     s <- s[[1]]
+73: 
+74:     # line 5 
+75:     cc <- c_components(G, topo)
+76:     if (identical(cc[[1]], v)) {
+77:       tree$call$s <- s
+78:       tree$call$line <- 5
+79:       tree$call$id <- FALSE
+80:       tree$root <- P
+81:       return(list(P = P, tree = tree))
+82:     }
+83:    
+84:     # line 6
+85:     pos <- Position(function(x) identical(s, x), cc, nomatch = 0)
+86:     if (pos > 0) {
+87:       tree$call$line <- 6
+88:       tree$call$s <- s
+89:       ind <- which(v %in% s)
+90:       s.len <- length(s)
+91:       product.list <- vector(mode = "list", length = s.len)
+92:       P.prod <- probability()
+93:       for (i in s.len:1) {
+94:         # cond.set <- causal.parents(s[i], v[1:ind[i]], G, G.obs, topo)
+95:         cond.set <- v[0:(ind[i]-1)]
+96:         if (P$product) {
+97:           P.prod <- parse.joint(P, s[i], cond.set, v, topo)
+98:           # P.prod <- simplify.expression(P.prod, NULL)
+99:         } else {
+100:           P.prod <- P
+101:           P.prod$var <- s[i]
+102:           P.prod$cond <- cond.set
+103:         }
+104:         product.list[[s.len - i + 1]] <- P.prod
+105:       }
+106:       if (s.len > 1) {
+107:         P.new <- probability(sumset = setdiff(s, y), product = TRUE, children = product.list)
+108:         # P.new <- simplify.expression(P.new, NULL)
+109:         tree$root <- P.new
+110:         tree$call$id <- TRUE
+111:         return(list(P = P.new, tree = tree))
+112:       } 
+113:       if (P.prod$product | P.prod$fraction) {
+114:         P.prod$sumset <- union(P.prod$sumset, setdiff(s, y)) %ts% topo
+115:         # P.prod <- simplify.expression(P.prod, NULL)
+116:       } else {
+117:         P.prod$var <- setdiff(P.prod$var, union(P.prod$sumset, setdiff(s, y)))
+118:       }
+119:       tree$root <- P.prod
+120:       tree$call$id <- TRUE
+121:       return(list(P = P.prod, tree = tree))
+122:     }
+123: 
+124:     # line 7
+125:     tree$call$s <- s
+126:     s <- Find(function(x) all(s %in% x), cc)
+127:     tree$call$line <- 7
+128:     tree$call$s.prime <- s
+129:     s.len <- length(s)
+130:     ind <- which(v %in% s)
+131:     G.s <- igraph::induced_subgraph(G, s)
+132:     G.s.obs <- observed.graph(G.s)
+133:     product.list <- vector(mode = "list", length = s.len)
+134:     P.prod <- probability()
+135:     for (i in s.len:1) {
+136:       # cond.set <- causal.parents(s[i], v[1:ind[i]], G, G.obs, topo)
+137:       cond.set <- v[0:(ind[i]-1)]
+138:       if (P$product) {
+139:         P.prod <- parse.joint(P, s[i], cond.set, v, topo)
+140:       } else {
+141:         P.prod <- P
+142:         P.prod$var <- s[i]
+143:         P.prod$cond <- cond.set
+144:       }
+145:       product.list[[s.len - i + 1]] <- P.prod
+146:     }
+147:     x.new <- intersect(x, s)
+148:     nxt <- NULL
+149:     if (s.len > 1) nxt <- id(y, x.new, probability(product = TRUE, children = product.list), G.s, G.s.obs, s, topo, list())
+150:     else nxt <- id(y, x.new, product.list[[1]], G.s, G.s.obs, s, topo, list())
+151:     tree$branch[[1]] <- nxt$tree
+152:     tree$call$id <- nxt$tree$call$id
+153:     return(list(P = nxt$P, tree = tree))
+154:   }
+155: 
+156: }

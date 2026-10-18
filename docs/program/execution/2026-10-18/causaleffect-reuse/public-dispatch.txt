@@ -1,0 +1,65 @@
+1: causal.effect <- function(y, x, z = NULL, G, expr = TRUE, simp = FALSE, steps = FALSE, primes = FALSE, prune = FALSE, stop_on_nonid = TRUE) {
+2:   # if there aren't any attributes in the graph, then we need to create them.
+3:   if (length(igraph::edge_attr(G)) == 0) {
+4:     G <- igraph::set_edge_attr(G, "description", 1:length(igraph::E(G)), NA)
+5:   }
+6:   # G.obs is the version of G that has no unobserved variables or bidirected edges representing unobserved confounders
+7:   G.obs <- observed.graph(G)
+8:   if (!igraph::is_dag(G.obs)) stop("Graph 'G' is not a DAG")
+9:   # This is the topological sort of a graph's directed edges
+10:   topo <- igraph::topo_sort(G.obs)
+11:   # This labels the vertices of the topological sort to be the same as the names of the original graph.
+12:   topo <- igraph::vertex_attr(G, "name")[topo]
+13:   # sanity checks to make sure that x, y and z are in the topological sort of the graph
+14:   if (length(setdiff(y, topo)) > 0) stop("Set 'y' contains variables not present in the graph.")
+15:   if (length(setdiff(x, topo)) > 0) stop("Set 'x' contains variables not present in the graph.")
+16:   if (length(z) > 0 && !identical(z, "")) {
+17:     if (length(setdiff(z, topo)) > 0) stop("Set 'z' contains variables not present in the graph.")
+18:   }
+19:   if (length(intersect(x, y)) > 0) stop("Sets 'x' and 'y' are not disjoint.")
+20:   if (length(intersect(y, z)) > 0) stop("Sets 'y' and 'z' are not disjoint.")
+21:   if (length(intersect(x, z)) > 0) stop("Sets 'x' and 'z' are not disjoint.")
+22:   res <- list()
+23:   algo <- ""
+24:   res.prob <- probability()
+25:   if (is.null(z) || identical(z, "") || identical(z, character(0))) {
+26:     if (prune) {
+27:       res <- pid(y, x, probability(), G, G.obs, topo, topo, list())
+28:       algo <- "pid"
+29:     } else {
+30:       res <- id(y, x, probability(), G, G.obs, topo, topo, list())
+31:       algo <- "id"
+32:     }
+33:     res.prob <- res$P
+34:   } else {
+35:     res <- idc(y, x, z, probability(), G, G.obs, topo, topo, list(), prune)
+36:     res.num <- res$P
+37:     res.den <- res.num
+38:     res.den$sumset <- union(res.den$sumset, y)
+39:     res.prob$fraction <- TRUE
+40:     res.prob$num <- res.num
+41:     res.prob$den <- res.den
+42:     algo <- "idc"
+43:   }
+44:   res.tree <- res$tree
+45:   if (res$tree$call$id) {
+46:     if (simp) {
+47:       G.unobs <- unobserved.graph(G)
+48:       res.prob <- deconstruct(res.prob, probability(), topo)
+49:       res.prob <- parse.expression(res.prob, topo, G.unobs, G, G.obs)
+50:     }
+51:     attr(res.prob, "algorithm") <- algo
+52:     attr(res.prob, "query") <- list(y = y, x = x, z = z)
+53:     if (expr) res.prob <- get.expression(res.prob, primes)
+54:     if (steps) return(list(P = res.prob, steps = res.tree, id = TRUE))
+55:     return(res.prob)
+56:   } else {
+57:     if (stop_on_nonid) stop("Not identifiable.", call. = FALSE)
+58:     res.prob <- probability()
+59:     attr(res.prob, "algorithm") <- algo
+60:     attr(res.prob, "query")<- list(y = y, x = x, z = z)
+61:     if (steps) return(list(P = res.prob, steps = res$tree, id = FALSE))
+62:     if (expr) return("")
+63:     return(NULL)
+64:   }
+65: }

@@ -2,49 +2,52 @@
 
 ## Recovered and continued on 18 October 2026
 
-Use the preserving controller: python3 tools/run_program_reviews_v2.py status,
-next, and check. The frozen predecessor controls and receipts remain intact.
+Use `python3 tools/run_program_reviews_v2.py status`, `next`, and `check`.
+The canonical ledger is `docs/program/state.json`; earlier controls and receipts
+remain preserved.
 
-The current [1,060-page monograph](../../causal_proposal_bayesian_advice_reviewed_2026-10-18.pdf)
-is paired with the [10-page sponsor proposal](../../sponsor_proposal_2026-10-18.pdf).
-The monograph has 751 audited citation records and 197 genuine scholarly PDFs.
-All 749 predecessor records, citation contexts and 232 compiled inputs survive.
-The new Bayesian-advice discussion is L3, printed pages 578–581 (physical
-600–603); it distinguishes mixed source-reported results, conditional exact
-examples, semantic mismatches and unqualified code reuse. Q2–Q4 pass for these
-exact reader bytes. Visual and final proposal acceptance remain open.
+The current [1,074-page monograph](../../causal_proposal_graph_panels_reviewed_v2_2026-10-18.pdf)
+is paired with the [12-page sponsor proposal](../../sponsor_proposal_graph_panels_reviewed_v2_2026-10-18.pdf).
+The reader has 772 audited citation records and 201 genuine scholarly PDFs.
+All 763 predecessor records, citation contexts and 235 unchanged compiled inputs
+survive. Q2–Q4 pass for these exact reader bytes. Visual and final acceptance
+remain open.
 
-The sponsor successor updates the recommendation, selected new LLM/interface
-findings and remaining work against this reader. It retains the public-first
-prototype approach, all four banking journeys, negative findings and unchanged
-assumed economic calculations. Its 26 cited records and all-page text bounds
-pass author review. This resolves the stale sponsor narrative as a working
-update; full RELEASE.RECONCILE and Q5 acceptance remain open.
+DAGitty graph preconditions, failure/result types and scoped rights are now
+integrated. Four Stata manuals and an EViews introduction support the bounded
+panel comparison. Exact authored examples separate a USD34,000 treated-period
+ATT from a minus USD11,375 TWFE projection; they are not vendor or bank trials.
+The sponsor preserves all34 prior citation records, funding/servicing arguments
+and assumed economics; its45 citations bind to authentic and project evidence.
 
-There are 145 recorded outcomes among 376 proposal operations and 199 ready
-operations. Twenty of 22 chapter reviews pass; L1 and L6 remain inconclusive.
-The software matrix retains 2 pass, 20 inconclusive and 80 open cells. The reuse
-register now has 15 pass, 2 inconclusive and 98 open decisions. The new DoubleML
-decision is reference-only: selected pinned source and seven historical runtime
-matches are preserved, but complete environment/dependency-rights qualification
-is missing. No integration permission is awarded. The sponsor's 99-open/one-
-inconclusive reuse counts are its preserved pre-DoubleML review snapshot.
+There are149 recorded outcomes among376 proposal operations and196 ready.
+Software coverage has2 pass,22 inconclusive and78 open cells of102. Reuse has
+16 pass,3 inconclusive and96 open decisions of115. Twenty of22 chapter reviews
+pass; L1 and L6 remain inconclusive. The original census remains42 inspected
+and71 unread of113, plus4 crosscutting records and3 separate citation-chain leads.
+These counts describe proposal evidence, not installed or qualified software.
 
-The [current original census](2026-10-18/census-successor/census-register.json)
-has 40 inspected and 73 unread originals out of 113. Four cross-cutting records
-and three citation-chain leads remain separate. Candidate194 is now inspected;
-candidate27 still requires an authentic original. A failed acquisition blocks
-only that source's claims. It does not stop software review or another source.
+The graph/panel reader's first build had TOC/equation overflows; its preserving
+v2 fixes them. The sponsor's first build exposed plainnat's single-character
+same-author/year suffix overflow. Both failed attempts and their byte identities
+are preserved. Numeric natbib with standard unsrt repairs sponsor typesetting
+without changing source identities, claims or economics.
 
-Continue original-source inspections, software cell/reuse decisions and L1/L6
-coverage independently. Then reconcile every remaining obligation, retain the
-exact sponsor pairing, and perform rendered visual review in a fresh session.
-MR01/MR02/MR03, Q1/Q5 and final acceptance remain open. Bank qualification,
-production reliability and adoption are later conditional work, not proposal
-blockers. No unattended research worker is running.
+Continue `SW.CELL.identification_counterfactual.Python` from its reviewed saved
+plan. Ananke's genuine0.5.0 pre-cutoff wheel is authenticated and extracted as
+inert source; DoWhy, y0 and pgmpy retain pinned source reviews. No downloaded
+package was installed or executed. Complete adjustment/ID/IDC/counterfactual/
+bounds comparison, exact examples, proposed integration boundaries and omissions.
 
-[Complete nonpassing obligation register](2026-10-18/recovery/remaining-operations.json)
-· [Crash recovery checkpoint](2026-10-18/recovery/recovery-checkpoint.json)
+[Complete nonpassing obligation register](2026-10-18/recovery-graph-panel-v1/remaining-operations.json)
+· [Crash recovery checkpoint](2026-10-18/recovery-graph-panel-v1/recovery-checkpoint.json)
+
+Independent source, software, reuse and L1/L6 work remains eligible. MR01/MR02/
+MR03, Q1/Q5, full release reconciliation and final proposal acceptance remain
+open. Bank qualification and adoption are later conditional work. Rendered
+visual acceptance awaits a fresh session image allowance under
+`/home/ubuntu/AGENTS.md`. Checkpoints are durable continuation records;
+no unattended worker is running.
 
 ---
 
