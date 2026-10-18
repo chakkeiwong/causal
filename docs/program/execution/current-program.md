@@ -1,5 +1,77 @@
 # Current executable proposal program
 
+## Crash recovery continued on 19 October 2026: Java identification successor
+
+Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.
+The canonical ledger is docs/program/state.json. The [proposal scope](../master-program-proposal.md)
+governs this deliverable; older numbered controllers and entries below are historical views.
+
+The current [1,087-page monograph](../../causal_proposal_java_identification_reviewed_2026-10-19.pdf)
+is paired with the [17-page sponsor brief](../../sponsor_proposal_java_identification_reviewed_2026-10-19.pdf).
+It contains 788 audited citation records and 203 genuine scholarly PDFs. All 786 predecessor
+identities and citation contexts survive. Q2–Q4 pass for the exact current reader. Source,
+exact arithmetic and all-page text-bound checks pass. Visual and final acceptance remain open.
+
+Recovery completed and pushed the DuckDB proposal selection and paired PDFs, then recorded
+the six-family commercial panel comparison as inconclusive. The new Java review inspects
+nine pinned Tetrad originals. It distinguishes a separate identification interface from
+IDA effect candidates, observational evidence from interventions, numeric failure sentinels
+from probabilities, and actual graph guards from API names. Exact lending mechanisms show
+that the same positive observed law can permit different interventions; another example
+separates marginal intervention laws from individual counterfactual coupling. These are
+authored witnesses, not a sharp identified set, native engine result or bank ROI.
+
+There are **153 recorded outcomes among 376 proposal operations**,
+with **192 ready**. Inconclusive does not mean closed.
+Software coverage: 2 pass, 24 inconclusive, 76 open of 102. Reuse: 17 pass,
+3 inconclusive, 95 open of 115. Chapters: 20 pass and 2 inconclusive of 22;
+L1 and L6 are incomplete. The original census remains 44 inspected and 69 unread
+of 113; four crosscutting records and three citation-chain leads retain separate
+denominators. All 14 LLM task reviews and 12 integration requirements have bounded
+proposal outcomes, not general runtime or bank qualification.
+
+### Required standard
+
+A developed scholarly argument must connect banking question, clocks and units to causal
+assumptions, identification or its limits, estimation, uncertainty, diagnostics and economic
+consequences. Retain genuine scholarly PDFs and audited primary identity/version/SHA-256/
+anchors, substantive alternatives and reproducible examples. The cutoff is 7 October 2026.
+MR01 spans 17 areas by 6 language/commercial dimensions and 100–150 substantive pages.
+MR02 spans 8 chapters, 14 tasks and 96–112 substantive pages. MR03 spans 4 chapters,
+12 requirements and indicative 40–60 pages. Length and repeated text do not close coverage.
+All three repair rollups, Q1/Q5, full reconciliation and final acceptance remain open.
+
+### Executable continuation and remaining uncertainty
+
+The fair queue selects **LL.CENSUS**. The concrete next original-census pair is candidate
+18 (evaluation survey, arXiv2307.03109) and candidate 20 (code-generation survey,
+arXiv2406.00515). Verify selected pre-cutoff versions, inspect primary/adverse anchors,
+update only the actual candidate dispositions and preserve the fourteen-task mapping.
+
+Java follow-ups: acquire and inspect the algorithm proof named by the source, graph/legal
+and probability-storage helpers, and other Java candidates. No general ID/IDC, cross-world
+or partial-identification capability follows from the selected interfaces. Keep failed
+candidate, sentinel, subtype and nonfinite paths in a future native conformance protocol.
+Commercial panel follow-ups: dated edition/options, full EViews technical originals,
+applicable SAS/IBM/MathWorks/commercial-hosting paths, rights and authentic price evidence.
+Unrestricted hidden-confounder identification, joint dependence, hidden-state policy and
+arbitrary-learner guarantees remain open scientific questions with no promised universal repair.
+
+[Every nonpassing operation](2026-10-19/recovery-java-identification-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-19/recovery-java-identification-v1/recovery-checkpoint.json)
+· [Original literature census](2026-10-18/census-biomedical-reasoning-v1/census-register.json)
+
+Independent public research and synthetic prototype design continue without bank truth
+or paid production trials. The inherited image allowance is exhausted, affecting only
+rendered visual review; no images were forwarded. Checkpoints are durable restart records,
+not permission gates. Use short commands and bounded outputs; no unattended worker runs.
+
+---
+
+## Preserved earlier continuation records
+
+# Current executable proposal program
+
 ## Crash recovery continued on 19 October 2026
 
 Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.
