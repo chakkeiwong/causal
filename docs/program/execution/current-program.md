@@ -1,5 +1,150 @@
 # Current executable proposal program
 
+## Crash recovery continued on 19 October 2026: Dynamax reuse and paired publication
+
+Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.
+The canonical ledger is docs/program/state.json. The [proposal scope](../master-program-proposal.md)
+governs this deliverable; older numbered controllers and entries below are historical views.
+
+The current [1,092-page monograph](../../causal_proposal_dynamax_reviewed_v2_2026-10-19.pdf)
+is paired with the [18-page sponsor brief](../../sponsor_proposal_dynamax_reviewed_v2_2026-10-19.pdf).
+It contains 793 audited citation records and 205 genuine scholarly PDFs. All 791 predecessor
+identities and citation contexts survive. Q2–Q4 pass for the exact current reader. Source,
+exact arithmetic and all-page text-bound checks pass. Visual and final acceptance remain open.
+
+Recovery completed the two historical evaluation/code surveys and advanced the original census
+to46 inspected/67 unread. It then continued the independent Dynamax reuse lane. Twelve pinned
+originals establish bounded conditional-likelihood, private-logger, input-clock, numerical,
+parameter and dependency distinctions. Exact authored examples demonstrate an observed
+contrast12/25 with zero intervention effect, and filtering1/5 versus future-informed smoothing1/2.
+The proposal retains the original engine as a conditional comparator and defers executable
+admission. These are source and synthetic findings, not native qualification or bank ROI.
+
+There are **154 recorded outcomes among 376 proposal operations**,
+with **191 ready**. Inconclusive does not mean closed.
+Software coverage: 2 pass, 24 inconclusive, 76 open of 102. Reuse: 18 pass,
+3 inconclusive, 94 open of 115. Chapters: 20 pass and 2 inconclusive of 22;
+L1 and L6 are incomplete. The original census remains 46 inspected and 67 unread
+of 113; four crosscutting records and three citation-chain leads retain separate
+denominators. All 14 LLM task reviews and 12 integration requirements have bounded
+proposal outcomes, not general runtime or bank qualification.
+
+### Required standard
+
+A developed scholarly argument must connect banking question, clocks and units to causal
+assumptions, identification or its limits, estimation, uncertainty, diagnostics and economic
+consequences. Retain genuine scholarly PDFs and audited primary identity/version/SHA-256/
+anchors, substantive alternatives and reproducible examples. The cutoff is 7 October 2026.
+MR01 spans 17 areas by 6 language/commercial dimensions and 100–150 substantive pages.
+MR02 spans 8 chapters, 14 tasks and 96–112 substantive pages. MR03 spans 4 chapters,
+12 requirements and indicative 40–60 pages. Length and repeated text do not close coverage.
+All three repair rollups, Q1/Q5, full reconciliation and final acceptance remain open.
+
+### Executable continuation and remaining uncertainty
+
+The fair queue selects **SW.CELL.synthetic_controls.commercial**: A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Check donor eligibility, spillovers, pre-fit, selection, placebo denominators and donor/time uncertainty; banking example: a treated regional portfolio.
+The new census preserves46 inspected and67 unread originals. Candidate254 retrieval-augmented
+generation survey and candidate32 self-correcting data-science code study remain concrete
+acquisition/inspection leads. Record original version and adverse results before using them.
+The Dynamax proposal decision is recorded. Native conformance, a resolved dependency/right
+inventory and regime-specific scientific qualification remain separate executable-admission work.
+
+Java follow-ups: acquire and inspect the algorithm proof named by the source, graph/legal
+and probability-storage helpers, and other Java candidates. No general ID/IDC, cross-world
+or partial-identification capability follows from the selected interfaces. Keep failed
+candidate, sentinel, subtype and nonfinite paths in a future native conformance protocol.
+Commercial panel follow-ups: dated edition/options, full EViews technical originals,
+applicable SAS/IBM/MathWorks/commercial-hosting paths, rights and authentic price evidence.
+Unrestricted hidden-confounder identification, joint dependence, hidden-state policy and
+arbitrary-learner guarantees remain open scientific questions with no promised universal repair.
+
+[Every nonpassing operation](2026-10-19/recovery-dynamax-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-19/recovery-dynamax-v1/recovery-checkpoint.json)
+· [Original literature census](2026-10-19/census-evaluation-code-v1/census-register.json)
+
+Independent public research and synthetic prototype design continue without bank truth
+or paid production trials. The inherited image allowance is exhausted, affecting only
+rendered visual review; no images were forwarded. Checkpoints are durable restart records,
+not permission gates. Use short commands and bounded outputs; no unattended worker runs.
+
+---
+
+## Preserved earlier continuation records
+
+# Current executable proposal program
+
+## Crash recovery continued on 19 October 2026: evaluation and code survey successor
+
+Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.
+The canonical ledger is docs/program/state.json. The [proposal scope](../master-program-proposal.md)
+governs this deliverable; older numbered controllers and entries below are historical views.
+
+The current [1,089-page monograph](../../causal_proposal_evaluation_code_reviewed_2026-10-19.pdf)
+is paired with the [17-page sponsor brief](../../sponsor_proposal_evaluation_code_reviewed_2026-10-19.pdf).
+It contains 791 audited citation records and 205 genuine scholarly PDFs. All 788 predecessor
+identities and citation contexts survive. Q2–Q4 pass for the exact current reader. Source,
+exact arithmetic and all-page text-bound checks pass. Visual and final acceptance remain open.
+
+Recovery preserves the previously pushed Java/DuckDB work and integrates two genuine historical
+evaluation/code surveys. Their limitations motivate separate candidate generation, selector,
+causal-target and all-attempt-cost checks. Exact enumeration gives8/15 at-least-one test success
+versus3/10 under uniform selection; the stipulated workflow accepts5/20 requests despite12/16
+runnable outputs passing tests. Assumed economics yield USD30 net, and equating test passes with
+accepted outputs overstates net by USD210. No live performance or bank ROI follows.
+
+There are **153 recorded outcomes among 376 proposal operations**,
+with **192 ready**. Inconclusive does not mean closed.
+Software coverage: 2 pass, 24 inconclusive, 76 open of 102. Reuse: 17 pass,
+3 inconclusive, 95 open of 115. Chapters: 20 pass and 2 inconclusive of 22;
+L1 and L6 are incomplete. The original census remains 46 inspected and 67 unread
+of 113; four crosscutting records and three citation-chain leads retain separate
+denominators. All 14 LLM task reviews and 12 integration requirements have bounded
+proposal outcomes, not general runtime or bank qualification.
+
+### Required standard
+
+A developed scholarly argument must connect banking question, clocks and units to causal
+assumptions, identification or its limits, estimation, uncertainty, diagnostics and economic
+consequences. Retain genuine scholarly PDFs and audited primary identity/version/SHA-256/
+anchors, substantive alternatives and reproducible examples. The cutoff is 7 October 2026.
+MR01 spans 17 areas by 6 language/commercial dimensions and 100–150 substantive pages.
+MR02 spans 8 chapters, 14 tasks and 96–112 substantive pages. MR03 spans 4 chapters,
+12 requirements and indicative 40–60 pages. Length and repeated text do not close coverage.
+All three repair rollups, Q1/Q5, full reconciliation and final acceptance remain open.
+
+### Executable continuation and remaining uncertainty
+
+The fair queue selects **SW.DECISION.inherited_dynamax**: Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+The new census preserves46 inspected and67 unread originals. Candidate254 retrieval-augmented
+generation survey and candidate32 self-correcting data-science code study remain concrete
+acquisition/inspection leads. Record original version and adverse results before using them.
+The independent Dynamax reuse decision can proceed from historical pinned source evidence;
+package identity, rights, dependency and causal-contract gaps need explicit review.
+
+Java follow-ups: acquire and inspect the algorithm proof named by the source, graph/legal
+and probability-storage helpers, and other Java candidates. No general ID/IDC, cross-world
+or partial-identification capability follows from the selected interfaces. Keep failed
+candidate, sentinel, subtype and nonfinite paths in a future native conformance protocol.
+Commercial panel follow-ups: dated edition/options, full EViews technical originals,
+applicable SAS/IBM/MathWorks/commercial-hosting paths, rights and authentic price evidence.
+Unrestricted hidden-confounder identification, joint dependence, hidden-state policy and
+arbitrary-learner guarantees remain open scientific questions with no promised universal repair.
+
+[Every nonpassing operation](2026-10-19/recovery-evaluation-code-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-19/recovery-evaluation-code-v1/recovery-checkpoint.json)
+· [Original literature census](2026-10-19/census-evaluation-code-v1/census-register.json)
+
+Independent public research and synthetic prototype design continue without bank truth
+or paid production trials. The inherited image allowance is exhausted, affecting only
+rendered visual review; no images were forwarded. Checkpoints are durable restart records,
+not permission gates. Use short commands and bounded outputs; no unattended worker runs.
+
+---
+
+## Preserved earlier continuation records
+
+# Current executable proposal program
+
 ## Crash recovery continued on 19 October 2026: Java identification successor
 
 Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.

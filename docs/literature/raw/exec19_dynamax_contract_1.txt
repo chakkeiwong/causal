@@ -1,0 +1,371 @@
+"""Tests for the HMM models."""
+
+import dynamax.hidden_markov_model as models
+import jax
+import jax.numpy as jnp
+import jax.random as jr
+import pytest
+
+from jax import vmap
+from jax.tree_util import tree_leaves, tree_map
+from dynamax.utils.utils import monotonically_increasing
+
+NUM_TIMESTEPS = 50
+
+CONFIGS = [
+    (models.BernoulliHMM, dict(num_states=4, emission_dim=3), None),
+    (models.CategoricalHMM, dict(num_states=4, emission_dim=3, num_classes=5), None),
+    (models.CategoricalRegressionHMM, dict(num_states=4, num_classes=3, input_dim=5), jnp.ones((NUM_TIMESTEPS, 5))),
+    (models.GammaHMM, dict(num_states=4), None),
+    (models.GaussianHMM, dict(num_states=4, emission_dim=3, emission_prior_concentration=1.0, emission_prior_scale=1.0), None),
+    (models.DiagonalGaussianHMM, dict(num_states=4, emission_dim=3), None),
+    (models.SphericalGaussianHMM, dict(num_states=4, emission_dim=3), None),
+    (models.SharedCovarianceGaussianHMM, dict(num_states=4, emission_dim=3), None),
+    (models.LowRankGaussianHMM, dict(num_states=4, emission_dim=3, emission_rank=1), None),
+    (models.GaussianMixtureHMM, dict(num_states=4, num_components=2, emission_dim=3, emission_prior_mean_concentration=1.0), None),
+    (models.DiagonalGaussianMixtureHMM, dict(num_states=4, num_components=2, emission_dim=3, emission_prior_mean_concentration=1.0), None),
+    (models.LinearRegressionHMM, dict(num_states=3, emission_dim=3, input_dim=5), jr.normal(jr.PRNGKey(0),(NUM_TIMESTEPS, 5))),
+    (models.LogisticRegressionHMM, dict(num_states=4, input_dim=5), jnp.ones((NUM_TIMESTEPS, 5))),
+    (models.MultinomialHMM, dict(num_states=4, emission_dim=3, num_classes=5, num_trials=10), None),
+    (models.PoissonHMM, dict(num_states=4, emission_dim=3), None),
+]
+
+
+@pytest.mark.parametrize(["cls", "kwargs", "inputs"], CONFIGS)
+def test_sample_and_fit(cls, kwargs, inputs):
+    """Test that we can sample from and fit a model."""
+    hmm = cls(**kwargs)
+    key1, key2 = jr.split(jr.PRNGKey(42))
+    params, param_props = hmm.initialize(key1)
+    states, emissions = hmm.sample(params, key2, num_timesteps=NUM_TIMESTEPS, inputs=inputs)
+    fitted_params, lps = hmm.fit_em(params, param_props, emissions, inputs=inputs, num_iters=10)
+    assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
+    fitted_params, lps = hmm.fit_sgd(params, param_props, emissions, inputs=inputs, num_epochs=10)
+
+
+# Models whose closed-form emission m_step updates its parameters jointly, so they
+# currently support freezing all of the emission parameters or none, but nothing in between.
+JOINT_M_STEP_CONFIGS = [
+    (models.GaussianHMM, dict(num_states=3, emission_dim=2)),
+    (models.DiagonalGaussianHMM, dict(num_states=3, emission_dim=2)),
+    (models.SharedCovarianceGaussianHMM, dict(num_states=3, emission_dim=2)),
+    (models.LinearRegressionHMM, dict(num_states=3, emission_dim=2, input_dim=2)),
+    (models.LinearAutoregressiveHMM, dict(num_states=3, emission_dim=2, num_lags=1)),
+    (models.GaussianMixtureHMM, dict(num_states=3, num_components=2, emission_dim=2)),
+    (models.DiagonalGaussianMixtureHMM, dict(num_states=3, num_components=2, emission_dim=2)),
+]
+
+
+@pytest.mark.parametrize(["cls", "kwargs"], JOINT_M_STEP_CONFIGS)
+def test_em_partially_frozen_emissions_raises(cls, kwargs):
+    """Test that freezing some but not all emission parameters makes m_step raise."""
+    hmm = cls(**kwargs)
+    params, props = hmm.initialize(jr.PRNGKey(0))
+    props.emissions[0].trainable = False  # freeze one emission parameter
+    # batch_stats=None makes the test fail if m_step uses the statistics before the guard
+    with pytest.raises(NotImplementedError):
+        hmm.emission_component.m_step(params.emissions, props.emissions, None, None)
+
+
+@pytest.mark.parametrize(["cls", "kwargs"], JOINT_M_STEP_CONFIGS)
+def test_em_all_frozen_emissions_unchanged(cls, kwargs):
+    """Test that freezing all emission parameters makes m_step return them unchanged."""
+    hmm = cls(**kwargs)
+    params, props = hmm.initialize(jr.PRNGKey(0))
+    for prop in props.emissions:
+        prop.trainable = False
+    new_params, _ = hmm.emission_component.m_step(params.emissions, props.emissions, None, None)
+    assert all(tree_leaves(tree_map(jnp.array_equal, new_params, params.emissions)))
+
+
+def test_em_respects_frozen_emissions():
+    """Test fit_em end-to-end with frozen emission parameters."""
+    hmm = models.GaussianHMM(num_states=3, emission_dim=2)
+    key1, key2 = jr.split(jr.PRNGKey(0))
+    true_params, _ = hmm.initialize(key1)
+    _, emissions = hmm.sample(true_params, key2, num_timesteps=NUM_TIMESTEPS)
+
+    # Fit from parameters different from those that generated the data, so the
+    # transition fitting update below is large.
+    params, props = hmm.initialize(jr.PRNGKey(1))
+
+    props.emissions.means.trainable = False
+    with pytest.raises(NotImplementedError):
+        hmm.fit_em(params, props, emissions, num_iters=3)
+
+    props.emissions.covs.trainable = False
+    fitted_params, lps = hmm.fit_em(params, props, emissions, num_iters=3)
+    assert jnp.array_equal(fitted_params.emissions.means, params.emissions.means)
+    assert jnp.array_equal(fitted_params.emissions.covs, params.emissions.covs)
+    assert not jnp.allclose(fitted_params.transitions.transition_matrix,
+                            params.transitions.transition_matrix)
+    assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
+
+
+def test_sgd_supports_partially_frozen_emissions():
+    """Test that fit_sgd supports the partial freeze that fit_em refuses, as fit_em's error message advises."""
+    hmm = models.GaussianHMM(num_states=3, emission_dim=2)
+    key1, key2 = jr.split(jr.PRNGKey(0))
+    true_params, _ = hmm.initialize(key1)
+    _, emissions = hmm.sample(true_params, key2, num_timesteps=NUM_TIMESTEPS)
+
+    params, props = hmm.initialize(jr.PRNGKey(1))
+    props.emissions.means.trainable = False
+    fitted_params, _ = hmm.fit_sgd(params, props, emissions, num_epochs=5)
+
+    assert jnp.array_equal(fitted_params.emissions.means, params.emissions.means)
+    assert not jnp.allclose(fitted_params.emissions.covs, params.emissions.covs)
+
+
+## A few model-specific tests
+def test_categorical_hmm_viterbi():
+    """Test that the Viterbi algorithm works for a simple CategoricalHMM."""
+    # From http://en.wikipedia.org/wiki/Viterbi_algorithm:
+    hmm = models.CategoricalHMM(num_states=2, emission_dim=1, num_classes=3)
+    params, props = hmm.initialize(
+        jr.PRNGKey(0),
+        initial_probs=jnp.array([0.6, 0.4]),
+        transition_matrix=jnp.array([[0.7, 0.3], [0.4, 0.6]]),
+        emission_probs=jnp.array([[0.1, 0.4, 0.5], [0.6, 0.3, 0.1]]).reshape(2, 1, 3))
+
+    emissions = jnp.arange(3).reshape(3, 1)
+    state_sequence = hmm.most_likely_states(params, emissions)
+    assert jnp.allclose(jnp.squeeze(state_sequence), jnp.array([1, 0, 0]))
+
+
+def test_gmm_hmm_vs_gmm_diag_hmm(key=jr.PRNGKey(0), num_states=4, num_components=3, emission_dim=2):
+    """Test that a GaussianMixtureHMM and DiagonalGaussianMixtureHMM are equivalent."""
+    key1, key2, key3 = jr.split(key, 3)
+    diag_hmm = models.DiagonalGaussianMixtureHMM(num_states, num_components, emission_dim)
+    diag_params, _ = diag_hmm.initialize(key1)
+
+    full_hmm = models.GaussianMixtureHMM(num_states, num_components, emission_dim)
+    emission_covariances = vmap(lambda ss: vmap(lambda s: jnp.diag(s**2))(ss))(diag_params.emissions.scale_diags)
+    full_params, _ = full_hmm.initialize(key2,
+        initial_probs=diag_params.initial.probs,
+        transition_matrix=diag_params.transitions.transition_matrix,
+        emission_weights=diag_params.emissions.weights,
+        emission_means=diag_params.emissions.means,
+        emission_covariances=emission_covariances)
+
+    states_diag, emissions_diag = diag_hmm.sample(diag_params, key3, NUM_TIMESTEPS)
+    states_full, emissions_full = full_hmm.sample(full_params, key3, NUM_TIMESTEPS)
+    assert jnp.allclose(emissions_full, emissions_diag)
+    assert jnp.allclose(states_full, states_diag)
+
+    posterior_diag = diag_hmm.smoother(diag_params, emissions_diag)
+    posterior_full = full_hmm.smoother(full_params, emissions_full)
+
+    assert jnp.allclose(posterior_diag.marginal_loglik, posterior_full.marginal_loglik)
+    assert jnp.allclose(posterior_diag.filtered_probs, posterior_full.filtered_probs)
+    assert jnp.allclose(posterior_diag.predicted_probs, posterior_full.predicted_probs)
+    assert jnp.allclose(posterior_diag.smoothed_probs, posterior_full.smoothed_probs)
+    assert jnp.allclose(posterior_diag.initial_probs, posterior_full.initial_probs)
+
+    states_diag = diag_hmm.most_likely_states(diag_params, emissions_diag)
+    states_full = full_hmm.most_likely_states(full_params, emissions_full)
+    assert jnp.allclose(states_full, states_diag)
+
+
+def test_sample_and_fit_arhmm():
+    """Test that we can sample from and fit a LinearAutoregressiveHMM."""
+    arhmm = models.LinearAutoregressiveHMM(num_states=4, emission_dim=2, num_lags=1)
+    #key1, key2 = jr.split(jr.PRNGKey(int(datetime.now().timestamp())))
+    key1, key2 = jr.split(jr.PRNGKey(42))
+    params, param_props = arhmm.initialize(key1)
+    states, emissions = arhmm.sample(params, key2, num_timesteps=NUM_TIMESTEPS)
+    inputs = arhmm.compute_inputs(emissions)
+    fitted_params, lps = arhmm.fit_em(params, param_props, emissions, inputs=inputs, num_iters=10)
+    assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
+    fitted_params, lps = arhmm.fit_sgd(params, param_props, emissions, inputs=inputs, num_epochs=10)
+
+
+# @pytest.mark.skip(reason="this would introduce a torch dependency")
+# def test_hmm_fit_stochastic_em(num_iters=100):
+#     """Evaluate stochastic em fit with respect to exact em fit."""
+
+#     # -------------------------------------------------------------
+#     def _collate(batch):
+#         """Merges a list of samples to form a batch of tensors."""
+#         if isinstance(batch[0], jnp.ndarray):
+#             return jnp.stack(batch)
+#         elif isinstance(batch[0], (tuple,list)):
+#             transposed = zip(*batch)
+#             return [_collate(samples) for samples in transposed]
+#         else:
+#             return jnp.array(batch)
+
+
+#     from torch.utils.data import DataLoader
+#     class ArrayLoader(DataLoader):
+#         """Generates an iterable over the given array, with option to reshuffle.
+
+#         Args:
+#             dataset: Any object implementing __len__ and __getitem__
+#             batch_size (int): Number of samples to load per batch
+#             shuffle (bool): If True, reshuffle data at every epoch
+#             drop_last (bool): If true, drop last incomplete batch if dataset size is
+#                 not divisible by batch size, drop last incomplete batch. Else, keep
+#                 (smaller) last batch.
+#         """
+#         def __init__(self, dataset, batch_size=1, shuffle=True, drop_last=True):
+
+#             super(self.__class__, self).__init__(dataset,
+#                 batch_size=batch_size,
+#                 shuffle=shuffle,
+#                 collate_fn=_collate,
+#                 drop_last=drop_last
+#                 )
+#     # Generate data and construct dataloader
+#     true_hmm, _, batch_emissions = make_rnd_model_and_data(num_batches=8)
+#     emissions_generator = ArrayLoader(batch_emissions, batch_size=2, shuffle=True)
+
+#     refr_hmm = GaussianHMM.random_initialization(jr.PRNGKey(1), 2 * true_hmm.num_states, true_hmm.num_obs)
+#     test_hmm = GaussianHMM.random_initialization(jr.PRNGKey(1), 2 * true_hmm.num_states, true_hmm.num_obs)
+
+#     refr_lps = refr_hmm.fit_em(batch_emissions, num_iters)
+
+#     total_emissions = len(batch_emissions.reshape(-1, true_hmm.num_obs))
+#     test_lps = test_hmm.fit_stochastic_em(
+#         emissions_generator, total_emissions, num_epochs=num_iters,
+#     )
+
+#     # -------------------------------------------------------------------------
+#     # we expect lps to likely differ by quite a bit, but should be in the same order
+#     print(f'test log prob {test_lps[-1]:.2f} refrence lp {refr_lps[-1]:.2f}')
+#     assert jnp.allclose(test_lps[-1], refr_lps[-1], atol=100)
+
+#     refr_mu = refr_hmm.emission_means.value
+#     test_mu = test_hmm.emission_means.value
+
+#     assert jnp.alltrue(test_mu.shape == (10, 2))
+#     assert jnp.allclose(jnp.linalg.norm(test_mu-refr_mu, axis=-1), 0., atol=2)
+
+#     refr_cov = refr_hmm.emission_covariance_matrices.value
+#     test_cov = test_hmm.emission_covariance_matrices.value
+#     assert jnp.alltrue(test_cov.shape == (10, 2, 2))
+#     assert jnp.allclose(jnp.linalg.norm(test_cov-refr_cov, axis=-1), 0., atol=1)
+
+
+# Models whose emissions support kmeans initialization. BernoulliHMM, CategoricalHMM,
+# MultinomialHMM and PoissonHMM deliberately raise NotImplementedError instead.
+KMEANS_CONFIGS = [
+    # (cls, kwargs, inputs, init_takes_inputs)
+    (models.GammaHMM, dict(num_states=4), None, False),
+    (models.GaussianHMM, dict(num_states=4, emission_dim=3), None, False),
+    (models.DiagonalGaussianHMM, dict(num_states=4, emission_dim=3), None, False),
+    (models.SphericalGaussianHMM, dict(num_states=4, emission_dim=3), None, False),
+    (models.SharedCovarianceGaussianHMM, dict(num_states=4, emission_dim=3), None, False),
+    (models.LowRankGaussianHMM, dict(num_states=4, emission_dim=3, emission_rank=1), None, False),
+    (models.GaussianMixtureHMM, dict(num_states=4, num_components=2, emission_dim=3), None, False),
+    (models.DiagonalGaussianMixtureHMM, dict(num_states=4, num_components=2, emission_dim=3), None, False),
+    (models.LinearRegressionHMM, dict(num_states=3, emission_dim=3, input_dim=5),
+     jr.normal(jr.PRNGKey(0), (NUM_TIMESTEPS, 5)), False),
+    (models.LogisticRegressionHMM, dict(num_states=4, input_dim=5),
+     jr.normal(jr.PRNGKey(0), (NUM_TIMESTEPS, 5)), True),
+]
+
+
+@pytest.mark.parametrize(["cls", "kwargs", "inputs", "init_takes_inputs"], KMEANS_CONFIGS)
+def test_initialize_kmeans(cls, kwargs, inputs, init_takes_inputs):
+    """Test that kmeans initialization produces finite, fittable parameters."""
+    hmm = cls(**kwargs)
+    key1, key2, key3 = jr.split(jr.PRNGKey(42), 3)
+    params, _ = hmm.initialize(key1)
+    _, emissions = hmm.sample(params, key2, num_timesteps=NUM_TIMESTEPS, inputs=inputs)
+
+    # Only LogisticRegressionHMM clusters its inputs, so only it accepts them here.
+    init_kwargs = dict(emissions=emissions)
+    if init_takes_inputs:
+        init_kwargs["inputs"] = inputs
+    km_params, km_props = hmm.initialize(key3, method="kmeans", **init_kwargs)
+
+    # No parameter may come back NaN or infinite; that was the failure mode of an
+    # unguarded empty cluster.
+    for leaf in jax.tree_util.tree_leaves(km_params):
+        assert jnp.all(jnp.isfinite(leaf))
+
+    # The initialization must be usable: EM from it improves monotonically.
+    _, lps = hmm.fit_em(km_params, km_props, emissions, inputs=inputs, num_iters=3, verbose=False)
+    assert monotonically_increasing(lps, atol=1e-2, rtol=1e-2)
+
+
+def test_initialize_kmeans_arhmm():
+    """Test that kmeans initialization works for a LinearAutoregressiveHMM."""
+    arhmm = models.LinearAutoregressiveHMM(num_states=4, emission_dim=2, num_lags=1)
+    key1, key2, key3 = jr.split(jr.PRNGKey(42), 3)
+    params, _ = arhmm.initialize(key1)
+    _, emissions = arhmm.sample(params, key2, num_timesteps=NUM_TIMESTEPS)
+
+    km_params, _ = arhmm.initialize(key3, method="kmeans", emissions=emissions)
+
+    for leaf in jax.tree_util.tree_leaves(km_params):
+        assert jnp.all(jnp.isfinite(leaf))
+    assert km_params.emissions.biases.shape == (4, 2)
+
+
+def test_logreg_hmm_kmeans_finite_bias_with_saturated_cluster():
+    """A cluster whose assigned emissions are all 0 (or all 1) is not the same as an
+    empty cluster, but it drives the cluster mean to exactly 0.0 or 1.0. Feeding that
+    straight into the logit used to produce +/-inf biases even though the existing
+    NaN guard (for genuinely empty clusters) passed. Construct inputs as two
+    well-separated blobs so kmeans reliably keeps them apart, and make one blob's
+    emissions uniformly 0 and the other uniformly 1, so the cluster means saturate
+    at both 0.0 and 1.0 and exercise both the lower and upper clip bounds.
+    """
+    from dynamax.hidden_markov_model.models.logreg_hmm import LogisticRegressionHMMEmissions
+
+    emission_component = LogisticRegressionHMMEmissions(num_states=2, input_dim=2)
+    inputs = jnp.concatenate([
+        jnp.tile(jnp.array([1000.0, 0.0]), (10, 1)),
+        jnp.tile(jnp.array([-1000.0, 0.0]), (10, 1)),
+    ], axis=0)
+    emissions = jnp.concatenate([
+        jnp.zeros(10),
+        jnp.ones(10),
+    ], axis=0)
+
+    for seed in range(10):
+        params, _ = emission_component.initialize(
+            jr.PRNGKey(seed), method="kmeans", emissions=emissions, inputs=inputs)
+        assert jnp.all(jnp.isfinite(params.biases)), f"seed {seed} produced a non-finite bias"
+        # Sanity check that this seed really did hit both the low- and high-saturated
+        # cluster cases (the clip's eps floor and its 1 - eps ceiling).
+        assert jnp.any(params.biases < 0)
+        assert jnp.any(params.biases > 0)
+
+
+def test_initialize_kmeans_is_jax_transformable():
+    """Kmeans initialization must stay compatible with `jax.jit` and `jax.vmap`.
+
+    `LogisticRegressionHMMEmissions.initialize`'s kmeans branch computes each
+    cluster's emission mean with `jnp.mean(flat_emissions, where=(assignments == k))`.
+    The seemingly-equivalent `flat_emissions[assignments == k].mean()` also passes
+    eagerly, but it boolean-mask-indexes with a *traced* array, which produces a
+    variable-shaped intermediate. That is illegal under `jax.jit`/`jax.vmap` (it
+    raises `NonConcreteBooleanIndexError`), even though nothing catches it outside
+    a JAX transformation. If this test starts failing with that error, the fix is
+    to restore the `where=` form in the kmeans branch of `initialize` -- not to
+    delete this test.
+    """
+    num_states, input_dim = 4, 5
+    hmm = models.LogisticRegressionHMM(num_states=num_states, input_dim=input_dim)
+    key1, key2 = jr.split(jr.PRNGKey(0), 2)
+    params, _ = hmm.initialize(key1)
+    inputs = jr.normal(key2, (NUM_TIMESTEPS, input_dim))
+    _, emissions = hmm.sample(params, jr.PRNGKey(1), num_timesteps=NUM_TIMESTEPS, inputs=inputs)
+
+    def init_kmeans(key, emissions, inputs):
+        km_params, _ = hmm.initialize(key, method="kmeans", emissions=emissions, inputs=inputs)
+        return km_params
+
+    jitted_params = jax.jit(init_kmeans)(jr.PRNGKey(2), emissions, inputs)
+    assert jnp.all(jnp.isfinite(jitted_params.emissions.biases))
+
+    batch_size = 3
+    batch_keys = jr.split(jr.PRNGKey(3), batch_size)
+    batch_emissions = jnp.stack([emissions] * batch_size)
+    batch_inputs = jnp.stack([inputs] * batch_size)
+    vmapped_params = vmap(init_kmeans)(batch_keys, batch_emissions, batch_inputs)
+    assert vmapped_params.emissions.biases.shape == (batch_size, num_states)
+    assert jnp.all(jnp.isfinite(vmapped_params.emissions.biases))
