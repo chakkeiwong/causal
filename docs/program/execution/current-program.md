@@ -1,5 +1,130 @@
 # Current executable proposal program
 
+## Recovery and continuation: 19 October 2026
+
+Use python3 tools/run_program_reviews_v2.py status, next and check. The canonical
+ledger is docs/program/state.json; the [proposal scope](../master-program-proposal.md)
+governs the deliverable. Earlier numbered controllers are preserved historical views.
+
+The [1,101-page working monograph](../../causal_proposal_retrieval_selfcorrection_reviewed_2026-10-19.pdf)
+is paired with the [21-page sponsor brief](../../sponsor_proposal_retrieval_selfcorrection_reviewed_2026-10-19.pdf).
+It contains800 audited citation records and207 genuine scholarly PDFs. All797 predecessor
+identities and contexts survive. Q2-Q4 pass for these exact reader bytes; Q1/Q5, rendered
+visual review and final acceptance remain open. This is a product proposal, not an accepted product.
+
+Recovery finished the interrupted commercial synthetic-control publication and continued the
+C++ identification review with preserving paired PDFs. Execution then inspected two genuine
+historical retrieval/self-correction originals. Retrieval faithfulness, evidence truth, causal
+applicability, adaptive test success and final acceptance remain distinct. CoT-SelfEvolve retains
+an unresolved anonymized code link and2024arXiv/2025template distinction. Exact authored ten-request
+accounting requires23attempts for six test successes and four causal acceptances; assumed costs46USD
+and accepted net14USD are not bank ROI. No live model or package was run.
+There are **156 recorded outcomes of 376 proposal operations**, with **190 ready**.
+Software:2pass/26inconclusive/74open of102. Reuse:18pass/3inconclusive/94open of115.
+Chapters:20pass/2inconclusive of22; L1/L6 remain incomplete. Census:48inspected/65unread of113.
+All14 LLM task reviews and12 integration requirements have bounded proposal outcomes,
+not general implementation or bank qualification. Inconclusive outcomes retain open obligations.
+
+### Required standard
+
+Connect the banking decision, clocks and units to assumptions, causal identification or
+limits, estimation, uncertainty, diagnostics and economics. Use genuine scholarly PDFs,
+primary technical anchors, immutable source identity/version/SHA-256 and reproducible
+examples. Literature cutoff:7October2026. FinMarketing supplies a scholarship standard,
+not acceptance by length. MR01 covers17areas by6language/commercial dimensions and100-150
+substantive pages; MR02 covers8chapters/14tasks and96-112pages; MR03 covers4chapters/12requirements
+and indicative40-60pages. Coverage and developed argument must pass, not merely page count.
+All three repair rollups and full release reconciliation remain open.
+
+### Exact continuation
+
+Next: **SW.DECISION.inherited_econml**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+Continue65unread census originals and recorded search-specificity/saturation obligations.
+Resolve the actual CoT-SelfEvolve artifact, retrieval/benchmark overlap and final held-out acceptance. C++ followups require original-proof alignment,
+multi-conditioning/kernel fixtures, joint abduction, support-zero and wrapper conformance,
+and other native candidates. Commercial followups include five uninspected synthetic-control
+families and unresolved source/host/plugin rights. General hidden-confounder identification,
+joint dependence and arbitrary-learner/policy guarantees remain research uncertainties.
+Independent review, real bank truth, target-platform trials and adoption remain later
+conditional work; public evidence and synthetic designs continue now.
+
+[Every nonpassing obligation](2026-10-19/recovery-retrieval-selfcorrection-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-19/recovery-retrieval-selfcorrection-v1/recovery-checkpoint.json)
+
+Independent ready work does not wait on a blocked branch. Checkpoints are restart records,
+not permission gates. Use short commands and bounded outputs. No unattended worker runs.
+The inherited image allowance is exhausted; rendered visual acceptance remains pending
+and does not block source/manuscript work. No images were forwarded.
+
+---
+
+## Preserved prior execution records
+
+# Current executable proposal program
+
+## Recovery and continuation: 19 October 2026
+
+Use python3 tools/run_program_reviews_v2.py status, next and check. The canonical
+ledger is docs/program/state.json; the [proposal scope](../master-program-proposal.md)
+governs the deliverable. Earlier numbered controllers are preserved historical views.
+
+The [1,097-page working monograph](../../causal_proposal_cxx_identification_reviewed_2026-10-19.pdf)
+is paired with the [20-page sponsor brief](../../sponsor_proposal_cxx_identification_reviewed_2026-10-19.pdf).
+It contains797 audited citation records and205 genuine scholarly PDFs. All795 predecessor
+identities and contexts survive. Q2-Q4 pass for these exact reader bytes; Q1/Q5, rendered
+visual review and final acceptance remain open. This is a product proposal, not an accepted product.
+
+Recovery finished the interrupted commercial synthetic-control publication and pushed84f10f6a.
+Execution then continued the independent C++ identification lane. Twelve pinned aGrUM
+implementation/wrapper/test originals support a bounded recursion and joint-abduction review.
+Exact authored worlds share observed and intervention marginals but have profile-specific
+counterfactuals1and0; separately updated root marginals yield1/2. Assumed conditional values
+80,-20and30USD are not actual bank ROI. Source concerns remain explicit conformance obligations;
+no native engine or upstream test was run. Native coverage is inconclusive, not closed.
+
+There are **156 recorded outcomes of 376 proposal operations**, with **190 ready**.
+Software:2pass/26inconclusive/74open of102. Reuse:18pass/3inconclusive/94open of115.
+Chapters:20pass/2inconclusive of22; L1/L6 remain incomplete. Census:46inspected/67unread of113.
+All14 LLM task reviews and12 integration requirements have bounded proposal outcomes,
+not general implementation or bank qualification. Inconclusive outcomes retain open obligations.
+
+### Required standard
+
+Connect the banking decision, clocks and units to assumptions, causal identification or
+limits, estimation, uncertainty, diagnostics and economics. Use genuine scholarly PDFs,
+primary technical anchors, immutable source identity/version/SHA-256 and reproducible
+examples. Literature cutoff:7October2026. FinMarketing supplies a scholarship standard,
+not acceptance by length. MR01 covers17areas by6language/commercial dimensions and100-150
+substantive pages; MR02 covers8chapters/14tasks and96-112pages; MR03 covers4chapters/12requirements
+and indicative40-60pages. Coverage and developed argument must pass, not merely page count.
+All three repair rollups and full release reconciliation remain open.
+
+### Exact continuation
+
+Next: **LL.CENSUS**. Resolve the 82 relevant and 31 adjacent deferred candidates individually: inspect authentic originals, justify exclusion, or record unavailability/impact. Map all candidates to the 14 tasks; repeat failed longitudinal/off-policy and negative-result searches and record saturation limits.
+Continue67unread census originals; candidate254 retrieval survey and32 self-correcting code
+study are concrete acquisition leads. C++ followups require original-proof alignment,
+multi-conditioning/kernel fixtures, joint abduction, support-zero and wrapper conformance,
+and other native candidates. Commercial followups include five uninspected synthetic-control
+families and unresolved source/host/plugin rights. General hidden-confounder identification,
+joint dependence and arbitrary-learner/policy guarantees remain research uncertainties.
+Independent review, real bank truth, target-platform trials and adoption remain later
+conditional work; public evidence and synthetic designs continue now.
+
+[Every nonpassing obligation](2026-10-19/recovery-cxx-identification-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-19/recovery-cxx-identification-v1/recovery-checkpoint.json)
+
+Independent ready work does not wait on a blocked branch. Checkpoints are restart records,
+not permission gates. Use short commands and bounded outputs. No unattended worker runs.
+The inherited image allowance is exhausted; rendered visual acceptance remains pending
+and does not block source/manuscript work. No images were forwarded.
+
+---
+
+## Preserved prior execution records
+
+# Current executable proposal program
+
 ## Crash recovery continued on 19 October 2026: commercial synthetic-control review and paired publication
 
 Use **python3 tools/run_program_reviews_v2.py status**, **next**, and **check**.
