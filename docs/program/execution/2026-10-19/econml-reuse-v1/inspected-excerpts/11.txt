@@ -1,0 +1,111 @@
+50:                                 [(None, True),
+51:                                  (PolynomialFeatures(degree=2, include_bias=False), True),
+52:                                  (PolynomialFeatures(degree=2, include_bias=True), False)]:
+53: 
+54:                                 d_t_final = (2 if is_discrete else max(d_t, 1)) * n_periods
+55: 
+56:                                 effect_shape = (n,) + ((d_y,) if d_y > 0 else ())
+57:                                 effect_summaryframe_shape = (n * (d_y if d_y > 0 else 1), 6)
+58:                                 marginal_effect_shape = ((n,) +
+59:                                                          ((d_y,) if d_y > 0 else ()) +
+60:                                                          ((d_t_final,) if d_t_final > 0 else ()))
+61:                                 marginal_effect_summaryframe_shape = (n * (d_y if d_y > 0 else 1) *
+62:                                                                       (d_t_final if d_t_final > 0 else 1), 6)
+63: 
+64:                                 # since T isn't passed to const_marginal_effect, defaults to one row if X is None
+65:                                 const_marginal_effect_shape = ((n if d_x else 1,) +
+66:                                                                ((d_y,) if d_y > 0 else ()) +
+67:                                                                ((d_t_final,) if d_t_final > 0 else ()))
+68:                                 const_marginal_effect_summaryframe_shape = (
+69:                                     (n if d_x else 1) * (d_y if d_y > 0 else 1) *
+70:                                     (d_t_final if d_t_final > 0 else 1), 6)
+71: 
+72:                                 fd_x = featurizer.fit_transform(X).shape[1:] if featurizer and d_x\
+73:                                     else ((d_x,) if d_x else (0,))
+74:                                 coef_shape = Y.shape[1:] + (d_t_final, ) + fd_x
+75: 
+76:                                 coef_summaryframe_shape = (
+77:                                     (d_y if d_y > 0 else 1) * (fd_x[0] if fd_x[0] >
+78:                                                                0 else 1) * (d_t_final), 6)
+79:                                 intercept_shape = Y.shape[1:] + (d_t_final, )
+80:                                 intercept_summaryframe_shape = (
+81:                                     (d_y if d_y > 0 else 1) * (d_t_final if d_t_final > 0 else 1), 6)
+82: 
+83:                                 all_infs = [None, 'auto', BootstrapInference(2)]
+84:                                 est = DynamicDML(model_y=Lasso() if d_y < 1 else MultiTaskLasso(),
+85:                                                  model_t=LogisticRegression() if is_discrete else
+86:                                                  (Lasso() if d_t < 1 else MultiTaskLasso()),
+87:                                                  featurizer=featurizer,
+88:                                                  fit_cate_intercept=fit_cate_intercept,
+89:                                                  discrete_treatment=is_discrete)
+90: 
+91:                                 # ensure we can serialize the unfit estimator
+92:                                 pickle.dumps(est)
+93: 
+94:                                 for inf in all_infs:
+95:                                     with self.subTest(d_w=d_w, d_x=d_x, d_y=d_y, d_t=d_t,
+96:                                                       is_discrete=is_discrete, est=type(est).__name__, inf=repr(inf)):
+97: 
+98:                                         if X is None and (not fit_cate_intercept):
+99:                                             with pytest.raises(AttributeError):
+100:                                                 est.fit(Y, T, X=X, W=W, groups=groups, inference=inf)
+101:                                             continue
+102: 
+103:                                         est.fit(Y, T, X=X, W=W, groups=groups, inference=inf)
+104: 
+105:                                         # ensure we can pickle the fit estimator
+106:                                         pickle.dumps(est)
+107: 
+108:                                         # make sure we can call the marginal_effect and effect methods
+109:                                         const_marg_eff = est.const_marginal_effect(X)
+110:                                         marg_eff = est.marginal_effect(T_test, X)
+111:                                         self.assertEqual(shape(marg_eff), marginal_effect_shape)
+112:                                         self.assertEqual(shape(const_marg_eff), const_marginal_effect_shape)
+113: 
+114:                                         np.testing.assert_allclose(
+115:                                             marg_eff if d_x else marg_eff[0:1], const_marg_eff)
+
+254:     def test_perf(self):
+255:         np.random.seed(123)
+256:         n_units = 1000
+257:         n_periods = 3
+258:         n_treatments = 1
+259:         n_x = 100
+260:         s_x = 10
+261:         s_t = 10
+262:         hetero_strength = .5
+263:         hetero_inds = np.arange(n_x - n_treatments, n_x)
+264: 
+265:         def lasso_model():
+266:             return LassoCV(cv=3)
+267: 
+268:         # No heterogeneity
+269:         dgp = DynamicPanelDGP(n_periods, n_treatments, n_x).create_instance(
+270:             s_x, random_seed=12345)
+271:         Y, T, X, W, groups = dgp.observational_data(n_units, s_t=s_t, random_seed=12345)
+272:         est = DynamicDML(model_y=lasso_model(), model_t=lasso_model(), cv=3)
+273:         # Define indices to test
+274:         groups_filter = _get_groups_period_filter(groups, 3)
+275:         shuffled_idx = np.array([groups_filter[i] for i in range(n_periods)]).flatten()
+276:         test_indices = [np.arange(n_units * n_periods), shuffled_idx]
+277:         for test_idx in test_indices:
+278:             est.fit(Y[test_idx], T[test_idx], X=X[test_idx] if X is not None else None, W=W[test_idx],
+279:                     groups=groups[test_idx], inference="auto")
+280:             np.testing.assert_allclose(est.intercept_, dgp.true_effect.flatten(), atol=0.2)
+281:             np.testing.assert_array_less(est.intercept__interval()[0], dgp.true_effect.flatten())
+282:             np.testing.assert_array_less(dgp.true_effect.flatten(), est.intercept__interval()[1])
+283: 
+284:         # Heterogeneous effects
+285:         dgp = DynamicPanelDGP(n_periods, n_treatments, n_x).create_instance(
+286:             s_x, hetero_strength=hetero_strength, hetero_inds=hetero_inds, random_seed=12)
+287:         Y, T, X, W, groups = dgp.observational_data(n_units, s_t=s_t, random_seed=1)
+288:         hetero_strength = .5
+289:         hetero_inds = np.arange(n_x - n_treatments, n_x)
+290:         for test_idx in test_indices:
+291:             est.fit(Y[test_idx], T[test_idx], X=X[test_idx], W=W[test_idx], groups=groups[test_idx], inference="auto")
+292:             np.testing.assert_allclose(est.intercept_, dgp.true_effect.flatten(), atol=0.2)
+293:             np.testing.assert_allclose(est.coef_, dgp.true_hetero_effect[:, hetero_inds + 1], atol=0.2)
+294:             np.testing.assert_array_less(est.intercept__interval()[0], dgp.true_effect.flatten())
+295:             np.testing.assert_array_less(dgp.true_effect.flatten(), est.intercept__interval()[1])
+296:             np.testing.assert_array_less(est.coef__interval()[0] - .05, dgp.true_hetero_effect[:, hetero_inds + 1])
+297:             np.testing.assert_array_less(dgp.true_hetero_effect[:, hetero_inds + 1] - .05, est.coef__interval()[1])

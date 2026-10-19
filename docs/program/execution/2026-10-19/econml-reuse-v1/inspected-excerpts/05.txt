@@ -1,0 +1,87 @@
+132: class _FinalWrapper:
+133:     def __init__(self, model_final, fit_cate_intercept, featurizer,
+134:                  use_weight_trick, allow_sensitivity_analysis=False):
+135:         self._model = clone(model_final, safe=False)
+136:         self._use_weight_trick = use_weight_trick
+137:         self._original_featurizer = clone(featurizer, safe=False)
+138:         self.allow_sensitivity_analysis = allow_sensitivity_analysis
+139:         if self._use_weight_trick:
+140:             self._fit_cate_intercept = False
+141:             self._featurizer = self._original_featurizer
+142:         else:
+143:             self._fit_cate_intercept = fit_cate_intercept
+144:             if self._fit_cate_intercept:
+145:                 # data is already validated at initial fit time
+146:                 add_intercept_trans = FunctionTransformer(add_intercept,
+147:                                                           validate=False)
+148:                 if featurizer:
+149:                     self._featurizer = Pipeline([('featurize', self._original_featurizer),
+150:                                                  ('add_intercept', add_intercept_trans)])
+151:                 else:
+152:                     self._featurizer = add_intercept_trans
+153:             else:
+154:                 self._featurizer = self._original_featurizer
+155: 
+156:     def _combine(self, X, T, fitting=True):
+157:         if X is not None:
+158:             if self._featurizer is not None:
+159:                 F = self._featurizer.fit_transform(X) if fitting else self._featurizer.transform(X)
+160:             else:
+161:                 F = X
+162:         else:
+163:             if not self._fit_cate_intercept:
+164:                 if self._use_weight_trick:
+165:                     raise AttributeError("Cannot use this method with X=None. Consider "
+166:                                          "using the LinearDML estimator.")
+167:                 else:
+168:                     raise AttributeError("Cannot have X=None and also not allow for a CATE intercept!")
+169:             F = np.ones((T.shape[0], 1))
+170:         return cross_product(F, T)
+171: 
+172:     def fit(self, X, T, T_res, Y_res, sample_weight=None, freq_weight=None, sample_var=None, groups=None):
+173:         # Track training dimensions to see if Y or T is a vector instead of a 2-dimensional array
+174:         self._d_t = shape(T_res)[1:]
+175:         self._d_y = shape(Y_res)[1:]
+176:         if not self._use_weight_trick:
+177: 
+178:             # if binary/continuous treatment and single outcome, can calculate sensitivity params
+179:             if self.allow_sensitivity_analysis and not (
+180:                 (self._d_t and self._d_t[0] > 1) or (
+181:                     self._d_y and self._d_y[0] > 1)
+182:             ):
+183:                 self.sensitivity_params = dml_sensitivity_values(T_res, Y_res)
+184: 
+185:             fts = self._combine(X, T_res)
+186:             filtered_kwargs = filter_none_kwargs(sample_weight=sample_weight,
+187:                                                  freq_weight=freq_weight, sample_var=sample_var)
+188:             self._model.fit(fts, Y_res, **filtered_kwargs)
+189:             self._intercept = None
+190:             intercept = self._model.predict(np.zeros_like(fts[0:1]))
+191:             if (np.count_nonzero(intercept) > 0):
+192:                 warn("The final model has a nonzero intercept for at least one outcome; "
+193:                      "it will be subtracted, but consider fitting a model without an intercept if possible.",
+194:                      UserWarning)
+195:                 self._intercept = intercept
+196:         elif not self._fit_cate_intercept:
+197:             if (np.ndim(T_res) > 1) and (self._d_t[0] > 1):
+198:                 raise AttributeError("This method can only be used with single-dimensional continuous treatment "
+199:                                      "or binary categorical treatment.")
+200:             F = self._combine(X, np.ones(T_res.shape[0]))
+201:             self._intercept = None
+202:             T_res = T_res.ravel()
+203:             sign_T_res = np.sign(T_res)
+204:             sign_T_res[(sign_T_res < 1) & (sign_T_res > -1)] = 1
+205:             clipped_T_res = sign_T_res * np.clip(np.abs(T_res), 1e-5, np.inf)
+206:             if np.ndim(Y_res) > 1:
+207:                 clipped_T_res = clipped_T_res.reshape(-1, 1)
+208:             target = Y_res / clipped_T_res
+209:             target_var = sample_var / clipped_T_res**2 if sample_var is not None else None
+210:             if sample_weight is not None:
+211:                 sample_weight = sample_weight * T_res.flatten()**2
+212:             else:
+213:                 sample_weight = T_res.flatten()**2
+214:             filtered_kwargs = filter_none_kwargs(sample_weight=sample_weight,
+215:                                                  freq_weight=freq_weight, sample_var=target_var)
+216:             self._model.fit(F, target, **filtered_kwargs)
+217:         else:
+218:             raise AttributeError("This combination is not a feasible one!")

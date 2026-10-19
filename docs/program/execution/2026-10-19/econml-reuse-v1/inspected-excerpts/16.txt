@@ -1,0 +1,60 @@
+73:     @staticmethod
+74:     def __stratified_indices(arr):
+75:         assert 1 <= np.ndim(arr) <= 2
+76:         unique = np.unique(arr, axis=0)
+77:         indices = []
+78:         for el in unique:
+79:             ind, = np.where(np.all(arr == el, axis=1) if np.ndim(arr) == 2 else arr == el)
+80:             indices.append(ind)
+81:         return indices
+82: 
+83:     def fit(self, *args, **named_args):
+84:         """
+85:         Fit the model.
+86: 
+87:         The full signature of this method is the same as that of the wrapped object's `fit` method.
+88:         """
+89:         index_chunks = None
+90:         if isinstance(self._instances[0], _cate_estimator.BaseCateEstimator):
+91:             index_chunks = self._instances[0]._strata(*args, **named_args)
+92:             if index_chunks is not None:
+93:                 index_chunks = self.__stratified_indices(index_chunks)
+94:         if index_chunks is None:
+95:             n_samples = np.shape(args[0] if args else named_args[(*named_args,)[0]])[0]
+96:             index_chunks = [np.arange(n_samples)]  # one chunk with all indices
+97: 
+98:         indices = []
+99:         for chunk in index_chunks:
+100:             n_samples = len(chunk)
+101:             indices.append(chunk[np.random.choice(n_samples,
+102:                                                   size=(self._n_bootstrap_samples, n_samples),
+103:                                                   replace=True)])
+104: 
+105:         indices = np.hstack(indices)
+106: 
+107:         def fit(x, *args, **kwargs):
+108:             x.fit(*args, **kwargs)
+109:             return x  # Explicitly return x in case fit fails to return its target
+110: 
+111:         def convertArg(arg, inds):
+112:             if arg is None:
+113:                 return None
+114:             arr = np.asarray(arg)
+115:             if arr.ndim > 0:
+116:                 return arr[inds]
+117:             else:  # arg was a scalar, so we shouldn't have converted it
+118:                 return arg
+119: 
+120:         self._instances = Parallel(n_jobs=self._n_jobs, prefer='threads', verbose=self._verbose)(
+121:             delayed(fit)(obj,
+122:                          *[convertArg(arg, inds) for arg in args],
+123:                          **{arg: convertArg(named_args[arg], inds) for arg in named_args})
+124:             for obj, inds in zip(self._instances, indices)
+125:         )
+126:         return self
+127: 
+128:     def __getattr__(self, name):
+129:         """
+130:         Get proxy attribute that wraps the corresponding attribute with the same name from the wrapped object.
+131: 
+132:         Additionally, the suffix "_interval" is supported for getting an interval instead of a point estimate.

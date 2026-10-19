@@ -1,0 +1,97 @@
+1815: class StatsModelsLinearRegression(_StatsModelsWrapper):
+1816:     """
+1817:     Class which mimics weighted linear regression from the statsmodels package.
+1818: 
+1819:     However, unlike statsmodels WLS, this class also supports sample variances in addition to sample weights,
+1820:     which enables more accurate inference when working with summarized data.
+1821: 
+1822:     Parameters
+1823:     ----------
+1824:     fit_intercept : bool, default True
+1825:         Whether to fit an intercept in this model
+1826:     cov_type : string, default "HC0"
+1827:         The covariance approach to use.  Supported values are "HCO", "HC1", and "nonrobust".
+1828:     enable_federation : bool, default False
+1829:         Whether to enable federation (aggregating this model's results with other models in a distributed setting).
+1830:         This requires additional memory proportional to the number of columns in X to the fourth power.
+1831:     """
+1832: 
+1833:     def __init__(self, fit_intercept=True, cov_type="HC0", *, enable_federation=False):
+1834:         self.cov_type = cov_type
+1835:         self.fit_intercept = fit_intercept
+1836:         self.enable_federation = enable_federation
+1837: 
+1838:     def _check_input(self, X, y, sample_weight, freq_weight, sample_var):
+1839:         """Check dimensions and other assertions."""
+1840:         X, y, sample_weight, freq_weight, sample_var = check_input_arrays(
+
+1939:         param, _, rank, _ = np.linalg.lstsq(WX, wy, rcond=None)
+1940:         n_obs = np.sum(freq_weight)
+1941:         self._n_obs = n_obs
+1942: 
+1943:         df = param.shape[0]
+1944: 
+1945:         if rank < df:
+1946:             warnings.warn("Co-variance matrix is underdetermined. Inference will be invalid!")
+1947: 
+1948:         if n_obs <= df:
+1949:             warnings.warn("Number of observations <= than number of parameters. Using biased variance calculation!")
+1950:             correction = 1
+1951:         else:
+1952:             correction = (n_obs / (n_obs - df))
+1953: 
+1954:         # For aggregation calculations, always treat wy as an array so that einsum expressions don't need to change
+1955:         # We'll collapse results back down afterwards if necessary
+1956:         wy = wy.reshape(-1, 1) if y.ndim < 2 else wy
+1957:         sv = sample_var.reshape(-1, 1) if y.ndim < 2 else sample_var
+1958:         self.XX = np.matmul(WX.T, WX)
+1959:         self.Xy = np.matmul(WX.T, wy)
+1960: 
+1961:         if self.enable_federation:
+1962:             # for federation, we need to store these 5 arrays when using heteroskedasticity-robust inference
+1963:             if (self.cov_type in ['HC0', 'HC1']):
+1964:                 # y dimension is always first in the output when present so that broadcasting works correctly
+1965:                 self.XXyy = np.einsum('nw,nx,ny,ny->ywx', X, X, wy, wy)
+1966:                 self.XXXy = np.einsum('nv,nw,nx,ny->yvwx', X, X, WX, wy)
+1967:                 self.XXXX = np.einsum('nu,nv,nw,nx->uvwx', X, X, WX, WX)
+1968:                 self.sample_var = np.einsum('nw,nx,ny->ywx', WX, WX, sv)
+1969:             elif (self.cov_type is None) or (self.cov_type == 'nonrobust'):
+1970:                 self.XXyy = np.einsum('ny,ny->y', wy, wy)
+1971:                 self.XXXy = np.einsum('nx,ny->yx', WX, wy)
+1972:                 self.XXXX = np.einsum('nw,nx->wx', WX, WX)
+1973:                 self.sample_var = np.average(sv, weights=freq_weight, axis=0) * n_obs
+1974: 
+1975:         sigma_inv = np.linalg.pinv(self.XX)
+1976: 
+1977:         var_i = sample_var + (y - np.matmul(X, param))**2
+1978: 
+1979:         self._param = param
+1980: 
+1981:         if (self.cov_type is None) or (self.cov_type == 'nonrobust'):
+1982:             if y.ndim < 2:
+1983:                 self._var = correction * np.average(var_i, weights=freq_weight) * sigma_inv
+1984:             else:
+1985:                 vars = correction * np.average(var_i, weights=freq_weight, axis=0)
+1986:                 self._var = [v * sigma_inv for v in vars]
+1987:         elif (self.cov_type == 'HC0'):
+1988:             if y.ndim < 2:
+1989:                 weighted_sigma = np.matmul(WX.T, WX * var_i.reshape(-1, 1))
+1990:                 self._var = np.matmul(sigma_inv, np.matmul(weighted_sigma, sigma_inv))
+1991:             else:
+1992:                 self._var = []
+1993:                 for j in range(self._n_out):
+1994:                     weighted_sigma = np.matmul(WX.T, WX * var_i[:, [j]])
+1995:                     self._var.append(np.matmul(sigma_inv, np.matmul(weighted_sigma, sigma_inv)))
+1996:         elif (self.cov_type == 'HC1'):
+1997:             if y.ndim < 2:
+1998:                 weighted_sigma = np.matmul(WX.T, WX * var_i.reshape(-1, 1))
+1999:                 self._var = correction * np.matmul(sigma_inv, np.matmul(weighted_sigma, sigma_inv))
+2000:             else:
+2001:                 self._var = []
+2002:                 for j in range(self._n_out):
+2003:                     weighted_sigma = np.matmul(WX.T, WX * var_i[:, [j]])
+2004:                     self._var.append(correction * np.matmul(sigma_inv, np.matmul(weighted_sigma, sigma_inv)))
+2005:         else:
+2006:             raise AttributeError("Unsupported cov_type. Must be one of nonrobust, HC0, HC1.")
+2007: 
+2008:         self._param_var = np.array(self._var)

@@ -1,0 +1,296 @@
+17: 
+18: def _get_groups_period_filter(groups, n_periods):
+19:     group_counts = {}
+20:     group_period_filter = {i: [] for i in range(n_periods)}
+21:     for i, g in enumerate(groups):
+22:         if g not in group_counts:
+23:             group_counts[g] = 0
+24:         group_period_filter[group_counts[g]].append(i)
+25:         group_counts[g] += 1
+26:     return group_period_filter
+
+43:     def train(self, is_selecting, folds, Y, T, X=None, W=None, sample_weight=None, groups=None):
+44:         """Fit a series of nuisance models for each period or period pairs."""
+45:         assert Y.shape[0] % self.n_periods == 0, \
+46:             "Length of training data should be an integer multiple of time periods."
+47:         period_filters = _get_groups_period_filter(groups, self.n_periods)
+48:         if not hasattr(self, '_model_y_trained'):  # create the per-period y and t models
+49:             self._model_y_trained = {t: clone(self._model_y, safe=False)
+50:                                      for t in np.arange(self.n_periods)}
+51:             self._model_t_trained = {j: {t: clone(self._model_t, safe=False)
+52:                                          for t in np.arange(j + 1)}
+53:                                      for j in np.arange(self.n_periods)}
+54: 
+55:         # we have to filter the folds because they contain the indices in the original data not
+56:         # the indices in the period-filtered data
+57: 
+58:         def _translate_inds(t, inds):
+59:             # translate the indices in a fold to the indices in the period-filtered data
+60:             # if groups was [3,3,4,4,5,5,6,6,1,1,2,2,0,0] (the group ids can be in any order, but the
+61:             # time periods for each group should be contguous), and we had [10,11,0,1] as the indices in a fold
+62:             # (so the fold is taking the entries corresponding to groups 2 and 3)
+63:             # then group_period_filter(0) is [0,2,4,6,8,10,12] and gpf(1) is [1,3,5,7,9,11,13]
+64:             # so for period 1, the fold should be [10,0] => [5,0] (the indices that return 10 and 0 in the t=0 data)
+65:             # and for period 2, the fold should be [11,1] => [5,0] again (the indices that return 11,1 in the t=1 data)
+66: 
+67:             # filter to the indices for the time period
+68:             inds = inds[np.isin(inds, period_filters[t])]
+69: 
+70:             # now find their index in the period-filtered data, which is always sorted
+71:             return np.searchsorted(period_filters[t], inds)
+72: 
+73:         if folds is not None:
+74:             translated_folds = []
+75:             for (train, test) in folds:
+76:                 translated_folds.append((_translate_inds(0, train), _translate_inds(0, test)))
+77:                 # sanity check that the folds are the same no matter the time period
+78:                 for t in range(1, self.n_periods):
+79:                     assert np.array_equal(_translate_inds(t, train), _translate_inds(0, train))
+80:                     assert np.array_equal(_translate_inds(t, test), _translate_inds(0, test))
+81:         else:
+82:             translated_folds = None
+83: 
+84:         for t in np.arange(self.n_periods):
+85:             self._model_y_trained[t].train(
+86:                 is_selecting, translated_folds,
+87:                 self._index_or_None(X, period_filters[t]),
+88:                 self._index_or_None(
+89:                     W, period_filters[t]),
+90:                 Y[period_filters[self.n_periods - 1]])
+91:             for j in np.arange(t, self.n_periods):
+92:                 self._model_t_trained[j][t].train(
+93:                     is_selecting, translated_folds,
+94:                     self._index_or_None(X, period_filters[t]),
+95:                     self._index_or_None(W, period_filters[t]),
+96:                     T[period_filters[j]])
+97:         return self
+98: 
+99:     def predict(self, Y, T, X=None, W=None, sample_weight=None, groups=None):
+100:         """
+101:         Calculate nuisances for each period or period pairs.
+102: 
+103:         Returns
+104:         -------
+105:         Y_res : (n, d_y) matrix or vector of length n
+106:             Y residuals for each period in panel format.
+107:             This shape is required for _OrthoLearner's crossfitting.
+108:         T_res : (n, d_t, n_periods) matrix
+109:             T residuals for pairs of periods (t, j), where the data is in panel format for t
+110:             and in index form for j. For example, the residuals for (t, j) can be retrieved via
+111:             T_res[np.arange(n) % n_periods == t, ..., j]. For t < j, the entries of this
+112:             matrix are np.nan.
+113:             This shape is required for _OrthoLearner's crossfitting.
+114:         """
+115:         assert Y.shape[0] % self.n_periods == 0, \
+116:             "Length of training data should be an integer multiple of time periods."
+117:         period_filters = _get_groups_period_filter(groups, self.n_periods)
+118:         Y_res = np.full(Y.shape, np.nan)
+119:         T_res = np.full(T.shape + (self.n_periods, ), np.nan)
+120:         shape_formatter = self._get_shape_formatter(X, W)
+121:         for t in np.arange(self.n_periods):
+122:             Y_slice = Y[period_filters[self.n_periods - 1]]
+123:             Y_pred = self._model_y_trained[t].predict(
+124:                 self._index_or_None(X, period_filters[t]),
+125:                 self._index_or_None(W, period_filters[t]))
+126:             Y_res[period_filters[t]] = Y_slice\
+127:                 - shape_formatter(Y_slice, Y_pred)
+128:             for j in np.arange(t, self.n_periods):
+129:                 T_slice = T[period_filters[j]]
+130:                 T_pred = self._model_t_trained[j][t].predict(
+131:                     self._index_or_None(X, period_filters[t]),
+132:                     self._index_or_None(W, period_filters[t]))
+133:                 T_res[period_filters[j], ..., t] = T_slice\
+134:                     - shape_formatter(T_slice, T_pred)
+135:         return Y_res, T_res
+136: 
+137:     def score(self, Y, T, X=None, W=None, sample_weight=None, groups=None):
+138:         assert Y.shape[0] % self.n_periods == 0, \
+139:             "Length of training data should be an integer multiple of time periods."
+140:         period_filters = _get_groups_period_filter(groups, self.n_periods)
+141:         if hasattr(self._model_y, 'score'):
+142:             Y_score = np.full((self.n_periods, ), np.nan)
+143:             for t in np.arange(self.n_periods):
+144:                 Y_score[t] = self._model_y_trained[t].score(
+145:                     self._index_or_None(X, period_filters[t]),
+
+193:     def fit(self, Y, T, X=None, W=None, Z=None, nuisances=None, sample_weight=None, sample_var=None, groups=None):
+194:         # NOTE: sample weight, sample var are not passed in
+195:         period_filters = _get_groups_period_filter(groups, self.n_periods)
+196:         Y_res, T_res = nuisances
+197:         self._d_y = Y.shape[1:]
+198:         for t in np.arange(self.n_periods - 1, -1, -1):
+199:             Y_adj = Y_res[period_filters[t]].copy()
+200:             if t < self.n_periods - 1:
+201:                 Y_adj -= np.sum(
+202:                     [self._model_final_trained[j].predict_with_res(
+203:                         X[period_filters[0]] if X is not None else None,
+204:                         T_res[period_filters[j], ..., t]
+205:                     ) for j in np.arange(t + 1, self.n_periods)], axis=0)
+206:             self._model_final_trained[t].fit(
+207:                 X[period_filters[0]] if X is not None else None, T[period_filters[t]],
+208:                 T_res[period_filters[t], ..., t], Y_adj)
+
+264:     def fit(self, Y, T, X=None, W=None, Z=None, nuisances=None, sample_weight=None, sample_var=None, groups=None):
+265:         super().fit(Y, T, X=X, W=W, Z=Z, nuisances=nuisances,
+266:                     sample_weight=sample_weight, sample_var=sample_var, groups=groups)
+267:         # Compose final model
+268:         cov = self._get_cov(nuisances, X, groups)
+269:         coef = self._get_coef_()
+270:         self.model_final_._n_out = self._d_y[0] if self._d_y else 0
+271:         self.model_final_._param_var = cov / (Y.shape[0] / self.n_periods)
+272:         self.model_final_._param = coef.T if self.model_final_._n_out else coef
+273: 
+274:     def _get_coef_(self):
+275:         period_coefs = np.array([self._model_final_trained[t]._model.coef_ for t in range(self.n_periods)])
+276:         if self._d_y:
+277:             return np.array([
+278:                 np.array([period_coefs[k, i, :] for k in range(self.n_periods)]).flatten()
+279:                 for i in range(self._d_y[0])
+280:             ])
+281:         return period_coefs.flatten()
+282: 
+283:     def _get_cov(self, nuisances, X, groups):
+284:         if self._d_y:
+285:             return np.array(
+286:                 [self._fit_single_output_cov((nuisances[0][:, i], nuisances[1]), X, i, groups)
+287:                  for i in range(self._d_y[0])]
+288:             )
+289:         return self._fit_single_output_cov(nuisances, X, -1, groups)
+290: 
+291:     def _fit_single_output_cov(self, nuisances, X, y_index, groups):
+292:         """Calculate the covariance (n_periods*n_treatments) x (n_periods*n_treatments) matrix for a single outcome."""
+293:         Y_res, T_res = nuisances
+294:         # Calculate auxiliary quantities
+295:         period_filters = _get_groups_period_filter(groups, self.n_periods)
+296:         # X ⨂ T_res
+297:         XT_res = np.array([
+298:             [
+299:                 self._model_final_trained[0]._combine(
+300:                     X[period_filters[0]] if X is not None else None,
+301:                     T_res[period_filters[t], ..., j],
+302:                     fitting=False
+303:                 )
+304:                 for j in range(self.n_periods)
+305:             ]
+306:             for t in range(self.n_periods)
+307:         ])
+308:         d_xt = XT_res.shape[-1]
+309:         # sum(model_final.predict(X, T_res))
+310:         Y_diff = np.array([
+311:             np.sum([
+312:                 self._model_final_trained[j].predict_with_res(
+313:                     X[period_filters[0]] if X is not None else None,
+314:                     T_res[period_filters[j], ..., t]
+315:                 ) for j in np.arange(t, self.n_periods)],
+316:                 axis=0
+317:             )
+318:             for t in np.arange(self.n_periods)
+319:         ])
+320:         J = np.zeros((self.n_periods * d_xt,
+321:                       self.n_periods * d_xt))
+322:         Sigma = np.zeros((self.n_periods * d_xt,
+323:                           self.n_periods * d_xt))
+324:         for t in np.arange(self.n_periods):
+325:             res_epsilon_t = (Y_res[period_filters[t]] -
+326:                              (Y_diff[t][:, y_index] if y_index >= 0 else Y_diff[t])
+327:                              ).reshape(-1, 1, 1)
+328:             resT_t = XT_res[t][t]
+329:             for j in np.arange(self.n_periods):
+330:                 # Calculating the (t, j) block entry (of size n_treatments x n_treatments) of matrix Sigma
+331:                 res_epsilon_j = (Y_res[period_filters[j]] -
+332:                                  (Y_diff[j][:, y_index] if y_index >= 0 else Y_diff[j])
+333:                                  ).reshape(-1, 1, 1)
+334:                 resT_j = XT_res[j][j]
+335:                 cov_resT_tj = resT_t.reshape(-1, d_xt, 1) @ resT_j.reshape(-1, 1, d_xt)
+336:                 sigma_tj = np.mean((res_epsilon_t * res_epsilon_j) * cov_resT_tj, axis=0)
+337:                 Sigma[t * d_xt:(t + 1) * d_xt,
+338:                       j * d_xt:(j + 1) * d_xt] = sigma_tj
+339:                 if j >= t:
+340:                     # Calculating the (t, j) block entry (of size n_treatments x n_treatments) of matrix J
+341:                     m_tj = np.mean(
+342:                         XT_res[j][t].reshape(-1, d_xt, 1) @ resT_t.reshape(-1, 1, d_xt),
+343:                         axis=0)
+344:                     J[t * d_xt:(t + 1) * d_xt,
+345:                       j * d_xt:(j + 1) * d_xt] = m_tj
+346:         return np.linalg.inv(J) @ Sigma @ np.linalg.inv(J).T
+
+603:     def _prefit(self, Y, T, *args, groups=None, only_final=False, **kwargs):
+604:         # we need to set the number of periods before calling super()._prefit, since that will generate the
+605:         # final and nuisance models, which need to have self._n_periods set
+606:         u_periods = np.unique(np.unique(groups, return_counts=True)[1])
+607:         if len(u_periods) > 1:
+608:             raise AttributeError(
+609:                 "Imbalanced panel. Method currently expects only panels with equal number of periods. Pad your data")
+610:         self._n_periods = u_periods[0]
+611:         super()._prefit(Y, T, *args, **kwargs)
+612: 
+613:     def _postfit(self, Y, T, *args, **kwargs):
+614:         super()._postfit(Y, T, *args, **kwargs)
+615:         # Set _d_t to effective number of treatments
+616:         self._d_t = (self._n_periods * self._d_t[0], ) if self._d_t else (self._n_periods, )
+617: 
+618:     def _strata(self, Y, T, X=None, W=None, Z=None,
+619:                 sample_weight=None, sample_var=None, groups=None,
+620:                 cache_values=False, only_final=False, check_input=True):
+621:         # Required for bootstrap inference
+622:         return groups
+623: 
+624:     def fit(self, Y, T, *, X=None, W=None, sample_weight=None, sample_var=None, groups,
+625:             cache_values=False, inference='auto'):
+626:         """Estimate the counterfactual model from data, i.e. estimates function :math:`\\theta(\\cdot)`.
+627: 
+628:         The input data must contain groups with the same size corresponding to the number
+629:         of time periods the treatments were assigned over.
+630: 
+631:         The data should be preferably in panel format, with groups clustered together.
+632:         If group members do not appear together, the following is assumed:
+633: 
+634:         * the first instance of a group in the dataset is assumed to correspond to the first period of that group
+635:         * the second instance of a group in the dataset is assumed to correspond to the
+636:           second period of that group
+637: 
+638:         ...etc.
+639: 
+640:         Only the value of the features X at the first period of each unit are used for
+641:         heterogeneity. The value of X in subseuqnet periods is used as a time-varying control
+642:         but not for heterogeneity.
+643: 
+644:         Parameters
+645:         ----------
+646:         Y: (n, d_y) matrix or vector of length n
+647:             Outcomes for each sample (required: n = n_groups * n_periods)
+648:         T: (n, d_t) matrix or vector of length n
+649:             Treatments for each sample (required: n = n_groups * n_periods)
+650:         X:(n, d_x) matrix, optional
+651:             Features for each sample (Required: n = n_groups * n_periods). Only first
+652:             period features from each unit are used for heterogeneity, the rest are
+653:             used as time-varying controls together with W
+654:         W:(n, d_w) matrix, optional
+655:             Controls for each sample (Required: n = n_groups * n_periods)
+656:         sample_weight:(n,) vector, optional
+657:             Weights for each samples
+658:         sample_var:(n,) vector, optional
+659:             Sample variance for each sample
+660:         groups: (n,) vector, required
+661:             All rows corresponding to the same group will be kept together during splitting.
+662:             If groups is not None, the `cv` argument passed to this class's initializer
+663:             must support a 'groups' argument to its split method.
+664:         cache_values: bool, default False
+665:             Whether to cache inputs and first stage results, which will allow refitting a different final model
+666:         inference: str,:class:`.Inference` instance, or None
+667:             Method for performing inference.  This estimator supports 'bootstrap'
+668:             (or an instance of :class:`.BootstrapInference`) and 'auto'
+669:             (or an instance of :class:`.LinearModelFinalInference`).
+670: 
+671:         Returns
+672:         -------
+673:         self: DynamicDML instance
+674:         """
+675:         if sample_weight is not None or sample_var is not None:
+676:             warn("This CATE estimator does not yet support sample weights and sample variance. "
+677:                  "These inputs will be ignored during fitting.",
+678:                  UserWarning)
+679:         return super().fit(Y, T, X=X, W=W,
+680:                            sample_weight=None, sample_var=None, groups=groups,
+681:                            cache_values=cache_values,
+682:                            inference=inference)

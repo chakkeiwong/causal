@@ -1,0 +1,88 @@
+25:     def _get_inference_options(self):
+26:         """
+27:         Produce a dictionary mapping string names to :class:`.Inference` types.
+28: 
+29:         This is used by the :meth:`fit` method when a str is passed rather than an :class:`.Inference` type.
+30:         """
+31:         return {'bootstrap': BootstrapInference}
+32: 
+33:     def _get_inference(self, inference):
+34:         options = self._get_inference_options()
+35:         if isinstance(inference, str):
+36:             if inference in options:
+37:                 inference = options[inference]()
+38:             else:
+39:                 raise ValueError("Inference option '%s' not recognized; valid values are %s" %
+40:                                  (inference, [*options]))
+41:         # since inference objects can be stateful, we must copy it before fitting;
+42:         # otherwise this sequence wouldn't work:
+43:         #   est1.fit(..., inference=inf)
+44:         #   est2.fit(..., inference=inf)
+45:         #   est1.effect_interval(...)
+46:         # because inf now stores state from fitting est2
+
+62:         """
+63:         Get an array of values representing strata that should be preserved by bootstrapping.
+64: 
+65:         For example,
+66:         if treatment is discrete, then each bootstrapped estimator needs to be given at least one instance
+67:         with each treatment type.  For estimators like DRIV, then the same is true of the combination of
+68:         treatment and instrument.  The arguments to this method will match those to fit.
+69: 
+70:         Returns
+71:         -------
+72:         strata : array or None
+73:             A vector with the same number of rows as the inputs, where the unique values represent
+74:             the strata that need to be preserved by bootstrapping, or None if no preservation is necessary.
+75:         """
+76:         return None
+77: 
+78:     def _prefit(self, Y, T, *args, **kwargs):
+
+126:     def _wrap_fit(m):
+127:         @wraps(m)
+128:         def call(self, Y, T, *args, inference=None, **kwargs):
+129:             inference = self._get_inference(inference)
+130:             self._prefit(Y, T, *args, **kwargs)
+131:             if inference is not None:
+132:                 inference.prefit(self, Y, T, *args, **kwargs)
+133:             # call the wrapped fit method
+134:             m(self, Y, T, *args, **kwargs)
+135:             self._postfit(Y, T, *args, **kwargs)
+136:             if inference is not None:
+137:                 # NOTE: we call inference fit *after* calling the main fit method
+138:                 inference.fit(self, Y, T, *args, **kwargs)
+139:             self._inference = inference
+140:             return self
+141:         return call
+142: 
+143:     @abc.abstractmethod
+
+194:     def ate(self, X=None, *, T0, T1):
+195:         """
+196:         Calculate the average treatment effect :math:`E_X[\\tau(X, T0, T1)]`.
+197: 
+198:         The effect is calculated between the two treatment points and is averaged over
+199:         the population of X variables.
+200: 
+201:         Parameters
+202:         ----------
+203:         T0: (m, d_t) matrix or vector of length m
+204:             Base treatments for each sample
+205:         T1: (m, d_t) matrix or vector of length m
+206:             Target treatments for each sample
+207:         X:  (m, d_x) matrix, optional
+208:             Features for each sample
+209: 
+210:         Returns
+211:         -------
+212:         τ: float or (d_y,) array
+213:             Average treatment effects on each outcome
+214:             Note that when Y is a vector rather than a 2-dimensional array, the result will be a scalar
+215:         """
+216:         return np.mean(self.effect(X=X, T0=T0, T1=T1), axis=0)
+217: 
+218:     def cate_feature_names(self, feature_names=None):
+219:         """Public interface for getting feature names.
+220: 
+221:         To be overriden by estimators that apply transformations the input features.

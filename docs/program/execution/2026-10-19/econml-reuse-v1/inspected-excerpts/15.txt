@@ -1,0 +1,150 @@
+16: class TestBootstrap(unittest.TestCase):
+17: 
+18:     def test_with_sklearn(self):
+19:         """Test that we can bootstrap sklearn estimators."""
+20:         for n_jobs in [None, -1]:  # test parallelism
+21:             for kind in ['percentile', 'pivot', 'normal']:  # test both percentile and pivot intervals
+22:                 x = np.random.normal(size=(1000, 1))
+23:                 y = x * 0.5 + np.random.normal(size=(1000, 1))
+24:                 y = y.flatten()
+25: 
+26:                 est = LinearRegression()
+27:                 est.fit(x, y)
+28: 
+29:                 bs = BootstrapEstimator(est, 50, n_jobs=n_jobs, bootstrap_type=kind)
+30:                 # test that we can fit with the same arguments as the base estimator
+31:                 bs.fit(x, y)
+32: 
+33:                 # test that we can get the same attribute for the bootstrap as the original, with the same shape
+34:                 self.assertEqual(np.shape(est.coef_), np.shape(bs.coef_))
+35: 
+36:                 # test that we can get an interval for the same attribute for the bootstrap as the original,
+37:                 # with the same shape for the lower and upper bounds
+38:                 lower, upper = bs.coef__interval()
+39:                 for bound in [lower, upper]:
+40:                     self.assertEqual(np.shape(est.coef_), np.shape(bound))
+41: 
+42:                 # test that the lower and upper bounds differ
+43:                 assert (lower <= upper).all()
+44:                 assert (lower < upper).any()
+45: 
+46:                 # test that we can do the same thing once we provide percentile bounds
+47:                 lower, upper = bs.coef__interval(lower=10, upper=90)
+48:                 for bound in [lower, upper]:
+49:                     self.assertEqual(np.shape(est.coef_), np.shape(bound))
+50: 
+51:                 # test that the lower and upper bounds differ
+52:                 assert (lower <= upper).all()
+53:                 assert (lower < upper).any()
+54: 
+55:                 # test that we can do the same thing with the results of a method, rather than an attribute
+56:                 self.assertEqual(np.shape(est.predict(x)), np.shape(bs.predict(x)))
+57: 
+58:                 # test that we can get an interval for the same attribute for the bootstrap as the original,
+59:                 # with the same shape for the lower and upper bounds
+60:                 lower, upper = bs.predict_interval(x)
+61:                 for bound in [lower, upper]:
+62:                     self.assertEqual(np.shape(est.predict(x)), np.shape(bound))
+63: 
+64:                 # test that the lower and upper bounds differ
+65:                 assert (lower <= upper).all()
+66:                 assert (lower < upper).any()
+67: 
+68:                 # test that we can do the same thing once we provide percentile bounds
+
+187:                 # test that the lower and upper bounds differ
+188:                 assert (lower <= upper).all()
+189:                 assert (lower < upper).any()
+190: 
+191:     def test_internal(self):
+192:         """Test that the internal use of bootstrap within an estimator works."""
+193:         x = np.random.normal(size=(1000, 2))
+194:         t = np.random.normal(size=(1000, 1))
+195:         t2 = np.random.normal(size=(1000, 1))
+196:         y = x[:, 0:1] * 0.5 + t + np.random.normal(size=(1000, 1))
+197: 
+198:         est = LinearDML(model_y=LinearRegression(), model_t=LinearRegression())
+199:         est.fit(y, t, X=x, inference='bootstrap')
+200: 
+201:         # test that we can get an interval for the same attribute for the bootstrap as the original,
+202:         # with the same shape for the lower and upper bounds
+203:         eff = est.effect(x, T0=t, T1=t2)
+204: 
+205:         lower, upper = est.effect_interval(x, T0=t, T1=t2)
+206:         for bound in [lower, upper]:
+207:             self.assertEqual(np.shape(eff), np.shape(bound))
+208: 
+209:         # test that the lower and upper bounds differ
+210:         assert (lower <= upper).all()
+211:         assert (lower < upper).any()
+212: 
+213:         # test that the estimated effect is usually within the bounds
+214:         assert np.mean(np.logical_and(lower <= eff, eff <= upper)) >= 0.9
+215: 
+216:         # test that we can do the same thing once we provide alpha explicitly
+217:         lower, upper = est.effect_interval(x, T0=t, T1=t2, alpha=0.2)
+218:         for bound in [lower, upper]:
+219:             self.assertEqual(np.shape(eff), np.shape(bound))
+220: 
+221:         # test that the lower and upper bounds differ
+222:         assert (lower <= upper).all()
+223:         assert (lower < upper).any()
+224: 
+225:         # test that the estimated effect is usually within the bounds
+226:         assert np.mean(np.logical_and(lower <= eff, eff <= upper)) >= 0.8
+227: 
+
+267: 
+268:         # TODO: test that the estimated effect is usually within the bounds
+269:         #       and that the true effect is also usually within the bounds
+270: 
+271:     def test_stratify(self):
+272:         """Test that we can properly stratify by treatment."""
+273:         T = [1, 0, 1, 2, 0, 2]
+274:         Y = [1, 2, 3, 4, 5, 6]
+275:         X = np.array([1, 1, 2, 2, 1, 2]).reshape(-1, 1)
+276:         est = LinearDML(model_y=LinearRegression(), model_t=LogisticRegression(), discrete_treatment=True)
+277:         inference = BootstrapInference(n_bootstrap_samples=5, n_jobs=-1, verbose=0)
+278:         est.fit(Y, T, inference=inference)
+279:         est.const_marginal_effect_interval()
+280: 
+281:         est.fit(Y, T, X=X, inference=inference)
+282:         est.const_marginal_effect_interval(X)
+283: 
+284:         est.fit(Y, np.asarray(T).reshape(-1, 1), inference=inference)  # test stratifying 2D treatment
+285:         est.const_marginal_effect_interval()
+286: 
+287:     def test_stratify_orthoiv(self):
+288:         """Test that we can properly stratify by treatment/instrument pair."""
+289:         T = [1, 0, 1, 1, 0, 0, 1, 0]
+290:         Z = [1, 0, 0, 1, 0, 1, 0, 1]
+291:         Y = [1, 2, 3, 4, 5, 6, 7, 8]
+292:         X = np.array([1, 1, 2, 2, 1, 2, 1, 2]).reshape(-1, 1)
+293:         est = LinearIntentToTreatDRIV(model_y_xw=LinearRegression(), model_t_xwz=LogisticRegression(),
+294:                                       flexible_model_effect=LinearRegression(), cv=2)
+295:         inference = BootstrapInference(n_bootstrap_samples=20, n_jobs=-1, verbose=3)
+296:         est.fit(Y, T, Z=Z, X=X, inference=inference)
+297:         est.const_marginal_effect_interval(X)
+298: 
+299:     def test_all_kinds(self):
+300:         T = [1, 0, 1, 2, 0, 2] * 5
+301:         Y = [1, 2, 3, 4, 5, 6] * 5
+302:         X = np.array([1, 1, 2, 2, 1, 2] * 5).reshape(-1, 1)
+303:         est = LinearDML(cv=2)
+304:         for kind in ['percentile', 'pivot', 'normal']:
+305:             with self.subTest(kind=kind):
+306:                 inference = BootstrapInference(n_bootstrap_samples=5, n_jobs=-1, verbose=0, bootstrap_type=kind)
+307:                 est.fit(Y, T, inference=inference)
+308:                 i = est.const_marginal_effect_interval()
+309:                 inf = est.const_marginal_effect_inference()
+310:                 assert i[0].shape == i[1].shape == inf.point_estimate.shape
+311:                 assert np.allclose(i[0], inf.conf_int()[0])
+312:                 assert np.allclose(i[1], inf.conf_int()[1])
+313: 
+314:                 est.fit(Y, T, X=X, inference=inference)
+315:                 i = est.const_marginal_effect_interval(X)
+316:                 inf = est.const_marginal_effect_inference(X)
+317:                 assert i[0].shape == i[1].shape == inf.point_estimate.shape
+318:                 assert np.allclose(i[0], inf.conf_int()[0])
+319:                 assert np.allclose(i[1], inf.conf_int()[1])
+320: 

@@ -1,0 +1,60 @@
+930: 
+931:         # use a binary array to get stratified split in case of discrete treatment
+932:         stratify = self.discrete_treatment or self.discrete_instrument or self.discrete_outcome
+933:         strata = self._strata(Y, T, X=X, W=W, Z=Z, sample_weight=sample_weight, groups=groups)
+934:         if strata is None:
+935:             strata = T  # always safe to pass T as second arg to split even if we're not actually stratifying
+936: 
+937:         if self.transformer:
+938:             if self.discrete_treatment:
+939:                 T = reshape(T, (-1, 1))
+940:             T = self.transformer.transform(T)
+941: 
+942:         if self.discrete_instrument:
+943:             Z = self.z_transformer.transform(reshape(Z, (-1, 1)))
+944: 
+945:         if self.discrete_outcome:
+946:             Y = self.outcome_transformer.transform(Y).reshape(-1, 1)
+947: 
+948:         if self.cv == 1:  # special case, no cross validation
+949:             folds = None
+950:         else:
+951:             splitter = check_cv(self.cv, [0], classifier=stratify)
+952:             # if check_cv produced a new KFold or StratifiedKFold object, we need to set shuffle and random_state
+953:             if splitter != self.cv and isinstance(splitter, (KFold, StratifiedKFold)):
+954:                 # upgrade to a GroupKFold or StratiGroupKFold if groups is not None
+955:                 if groups is not None:
+956:                     if isinstance(splitter, KFold):
+957:                         splitter = GroupKFold(n_splits=splitter.n_splits)
+958:                     elif isinstance(splitter, StratifiedKFold):
+959:                         splitter = StratifiedGroupKFold(n_splits=splitter.n_splits)
+960:                 splitter.shuffle = True
+961:                 splitter.random_state = self._random_state
+962: 
+963:             all_vars = [var if np.ndim(var) == 2 else var.reshape(-1, 1) for var in [Z, W, X] if var is not None]
+964:             to_split = np.hstack(all_vars) if all_vars else np.ones((T.shape[0], 1))
+965: 
+966:             if groups is not None:
+967:                 # we won't have generated a KFold or StratifiedKFold ourselves when groups are passed,
+968:                 # but the user might have supplied one, which won't work
+969:                 if isinstance(splitter, (KFold, StratifiedKFold)):
+970:                     raise TypeError("Groups were passed to fit while using a KFold or StratifiedKFold splitter. "
+971:                                     "Instead you must initialize this object with a splitter that can handle groups.")
+972:                 folds = splitter.split(to_split, strata, groups=groups)
+973:             else:
+974:                 folds = splitter.split(to_split, strata)
+975: 
+976:         nuisances, fitted_models, fitted_inds, scores = _crossfit(self._ortho_learner_model_nuisance, folds,
+977:                                                                   self.use_ray, self.ray_remote_func_options, Y, T,
+978:                                                                   X=X, W=W, Z=Z, sample_weight=sample_weight,
+979:                                                                   groups=groups)
+980:         return nuisances, fitted_models, fitted_inds, scores
+981: 
+982:     def _fit_final(self, Y, T, X=None, W=None, Z=None, nuisances=None, sample_weight=None,
+983:                    freq_weight=None, sample_var=None, groups=None):
+984:         self._ortho_learner_model_final.fit(Y, T, **filter_none_kwargs(X=X, W=W, Z=Z,
+985:                                                                        nuisances=nuisances,
+986:                                                                        sample_weight=sample_weight,
+987:                                                                        freq_weight=freq_weight,
+988:                                                                        sample_var=sample_var,
+989:                                                                        groups=groups))
