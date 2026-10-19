@@ -1,0 +1,70 @@
+496:       dummy_task = Task$new("dummy_resampling", "regr", self$data$data)
+497: 
+498:       if (self$apply_cross_fitting) {
+499:         if (private$is_cluster_data) {
+500:           all_smpls = list()
+501:           all_smpls_cluster = list()
+502:           for (i_rep in 1:self$n_rep) {
+503:             smpls_cluster_vars = list()
+504:             for (i_var in 1:self$data$n_cluster_vars) {
+505:               clusters = unique(self$data$data_model[[self$data$cluster_cols[i_var]]])
+506:               n_clusters = length(clusters)
+507: 
+508:               dummy_task = Task$new(
+509:                 "dummy_resampling", "regr",
+510:                 data.table(dummy_var = rep(0, n_clusters))
+511:               )
+512:               dummy_resampling_scheme = rsmp("repeated_cv",
+513:                 folds = private$n_folds_per_cluster,
+514:                 repeats = 1
+515:               )$instantiate(dummy_task)
+516:               train_ids = lapply(
+517:                 1:(private$n_folds_per_cluster),
+518:                 function(x) clusters[dummy_resampling_scheme$train_set(x)]
+519:               )
+520:               test_ids = lapply(
+521:                 1:(private$n_folds_per_cluster),
+522:                 function(x) clusters[dummy_resampling_scheme$test_set(x)]
+523:               )
+524: 
+525:               smpls_cluster_vars[[i_var]] = list(
+526:                 train_ids = train_ids,
+527:                 test_ids = test_ids
+528:               )
+529:             }
+530:             smpls = list(train_ids = list(), test_ids = list())
+531:             smpls_cluster = list(train_ids = list(), test_ids = list())
+532:             cart = expand.grid(lapply(
+533:               1:self$data$n_cluster_vars,
+534:               function(x) 1:private$n_folds_per_cluster
+535:             ))
+536:             for (i_smpl in 1:(self$n_folds)) {
+537:               ind_train = rep(TRUE, self$data$n_obs)
+538:               ind_test = rep(TRUE, self$data$n_obs)
+539:               this_cluster_smpl_train = list()
+540:               this_cluster_smpl_test = list()
+541:               for (i_var in 1:self$data$n_cluster_vars) {
+542:                 i_fold = cart[i_smpl, i_var]
+543:                 train_clusters = smpls_cluster_vars[[i_var]]$train_ids[[i_fold]]
+544:                 test_clusters = smpls_cluster_vars[[i_var]]$test_ids[[i_fold]]
+545:                 this_cluster_smpl_train[[i_var]] = train_clusters
+546:                 this_cluster_smpl_test[[i_var]] = test_clusters
+547:                 xx = self$data$data_model[[self$data$cluster_cols[i_var]]] %in% train_clusters
+548:                 ind_train = ind_train & xx
+549:                 xx = self$data$data_model[[self$data$cluster_cols[i_var]]] %in% test_clusters
+550:                 ind_test = ind_test & xx
+551:               }
+552:               smpls$train_ids[[i_smpl]] = seq(self$data$n_obs)[ind_train]
+553:               smpls$test_ids[[i_smpl]] = seq(self$data$n_obs)[ind_test]
+554:               smpls_cluster$train_ids[[i_smpl]] = this_cluster_smpl_train
+555:               smpls_cluster$test_ids[[i_smpl]] = this_cluster_smpl_test
+556:             }
+557:             all_smpls[[i_rep]] = smpls
+558:             all_smpls_cluster[[i_rep]] = smpls_cluster
+559:           }
+560:           smpls = all_smpls
+561:           private$smpls_cluster_ = all_smpls_cluster
+562:         } else {
+563:           dummy_resampling_scheme = rsmp("repeated_cv",
+564:             folds = self$n_folds,
+565:             repeats = self$n_rep

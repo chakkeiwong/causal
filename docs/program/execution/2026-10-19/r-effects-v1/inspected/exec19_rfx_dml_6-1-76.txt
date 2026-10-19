@@ -1,0 +1,76 @@
+1: dml_cv_predict = function(
+2:   learner, X_cols, y_col,
+3:   data_model, nuisance_id,
+4:   smpls = NULL, est_params = NULL,
+5:   return_train_preds = FALSE, task_type = NULL,
+6:   fold_specific_params = FALSE
+7: ) {
+8:   valid_task_type = c("regr", "classif")
+9:   assertChoice(task_type, valid_task_type)
+10:   # TODO: extend asserts
+11: 
+12:   if (fold_specific_params) {
+13:     stopifnot(length(smpls$train_ids) == length(smpls$test_ids))
+14:   }
+15: 
+16:   fold_specific_target = (all(class(data_model) == "list"))
+17: 
+18:   if (!fold_specific_target) {
+19:     n_obs = nrow(data_model)
+20:     task_pred = initiate_task(
+21:       id = nuisance_id, data = data_model,
+22:       target = y_col,
+23:       select_cols = X_cols,
+24:       task_type = task_type
+25:     )
+26: 
+27:     if (!fold_specific_params) {
+28:       ml_learner = initiate_learner(
+29:         learner, task_type,
+30:         est_params, return_train_preds
+31:       )
+32:       resampling_smpls = rsmp("custom")$instantiate(
+33:         task_pred, smpls$train_ids,
+34:         smpls$test_ids
+35:       )
+36:       resampling_pred = resample(task_pred, ml_learner, resampling_smpls,
+37:         store_models = TRUE
+38:       )
+39:       preds = extract_prediction(resampling_pred, task_type, n_obs)
+40:       models = extract_models(resampling_pred)
+41:       if (return_train_preds) {
+42:         train_preds = extract_prediction(resampling_pred, task_type, n_obs,
+43:           return_train_preds = TRUE
+44:         )
+45:       }
+46:     } else {
+47:       # learners initiated according to fold-specific learners, proceed foldwise
+48:       ml_learners = lapply(
+49:         est_params,
+50:         function(x) {
+51:           initiate_learner(
+52:             learner,
+53:             task_type, x,
+54:             return_train_preds
+55:           )
+56:         }
+57:       )
+58:       resampling_smpls = lapply(
+59:         seq_along(smpls$train_ids),
+60:         function(x) {
+61:           rsmp("custom")$instantiate(
+62:             task_pred, list(smpls$train_ids[[x]]),
+63:             list(smpls$test_ids[[x]])
+64:           )
+65:         }
+66:       )
+67: 
+68:       resampling_pred = lapply(seq_along(ml_learners), function(x) {
+69:         resample(task_pred, ml_learners[[x]],
+70:           resampling_smpls[[x]],
+71:           store_models = TRUE
+72:         )
+73:       })
+74: 
+75:       preds = extract_prediction(resampling_pred, task_type, n_obs)
+76:       models = extract_models(resampling_pred)

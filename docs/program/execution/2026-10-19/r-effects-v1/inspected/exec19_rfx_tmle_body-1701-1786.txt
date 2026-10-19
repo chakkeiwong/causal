@@ -1,0 +1,86 @@
+1701: tmle <- function(Y,A,W, Z=NULL, Delta=rep(1,length(Y)),  
+1702: 				Q=NULL, Q.Z1=NULL, Qform=NULL, Qbounds=NULL, 
+1703: 				Q.SL.library=c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), cvQinit= TRUE,
+1704: 				g1W=NULL, gform=NULL, gbound= NULL, 
+1705: 				pZ1=NULL, g.Zform=NULL,
+1706: 				pDelta1=NULL, g.Deltaform=NULL, 
+1707: 				g.SL.library=c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+1708: 				g.Delta.SL.library = c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+1709: 				family="gaussian", fluctuation="logistic", 
+1710: 				alpha  = 0.9995, id=1:length(Y), V.Q = 10, V.g = 10, V.Delta = 10, V.Z=10, verbose=FALSE, Q.discreteSL=FALSE, 
+1711: 				g.discreteSL = FALSE, g.Delta.discreteSL=FALSE, prescreenW.g = TRUE, min.retain = NULL, target.gwt = FALSE,
+1712: 				automate = FALSE, obsWeights = NULL, alpha.sig = 0.05, B = 1, evalATT = TRUE) {
+1713: 	# Initializations
+1714: 	psi.tmle <- varIC <- CI <- pvalue <- NA
+1715: 	colnames(W) <- .setColnames(colnames(W), NCOL(W), "W")
+1716: # change factors to dummies
+1717: 	tempY <- Y
+1718: 	tempY[is.na(tempY)] <-0 
+1719: 	#factorCols <-sapply(W, is.factor)
+1720: 	W <- model.matrix(tempY ~ -1 +., data = data.frame(tempY, W))
+1721: 	#W <- model.matrix(~ -1 +., data = as.data.frame(W), contrasts.arg = lapply(W[,factorCols], stats::contrasts, contrasts=FALSE))
+1722: 	if (is.vector(W)) {
+1723: 		W <- as.matrix(W)
+1724: 	}
+1725: 	
+1726: 	if (identical(family, binomial)) {
+1727:         family == "binomial"
+1728:     }else if (identical(family, gaussian)) {
+1729:         family == "gaussian"
+1730:     }else if (identical(family, poisson)) {  
+1731:         family == "poisson"
+1732:         if(is.null(Qform)){ 		# only glm for Q when family=poisson
+1733:         	Qform <- paste("Y~A", paste(colnames(W), collapse="+"), sep="+")
+1734:         }
+1735:     }
+1736:     n <- length(Y)
+1737: 	if(is.null(A) | all(A==0)){
+1738: 		A <- rep(1, n)
+1739: 	}
+1740: 	if(is.null(obsWeights)){ 
+1741: 		obsWeights <- rep(1, n)
+1742: 	} else {
+1743: 		obsWeights <- obsWeights / sum(obsWeights) * n # normalize the weights
+1744: 	}
+1745: 	
+1746: 	
+1747: 	if (is.null(gbound)){
+1748: 		gbound <- 5/sqrt(sum(Delta))/log(sum(Delta))
+1749: 	}
+1750: 
+1751: 	
+1752: 	if(is.null(prescreenW.g)) {
+1753: 		prescreenW.g <- FALSE
+1754: 	} else {		
+1755: 		if(length(unique(A)) > 1) {
+1756: 			n.effectiveG <-min(c(table(A)*5, n))
+1757: 		} else {
+1758: 			n.effectiveG <-min(c(table(Delta)*5, n))
+1759: 		}
+1760: 	}
+1761: 	# Set up default values for "automate" mode
+1762: 	if (automate){
+1763: 		Qform <- gform <- g.Zform <- g.Deltaform <- NULL
+1764: 		Q.SL.library <- g.SL.library <- g.Delta.SL.library <- c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet")
+1765: 		cvQinit <- TRUE
+1766: 		alpha <- .9995
+1767: 		Q.discreteSL <- g.discreteSL <- FALSE
+1768: 		target.gwt <- TRUE
+1769: 		n.effective <- sum(Delta)
+1770: 		gbound <- 5/sqrt(n.effective)/log(n.effective)
+1771: 		if (family == "binomial"){
+1772: 			n.effective <- min(c(table(Y[Delta == 1])*5, n.effective))
+1773: 		}
+1774: 		V.Q <- .setV(n.effective)
+1775: 		V.g <- .setV(min(c(table(A)*5, n)))
+1776: 		V.Delta <- .setV(min(c(table(Delta)*5, n)))
+1777: 		prescreenW.g <- ncol(W) >= ceiling(n.effectiveG/4)
+1778: 	
+1779: 	}
+1780: 	 if  (is.null(min.retain)){
+1781: 		min.retain <- min(ceiling(n.effectiveG / 20), NCOL(W))
+1782: 	}
+1783: 			
+1784: 	if(!.verifyArgs(Y,Z,A,W,Delta, Qform, gform, g.Zform, g.Deltaform, obsWeights)){
+1785: 		stop()
+1786: 	}

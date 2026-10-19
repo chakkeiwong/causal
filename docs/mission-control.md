@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program_reviews_v2.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**161 / 376 proposal operations have recorded outcomes; 186 are ready.** Next: **SW.CELL.effects_heterogeneity.R**.
+**162 / 376 proposal operations have recorded outcomes; 185 are ready.** Next: **LL.CENSUS**.
 
-Complete heterogeneous/continuous effect, forest and double-ML comparisons, including R counterparts and dose-response leads. The tmle missing-treatment wording remains unresolved. Match ATE/ATT/CATE/dose-response targets, nuisance learning, cross-fitting, overlap, weighting and inference sampling units; banking example: servicing effects by risk group.
+Resolve the 82 relevant and 31 adjacent deferred candidates individually: inspect authentic originals, justify exclusion, or record unavailability/impact. Map all candidates to the 14 tasks; repeat failed longitudinal/off-policy and negative-result searches and record saturation limits.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_dynamic_commercial_reviewed_2026-10-19.pdf) — 1119 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_r_effects_reviewed_2026-10-20.pdf) — 1123 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

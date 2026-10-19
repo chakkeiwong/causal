@@ -1,0 +1,105 @@
+225:     nuisance_est = function(smpls, ...) {
+226:       cond_smpls = get_cond_samples(
+227:         smpls,
+228:         self$data$data_model[[self$data$treat_col]]
+229:       )
+230: 
+231:       m_hat = dml_cv_predict(self$learner$ml_m,
+232:         c(self$data$x_cols, self$data$other_treat_cols),
+233:         self$data$treat_col,
+234:         self$data$data_model,
+235:         nuisance_id = "nuis_m",
+236:         smpls = smpls,
+237:         est_params = self$get_params("ml_m"),
+238:         return_train_preds = FALSE,
+239:         task_type = private$task_type$ml_m,
+240:         fold_specific_params = private$fold_specific_params
+241:       )
+242: 
+243:       g0_hat = dml_cv_predict(self$learner$ml_g,
+244:         c(self$data$x_cols, self$data$other_treat_cols),
+245:         self$data$y_col,
+246:         self$data$data_model,
+247:         nuisance_id = "nuis_g0",
+248:         smpls = cond_smpls$smpls_0,
+249:         est_params = self$get_params("ml_g0"),
+250:         return_train_preds = FALSE,
+251:         task_type = private$task_type$ml_g,
+252:         fold_specific_params = private$fold_specific_params
+253:       )
+254: 
+255:       g1_hat = list(preds = NULL, models = NULL)
+256:       if ((is.character(self$score) && self$score == "ATE") || is.function(self$score)) {
+257:         g1_hat = dml_cv_predict(self$learner$ml_g,
+258:           c(self$data$x_cols, self$data$other_treat_cols),
+259:           self$data$y_col,
+260:           self$data$data_model,
+261:           nuisance_id = "nuis_g1",
+262:           smpls = cond_smpls$smpls_1,
+263:           est_params = self$get_params("ml_g1"),
+264:           return_train_preds = FALSE,
+265:           task_type = private$task_type$ml_g,
+266:           fold_specific_params = private$fold_specific_params
+267:         )
+268:       }
+269: 
+270:       d = self$data$data_model[[self$data$treat_col]]
+271:       y = self$data$data_model[[self$data$y_col]]
+272: 
+273:       res = private$score_elements(
+274:         y, d,
+275:         g0_hat$preds, g1_hat$preds, m_hat$preds,
+276:         smpls
+277:       )
+278:       res$preds = list(
+279:         "ml_g0" = g0_hat$preds,
+280:         "ml_g1" = g1_hat$preds,
+281:         "ml_m" = m_hat$preds
+282:       )
+283:       res$models = list(
+284:         "ml_g0" = g0_hat$models,
+285:         "ml_g1" = g1_hat$models,
+286:         "ml_m" = m_hat$models
+287:       )
+288:       return(res)
+289:     },
+290:     score_elements = function(y, d, g0_hat, g1_hat, m_hat, smpls) {
+291:       if (is.character(self$score) && self$score == "ATTE") {
+292:         # fraction of treated for ATTE
+293:         p_hat = vector("numeric", length = self$data$n_obs)
+294:         for (i_fold in seq_along(smpls$test_ids)) {
+295:           p_hat[smpls$test_ids[[i_fold]]] = mean(
+296:             self$data$data_model[[self$data$treat_col]][smpls$test_ids[[i_fold]]]
+297:           )
+298:         }
+299:       }
+300: 
+301:       if (self$trimming_rule == "truncate" & self$trimming_threshold > 0) {
+302:         m_hat[m_hat < self$trimming_threshold] = self$trimming_threshold
+303:         m_hat[m_hat > 1 - self$trimming_threshold] = 1 - self$trimming_threshold
+304:       }
+305: 
+306:       if (is.character(self$score)) {
+307:         # compute residuals
+308:         u0_hat = y - g0_hat
+309:         if (self$score == "ATE") {
+310:           u1_hat = y - g1_hat
+311:           psi_b = g1_hat - g0_hat + d * (u1_hat) / m_hat -
+312:             (1 - d) * u0_hat / (1 - m_hat)
+313:           psi_a = rep(-1, self$data$n_obs)
+314:         } else if (self$score == "ATTE") {
+315:           psi_b = d * u0_hat / p_hat -
+316:             m_hat * (1 - d) * u0_hat / (p_hat * (1 - m_hat))
+317:           psi_a = -d / p_hat
+318:         }
+319:         psis = list(psi_a = psi_a, psi_b = psi_b)
+320:       } else if (is.function(self$score)) {
+321:         psis = self$score(
+322:           y = y, d = d,
+323:           g0_hat = g0_hat, g1_hat = g1_hat, m_hat = m_hat,
+324:           smpls = smpls
+325:         )
+326:       }
+327:       return(psis)
+328:     },
+329:     nuisance_tuning = function(smpls, param_set, tune_settings,

@@ -1,0 +1,96 @@
+29: #'
+30: estimate_erf <- function(.data,
+31:                          .formula,
+32:                          weights_col_name,
+33:                          model_type,
+34:                          w_vals,
+35:                          ...) {
+36: 
+37:   # NULL and Defaults
+38:   .family <- kernel_appr <- bw_seq <- NULL
+39:   nthread <- 1
+40: 
+41:   # Collect additional arguments -----------------------------------------------
+42:   dot_args <- list(...)
+43:   arg_names <- names(dot_args)
+44: 
+45:   for (i in arg_names){
+46:     assign(i, unlist(dot_args[i], use.names = FALSE))
+47:   }
+48: 
+49: 
+50:   # Check input parameters -----------------------------------------------------
+51:   model_type <- tolower(model_type)
+52: 
+53:   if (!(model_type %in% c("parametric", "semiparametric", "nonparametric"))){
+54:     stop(paste0("The provided model type: ", model_type, ", is not supported. ",
+55:                 "Acceptable models: parametric, semiparametric, ",
+56:                 "and nonparametric."))
+57:   }
+58: 
+59:   if (!is.data.frame(.data)) stop("`.data` must be a data frame.")
+60:   if (!weights_col_name %in% names(.data)) {
+61:     stop(paste0(weights_col_name, " does not exist in data" ))
+62:   }
+63: 
+64:   # Estimate exposure response -------------------------------------------------
+65: 
+66:   result <- list()
+67:   class(result) <- "cgps_erf"
+68: 
+69:   if (any(.data[[weights_col_name]] < 0)){
+70:     stop("Negative weights are not accepted.\n")
+71:   }
+72: 
+73:   if (sum(.data[[weights_col_name]]) == 0) {
+74:     .data[[weights_col_name]] <- .data[[weights_col_name]] + 1
+75:     logger::log_debug("Giving equal weight for all samples.")
+76:   }
+77: 
+78:   # For better visualization of weights for each data sample.
+79:   min_weight <- min(.data[[weights_col_name]])
+80:   max_weight <- max(.data[[weights_col_name]])
+81:   normalized_weight <- (.data[[weights_col_name]] - min_weight)/(max_weight - min_weight)
+82: 
+83: 
+84:   if (model_type == "parametric") {
+85: 
+86:     if (is.null(.family)){
+87:       stop(paste0("Please provide `family` in the additional argument."))
+88:     }
+89: 
+90:     gnm_model <- do.call(gnm::gnm, c(
+91:                            list("formula" = .formula,
+92:                            "family" = .family,
+93:                            "data" = .data,
+94:                            "weights" = .data[[weights_col_name]]),
+95:                            ...))
+96: 
+97:     if (is.null(gnm_model)) {
+98:       stop("gnm model is null. Did not converge.")
+99:     }
+100: 
+101: 
+102:     formula_string <- deparse(gnm_model$formula)
+103:     parts <- strsplit(formula_string, "~")[[1]]
+104:     outcome <- trimws(parts[1])
+105:     predictor <- trimws(parts[2])
+106: 
+107: 
+108:     x <- gnm_model$x[,2]
+109:     names(x) <- NULL
+110: 
+111:     y_original <- gnm_model$y
+112:     names(y_original) <- NULL
+113: 
+114:     w_pred <- data.frame(w = w_vals)
+115:     names(w_pred) <- predictor
+116: 
+117:     y_pred <- stats::predict(gnm_model, w_pred)
+118:     names(y_pred) <- NULL
+119: 
+120:     result_data_original <- data.frame(x = x,
+121:                                        y_original = y_original,
+122:                                        normalized_weight = normalized_weight)
+123: 
+124:     result_data_prediction <- data.frame(w_vals = w_vals,
