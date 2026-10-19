@@ -1,95 +1,107 @@
 # Current executable proposal program
 
-Updated 19 October 2026 after machine-crash recovery. The current deliverable is a
-research and product proposal. A completed proposal, working prototype, independent
-acceptance, bank validation and adoption are separate outcomes.
+Updated 19 October 2026 after crash recovery and the Feast and commercial dynamic-panel proposal reviews. This
+is a research and product proposal; prototype qualification, independent review,
+bank validation and adoption are distinct outcomes.
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
-The canonical ledger is [state.json](../state.json); the [proposal scope](../master-program-proposal.md)
-governs this work. Earlier numbered programs are preserved historical records.
+The canonical ledger is [state.json](../state.json), governed by the
+[proposal scope](../master-program-proposal.md). Earlier numbered programs are
+preserved historical records. Checkpoints are restart records, not permission gates.
 
-## Current deliverables and completion
+## Current deliverables and status
 
-The [1,111-page working monograph](../../causal_proposal_coat_reviewed_2026-10-19.pdf)
-and [22-page sponsor proposal](../../sponsor_proposal_coat_reviewed_2026-10-19.pdf)
-are paired by exact hashes. The reader contains 807 audited citation records
-and 208 genuine scholarly PDFs. Q2-Q4 pass for these exact reader bytes.
-Q1/Q5, the three mandatory repair rollups, rendered visual review and final acceptance remain open.
+The [1,119-page working monograph](../../causal_proposal_dynamic_commercial_reviewed_2026-10-19.pdf)
+and [24-page sponsor proposal](../../sponsor_proposal_dynamic_commercial_reviewed_2026-10-19.pdf)
+are paired by exact hashes. The reader contains 814 audited
+citation records and 208 genuine scholarly PDFs. Q2-Q4 pass for these exact
+reader bytes. Q1/Q5, mandatory repair rollups, visual review and final acceptance
+remain open.
 
-There are **159 recorded outcomes of 376 proposal operations**,
-with **187 ready**. Recorded inconclusive outcomes retain unmet obligations.
+There are **161 recorded outcomes of 376 proposal operations**,
+with **186 ready**. An inconclusive outcome preserves
+its unmet obligations; a recorded outcome is not automatically a closed gap.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| Software coverage | 2 | 27 | 73 | 102 |
-| Reuse decisions | 19 | 3 | 93 | 115 |
+| Software coverage | 2 | 28 | 72 | 102 |
+| Reuse decisions | 20 | 3 | 92 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-The original-candidate census remains 49 inspected and 64 unread out of 113.
-L1/L6 coverage remains incomplete. Fourteen LLM task reviews and twelve integration
-requirements have bounded proposal outcomes; they do not establish runtime or adoption.
+The original census remains 49 inspected and 64 unread out of 113. L1/L6 frontier
+and framework coverage remains incomplete. Fourteen task reviews and twelve
+integration requirements have bounded proposal outcomes, not runtime adoption.
 
-## Recovery findings and completed work
+## Recovery and completed continuation
 
-The prior d376aabb commit is confirmed on origin/main. The pending operation survived
-and its last Julia test file authenticates to the selected Git blob. Eleven selected
-Julia/JavaScript originals now have inspected anchors. Their result contracts separate
-graph editing, adjustment searches, functional identification and execution status.
-The exact positive-law example reproduces intervention, observed and mediator-standardized
-contrasts 1/4, 3/8, 1/8, with assumed net values USD 5, 17.50, -7.50. General proofs and native
-runtime behavior remain unqualified; the software cell is recorded inconclusive.
+The recovered identification and COAT publications are committed and verified
+on origin/main as 3cff35f8dd4960841b6fc74c8c7bc7c8d148ed10. This continuation
+authenticates twenty Feast source blobs at a selected 7 October revision.
+Creation filtering exists and is provider-dependent; its field must represent
+actual availability before it can reconstruct decision information. The exact
+finite example gives USD 15 for an unavailable type-dependent rule and USD 0
+for every feasible rule under the stipulated information. Historical retrieval,
+latest online access and state-changing MCP tools have distinct contracts.
+No native Feast runtime, complete distribution rights or executable admission
+is claimed. The new argument is at physical PDF pages 571-574.
 
-The next census tranche inspected the authentic 78-page COATv3 dated 13 October 2025.
-Its parser conditional-independence and graph assumptions, approximate convergence proof,
-model-specific RMSE and historical trading illustration are retained with precise limits.
-An exact 75 percent accurate proxy gives a spurious 1/5 effect under true effect 0;
-assumed USD 100 success payoff and USD 10 action cost produce net USD 10 versus USD -10.
-Equal marginal proposal probabilities also fail to determine repeated-attempt success.
-The original census advances to 49 inspected / 64 unread. A separate ACL host acquisition
-was rejected by the fixed collector and remains unread; no restriction was bypassed.
+The earlier Julia/JavaScript identification and COAT source-critical arguments
+remain intact. Their proof, native-conformance and census limits remain open.
+Candidate 167's ACL route was rejected by the fixed collector; the preserved
+failure is not evidence that the original does not exist. Six-family commercial
+synthetic-control comparison remains inconclusive; only selected community code
+inside one host has matched technical originals, and exact entitlements, prices
+and source/plugin rights remain unresolved.
 
-The six-family commercial synthetic-control comparison is inconclusive. Only selected
-community code inside Stata has matching technical originals; five other families remain
-unresolved. One actual dependent-panel request to the local common dispatcher returned
-unsupported. Prices, exact entitlements and source/plugin rights remain unknown. Each
-family has its own public-evidence route; these gaps do not stop other eligible work.
 
-## Required standard and remaining work
+The commercial dynamic-panel continuation adds four official Stata/EViews originals
+and retains six earlier identities. It distinguishes system-GMM initial restrictions,
+difference moments, local-projection shock assumptions, instrument growth and calendar
+dependence. An exact initial-condition law gives a proposed moment of one half or zero.
+A second law shows variance understatement by 50.5 with 100 branches and 25 dates: at a
+stipulated USD 10,000 scale, population standard deviations are approximately USD 2,010
+and USD 283. These are authored examples, not bank outcomes or vendor executions.
+The new argument is at physical pages 471-474. Eight-family commercial coverage
+remains inconclusive, with MathWorks access failure and missing manuals, exact editions,
+rights, prices and native comparisons preserved.
 
-Connect every banking decision and information clock to assumptions, identification or
-limits, estimation, uncertainty, diagnostics and monetary consequences. Distinguish inherited
-results, authored derivations, synthetic examples and verified implementation. Bind cited
-originals to identity, version/date, local bytes, SHA-256, inspected anchors and supported
-claims. Every scholarly citation needs a genuine PDF. The literature cutoff is 7 October 2026.
-FinMarketing supplies the scholarship standard; aggregate page count does not establish quality.
+## Required standard and unresolved work
 
-MR01 requires 17 areas across six language/commercial dimensions and 100-150 substantive
-software pages. MR02 requires eight developed chapters, fourteen tasks and approximately
-100 pages (the current depth contract is 96-112). MR03 requires four developed integration
-chapters and twelve requirements, with indicative depth 40-60 pages. Coverage and argument
+Connect each banking decision and information clock to assumptions, identification
+or limits, estimation, uncertainty, diagnostics, alternatives and monetary
+consequences. Distinguish inherited results, authored derivations, generated
+examples and verified implementation. Bind cited originals to identity, date or
+version, local bytes, SHA-256, inspected anchors and supported claims. Scholarly
+citations require genuine PDFs. The client literature cutoff is 7 October 2026.
+FinMarketing supplies the scholarship standard; page count is not acceptance.
+
+MR01 requires 17 areas across six dimensions and 100-150 substantive software
+pages. MR02 requires eight developed chapters, fourteen tasks and approximately
+100 pages (the depth contract is 96-112). MR03 requires four integration chapters
+and twelve requirements, with indicative depth 40-60 pages. Coverage and argument
 must pass alongside depth, with no duplicate page credit.
 
-Known next steps are the remaining primary-source reviews, vendor comparisons, justified
-reuse choices, frontier census and full-reader reconciliation. General hidden-confounder
-identification, arbitrary dependence, private-state policy inference and universal calibration
-remain research uncertainties. Authentic bank truth, target-platform trials, independent
-institutional acceptance and observed economics are later conditional gates. Public and
-generated evidence can justify whether those expensive trials are worthwhile.
+We know the public-evidence routes for remaining original reviews, commercial
+comparisons, justified reuse choices, the frontier census and reader reconciliation.
+General hidden-confounder identification, arbitrary dependence, private-state
+policy inference and universal calibration remain research uncertainties.
+Authentic bank truth, platform trials, independent institutional acceptance and
+observed economics are later conditional gates. Public/generated evidence can
+justify whether those expensive trials are worthwhile.
 
 ## Exact continuation
 
-Next: **SW.DECISION.inherited_feast**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+Next: **SW.CELL.effects_heterogeneity.R**. Complete heterogeneous/continuous effect, forest and double-ML comparisons, including R counterparts and dose-response leads. The tmle missing-treatment wording remains unresolved. Match ATE/ATT/CATE/dose-response targets, nuisance learning, cross-fitting, overlap, weighting and inference sampling units; banking example: servicing effects by risk group.
 
-The Julia/JavaScript comparison and COAT source-critical argument are integrated in the
-paired deliverables. Continue the selected ready operation; the 64 unread originals,
-source-linked proofs and native conformance remain explicit successors. These reviews
-grant no adapter capability and do not close the broader mandatory repairs.
+Continue the R effects/heterogeneity comparison using matched original methods,
+target definitions, nuisance/cross-fitting contracts and sampling units. Record
+dose-response and missing-treatment uncertainty explicitly. Independent ready
+items continue across phase boundaries; one missing source does not stop others.
 
-[Every nonpassing obligation](2026-10-19/recovery-coat-v1/remaining-operations.json)
-· [Recovery evidence](2026-10-19/recovery-coat-v1/recovery-checkpoint.json)
-· [Preserved preceding program](2026-10-19/recovery-coat-v1/prior-current-program.md)
+[Every nonpassing obligation](2026-10-19/recovery-dynamic-commercial-v1/remaining-operations.json)
+· [Recovery checkpoint](2026-10-19/recovery-dynamic-commercial-v1/recovery-checkpoint.json)
+· [Preserved prior program](2026-10-19/recovery-dynamic-commercial-v1/prior-current-program.md)
 
-Independent ready work continues across phase boundaries. Checkpoints are restart records,
-not permission gates. Use short commands and bounded output. No unattended worker runs.
-The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`; rendered
-review remains pending and does not stop source, mathematical or manuscript work.
+Use short commands and bounded text output. No unattended worker is running.
+The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`;
+rendered review remains pending and does not stop source or manuscript work.

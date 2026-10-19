@@ -1,0 +1,226 @@
+\subsection{Feast: reconstructing the information available to a banking decision}
+\label{exec19:feast-clock}
+
+Consider a credit team replaying yesterday's offer decisions. A transaction
+can have an early business date, a later correction date and a still later
+arrival in the system used by the offer engine. Joining on the business date
+alone does not reproduce the information on which the original offer could
+depend. Feast is a concrete candidate for organizing feature definitions and
+retrieving historical and online features, but its usefulness for this
+proposal depends on a precise observation contract. The selected original
+revision is commit \texttt{9d42729d471a} of 7 October 2026. Its historical API
+already provides an optional creation-time cutoff; the appropriate comparison
+must acknowledge that capability and investigate its meaning for each
+provider.\citep{exec19_feast_source}
+
+For a feature version $j$ associated with customer $i$, let $e_{ij}$ be its
+event time, $c_{ij}$ its source creation time and $a_{ij}$ the first time that
+the version, with the required transformations, was usable by the decision
+system. Let $t_i$ denote the decision time and $\ell>0$ a declared feature
+lifetime. The proposed admissible set is
+\begin{equation}
+ \mathcal J_i(t_i,\ell)=
+ \{j:t_i-\ell\leq e_{ij}\leq t_i,\quad a_{ij}\leq t_i\}.
+ \label{exec19:feast-eligible}
+\end{equation}
+All times use a declared timezone and ordering convention. If feature arrival
+and action share a coarse timestamp, an additional sequence number or
+conservative ordering is needed to establish which occurred first. The
+inclusive inequalities in \eqref{exec19:feast-eligible} are meaningful only
+after that convention is fixed. The latest admissible event and revision may
+then be selected, provided that the revision order is well defined. A source
+row with an unknown availability time does not establish membership in this
+set. Conflicting values with the same event and revision coordinates require
+an explicit conflict result or a separately justified source ordering.
+
+The distinction is statistical as well as operational. If $\mathcal F_{t_i}$
+is the information available to the decision maker, a deployable rule must
+be measurable with respect to $\mathcal F_{t_i}$, with any independent policy
+randomization stated separately. A retrospectively corrected covariate can
+belong to a larger information set. Its association with a later outcome may
+be useful for another scientific question, but it cannot silently replace a
+predecision predictor, confounder or effect modifier. Nor does successful
+retrieval establish exchangeability, positivity, a causal graph or calibrated
+uncertainty. Those obligations remain with the analysis that consumes the
+retrieved table.
+
+\paragraph{What the selected API and providers actually specify.}
+The historical API returns a retrieval job and defaults
+\texttt{filter\_by\_created\_timestamp} to false. With the flag enabled,
+the requested additional condition is $c_{ij}\leq t_i$ for views that declare
+a creation-timestamp column; views without that column are unaffected. The
+selected passthrough provider checks the offline store's declared support,
+and the base store raises an unsupported-operation error when support is
+absent. It would therefore be inaccurate to say that Feast necessarily
+ignores creation time. It would also be inaccurate to equate that field with
+$a_{ij}$ without evidence about ingestion delays, transformations and the
+actual serving path.\citep{exec19_feast_source}
+
+The selected Dask implementation applies the event-time and lifetime filters,
+then the optional creation cutoff, then duplicate handling. For late or
+unknown creation times it blanks feature-side fields while retaining the
+entity-side fields. The accompanying source tests specify the difference
+between a later-created value of $0.6$ and an earlier value of $0.4$, exclusion
+of null creation times, retention of an entity whose candidates are all late,
+and separation of different entities. These are informative upstream test
+specifications; they are not native test results obtained by this proposal.
+The implementation treats a zero or unspecified lifetime as absence of a
+finite lower event-time bound. The proposal must therefore distinguish an
+explicitly unbounded history from a positive duration, rather than converting
+zero into an instantaneous window.\citep{exec19_feast_source}
+
+The selected BigQuery template applies event-time conditions and, when
+requested and configured, the creation cutoff before choosing the latest
+event and creation timestamps. Its final join back to feature records uses
+those timestamps and the entity-row identifier. If different records share
+the chosen coordinates, the proposal cannot infer unique output merely from
+the earlier ranking expression. A source uniqueness condition or a qualified
+revision key is necessary. The Dask path also needs native checks for equal
+timestamps and duplicate decision rows, since sorting and duplicate removal
+do not by themselves establish the required population contract. This is a
+specific conformance question, not a claim that a defect has been reproduced
+in an installed provider.\citep{exec19_feast_source}
+
+\paragraph{An exact decision example with two kinds of late information.}
+Consider the following authored finite law, chosen to make the information
+constraint explicit. An applicant has an unobserved type $T\in\{g,b\}$ with
+equal probabilities. Conditional on action, the potential success indicator
+$Y(1)$ has probabilities
+\begin{equation}
+ P\{Y(1)=1\mid T=g\}=\frac45,\qquad
+ P\{Y(1)=1\mid T=b\}=\frac15.
+ \label{exec19:feast-law}
+\end{equation}
+The joint probabilities for $(g,1),(g,0),(b,1),(b,0)$ are respectively
+$2/5,1/10,1/10,2/5$. At decision hour $10$, both alternative worlds have the
+same observed customer key and the same available score $1/2$; the type label
+used to describe the generating law is not an input to the decision. A
+successful action has stipulated payoff USD~100, every action costs USD~50,
+and no action has value zero. The action value in each type is consequently
+\begin{equation}
+ v_g=100\frac45-50=30,\qquad
+ v_b=100\frac15-50=-30.
+ \label{exec19:feast-value}
+\end{equation}
+These amounts are assumptions of the illustration, not observed bank prices
+or estimates from Feast.\citep{exec19_feast_reference}
+
+The original score has event hour $6$, creation hour $7$ and availability hour
+$7$. A correction reveals the type-specific score, retains event hour $6$,
+and has creation and availability hour $11$. With a four-hour lifetime, the
+original lies exactly on the admissible lower event-time boundary. An
+event-only retrieval can select the correction despite its later creation;
+creation filtering selects the original. In a second history, add a record
+with event hour $9$ and creation hour $9$ that reveals the same type-specific
+score but is not delivered to the decision system until hour $12$. Now both
+event-only and creation-filtered retrieval select that unavailable record.
+An actual-availability predicate still selects the original. No timestamp
+flag can compensate for a field whose meaning is different from the required
+clock.\citep{exec19_feast_reference}
+
+Let the proposed action rule take action precisely when its retrieved score
+exceeds $1/2$. The exact comparison is
+\begin{center}
+\begin{tabular}{p{0.39\linewidth}rrr}
+\toprule
+History & Event only & Creation cutoff & Availability cutoff\\
+\midrule
+Correction created after decision & USD~15 & USD~0 & USD~0\\
+Additional delivery delay & USD~15 & USD~15 & USD~0\\
+\bottomrule
+\end{tabular}
+\end{center}
+The USD~15 entries equal $P(T=g)v_g=(1/2)30$: they evaluate a rule that knows
+the type and acts only for $g$. That rule is unavailable at decision hour
+$10$. Every feasible rule in this example has the same action probability
+$r$ in both worlds, because its available inputs and independent
+randomization reveal no type. Hence
+\begin{equation}
+ E\{\text{net value of a feasible rule}\}
+ =r\left(\frac12v_g+\frac12v_b\right)=0.
+ \label{exec19:feast-feasible}
+\end{equation}
+The apparent improvement is thus an information advantage that cannot be
+implemented at the declared clock. This derivation does not estimate an
+upstream software error or prove a general monetary loss from delayed data.
+It supplies a reproducible reason to include availability checks in a
+public-data prototype before funding bank experiments.\citep{exec19_feast_reference}
+
+The reference evaluates the entire four-state law with rational arithmetic
+and checks invariance to source-row permutations. Its boundary cases separate
+the lifetime endpoint, an earlier expired record, a future event, all-late
+candidates, unknown clocks, observed nulls, observed zero and conflicting
+equal-timestamp values. In an actual cohort, the adapter must also preserve
+one result per request identifier. Dropping an applicant because all features
+arrive late changes the evaluated population; treating the missing value as
+zero changes its meaning. Feature unavailability can itself depend on
+customer behavior or servicing workload, so the analysis must address the
+resulting selection mechanism explicitly.\citep{exec19_feast_reference}
+
+\paragraph{Historical retrieval, online access and agent tools.}
+The selected online API retrieves the latest online feature values, and the
+online-store documentation describes materialization into a latest-value
+store. A successful online read is therefore not evidence that an old
+decision's information has been reconstructed. There is also a separate
+provenance obligation for transformations: a feature carrying a predecision
+timestamp can still use future observations, a retrospectively fitted
+normalizer or a later model version. The proposed library result must bind
+the input snapshot, feature and transformation versions, provider, retrieval
+mode and relevant clocks. A CLI or MCP wrapper should preserve that same
+meaning.\citep{exec19_feast_source}
+
+Feast's selected source distinguishes two MCP surfaces. The standalone
+\texttt{feast mcp} process proxies feature and registry servers. Its feature
+tools include online retrieval and vector search, but also push and
+materialization operations. The selected client turns HTTP error statuses
+into tool errors, rather than presenting a denial body as feature data. The
+in-process MCP endpoint uses a different extra and deployment path. These
+facts justify an integration design, not an assertion that the proposal's
+historical contract already exists in either surface.\citep{exec19_feast_source}
+
+For the proposed causal workflow, an agent should request a separately named
+historical operation carrying decision identifiers, declared clocks, feature
+versions and failure states. Registry browsing can help locate candidate
+features; it cannot certify their causal role or availability. Online reads
+serve current decisions, while push and materialization change system state.
+Those capabilities need separate operational contracts. An unsupported
+historical filter, HTTP failure, cancelled job or missing feature must remain
+a typed failure or missing observation throughout the library, CLI and MCP
+path. Retrying with weaker time semantics would silently answer a different
+question.
+
+\paragraph{Reuse choice, alternatives and a bounded public qualification.}
+The proposed route is to retain the original Feast implementation behind a
+typed historical boundary, initially with one selected provider. The root
+source declares Apache-2.0, including redistribution and notice obligations.
+The selected project requires Python~3.10 or later and declares thirty direct
+dependencies with version ranges; provider extras and the two MCP extras add
+different dependencies. The source version is dynamically determined, so a
+commit identity alone should not be presented as a verified package-release
+number. A complete distribution, resolved environment and applicable
+dependency notices remain necessary before executable admission. No native
+provider or MCP conformance is established here.\citep{exec19_feast_source}
+
+An explicit bitemporal file or database query is the reference alternative
+for a small public prototype: it makes both clocks and the revision rule
+visible with fewer components, although its scale and operating costs remain
+to be measured. Existing bank feature infrastructure may eventually be the
+better integration choice if it already retains the required history and
+availability evidence; that cannot be inferred from a feature-store label.
+Porting Feast would duplicate provider, timestamp, conversion and failure
+semantics without a demonstrated platform requirement. The conditional
+preference is therefore integration of an original provider after
+qualification, with porting deferred.
+
+Public or generated histories can exercise late corrections, ingestion
+delays, null clocks, lifetime boundaries, tied revisions, duplicate requests
+and provider errors. The test must compare complete rows and missing states
+against a frozen reference, then check that library, CLI and MCP responses
+preserve the same retrieval mode. The data owner is responsible for the
+meaning of availability and revision fields; the scientific owner for the
+information set, population and causal assumptions; and the adapter owner
+for conversions, row conservation, failure handling and version changes.
+Costs to measure include history retention, joins, validation, data transfer,
+materialization and upgrade regressions. These public checks can establish
+whether an expensive bank trial is worth proposing. They do not supply bank
+truth, measured commercial prices or institutional acceptance.
