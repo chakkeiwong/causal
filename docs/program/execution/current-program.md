@@ -1,26 +1,26 @@
 # Current executable proposal program
 
-Updated 20 October 2026 after crash recovery, publication of the commercial
-dynamic-panel comparison, and continuation through the R effects comparison.
-This is a research and product proposal. Prototype qualification, independent
-review, bank validation and adoption remain distinct outcomes.
+Updated 20 October 2026 after continuing the recovered proposal through two
+primary LLM literature reviews and their integrated manuscript treatment.
+This is research and a product proposal. Prototype qualification, independent
+acceptance, bank validation and adoption remain distinct outcomes.
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
 The canonical ledger is [state.json](../state.json), governed by the
-[proposal scope](../master-program-proposal.md). Historical numbered programs
-and their bound evidence are preserved. Checkpoints are restart records.
+[proposal scope](../master-program-proposal.md). Bound historical plans and
+evidence remain preserved. A checkpoint records continuation; it is not a stop gate.
 
-## Current deliverables
+## Current integrated documents
 
-The [1,123-page working monograph](../../causal_proposal_r_effects_reviewed_2026-10-20.pdf)
-and [26-page sponsor proposal](../../sponsor_proposal_r_effects_reviewed_2026-10-20.pdf)
-are paired by exact hashes. The reader has 819 audited citation records
-and 208 genuine scholarly PDFs. Q2-Q4 pass for these exact reader bytes.
-Q1/Q5, all three mandatory repair rollups, rendered review and final acceptance
-remain open. Passing integrity and author reviews do not close those gates.
+Read the [1,126-page integrated monograph](../../causal_proposal_population_attribution_reviewed_2026-10-20.pdf).
+Its companion is the [26-page sponsor proposal](../../sponsor_proposal_population_attribution_reviewed_2026-10-20.pdf).
+The documents are paired by exact hashes. The reader has 822 audited citation
+records and 210 genuine scholarly PDFs. Q2-Q4 pass for the exact current reader.
+Q1/Q5, the three mandatory repair rollups, rendered visual review and final
+proposal acceptance remain open. Page count and file integrity do not close them.
 
 There are **162 recorded outcomes of 376 proposal operations**,
-with **185 ready**. An inconclusive result retains its unmet obligations.
+with **185 ready**. Recorded inconclusive outcomes retain their unmet obligations.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
@@ -28,77 +28,77 @@ with **185 ready**. An inconclusive result retains its unmet obligations.
 | Reuse decisions | 20 | 3 | 92 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-The original frontier census remains 49 inspected and 64 unread of 113. L1/L6
-frontier and framework completeness remains open. Fourteen task reviews and
-twelve integration requirements have bounded proposal outcomes, not runtime adoption.
+The original frontier census is now **51 inspected and 62 unread out of 113**.
+Four crosscutting obligations retain their own denominator. L1/L6 completeness,
+complementary searches and citation chaining remain open. Fourteen task reviews
+and twelve integration requirements have bounded proposal outcomes; these are
+not evidence of runtime adoption.
 
-## What recovery and continuation changed
+## What this continuation changed
 
-The recovered Feast and commercial dynamic-panel publications were committed
-and verified on origin/main as e81ff8a8c5d8f32a451473328f5c4f796477c039.
-Feast's selected creation-time filter does not establish actual availability,
-and its historical, online and state-changing MCP paths retain distinct contracts.
-The commercial comparison preserves instrument validity, covariance choices,
-shock targets and calendar dependence; its eight-family coverage stays partial.
+The clean starting checkout was d66d783b. Its R effects, commercial panels,
+Feast and earlier material remain preserved. The new discussion occupies
+physical PDF pages 832-835; all 819 prior citation identities and contexts,
+and all 252 prior compiled content inputs, survive unchanged.
 
-The R comparison authenticates nineteen source blobs across tmle, R DoubleML,
-CausalGPS and causaldrf, with inherited grf originals retained. It resolves one
-specific ambiguity: the selected tmle path rejects missing treatment labels;
-NULL/all-zero input chooses a mean-outcome path. This is source evidence, with
-native fixtures and clarification still outstanding. R DoubleML cluster splitting
-and variance do not imply supported clustered multiplier bootstrap.
+Simmons and Hare supply a population-response evaluation framework. Cai and
+colleagues' selected May 2026 revision supplies prompt ablations and reported
+fine-tuning results. Its differently titled 2023 version is preserved, and no
+new-version claim is attributed to that earlier PDF. Reported overall accuracy
+0.90 versus 0.82 coexists with undefined-scenario accuracy 0.58 versus 0.66.
 
-The new argument distinguishes mean conditional slopes from a pooled
-variance-weighted slope and finite-dose contrasts. Exact authored laws give
-2 versus 13/5 for two slope targets and USD 15 versus USD 35 for a stipulated credit
-contrast and its slope proxy. GPS density scales, counterfactual-dose scores,
-zero weights and pointwise/bootstrap uncertainty receive explicit contracts.
-No R engine was executed. BART/causalweight alternatives, broader aliases,
-complete rights and native conformance remain open. The addition is at physical
-PDF pages 251-255; earlier citations, contexts and chapter inputs are preserved.
+Exact authored examples separate simulation variance from population bias,
+factorial interaction from additive attribution, and residual correlation from
+independence. Under stipulated response payoff USD 100 and cost USD 55,
+probabilities 0.60 and 0.50 imply margins USD 5 and USD -5. Both linear residual
+covariances vanish in another example while reverse squared covariance is
+-16/25. These are reproducible proposal arguments, not native package tests,
+LLM experiments or observed bank economics.
 
-A first TeX pass timed out. Its logs and partial output remain intact; retrying
-the unchanged manuscript with nonrecursive root search succeeded. This repair
-does not establish rendered visual acceptance.
+Native code/weight identity, residual-test semantics, reverse-task construction,
+uncertainty calibration and domain transfer remain explicit follow-ups. A public
+prototype can test descriptive response fidelity and generated causal tasks
+separately, with mechanism-level holdouts and retained refusals.
 
-## Required standard and remaining routes
+## Standard and remaining routes
 
-Connect each banking decision and information clock to assumptions,
-identification or limits, estimation, uncertainty, diagnostics, alternatives
-and monetary consequences. Distinguish inherited results, authored derivations,
-generated examples and verified implementation. Every citation needs identity,
+Each banking decision must connect its information clock to causal assumptions,
+identification or limits, estimation, uncertainty, diagnostics, alternatives and
+monetary consequences. Distinguish inherited results, project derivations,
+generated examples and verified implementation. Every cited source needs identity,
 version/date, local bytes, SHA-256, inspected anchors and supported claims;
-scholarly citations need genuine PDFs. The literature cutoff is 7 October 2026.
-FinMarketing supplies the scholarship standard; page count is not acceptance.
+scholarly citations require genuine PDFs. The literature cutoff is 7 October 2026.
+FinMarketing supplies the scholarship standard; length is not acceptance.
 
 MR01 requires 17 areas across six dimensions and 100-150 substantive software pages.
 MR02 requires eight developed chapters, fourteen tasks and approximately 100 pages
 (the depth contract is 96-112). MR03 requires four integration chapters and twelve
-requirements, with indicative depth 40-60 pages. Coverage, argument and exclusive
-depth must all pass; repeated material earns no duplicate credit.
+requirements, with indicative depth 40-60 pages. Coverage, connected argument and
+exclusive depth must all pass; repeated material earns no duplicate credit.
 
-Known public-evidence routes remain for missing originals, commercial comparisons,
-justified reuse choices, frontier census, reader reconciliation and proposed public
-prototype experiments. General hidden-confounder identification, arbitrary
+Known routes remain for original-source inspection, commercial comparisons,
+justified software reuse decisions, literature search, reader reconciliation and
+proposed public experiments. General hidden-confounder identification, arbitrary
 dependence, private-state policy inference and universal calibration remain
 research uncertainties. Authentic bank truth, platform trials, institutional
-acceptance and observed economics are later conditional gates. They do not block
-proposal work that can be supported by public or generated evidence.
+acceptance and measured economics are later conditional gates. They do not block
+independent proposal work supported by public or generated evidence.
 
 ## Exact continuation
 
-Next: **LL.CENSUS**. Resolve the 82 relevant and 31 adjacent deferred candidates individually: inspect authentic originals, justify exclusion, or record unavailability/impact. Map all candidates to the 14 tasks; repeat failed longitudinal/off-policy and negative-result searches and record saturation limits.
+Next controller-selected operation: **SW.DECISION.inherited_fixest**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
 
-Use the latest census successor rather than restarting already inspected originals.
-Acquire and inspect one original at a time, preserve identity/version and failure
-evidence, map its claims to the relevant tasks, and integrate only warranted claims.
-Continue independent ready software, literature and integration items when an
-individual original is unavailable. No phase or checkpoint is a permission gate.
+For LL.CENSUS, resume the [51/62 register](2026-10-20/census-population-attribution-v1/census-register.json)
+and its latest controller checkpoint; do not repeat completed originals or publication.
+For software, preserve pinned source identities, rights evidence, supported scope
+and the decision to adopt, integrate, port, reference, defer or reject. A missing
+original blocks its affected claims only. Continue other ready operations across
+phase boundaries without asking again.
 
-[Every nonpassing obligation](2026-10-19/recovery-r-effects-v1/remaining-operations.json)
-· [Recovery checkpoint](2026-10-19/recovery-r-effects-v1/recovery-checkpoint.json)
-· [Preserved prior program](2026-10-19/recovery-r-effects-v1/prior-current-program.md)
+[Every nonpassing obligation](2026-10-20/program-refresh-v1/remaining-operations.json)
+· [Continuation checkpoint](2026-10-20/program-refresh-v1/continuation-checkpoint.json)
+· [Preserved previous program](2026-10-20/program-refresh-v1/prior-current-program.md)
 
-Use short commands and bounded text output. No unattended worker is running.
-The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`;
+Use short commands, redirected logs and bounded text output. No unattended worker
+is running. The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`;
 rendered review remains pending and does not block source or manuscript work.
