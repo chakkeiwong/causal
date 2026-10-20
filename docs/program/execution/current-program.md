@@ -1,7 +1,6 @@
 # Current executable proposal program
 
-Updated 20 October 2026 after gCastle reuse and commercial network/interference
-comparisons. This is research and a product proposal. Prototype qualification,
+Updated 20 October 2026 after Java effects and hypothesis-generation reviews. This is research and a product proposal. Prototype qualification,
 independent acceptance, bank validation and adoption are separate outcomes.
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
@@ -11,24 +10,24 @@ evidence remain preserved. A checkpoint records continuation; it is not a stop g
 
 ## Current integrated documents
 
-Read the [1,150-page integrated monograph](../../causal_proposal_network_commercial_reviewed_2026-10-20.pdf)
-and its [32-page sponsor proposal](../../sponsor_proposal_network_commercial_reviewed_2026-10-20.pdf).
-They are paired by exact hashes. The reader has 842 audited
-citation records and 212 genuine scholarly PDFs.
+Read the [1,158-page integrated monograph](../../causal_proposal_hypothesis_generation_reviewed_2026-10-20.pdf)
+and its [32-page sponsor proposal](../../sponsor_proposal_hypothesis_generation_reviewed_2026-10-20.pdf).
+They are paired by exact hashes. The reader has 847 audited
+citation records and 213 genuine scholarly PDFs.
 Q2-Q4 pass for this reader. Q1/Q5, all three mandatory repair rollups, rendered
 review and final proposal acceptance remain open. Length is not acceptance.
 
-There are **168 recorded outcomes of 376 proposal operations**,
-with **180 ready**. An inconclusive outcome preserves
+There are **169 recorded outcomes of 376 proposal operations**,
+with **179 ready**. An inconclusive outcome preserves
 its unmet obligations and is not counted as substantive closure.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| Software coverage | 2 | 31 | 69 | 102 |
+| Software coverage | 2 | 32 | 68 | 102 |
 | Reuse decisions | 22 | 3 | 90 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-The frontier census remains **53 inspected and 60 unread out of113 originals**,
+The frontier census remains **54 inspected and 59 unread out of113 originals**,
 plus four separate crosscutting obligations. L1/L6 completeness, complementary
 searches and citation chaining remain open. Fourteen task reviews and twelve
 integration requirements have scoped proposal outcomes; these do not establish
@@ -36,40 +35,33 @@ runtime adoption.
 
 ## Substantive progress
 
-gCastle now has a bounded reference choice for selected PC and linear NOTEARS,
-with 20 authenticated source blobs and explicit root-tree identity. Its integrated
-contract preserves graph type, variable labels, CI support, prior restrictions,
-solver diagnostics, threshold and topology. Exact examples distinguish unresolved
-edges from cycles and numerical tolerance from a DAG certificate. An original
-Python worker is the proposed public experiment; native admission is deferred.
+The hypothesis-generation discussion occupies physical PDF pages 629-632.
+All 845 preceding citation identities/contexts and
+260 compiled content inputs survive. The authentic
+July2024 article supplies the literature-based hypothesis design; publisher challenge
+responses and the older preprint remain distinct evidence.
 
-The new commercial discussion occupies physical PDF pages 352-356.
-All 832 predecessor citation identities/contexts and
-258 compiled content inputs survive. Nine official
-originals support Stata, SAS/ETS, ArcGIS Pro 3.5 and Statsig legacy profiles. Exact
-editions, complete market search, rights, prices and four further candidate
-families remain unresolved. Both coverage and comparison outcomes are inconclusive.
+The argument separates literature claims, predicted links, novelty ratings and
+identified interventions. Of238 model-labelled causal pairs,156 received matching
+human causal labels;207 were recognized as relationships. Unequal comparator
+selection, reviewer disagreement and a novelty-versus-usefulness distinction limit
+transfer. A printed F/p pair and F/R2 pair do not reconcile under ordinary stated
+ANOVA; the revised supplement and raw analysis remain open.
 
-The argument distinguishes full-feedback spatial derivatives, simple impacts,
-exposure contrasts and switchback policies. Exact two-branch responses give
-own 40/3, spillover 20/3, total 20. At assumed cost 12, coefficient/own/portfolio margins
-are -2, 4/3, 8. Missing a tie changes portfolio margin to -2. Full delta variance 28
-differs from 20 after dropping covariance. Assignment enumeration shows unsupported
-exposure cells; time and carryover witnesses give observed 102 versus effect 2 and
-observed -2 versus immediate 2 / sustained 6. These are authored references, not native
-or bank findings.
+An exact graph witness has Jaccard similarity1 but zero causal effect. At assumed
+value100 and cost20, treating similarity as success suggests80 while the stipulated
+incremental margin is-20. Public experiments should test extraction, operational
+business translation, blinded hypothesis quality and known-mechanism interventions
+separately. A library/CLI/MCP contract must preserve those evidence types.
 
-The SAS initial route timed out and one historical PDF was incomplete; a complete
-official manual was recovered elsewhere. The Optimizely route returned a general
-homepage. Neither result supports product absence. Failed publication sequencing,
-an obsolete chapter insertion marker and an overflowing bibliography URL were
-preserved and repaired. Both PDFs are source/text checked; rendered acceptance
-remains pending the session image limit.
+The Java review remains integrated:28 authenticated H2O/Tetrad source blobs,
+confounding and smoothing references, metric-population and signed-effect limits,
+and native reconciliation obligations. Its coverage outcome remains inconclusive.
 
-Earlier fixed-effect, Python effects, measurement-validity and expert-guided
-discovery work remains integrated. The
-[previous master view](2026-10-20/program-refresh-network-commercial-v1/prior-current-program.md)
-preserves those detailed findings and their remaining limits.
+The current sponsor preserves all173 earlier citations and adds4, for177 records.
+Both PDFs pass source/text checks; rendered visual acceptance remains open.
+The [previous master view](2026-10-20/program-refresh-hypothesis-v1/prior-current-program.md)
+preserves earlier findings and limitations.
 
 ## Required standard and remaining routes
 
@@ -96,21 +88,23 @@ are later conditional gates; they do not block independent proposal work.
 
 ## Exact continuation
 
-Next operation: **SW.CELL.effects_heterogeneity.Java**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Match ATE/ATT/CATE/dose-response targets, nuisance learning, cross-fitting, overlap, weighting and inference sampling units; banking example: servicing effects by risk group.
+Next operation: **SW.DECISION.inherited_gformula**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
 
-The [Java effects plan](2026-10-20/java-effects-v1/plan.md) treats the inherited
-empty combined query as a search limitation. Inspect H2O-3 uplift forests and
-Tetrad IDA/CStaR at authenticated revisions; an uplift ranking metric or graph
-slope set cannot stand in for a calibrated causal-effect interval. Initial public
-discovery/identity acquisition is prepared; substantive review is outstanding.
+The [gfoRmula reuse plan](2026-10-20/gformula-reuse-v1/plan.md) resolves the inherited
+gformula/gfoRmula aliases at commit86653ca1315f24a96a41b0ef590af13228f90ab4.
+Seventeen source blobs are authenticated against the explicit root tree; technical
+inspection, complete rights, decision and integration remain outstanding. Trace
+intervention clocks, competing events, censoring, truncation, histories, bootstrap
+unit and failure semantics before choosing a reuse disposition.
 
-The independent LL.CENSUS continuation remains candidate 42 and the saved
-[53/60 register](2026-10-20/census-expert-averaging-v1/census-register.json).
+The [54/59 census](2026-10-20/census-hypothesis-v1/census-register.json) retains
+candidate45 and the other unread originals. Complementary searches and citation
+chaining remain eligible; do not repeat candidate42's completed primary review.
 Continue every eligible branch across phase boundaries; record a local blocker
 and its acquisition/research trigger without stopping unrelated work.
 
-[Every nonpassing obligation](2026-10-20/program-refresh-network-commercial-v1/remaining-operations.json)
-· [Continuation checkpoint](2026-10-20/program-refresh-network-commercial-v1/continuation-checkpoint.json)
+[Every nonpassing obligation](2026-10-20/program-refresh-hypothesis-v1/remaining-operations.json)
+· [Continuation checkpoint](2026-10-20/program-refresh-hypothesis-v1/continuation-checkpoint.json)
 
 Use short commands, redirected logs and bounded text output. No unattended worker
 is running. The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`;

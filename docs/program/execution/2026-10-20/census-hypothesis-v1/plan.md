@@ -1,0 +1,5 @@
+# Causal-graph hypothesis generation candidate
+
+Continue census candidate42 from the53-inspected/60-unread register. Acquire and verify the authentic article, publication date and bibliography identity; inspect graph construction, LLM role, evaluation populations, hypothesis validation, adverse findings, assumptions and reproducibility. Map actual findings to business translation and active experiments, adding discovery only if primary methods support it. Explain the bank-translation route without transferring psychological validation or model scores into bank causal truth. Record omissions and uninspected code/data. Do not run downloaded code or models. Preserve all predecessors, integrate substantive findings, and renew exact-reader reviews only after publication.
+
+Plan review: primary full text precedes claims; distinguish plausible hypothesis, identified graph, calibrated effect and tested intervention. Public evidence can justify a prototype before expensive authentic bank validation.
