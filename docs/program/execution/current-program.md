@@ -1,6 +1,6 @@
 # Current executable proposal program
 
-Updated 20 October 2026 after Java effects and hypothesis-generation reviews. This is research and a product proposal. Prototype qualification,
+Updated 20 October 2026 after the longitudinal gfoRmula reuse review. This is research and a product proposal. Prototype qualification,
 independent acceptance, bank validation and adoption are separate outcomes.
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
@@ -10,21 +10,21 @@ evidence remain preserved. A checkpoint records continuation; it is not a stop g
 
 ## Current integrated documents
 
-Read the [1,158-page integrated monograph](../../causal_proposal_hypothesis_generation_reviewed_2026-10-20.pdf)
-and its [32-page sponsor proposal](../../sponsor_proposal_hypothesis_generation_reviewed_2026-10-20.pdf).
-They are paired by exact hashes. The reader has 847 audited
+Read the [1,162-page integrated monograph](../../causal_proposal_gformula_reviewed_v2_2026-10-20.pdf)
+and its [34-page sponsor proposal](../../sponsor_proposal_gformula_reviewed_2026-10-20.pdf).
+They are paired by exact hashes. The reader has 849 audited
 citation records and 213 genuine scholarly PDFs.
 Q2-Q4 pass for this reader. Q1/Q5, all three mandatory repair rollups, rendered
 review and final proposal acceptance remain open. Length is not acceptance.
 
-There are **169 recorded outcomes of 376 proposal operations**,
-with **179 ready**. An inconclusive outcome preserves
+There are **170 recorded outcomes of 376 proposal operations**,
+with **178 ready**. An inconclusive outcome preserves
 its unmet obligations and is not counted as substantive closure.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | Software coverage | 2 | 32 | 68 | 102 |
-| Reuse decisions | 22 | 3 | 90 | 115 |
+| Reuse decisions | 23 | 3 | 89 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
 The frontier census remains **54 inspected and 59 unread out of113 originals**,
@@ -35,33 +35,33 @@ runtime adoption.
 
 ## Substantive progress
 
-The hypothesis-generation discussion occupies physical PDF pages 629-632.
-All 845 preceding citation identities/contexts and
-260 compiled content inputs survive. The authentic
-July2024 article supplies the literature-based hypothesis design; publisher challenge
-responses and the older preprint remain distinct evidence.
+The gfoRmula discussion occupies physical PDF pages 299-303.
+All 847 prior citation identities and contexts, and
+261 compiled content inputs survive. Seventeen
+original source blobs are authenticated to the selected November 2025 tree.
+The source declares1.1.2 while its release date is TBD.
 
-The argument separates literature claims, predicted links, novelty ratings and
-identified interventions. Of238 model-labelled causal pairs,156 received matching
-human causal labels;207 were recognized as relationships. Unequal comparator
-selection, reviewer disagreement and a novelty-versus-usefulness distinction limit
-transfer. A printed F/p pair and F/R2 pair do not reconcile under ordinary stated
-ANOVA; the revised supplement and raw analysis remain open.
+The bounded reuse decision is reference. A proposed original R worker must
+preserve target types, covariate/intervention order, history conventions,
+competing-event priority, clipping, person-level resampling and failed replicate
+counts. A port or direct adoption remains unqualified; complete rights,
+dependencies, native behavior and broader dependence require later work.
 
-An exact graph witness has Jaccard similarity1 but zero causal effect. At assumed
-value100 and cost20, treating similarity as success suggests80 while the stipulated
-incremental margin is-20. Public experiments should test extraction, operational
-business translation, blinded hypothesis quality and known-mechanism interventions
-separately. A library/CLI/MCP contract must preserve those evidence types.
+An exact two-period law gives beneficial-outcome probabilities13/100,3/5,17/40
+for never, always and dynamic policies. Substituting a mean history before the
+dynamic decision gives73/200. At assumed value100 and fixed incremental cost20,
+proper versus shortcut margins are9.50/3.50. Competing-event retention versus
+elimination gives.3096/.36 and loss difference50.40 at assumed loss1000.
+Separate clipping and selective-bootstrap examples expose scientific semantics
+without asserting a measured native defect or bank result.
 
-The Java review remains integrated:28 authenticated H2O/Tetrad source blobs,
-confounding and smoothing references, metric-population and signed-effect limits,
-and native reconciliation obligations. Its coverage outcome remains inconclusive.
+A two-column equation overflow was preserved and repaired in publication-v2.
+The sponsor preserves177 earlier citation records and adds4, for181.
+Both PDFs pass source and text-bounds checks; rendered acceptance remains open.
+The previous hypothesis and Java findings remain integrated.
 
-The current sponsor preserves all173 earlier citations and adds4, for177 records.
-Both PDFs pass source/text checks; rendered visual acceptance remains open.
-The [previous master view](2026-10-20/program-refresh-hypothesis-v1/prior-current-program.md)
-preserves earlier findings and limitations.
+The [previous master view](2026-10-20/program-refresh-gformula-v1/prior-current-program.md)
+preserves the earlier substantive findings and remaining limits.
 
 ## Required standard and remaining routes
 
@@ -88,23 +88,25 @@ are later conditional gates; they do not block independent proposal work.
 
 ## Exact continuation
 
-Next operation: **SW.DECISION.inherited_gformula**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+Next operation: **SW.CELL.mediation_sensitivity.commercial**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Distinguish natural/interventional/path-specific targets, cross-world assumptions, negative controls and nonprobabilistic sensitivity sets; banking example: channel-mediated credit response.
 
-The [gfoRmula reuse plan](2026-10-20/gformula-reuse-v1/plan.md) resolves the inherited
-gformula/gfoRmula aliases at commit86653ca1315f24a96a41b0ef590af13228f90ab4.
-Seventeen source blobs are authenticated against the explicit root tree; technical
-inspection, complete rights, decision and integration remain outstanding. Trace
-intervention clocks, competing events, censoring, truncation, histories, bootstrap
-unit and failure semantics before choosing a reuse disposition.
+The [commercial mediation plan](2026-10-20/mediation-commercial-v1/plan.md)
+starts from the failed inherited query and genuine saved Stata original.
+An inherited SAS PDF fails trailer/page validation; it supports no technical
+claim. Inspect complete vendor originals and distinguish natural, controlled
+and interventional effects, interaction and sensitivity assumptions. The
+candidate list includes Stata, SAS, Mplus, IBM and the separate PROCESS extension;
+no family receives coverage from another vendor's source.
 
-The [54/59 census](2026-10-20/census-hypothesis-v1/census-register.json) retains
-candidate45 and the other unread originals. Complementary searches and citation
-chaining remain eligible; do not repeat candidate42's completed primary review.
+The independent [candidate45 recovery](2026-10-20/census-medical-agents-v1/plan.md)
+has matched OpenAlex and Crossref identity records. Its genuine original and
+version remain to be inspected. Metadata is not technical evidence. The
+[54/59 census](2026-10-20/census-hypothesis-v1/census-register.json) is unchanged.
 Continue every eligible branch across phase boundaries; record a local blocker
 and its acquisition/research trigger without stopping unrelated work.
 
-[Every nonpassing obligation](2026-10-20/program-refresh-hypothesis-v1/remaining-operations.json)
-· [Continuation checkpoint](2026-10-20/program-refresh-hypothesis-v1/continuation-checkpoint.json)
+[Every nonpassing obligation](2026-10-20/program-refresh-gformula-v1/remaining-operations.json)
+· [Continuation checkpoint](2026-10-20/program-refresh-gformula-v1/continuation-checkpoint.json)
 
 Use short commands, redirected logs and bounded text output. No unattended worker
 is running. The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`;

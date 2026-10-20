@@ -1,0 +1,1 @@
+Preserve SAS timeout, PROCESS TLS and IBM404. Inspect bounded official HTML/directory alternatives without disabling TLS. Two SSRN identity-matched original routes continue candidate45 independently; no technical claims before genuine primary inspection.
