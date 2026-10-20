@@ -1,0 +1,1692 @@
+                                           Bayesian Analysis (0000)                    00, Number 0, pp. 1
+
+                                                 Bayesian regression tree models for causal
+                                                 inference: regularization, confounding, and
+                                                            heterogeneous effects
+                                                        P. Richard Hahn∗ , Jared S. Murray† and Carlos M. Carvalho†
+arXiv:1706.09523v4 [stat.ME] 13 Nov 2019
+
+
+
+
+                                                  Abstract.
+                                                      This paper presents a novel nonlinear regression model for estimating het-
+                                                  erogeneous treatment effects from observational data, geared specifically towards
+                                                  situations with small effect sizes, heterogeneous effects, and strong confounding.
+                                                  Standard nonlinear regression models, which may work quite well for prediction,
+                                                  have two notable weaknesses when used to estimate heterogeneous treatment ef-
+                                                  fects. First, they can yield badly biased estimates of treatment effects when fit to
+                                                  data with strong confounding. The Bayesian causal forest model presented in this
+                                                  paper avoids this problem by directly incorporating an estimate of the propensity
+                                                  function in the specification of the response model, implicitly inducing a covariate-
+                                                  dependent prior on the regression function. Second, standard approaches to re-
+                                                  sponse surface modeling do not provide adequate control over the strength of
+                                                  regularization over effect heterogeneity. The Bayesian causal forest model permits
+                                                  treatment effect heterogeneity to be regularized separately from the prognostic
+                                                  effect of control variables, making it possible to informatively “shrink to homo-
+                                                  geneity”. We illustrate these benefits via the reanalysis of an observational study
+                                                  assessing the causal effects of smoking on medical expenditures as well as extensive
+                                                  simulation studies.
+                                                  MSC 2010 subject classifications: Primary 60K35, 60K35; secondary 60K35.
+                                                  Keywords: Bayesian, Causal inference, Heterogeneous treatment effects,
+                                                  Predictor-dependent priors, Machine learning, Regression trees, Regularization,
+                                                  Shrinkage.
+
+
+                                           1      Introduction
+                                           The success of modern predictive modeling is founded on the understanding that flexible
+                                           predictive models must be carefully regularized in order to achieve good out-of-sample
+                                           performance (low generalization error). In a causal inference setting, regularization is
+                                           less straightforward, for (at least) two reasons. One, in the presence of confounding,
+                                           regularized models originally designed for prediction can bias causal estimates towards
+                                           some unknown function of high dimensional nuisance parameters (Hahn et al., 2016).
+                                           Two, when the magnitude of response surface variation due to prognostic effects differs
+                                           markedly from response surface variation due to treatment effect heterogeneity, simple
+
+                                               ∗ School of Mathematical and Statistical Sciences, Arizona State University prhahn@asu.edu
+                                              † McCombs School of Business, University of Texas at Austin jared.murray@mccombs.utexas.edu
+
+                                           carlos.carvalho@mccombs.utexas.edu
+
+
+                                           c 0000 International Society for Bayesian Analysis                                       DOI: 0000
+
+
+
+                                                                         imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+2                           Bayesian regression tree models for causal inference
+
+regularization strategies, which may be adequate for good out-of-sample prediction, pro-
+vide inadequate control of estimator variance for conditional average treatment effects
+(leading to large estimation error).
+    To mitigate these two estimation issues we propose a flexible sum-of-regression-trees
+— a forest — to model a response variable as a function of a binary treatment indicator
+and a vector of control variables. To address the first issue, we develop a novel prior
+for the response surface that depends explicitly on estimates of the propensity score as
+an important 1-dimensional transformation of the covariates (including the treatment
+assignment). Incorporating this transformation of the covariates is not strictly necessary
+in response surface modeling in order to obtain consistent estimators, but we show that
+it can substantially improve treatment effect estimation in the presence of moderate to
+strong confounding, especially when that confounding is driven by targeted selection
+— individuals selecting into treatment based on somewhat accurate predictions of the
+potential outcomes.
+    To address the second issue, we represent our regression as a sum of two functions:
+the first models the prognostic impact of the control variables (the component of the
+conditional mean of the response that is unrelated to the treatment effect), while the
+second represents the treatment effect directly, which itself is a nonlinear function of
+the observed attributes (capturing possibly heterogeneous effects). We represent each
+function as a forest. This approach allows the degree of shrinkage on the treatment effect
+to be modulated directly and separately of the prognostic effect. In particular, under this
+parametrization, standard regression tree priors shrink towards homogeneous effects.
+    In most previous approaches, the prior distribution over treatment effects is induced
+indirectly, and is therefore difficult to understand and control. Our approach interpolates
+between two extremes: Modeling the conditional means of treated and control units
+entirely separately, or including treatment assignment as “just another covariate”. The
+former precludes any borrowing or regularization entirely, while the second can be rather
+difficult to understand using flexible models. Parametrizing non- and semiparametric
+models this way is attractive regardless of the specific priors in use.
+    Comparisons on simulated data show that the new model — which we call the
+Bayesian causal forest model — performs at least as well as existing approaches for
+estimating heterogenous treatment effects across a range of plausible data generating
+processes. More importantly, it performs dramatically better in many cases, especially
+those with strong confounding, targeted selection, and relatively weak treatment effects,
+which we believe to be common in applied settings.
+    In section 7, we demonstrate how our flexible Bayesian model allows us to make
+rich inferences on heterogeneous treatment effects, including estimates of average and
+conditional average treatment effects at various levels, in a re-analysis of data from an
+observational study of the effect of smoking on medical expenditures.
+
+
+1.1    Relationship to previous literature
+As previously noted, the Bayesian causal forest model directly extends ideas from two
+earlier papers: Hill (2011) and Hahn et al. (2016). Specifically, this paper studies the
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                             3
+
+“regularization-induced confounding” of Hahn et al. (2016) in the context of nonpara-
+metric Bayesian models as utilized by Hill (2011). In terms of implementation, this
+paper builds explicitly on the work of Chipman et al. (2010); see also Gramacy and Lee
+(2008) and Murray (2017). Other notable work on Bayesian treatment effect estimation
+includes Gustafson and Greenland (2006),Zigler and Dominici (2014), Heckman et al.
+(2014), Li and Tobias (2014), Roy et al. (2017) and Taddy et al. (2016).
+   More generally, the intersection between “machine learning” and causal inference is
+a burgeoning research area.
+    Papers deploying nonlinear regression (supervised learning) methods in the service
+of estimation and inference for average treatment effects (ATEs) include targeted max-
+imum likelihood estimation (TMLE) (van der Laan, 2010a,b), double machine learning
+(Chernozhukov et al., 2016), and generalized boosting (McCaffrey et al., 2004, 2013).
+These methods all take as inputs regression estimates of either/or the propensity func-
+tion or the response surface; in this sense, any advances in predictive modeling have
+the potential to improve ATE estimation in conjunction with the above approaches.
+Bayesian causal forests could be used in this capacity as well, although it was designed
+with conditional average treatment effects in mind.
+    More recently, attention has turned to CATE estimation. Notable examples include
+Taddy et al. (2016), who focus on estimating heterogeneous effects from experimental,
+as opposed to observational data, which is our focus. Su et al. (2012) approach CATE
+estimation with regression tree ensembles and are in that sense a forerunner of both
+Bayesian causal forests as well as Wager and Athey (2018)1 , Athey et al. (2019) and
+Powers et al. (2018). Wager and Athey (2018) is notable for providing the first inferential
+theory for CATE estimators arising from a random forests representation, based on the
+infinitesimal jackknife (Efron, 2014; Wager et al., 2014). Friedberg et al. (2018) extend
+this approach to locally linear forests. Nie and Wager (2017) and Künzel et al. (2019)
+propose stacking and meta-learning methods, respectively, similar to what TMLE does
+for the ATE, except tailored to CATE estimation. Shalit et al. (2017) develop a neural
+network-based estimator of CATEs based on a bound of the generalization error in
+an approach inspired by domain adaptation (Ganin et al., 2016). Zaidi and Mukherjee
+(2018) develop a model based on the use of Gaussian processes to directly model the
+special transformed response (as studied in Athey et al. (2019) and Powers et al. (2018)).
+    The focus of the present paper is to develop a regularization prior for nonlinear mod-
+els geared specifically towards situations with small effect sizes, heterogeneous effects,
+and strong confounding. The research above does not focus specifically on this regime,
+which is an important one in applied settings.
+   Finally there are a number of papers that compare and contrast the above methods
+on real and synthetic data: Wendling et al. (2018), McConnell and Lindner (2019), Dorie
+and Hill (2017), Dorie et al. (2019), and Hahn et al. (2018) . The results of these studies
+
+   1 Note that the Bayesian causal forest model is not the Bayesian analogue of the causal random forest
+
+method, as both the motivation and fitting process are quite different; both are tree-based methods
+for estimating CATEs, but the similarities end there. Specifically, Chipman et al. (2010) is already
+substantially different than Breiman (2001), and the ways that BCF modifies BART are simply not
+analogous to the modifications that causal random forests makes to random forests.
+
+
+
+
+                              imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+4                             Bayesian regression tree models for causal inference
+
+will be discussed in some detail later, but a general trend is that BART-based methods
+appear to be a strong default choice for heterogeneous effect modeling.
+
+
+2     Problem statement and notation
+Let Y denote a scalar response variable and Z denote a binary treatment indicator
+variable. Capital Roman letters denote random variables, while realized values appear in
+lower case, that is, y and z. Let x denote a length d vector of observed control variables.
+Throughout, we will consider an observed sample of size n independent observations
+(Yi , Zi , xi ), for i = 1, . . . n. When Y or Z (respectively, y or z) are without a subscript,
+they denote length n column vectors; likewise, X will denote the n × d matrix of control
+variables.
+    We are interested in estimating various treatment effects. In particular, we are in-
+terested in conditional average treatment effects (CATE) — the amount by which the
+response Yi would differ between hypothetical worlds in which the treatment was set
+to Zi = 1 versus Zi = 0, averaged across subpopulations defined by attributes x. This
+kind of counterfactual estimand can be formalized in the potential outcomes frame-
+work (Imbens and Rubin (2015), chapter 1) by using Yi (0) and Yi (1) to denote the
+outcomes we would have observed if treatment were set to zero or one, respectively.
+We make the stable unit treatment value assumption (SUTVA) throughout (exclud-
+ing interference between units and multiple versions of treatment (Imbens and Rubin,
+2015)). We observe the potential outcome that corresponds to the realized treatment:
+Yi = Zi Yi (1) + (1 − Zi )Yi (0).
+   Throughout the paper we will assume that strong ignorability holds, which stipulates
+that
+                              Yi (0), Yi (1) ⊥
+                                             ⊥ Zi | Xi .                          (2.1)
+and also that
+                                    0 < Pr(Zi = 1 | xi ) < 1                                (2.2)
+for all i = 1, . . . , n. The first condition assumes we have no unmeasured confounders,
+and the second condition (overlap) is necessary to estimate treatment effects everywhere
+in covariate space. Provided that these conditions hold, it follows that E(Yi (z) | xi ) =
+E(Yi | xi , Zi = z) so our estimand may be expressed as
+
+                       τ (xi ) := E(Yi | xi , Zi = 1) − E(Yi | xi , Zi = 0).                (2.3)
+
+    For simplicity, we restrict attention to mean-zero additive error representations
+
+                             Yi = f (xi , Zi ) + i ,   i ∼ N (0, σ 2 )                    (2.4)
+
+so that E(Yi | xi , Zi = zi ) = f (xi , zi ). In this context, (2.1) can be expressed equivalently
+as i ⊥
+      ⊥ Zi | xi . The treatment effect of setting zi = 1 versus zi = 0 can therefore be
+expressed as
+                                   τ (xi ) := f (xi , 1) − f (xi , 0).
+
+
+
+
+                            imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                     5
+
+    Our contribution in this paper is a careful study of prior specification for f . We
+propose new prior distributions that improve estimation of the parameter of interest,
+namely τ . Previous work (Hill, 2011) advocated using a Bayesian additive regression
+tree (BART) prior for f (xi , zi ) directly. We instead recommend expressing the response
+surface as
+                      E(Yi | xi , Zi = zi ) = µ(xi , π̂(xi )) + τ (xi )zi ,          (2.5)
+where the functions µ and τ are given independent BART priors and π̂(xi ) is an estimate
+of the propensity score π(xi ) = Pr(Zi = 1 | xi ). The following sections motivate this
+model specification and provide additional context; further modeling details are given
+in Section 5.
+
+
+3     Bayesian additive regression trees for heterogeneous
+      treatment effect estimation
+Hill (2011) observed that under strong ignorability, treatment effect estimation reduces
+to response surface estimation. That is, provided that a sufficiently rich collection of
+control variables are available (to ensure strong ignorability), treatment effect estimation
+can proceed “merely” by estimating the conditional expectations E(Y | x, Z = 1) and
+E(Y | x, Z = 0). Noting its strong performance in prediction tasks, Hill (2011) advocates
+the use of the Bayesian additive regression tree (BART) model of Chipman et al. (2010)
+for estimating these conditional expectations.
+     BART is particularly well-suited to detecting interactions and discontinuities, can
+be made invariant to monotone transformations of the covariates, and typically requires
+little parameter tuning. Chipman et al. (2010) provide extensive evidence of BART’s
+excellent predictive performance. BART has also been used successfully for applica-
+tions in causal inference, for example Green and Kern (2012), Hill et al. (2013), Kern
+et al. (2016), and Sivaganesan et al. (2017). It has subsequently been demonstrated to
+successfully infer heterogeneous and average treatment effects in multiple independent
+simulation studies (Dorie et al., 2019; Wendling et al., 2018), frequently outperforming
+competitors (and never lagging far behind).
+
+
+3.1    Specifying the BART prior
+The BART prior expresses an unknown function f (x) as a sum of many piecewise con-
+stant binary regression trees. (In this section, we suppress z in the notation; implicitly z
+may be considered as a coordinate of x.) Each tree Tl , 1 ≤ l ≤ L, consists of a set of in-
+ternal decision nodes which define a partition of the covariate space (say A1 , . . . , AB(l) ),
+as well as a set of terminal nodes or leaves corresponding to each element of the partition.
+Further, each element of the partition Ab is associated a parameter value, mlb . Taken
+together the partition and the leaf parameters define a piecewise constant function:
+gl (x) = mlb if x ∈ Ab ; see Figure 1.
+    Individual regression
+                PL        trees are then additively combined into a single regression
+forest: f (x) = l=1 gl (x). Each of the functions gl are constrained by their prior to
+
+
+
+
+                            imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+6                              Bayesian regression tree models for causal inference
+
+
+                 x1 < 0.8
+               no        yes                                         ml2
+                                                       x2                      ml1
+         ml1               x2 < 0.4                         0.4
+                         no        yes                               ml3
+
+                   ml2                   ml3                                 0.8
+                                                                       x1
+
+
+Figure 1: (Left) An example binary tree, with internal nodes labelled by their splitting
+rules and terminal nodes labelled with the corresponding parameters mlb . (Right) The
+corresponding partition of the sample space and the step function.
+
+
+be “weak learners” in the sense that the prior favors small trees and leaf parameters
+that are near zero. Each tree follows (independently) the prior described in Chipman
+et al. (1998): the probability that a node at depth h splits is given by η(1 + h)−β , η ∈
+(0, 1), β ∈ [0, ∞).
+    A variable to split on, as well as a cut-point to split at, are then selected uniformly
+at random from the available splitting rules. Large, deep trees are given extremely low
+prior probability by taking η = 0.95 and β = 2 as in Chipman et al. (2010). √      The leaf
+                                                             2
+parameters are assigned independent priors mlb ∼ N(0, σm       ) where σm = σ0 / L. The
+induced marginal prior for f (x) is centered at zero and puts approximately 95% of the
+prior mass within ±2σ0 (pointwise), and σ0 can be used to calibrate the plausible range
+of the regression function. Full details of the BART prior and its implementation are
+given by Chipman et al. (2010).
+    In our context we are concerned with the impact that the prior over f (x, z) has on
+estimating τ (x) = f (x, 1) − f (x, 0). The choice of BART as a prior over f has particular
+implications for the induced prior on τ that are difficult to understand: In particular, the
+induced prior will vary with the dimension of x and the degree of dependence with z. In
+Section 5 we propose an alternative parameterization that mitigates this problem. But
+first, the next section develops a more general framework for investigating the influence
+of prior specification and regularization on treatment effect estimates.
+
+
+4    The central role of the propensity score in regularized
+     causal modeling
+In this section we explore the joint impacts of regularization and confounding on esti-
+mation of heterogeneous treatment effects. We find that including an estimate of the
+propensity score as a covariate reduces the bias of regularized treatment effect estimates
+in finite samples. We recommend including an estimated propensity score as a covariate
+as routine practice regardless of the particular models or algorithms used to estimate
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                   7
+
+treatment effects since regularization is necessary to estimate heterogeneous treatment
+effects non- or semiparamaterically or in high dimensions. To illustrate the potential for
+biased estimation and motivate our fix, we introduce two key concepts: Regularization
+induced confounding and targeted selection.
+
+
+4.1    Regularization-induced confounding
+Since treatment effects may be deduced from the conditional expectation function
+f (xi , zi ), a likelihood perspective suggests that the conditional distribution of Y given x
+and Z is sufficient for estimating treatment effects. While this is true in terms of iden-
+tification of treatment effects, the question of estimation with finite samples is more
+nuanced. In particular, many functions in the support of the prior will yield approx-
+imately equivalent likelihood evaluations, but may imply substantially different treat-
+ment effects. This is particularly true in a strong confounding-modest treatment effect
+regime, where the conditional expectation of Y is largely determined by x rather than
+Z.
+    Accordingly, the posterior estimate of the treatment effect is apt to be substantially
+influenced by the prior distribution over f for realistic sample sizes. This issue was
+explored by Hahn et al. (2016) in the narrow context of linear regression with continuous
+treatment and homogenous treatment effect; they call this phenomenon “regularization-
+induced confounding” (RIC). In the linear regression setting an exact expression for the
+bias on the treatment effect under standard regularization priors is available in closed
+form.
+
+
+Example: RIC in the linear model
+Suppose the treatment effect is homogenous and response and treatment model are both
+linear:
+                                   Yi = τ Zi + β t xi + εi ,
+                                                                                        (4.1)
+                                   Zi = γ t xi + νi ;
+
+where the error terms are mean zero Gaussian and a multivariate Gaussian prior is
+placed over all regression coefficients. The Bayes estimator under squared error loss is
+the posterior mean, so we examine the expression for the bias of τ̂rr ≡ E(τ | Y, z, X).
+We begin from a standard expression for the bias of the ridge estimator, as given,
+for example, in Giles and Rayner (1979). Write θ = (τ, β t )t , X̃ = z X and let
+θ ∼ N(0, M−1 ). Then the bias of the Bayes estimator is
+
+                             bias(θ̂rr ) = −(M + X̃t X̃)−1 Mθ                           (4.2)
+
+where the bias expectation is taken over Y , conditional on X and all model parameters.
+                         
+                     0 0
+   Consider M =             , where Ip denotes a p-by-p identity matrix, which corre-
+                     0 Ip
+sponds to a ridge prior (with ridge parameter λ = 1 for simplicity) on the control
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+8                           Bayesian regression tree models for causal inference
+
+variables and a non-informative “flat” prior over the first element (τ , the treatment
+effect). Plugging this into the bias equation (4.2) and noting that
+                                            t                −1
+                                             zz        zt X
+                          (M + X̃t X̃)−1 =
+                                             X t z X t X + Ip
+we obtain
+                   bias(τ̂rr ) = − (zt z)−1 zt X (I + Xt (X − X̂z ))−1 β,
+                                                
+                                                                                     (4.3)
+where X̂z = z(zt z)−1 zt X. Notice that the leading term (zt z)−1 zt X is a vector of
+                                                                            
+regression coefficients from p univariate regressions predicting Xj given z. With com-
+pletely randomized treatment assignment these terms will tend to be near zero (and
+precisely zero in expectation over Z). This ensures that the ridge estimate of τ is nearly
+unbiased, despite the fact that the middle matrix is generally nonzero. However, in the
+presence of selection, some of these regression coefficients will be non-zero due to the
+correlation between Z and the covariates in X. As a result, the bias of τ̂rr will depend
+on the form of the design matrix and unknown nuisance parameters β.
+    The problem here is not simply that τ̂rr is biased — after all, the insight behind
+regularization is that some bias can actually improve our average estimation error.
+Rather, the problem is that the degree of bias is not under the analyst’s control (as
+it depends on unknown nuisance parameters). The use of a naive regularization prior
+in the presence of counfounding can unwittingly induce extreme bias in estimation of
+the target parameter, even when all the confounders are measured and the parametric
+model is correctly specified.
+    In more complicated nonparametric regression models with heterogeneous treatment
+effects a closed-form expression of the bias is not generally available; see Yang et al.
+(2015) and Chernozhukov et al. (2016) for related results in a partially linear model
+where effects are homogenous but the β t x term above is replaced by a nonlinear func-
+tion. However, note that both of these theoretical results consider asymptotic bias in
+semi- and non-parametric Bayesian and frequentist inference; our attention here to the
+simple case of the linear model shows that the phenomenon occurs in finite samples
+even in a parametric model. That said, the RIC phenomenon can be reliably recreated
+in nonlinear, semiparametric settings. The easiest way to demonstrate this is by con-
+sidering scenarios where selection into treatment is based on expected outcomes under
+no treatment, a situation we call targeted selection.
+
+
+4.2    Targeted selection
+Targeted selection refers to settings where treatment is assigned based on a prediction
+of the outcome in the absence of treatment, given measured covariates. That is, targeted
+selection asserts that treatment is being assigned, in part, based on an estimate of the
+expected potential outcome µ(x) := E(Y (0) | x) and that the probability of treatment
+is generally increasing or decreasing as a function of this estimate. We suspect this
+selection process is quite common in practice; for example, in medical contexts where
+risk factors for adverse outcomes are well-understood physicians are more likely to assign
+treatment to patients with worse expected outcomes in its absence.
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                 9
+
+
+
+
+Figure 2: For any value of x̃, the propensity score π(µ, x̃) is monotone in the prognostic
+function µ. Here, many realizations of this function are shown for different values of x̃.
+
+
+    Targeted selection implies that there is a particular functional relationship between
+the propensity score π and the expected outcomes without treatment µ. In particular,
+suppose for simplicity that there exists a change of variables x → (µ(x), x̃) that takes
+the prognostic function µ(x) to the first element of the covariate vector. Then targeted
+selection says that for every x̃, the propensity function E(Z | x) = π(µ, x̃) is (approxi-
+mately) monotone in µ; see Figure 2 for a visual depiction. If the relationship is strictly
+monotone so that π is invertible in µ for any x̃, this in turn implies that µ(x) is a
+function of π(x).
+
+Targeted selection and RIC in the linear model
+
+To help understand how targeted selection leads to RIC, it is helpful to again consider
+the linear model. There, one can describe RIC in terms of three components: the co-
+efficients defining the propensity function E(Z | x) = γx, the coefficients defining the
+prognostic function, E(Y | Z = 0, x = x), and the strength of the selection as measured
+by Var(Z | x) = Var(ν). Specifically, note the identity
+
+           E(Y | x, Z) = (τ + b)Z + (β − bγ)t x − b(Z − γ t x) = τ̂ Z + β̂ t x − ˆ,   (4.4)
+which is true for any value of the scalar parameter b, the bias of τ̂ . Intuitively, if
+neighborhoods of β̂ = (β − bγ) have higher prior probability than β and Var(ˆ          ) =
+b2 Var(ν) is small on average relative to σ 2 , then the posterior distribution for τ is apt
+to be biased toward τ̂ = τ + b.
+    The bias will be large precisely when confounding is strong and the selection is
+targeted: For non-negligible bias the term b2 Var(ν) is smallest when Var(ν) is small,
+that is, when selection (hence, confounding) is strong. For priors on β that are centered
+at zero —which is overwhelmingly the default — the (β − bγ) term can be made most
+favorable with respect to the prior when the vector β and γ have the same direction,
+which corresponds to perfectly targeted selection.
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+10                                    Bayesian regression tree models for causal inference
+
+
+
+
+Figure 3: Left panel: The propensity function, π, shown for various values of x̃. The
+“shelf” at the line x1 = x2 is a complex shape for many regression methods to represent.
+Right panel: the analogous plot for the prognostic function µ. Note the similar shapes
+due to targeted selection; the π function falls between 0 to 1, while the µ function ranges
+from −3 to 3.
+
+
+Targeted selection and RIC in nonlinear models
+
+To investigate RIC in more complex regression settings, we start with a simple 2-d
+example characterized by targeted selection:
+
+
+Example 1: d = 2, n = 250, homogeneous effects
+
+Consider the following simple data generating process:
+
+                            Yi = µ(x1 , x2 ) − τ Zi + i ,
+     E(Yi | xi1 , xi2 , Zi = 1) = µ(x1 , x2 ),
+             E(Zi | xi1 , xi2 ) = π(µ(xi1 , xi2 ), xi1 , xi2 ),
+                                                                                                 (4.5)
+                                                   µ(xi1 , xi2 )
+                                = 0.8Φ                                + 0.025(xi1 + xi2 ) + 0.05
+                                         0.1(2 − xi1 − xi2 ) + 0.25
+                               iid                   iid
+                             i ∼ N(0, 1), xi1 , xi2 ∼ Uniform(0, 1).
+
+Suppose that in (4.5) Y is a continuous biometric measure of heart distress, Z is an
+indicator for having received a heart medication, and x1 and x2 are systolic and diastolic
+blood pressure (in standardized units), respectively. Suppose that it is known that the
+difference between these two measurements is prognostic of high distress levels, with
+positive levels of x1 − x2 being a critical threshold. At the same time, suppose that pre-
+scribers are targeting the drug towards patients with high levels of diagnostic markers,
+so the probability of receiving the drug is an increasing function in µ. Figure 3 shows π
+as a function of x1 and x2 ; figure 2 shows the relationship between µ and π for various
+values of x̃ = x1 + x2 .
+
+
+
+
+                                     imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                11
+
+Table 1: The standard BART prior exhibits substantial bias in estimating the treatment
+effect, poor coverage of 95% posterior (quantile-based) credible intervals, and high root
+mean squared error (rmse). A modified BART prior (denoted BCF) allows splits in an
+estimated propensity score; it performs markedly better on all three metrics.
+                            Prior    bias coverage rmse
+                            BART 0.27            65% 0.31
+                            BCF      0.14        95% 0.21
+
+
+
+
+Figure 4: This scatterplot depicts µ(x) = E(Y | Z = 0, x) and π(x) = E(Z | x) for
+a realization from the data generating process from the above example. It shows clear
+evidence of targeted selection. Such plots, based on estimates (µ̂, π̂) can provide evidence
+of (strong) targeted selection in empirical data.
+
+
+   We simulated 200 datasets of size n = 250 according to this data generating process
+with τ = −1. With only a few covariates, low noise, and a relatively large sample size,
+we might expect most methods to perform well here. Table 1 shows that standard,
+unmodified BART exhibits high bias and root mean squared error (RMSE) as well as
+poor coverage of 95% credible intervals. Our proposed fix (detailed below) improves
+on both estimation error and coverage, primarily by including an estimate of π as a
+covariate.
+    What explains BART’s relatively poor performance on this DGP? First, strong
+confounding and targeted selection implies that µ is approximately a monotone function
+of π alone (Figure 4). However, π (and hence µ) is difficult to learn via regression trees
+— it takes many axis-aligned splits to approximate the “shelf” across the diagonal (see
+Figure 5), and the BART prior specifically penalizes this kind of complexity. At the
+same time, due to the strong confounding in this example a single split in Z can stand
+in for many splits on x1 and x2 that would be required to approximate µ(x). These
+simpler structures are favored by the BART prior, leading to RIC.
+    Before discussing how we reduce RIC, we note that this example is somewhat stylized
+in that we designed it specifically to be difficult to learn for tree-based models. Other
+models might suffer less from RIC on this particular example. However, any informa-
+tive, sparse, or nonparametric prior distribution – any method that imposes meaningful
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+12                          Bayesian regression tree models for causal inference
+
+
+
+
+                                 1.0
+                                 0.5
+                                 0.0
+                            x2
+
+                                 -0.5
+                                 -1.0
+                                        -1.0     -0.5   0.0    0.5   1.0
+
+                                                        x1
+
+
+
+
+Figure 5: Many axis-aligned splits are required to approximate a step function (or near-
+step function) along the diagonal in the outcome model, as in Fig. 3 (right panel). Since
+these two regions correspond also to disparate rates of treatment, tree-based regularized
+regression is apt to overstate the treatment effect.
+
+
+regularization – is susceptible to similar effects, as they prioritize some data-generating
+processes at the expense of others. Absent prior knowledge of the form of the treatment
+assignment and outcome models, it is impossible to know a prior whether RIC will be
+an issue. Fortunately it is straightforward to minimize the risk of bias due to RIC.
+
+
+4.3    Mitigating RIC with covariate-dependent priors
+Finally, we arrive at the role of the propensity score in a regularized regression context.
+The potential for RIC is strongest when µ(x) is exactly or approximately a function of
+π(x) and when the composition of the two has relatively low prior support. This can
+lead the model to misattribute the variability of µ, in the direction of π, to Z. A natural
+solution to this problem would be to include π(x) as a covariate, so that it is penalized
+equitably with changes in the treatment variable Z. That is, when evaluating candidate
+functions for our estimate of E(Y | x, z) we want representations involving π(x) to be
+regularized/penalized the same as representations involving z. Of course π is unknown
+and must be estimated, but this is a straightforward regression problem. Note also that
+so-called “unlabeled” data can be brought to bear here, meaning π can be estimated
+from samples of (Z, X) for which the Y value is unobserved, provided the sample is
+believed to arise from the relevant population.
+
+
+Mitigating RIC in the linear model
+
+Given an estimate of the propensity function ẑi ≈ γ t xi , we consider the over-complete
+regression that includes as regressors both z and ẑ. Our design matrix becomes
+                                                               
+                                               X̃ = z ẑ      X .
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                               13
+
+This covariate matrix is degenerate because ẑ is in the column span of X by construc-
+tion. In a regularized regression problem this degeneracy is no obstacle. Applying the
+expression for the bias from above, with a flat prior over the coefficient associated with
+ẑ, yields
+                 bias(τ̂rr ) = − (z̃t z̃)−1 z̃t X 1 (I + Xt (X − X̂z ))−1 β = 0,
+                                
+
+where z̃ = (z ẑ) and (z̃t z̃)−1 z̃t X 1 denotes the top row of (z̃t z̃)−1 z̃t X , which
+                                                                          
+corresponds to the regression coefficient associated with z in the two variable regression
+predicting Xj given z̃. Because ẑ captures the observed association between z and x, z
+is conditionally independent of x given ẑ, from which we conclude that these regression
+coefficients will be zero. See Yang et al. (2015) for a similar de-biasing strategy in a
+partially linear semiparametric context.
+
+Mitigating RIC in nonlinear models
+
+The same strategy also proves effective in the nonlinear setting — simply by including
+an estimate of the propensity score as a covariate in the BART model, the RIC effect is
+dramatically mitigated, as can be seen in the second row of Table 1. From a Bayesian
+perspective, this is simply a judicious variable transformation since our regression model
+is specified conditional on both Z and x — we are not obliged to consider uncertainty
+in our estimate of π to obtain valid posterior inference. We obtain another example of a
+covariate dependent prior, similar to Zellner’s g-prior (albeit motivated by very different
+considerations). See section 8 for additional discussion of this point. Finally, we believe
+that including an estimated propensity score will be cheap insurance against RIC when
+estimating treatment effects using outcome models under other nonparametric priors
+and using more general nonparametric/machine learning approaches.
+    To summarize, although it has long been known that the propensity score is a suffi-
+cient dimension reduction for estimation of the ATE – and that combining estimates of
+the response surface and propensity score can improve estimation of average treatment
+effects (Bang and Robins, 2005), we find that incorporating an estimate of the propen-
+sity score into estimation of the response surface can improve estimation of average
+treatment effects in finite samples. As we will demonstrate in Section 6, these benefits
+also accrue when estimating (heterogeneous) conditional average treatment effects. Esti-
+mating heterogenous effects also calls for careful consideration of regularization applied
+to the treatment effect function, which we consider in the next section.
+
+
+5    Regularization for heterogeneous treatment effects:
+     Bayesian causal forests
+In much the same way that a direct BART prior on f does not allow careful handling of
+confounding, it also does not allow separate control over the discovery of heterogeneous
+effects because there is no explicit control over how f varies in Z. Our solution to this
+problem is a simple re-parametrization that avoids the indirect specification of the prior
+over the treatment effects:
+                               f (xi , zi ) = µ(xi ) + τ (xi )zi .                    (5.1)
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+14                            Bayesian regression tree models for causal inference
+
+This model can be thought of as a linear regression in z with covariate-dependent
+functions for both the slope and the intercept. Writing the model this way sacrifices
+nothing in terms of expressiveness, but permits independent priors to be placed on τ ,
+which is precisely the treatment effect:
+
+      E(Yi | xi , Zi = 1) − E(Yi | xi , Zi = 0) = {µ(xi ) + τ (xi )} − µ(xi ) = τ (xi ).   (5.2)
+
+Under this model, µ(x) = E(Y | Z = 0, X = x) is a prognostic score in the sense of
+Hansen (2008), another interpretable quantity, to which we apply a prior distribution
+independent of τ (as detailed below). Based on the observations of the previous section,
+we further propose specifying the model as
+
+                                f (xi , zi ) = µ(xi , π̂i ) + τ (xi )zi ,                  (5.3)
+
+where π̂i is an estimate of the propensity score.
+    While we will use variants of BART priors for µ and τ (see section 5.2), this param-
+eterization has many advantages in general, regardless of the specific priors. The most
+obvious advantage is that the treatment effect is an explicit parameter of the model,
+τ (x), and as a result we can specify an appropriate prior on it directly. A similar idea
+has been proposed previously for non-tree based models in Imai et al. (2013). Before
+turning to the details of our model specification, we first contrast this parameterization
+with two common alternatives.
+
+
+5.1    Parameterizing regression models of heterogeneous effects
+There are two common modeling strategies for estimating heterogeneous effects. The
+first we discussed above: treat z as “just another covariate” and specify a prior on
+f (xi , zi ), e.g. as in Hill (2011). The second is to fit entirely separate models to the
+treatment and control data: (Y | Z = z, x) ∼ N (fz (xi ), σz2 ) with independent priors
+over the parameters in the z = 0 and z = 1 models. In this section we argue that neither
+approach is satisfactory and propose the model in (5.3) as a reasonable interpolation
+between the two. (See Künzel et al. (2019) for a related discussion comparing these two
+approaches in a non-model-based setting.)
+   It is instructive to consider (5.1) as a nonlinear regression analogue of the com-
+mon strategy of parametrizing contrasts (differences) and aggregates (sums) rather
+than group-specific location parameters. Specifically, consider a two-group difference-
+in-means problem:
+                                              iid
+                                         Yi1 ∼ N(µ1 , σ 2 )
+                                              iid
+                                                                                           (5.4)
+                                         Yj2 ∼ N(µ2 , σ 2 ).
+
+Although the above parameterization is intuitive, if the estimand of interest is µ1 − µ2 ,
+the implied prior over this quantity has variance strictly greater than the variances over
+µ1 or µ2 individually. This is plainly nonsensical if the analyst has no subject matter
+knowledge regarding the individual levels of the groups, but has strong prior knowledge
+
+
+
+
+                             imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                15
+
+that µ1 ≈ µ2 . This is common in a causal inference setting: If the data come from a
+randomized experiment where Y1 constitutes a control sample and Y2 a treated sample,
+then subject matter considerations will typically limit the plausible range of treatment
+effects µ1 − µ2 .
+   The appropriate way to incorporate that kind of knowledge is simply to reparametrize:
+                                        iid
+                                    Yi1 ∼ N(µ + τ, σ 2 )
+                                        iid
+                                                                                       (5.5)
+                                    Yj2 ∼ N(µ, σ 2 )
+
+whereupon the estimand of interest becomes τ , which can be given an informative prior
+centered at zero with an appropriate variance. Meanwhile, µ can be given a very vague
+(perhaps even improper) prior.
+    While the nonlinear modeling context is more complex, the considerations are the
+same: our goal is simultaneously to let µ(x) be flexibly learned (to adequately decon-
+found and obtain more precise inference), while appropriately regularizing τ (x), which
+we expect, a priori, to be relatively small in magnitude and “simple” (minimal hetero-
+geneity). Neither of the two more common parametrizations permit this: Independent
+estimation of f0 (x) and f1 (x) implies a highly vague prior on τ (x) = f1 (x) − f0 (x);
+i.e. a Gaussian process prior on each would imply a twice-as-variable Gaussian pro-
+cess prior on the difference, as in the simple example above. Estimation based on
+the single response surface f (x, z) often does not allow direct point-wise control of
+τ (x) = f (x, 1) − f (x, 0) at all. In particular, with a BART prior on f the induced prior
+on τ depends on incidental features such as the size and distribution of the covariate
+vector x.
+
+
+5.2    Prior specfication
+With the model parameterized as in (5.3), we can specify different BART priors on
+µ and τ . For µ we use the default suggestions in (Chipman et al., 2010) (200 trees,
+β = 2, η = 0.95), except that we place a half-Cauchy prior over the scale of the leaf
+parameters with prior median equal to twice the marginal standard deviation of Y
+(Gelman et al., 2006; Polson et al., 2012). We find that inference over τ is typically
+insensitive to reasonable deviations from these settings, so long as the prior is not so
+strong that deconfounding does not take place.
+    For τ , we prefer stronger regularization. First, we use fewer trees (50 versus 200), as
+we generally believe that patterns of treatment effect heterogeneity are relatively simple.
+Second, we set the depth penalty β = 3 and splitting probability η = 0.25 (instead of
+β = 2 and η = 0.95) to shrink more strongly toward homogenous effects (the extreme
+case where none of the trees split at all corresponds to purely homogenous effects).
+Finally, we replace the half-Cauchy prior over the scale of τ with a half Normal prior,
+pegging the prior median to the marginal standard deviation of Y . (In the absence of
+prior information about the plausible range of treatment effects we expect this to be a
+reasonable uppper bound.)
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+16                           Bayesian regression tree models for causal inference
+
+5.3    Data-adaptive coding of treatment assignment
+A less-desirable feature of the model in Eq. (5.3) is that different inferences on τ (x) can
+obtain if we code the treatment indicator as zero for treated cases and one for controls,
+or as ±1/2 for treated/control units, or any of the other myriad specifications for Zi that
+still result in τ (x) being the treatment effect. When there is a clear reference treatment
+level one might think of this as a feature, not a bug, but this is often not the case (such
+as when comparing two active treatments). Because µ and τ alias one another, as under
+targeted selection, the choice of treatment coding can be meaningfully impact posterior
+inferences, especially when the treated and control response variables have dramatically
+different marginal variances.
+    Fortunately, an invariant parameterization is possible, which treats the coding of Z
+as a variable to be estimated:
+                        yi = µ(xi ) + τ̃ (xi )bzi + i ,    i ∼ N (0, σ 2 )
+                                                                                        (5.6)
+                                   b0 ∼ N (0, 1/2),        b1 ∼ N (0, 1/2)
+
+The treatment effect function in this parameter expanded model is
+
+                                   τ (xi ) = (b1 − b0 )τ̃ (xi ).
+
+Noting that b1 − b0 ∼ N (0, 1) we still obtain a half Normal prior distribution for the
+scale of the leaf parameters in τ as in the previous subsection, and we can adjust the
+scale of the half normal prior (e.g. to fix the scale at one marginal standard deviation
+of Y as above) using a fixed scale in the leaf prior for τ̃ . Posterior inference in this
+model requires only minor adjustments to Chipman et al. (2010)’s Bayesian backfitting
+MCMC algorithm. Specifically, note that conditional on τ , µ and σ, updates for b0 and
+b1 follow from standard linear regression updates, with a two-column design matrix with
+columns (τ (xi )zi , τ (xi )(1 − zi )) (no intercept) and the “residual” yi − µ(xi ) acting as
+the response variable.
+    Our experiments below all use this parameterization, and it is the default implmen-
+tation in our software package.
+
+
+6     Empirical evaluations
+In this section, we provide a more extensive look at how BCF compares to various al-
+ternatives. In Section 6.1 we compare BCF, generalized random forests (Athey et al.,
+2019), and a linear model with all three-way interactions as plausible methods for esti-
+mating heterogeneous treatment effects with measures of uncertainty. We also consider
+three specifications of BART: the standard response surface BART that considers the
+treatment variable as “just another covariate”, one where separate BART models are
+fit to the treatment and control arms of the data, and one where an estimate of the
+propensity score is included as a predictor. In Section 6.2 we report on the results of
+two separate data analysis challenges, where the entire community was invited to sub-
+mit methods for evaluation on larger synthetic datasets with heterogeneous treatment
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                              17
+
+effects. In both simulation settings we find that BCF performs well under a wide range
+of scenarios.
+    In all cases the estimands of interest are either conditional average treatment ef-
+fects for individual i accounting for all the variables, estimated by the posterior mean
+treatment
+P              effect τ̂ (xi ), or sample subgroup average treatment effects estimated by
+   i∈S τ̂ (xi ), where S is the subgroup of interest. Credible intervals are computed from
+MCMC output.
+
+
+6.1    Simulation studies
+We evaluated three variants of BART, the causal random forest model of Athey et al.
+(2019) (using the default specification in the grf package), and a regularized linear
+regression with up to three way interactions. We consider eight distinct, but closely
+related, data generating processes, corresponding to the various combinations of toggling
+three two-level settings: homogeneous versus heterogeneous treatment effects, a linear
+versus nonlinear conditional expectation function, and two different sample sizes (n =
+250 and n = 500). Five variables comprise x; the first three are continuous, drawn as
+standard normal random variables, the fourth is a dichotomous variable and the fifth is
+unordered categorical, taking three levels (denoted 1,2,3). The treatment effect is either
+                                 
+                                    3,           homogeneous
+                         τ (x) =
+                                    1 + 2x2 x5 , heterogeneous,
+
+the prognostic function is either
+                            
+                               1 + g(x4 ) + x1 x3 ,     linear
+                    µ(x) =
+                               −6 + g(x4 ) + 6|x3 − 1|, nonlinear,
+
+where g(1) = 2, g(2) = −1 and g(3) = −4, and the propensity function is
+
+                     π(xi ) = 0.8Φ(3µ(xi )/s − 0.5x1 ) + 0.05 + ui /10
+
+where s is the standard deviation of µ taken over the observed sample and ui ∼
+Uniform(0, 1).
+    To evaluate each method we consider three criteria, applied to two different esti-
+mands. First, we consider how each method does at estimating the (sample) average
+treatment effect (ATE) according to root mean square error, coverage, and average in-
+terval length. Then, we consider the same criteria, except applied to estimates of the
+conditional average treatment effect (CATE), averaged over the sample. Results are
+based on 200 independent replications for each DGP. Results are reported in Tables
+2 (for the linear DGP) and 3 (for the nonlinear DGP). The important trends are as
+follows:
+
+   • BCF or ps-BART benefit dramatically by explicitly protecting against RIC;
+   • BART-(f0 , f1 ) and causal random forests both exhibit subpar performance;
+   • all methods improve with a larger sample;
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+18                                Bayesian regression tree models for causal inference
+
+      • BCF priors are extra helpful at smaller sample sizes, when estimation is difficult;
+      • the linear model dominates when correct, but fares extremely poorly when wrong;
+      • BCF’s improvements over ps-BART are more pronounced in the nonlinear DGP;
+      • BCF’s average interval length is notably smaller than the ps-BART interval, usu-
+        ally (but not always) with comparable coverage.
+
+
+Table 2: Simulation study results when the true DGP is a linear model with third order
+interactions. Root mean square estimation error (rmse), coverage (cover) and average
+interval length (len) are reported for both the average treatment effect (ATE) estimates
+and the conditional average treatment effect estimates (CATE).
+                                  Homogeneous effect                        Heterogeneous effects
+n      Method                   ATE                   CATE                 ATE                   CATE
+
+                         rmse   cover   len    rmse   cover   len   rmse   cover   len    rmse   cover   len
+       BCF               0.21   0.92    0.91   0.48    0.96   2.0   0.27   0.84    0.99   1.09    0.91   3.3
+       ps-BART           0.22   0.94    0.97   0.44    0.99   2.3   0.31   0.90    1.13   1.30    0.89   3.5
+250
+       BART              0.34   0.73    0.94   0.54    0.95   2.3   0.45   0.65    1.10   1.36    0.87   3.4
+       BART (f0 , f1 )   0.56   0.41    0.99   0.92    0.93   3.4   0.61   0.44    1.14   1.47    0.90   4.5
+       Causal RF         0.34   0.73    0.98   0.47    0.84   1.3   0.49   0.68    1.25   1.58    0.68   2.4
+       LM + HS           0.14   0.96    0.83   0.26    0.99   1.7   0.17   0.94    0.89   0.33    0.99   1.9
+       BCF               0.16   0.88    0.60   0.38    0.95   1.4   0.16   0.90    0.64   0.79    0.89   2.4
+       ps-BART           0.18   0.86    0.63   0.35    0.99   1.8   0.16   0.90    0.69   0.86    0.95   2.8
+500
+       BART              0.27   0.61    0.61   0.42    0.95   1.8   0.25   0.76    0.67   0.88    0.94   2.8
+       BART (f0 , f1 )   0.47   0.21    0.66   0.80    0.93   3.1   0.42   0.42    0.75   1.16    0.92   3.9
+       Causal RF         0.36   0.47    0.69   0.52    0.75   1.2   0.40   0.59    0.88   1.30    0.71   2.1
+       LM + HS           0.11   0.96    0.54   0.18    0.99   1.0   0.12   0.93    0.59   0.22    0.98   1.2
+
+
+
+Table 3: Simulation study results when the true DGP is nonlinear. Root mean square
+estimation error (rmse), coverage (cover) and average interval length (len) are reported
+for both the average treatment effect (ATE) estimates and the conditional average
+treatment effect estimates (CATE).
+                                  Homogeneous effect                        Heterogeneous effects
+n      Method                   ATE                   CATE                 ATE                   CATE
+
+                         rmse   cover   len    rmse   cover   len   rmse   cover   len    rmse   cover   len
+       BCF               0.26   0.945   1.3    0.63    0.94   2.5   0.30   0.930   1.4    1.3     0.93   4.5
+       ps-BART           0.54   0.780   1.6    1.00    0.96   4.3   0.56   0.805   1.7    1.7     0.91   5.4
+250
+       BART              0.84   0.425   1.5    1.20    0.90   4.1   0.84   0.430   1.6    1.8     0.87   5.2
+       BART (f0 , f1 )   1.48   0.035   1.5    2.42    0.80   6.4   1.44   0.085   1.6    2.6     0.83   7.1
+       Causal RF         0.81   0.425   1.5    0.84    0.70   2.0   1.10   0.305   1.8    1.8     0.66   3.4
+       LM + HS           1.77   0.015   1.8    2.13    0.54   4.4   1.65   0.085   1.9    2.2     0.62   4.8
+       BCF               0.20   0.945   0.97   0.47    0.94   1.9   0.23   0.910   0.97   1.0     0.92   3.4
+       ps-BART           0.24   0.910   1.07   0.62    0.99   3.3   0.26   0.890   1.06   1.1     0.95   4.1
+500
+       BART              0.31   0.790   1.00   0.63    0.98   3.0   0.33   0.760   1.00   1.1     0.94   3.9
+       BART (f0 , f1 )   1.11   0.035   1.18   2.11    0.81   5.8   1.09   0.065   1.17   2.3     0.82   6.2
+       Causal RF         0.39   0.650   1.00   0.54    0.87   1.7   0.59   0.515   1.18   1.5     0.73   2.8
+       LM + HS           1.76   0.005   1.34   2.19    0.40   3.5   1.71   0.000   1.34   2.2     0.45   3.7
+
+
+
+
+                                imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                              19
+
+6.2    Atlantic causal inference conference data analysis challenges
+The Atlantic Causal Inference Conference (ACIC) has featured a data analysis chal-
+lenge since 2016. Participants are given a large number of synthetic datasets and in-
+vited to submit their estimates of treatment effects along with confidence or credible
+intervals where available. Specifically, participants were asked to produce estimates and
+uncertainty intervals for the sample average treatment effect on the treated, as well as
+conditional average treatment effects for each unit. Methods were evaluated based on a
+range of criteria including estimation error and coverage of uncertainty intervals. The
+datasets and ground truths are publicly available, so while BCF was not entered into
+either the 2016 or 2017 competitions we can benchmark its performance against a suite
+of methods that we did not choose, design, or implement.
+
+
+ACIC 2016 competition
+
+The 2016 contest design, submitted methods, and results are summarized in Dorie et al.
+(2019). Based on an early draft of our manuscript Dorie et al. (2019) also evaluated a
+version of BART that included an estimate of the propensity score, which was one of
+the top methods on bias and RMSE for estimating the sample ATT. BART with the
+propensity score outperformed BART without the propensity score on bias, RMSE, and
+coverage for the SATT, and was a leading method overall.
+    Therefore, rather than include results for all 30 methods here we simply include
+BART and ps-BART as leading contenders for estimating heterogeneous treatment ef-
+fects in this setting. Using the publicly-available competition datasets (Dorie and Hill,
+2017) we implemented two additional methods: BCF and causal random forests as imple-
+mented in the R package grf (Athey et al., 2019), using 4,000 trees to obtain confidence
+intervals for conditional average treatment effects and a doubly robust estimator for the
+SATT (as suggested in the package documentation).
+    Table 4 collects the results of our methods (ps-BART and BCF) as well as BART
+and causal random forests. Causal random forests performed notably worse than BART-
+based methods on every metric. BCF performed best in terms of estimation error for
+CATE and SATT, as measured by bias and absolute bias. While the differences in the
+various metrics are relatively small compared to their standard deviation across the
+7,700 simulated datasets, nearly all the pairwise differences between BCF and the other
+methods are statistically significant as measured by a permutation test (Table 5). The
+sole exception is the test for a difference in bias between ps-BART and BCF, suggesting
+the presence of RIC in at least some of the simulated datasets. This is especially notable
+since the datasets were not intentionally simulated to include targeted selection.
+    Dorie et al. (2019) note that all submitted methods were “somewhat disappointing”
+in inference for the SATT (i.e., few methods had coverage near the nominal rate with
+reasonably sized intervals). However, ps-BART did relatively well, 88% coverage of a
+95% credible interval and one of the smallest interval lengths. ps-BART had slightly
+better coverage than BCF (88% versus 82%), with an average interval length that was
+45% larger than BCF. Vanilla BART and BCF had similar coverage rates, but BART’s
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+20                              Bayesian regression tree models for causal inference
+
+interval length was about 55% larger than BCF. Dorie et al. (2019) found that TMLE-
+based adjustments could improve the coverage of BART-based estimates of the SATT;
+we expect that similar benefits would accrue using BCF with a TMLE adjustment, but
+obtaining valid confidence intervals for SATT is not our focus so we did not pursue this
+further.
+
+Table 4: Abbreviated ACIC 2016 contest results. Coverage and average interval length
+are reported for nominal 95% uncertainty intervals. Bias and |Bias| are average bias
+and average absolute bias, respectively, over the. PEHE is the average precision in
+estimating heterogeneous treatment effects (the average root mean squared error of
+CATE estimates for each unit in a dataset) (Hill, 2011).
+                    Coverage     Int. Len.       Bias     (SD)    |Bias|     (SD)    PEHE     (SD)
+           BCF          0.82         0.026    -0.0009    (0.01)    0.008     0.010    0.33     0.18
+       ps-BART          0.88         0.038    -0.0011    (0.01)    0.010     0.011    0.34     0.16
+          BART          0.81         0.040    -0.0016    (0.02)    0.012     0.013    0.36     0.19
+      Causal RF         0.58         0.055    -0.0155    (0.04)    0.029     0.027    0.45     0.21
+
+
+Table 5: Tests and estimates for differences between BCF and other methods in the
+ACIC 2016 competition. The p-values are from bootstrapp permutation tests with
+100,000 replicates.
+                        Diff Bias         p     Diff |Bias|        p       Diff PEHE          p
+           ps-BART      -0.00020      0.146         0.0011    < 1e−4             0.010   < 1e−4
+              BART      -0.00070     < 1e−4         0.0031    < 1e−4             0.037   < 1e−4
+          Causal RF     -0.01453     < 1e−4         0.0204    < 1e−4             0.125   < 1e−4
+
+
+
+ACIC 2017 competition
+
+The ACIC 2017 competition was designed to have average treatment effects that were
+smaller, with heterogenous treatment effects that were less variable, relative to the 2016
+datasets. Arguably, the 2016 competition included many datasets with unrealistically
+large average treatment effects and similarly unrealistic degrees of heterogeneity2 . Addi-
+tionally, the 2017 competition explicitly incorporated targeted selection (unlike the 2016
+datasets). The ACIC 2017 competition design and results are summarized completely
+in Hahn et al. (2018); here we report selected results for the datasets with independent
+additive errors.
+    Figure 6.2 contains the results of the 2017 competition. The patterns here are largely
+similar to the 2016 competition, despite some stark differences in the generation of
+synthetic datasets. ps-BART and BCF have the lowest estimation error for CATE and
+SATE. The closest competitor on estimation error was a TMLE-based approach. We
+also see that ps-BART edges BCF slightly in terms of coverage once again, although
+BCF has much shorter intervals. Causal random forests does not perform well, with
+coverage for SATT and CATE far below the nominal rate.
+
+   2 Across the 2016 competition datasets, the interquartile range of the SATT was 0.57 to 0.79 in
+
+standard deviations of Y , with a median value of 0.68. The standard deviation of the conditional
+average treatment effects for the sample units had an interquartile range of 0.24 to 0.93, again in units
+
+
+
+
+                               imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                                                                                                                                                  21
+
+                          1.2
+
+
+
+
+                                                                                                      1.2
+
+
+
+
+                                                                                                                                                                  1.2
+ interval length (CATE)
+
+
+
+
+                                                                              interval length (ATT)
+
+
+
+
+                                                                                                                                                     rmse CATEs
+                          0.8
+
+
+
+
+                                                                                                      0.8
+
+
+
+
+                                                                                                                                                                  0.8
+                                                                    psB
+                                                                    ●
+
+                                                     CRF
+                                                     ●
+                          0.4
+
+
+
+
+                                                                                                      0.4
+
+
+
+
+                                                                                                                                                                  0.4
+                                                                BCF
+                                                                ●                                                                                                                        ●
+                                                                                                                                                                                             CRF
+                                                                                                                                                                               ●
+                                                                                                                                                                                   TL
+                                                                                                                    ●
+                                                                                                                                           TL ●psB
+                                                                                                                                          ●●                                  ●   psB
+                                                                                                                    CRF                    BCF                                ●
+                                                                                                                                                                                  BCF
+                          0.0
+
+
+
+
+                                                                                                      0.0
+
+
+
+
+                                                                                                                                                                  0.0
+                                0.0   0.2      0.4    0.6     0.8       1.0                                 0.0   0.2     0.4   0.6      0.8   1.0                      0.0        0.1   0.2       0.3   0.4   0.5   0.6
+
+                                            coverage (CATE)                                                             coverage (ATT)                                                        rmse ATT
+
+
+
+
+Figure 6: Each data point represents one method. ps-BART (psB, in orange) was sub-
+mitted by a group independent of the authors based on a draft of this manuscript. TL
+(purple) is a TMLE-based submission that performed will for estimating SATT, but did
+not furnish estimates of conditional average treatment effects. BCF (green) and causal
+random forests (CRF, blue) were not part of the original contest. For descriptions of
+the other methods refer to Hahn et al. (2018).
+
+
+7                               The effect of smoking on medical expenditures
+7.1                              Background and data
+As an empirical demonstration of the Bayesian causal forest model, we consider the
+question of how smoking affects medical expenditures. This question is of interest as it
+relates to lawsuits against the tobacco industry. The lack of experimental data speaking
+to this question motivates the reliance on observational data. This question has been
+studied in several previous papers; see Zeger et al. (2000) and references therein. Here,
+we follow Imai and Van Dyk (2004) in analyzing data extracted from the 1987 National
+Medical Expenditure Survey (NMES) by Johnson et al. (2003). The NMES records many
+subject-level covariates and boasts third-party-verified medical expenses. Specifically,
+our regression includes the following ten patient attributes:
+
+                          • age: age in years at the time of the survey
+                          • smoke age: age in years when the individual started smoking
+                          • gender: male or female
+                          • race: other, black or white
+                          • marriage status: married, widowed, divorced, separated, never married
+                          • education level: college graduate, some college, high school graduate, other
+                          • census region: geographic location, Northeast, Midwest, South, West
+                          • poverty status: poor, near poor, low income, middle income, high income
+                          • seat belt: does patient regularly use a seat belt when in a car
+                          • years quit: how many years since the individual quit smoking.
+
+                          The response variable is the natural logarithm of annual medical expenditures, which
+
+
+of standard deviations of Y . A significant fraction of the variability in Y was explained by heterogeneous
+treatment effects in a large number of the simulated datasets.
+
+
+
+
+                                                                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+22                          Bayesian regression tree models for causal inference
+
+makes the normality of the errors more plausible. Under this transformation, the treat-
+ment effect corresponds to a multiplicative effect on medical expenditure. Following Imai
+and Van Dyk (2004), we restrict our analysis to smokers who had non-zero medical ex-
+penditure. Our treatment variable is an indicator of heavy lifetime smoking, which we
+define to be greater than 17 pack-years, the equivalent of 17 years of pack-a-day smoking.
+See again Imai and Van Dyk (2004) for more discussion of this variable. We scrutinize
+the overlap assumption and exclude individuals younger than 28 on the grounds that
+it is improbable for someone that young to have achieved this level of exposure. After
+making these restrictions, our sample consists of n = 6, 798 individuals.
+
+
+7.2    Results
+Here, we highlight the differences that arise when analyzing this data using standard
+BART versus using BCF. First, the estimated expected responses from the two models
+have correlation of 0.98, so that the two models concur on the nonlinear prediction
+problem. This suggests that, as was intended, BCF will inherit BART’s outstanding
+predictive capabilities. By contrast, the estimated individual treatment effects are only
+correlated 0.70. The most notable differences between these CATE estimates is that the
+BCF estimates exhibit a strong trend in the age variable, as shown in Figure 7.2; the
+BCF estimates suggest that smoking has an pronounced impact on the health expendi-
+tures of younger people.
+    Despite a wider range of values in the CATE estimates (due largely to the inferred
+trend in the age variable), the ATE estimate of BCF is notably lower than that of
+BART, the posterior 95% credible intervals being translated by 0.05, (0.00, 0.20) for
+BCF vs (0.05, 0.25) for BART. The higher estimate of BART is possibly a result of RIC.
+Figure 7.2 shows a LOWESS trend between the estimated propensity and prognostic
+scores (from BCF); the monotone trend is suggestive of targeted selection (high medical
+expenses are predictive of heavy smoking) and hints at the possibility of RIC-type
+inflation of the BART ATE estimate (compare to Figures 2 and 4).
+    Although the vast majority of individual treatment effect estimates are statistically
+uncertain, as reflected in posterior 95% credible intervals that contain zero (Figure 7.2),
+the evidence for subgroup heterogeneity is relatively strong, as uncovered by the fol-
+lowing posterior exploration strategy. First, we grow a parsimonious regression tree to
+the point estimates of the individual treatment effects (using the rpart package in R);
+see the left panel of Figure 7.2. Then, based on the candidate subgroups revealed by
+the regression summary tree, we plot a posterior histogram of the difference between
+any two covariate-defined subgroups. The right panel of Figure 7.2 shows the posterior
+distribution of the difference between men younger than 46 and women over 66; vir-
+tually all of the posterior mass is above zero, suggesting that the treatment effect of
+heavy smoking is discernibly different for these two groups, with young men having a
+substantially higher estimated subgroup ATE. This approach, although somewhat in-
+formal, is a method of exploring the posterior distribution and, as such, any resulting
+summaries are still valid Bayesian inferences. Moreover, such Bayesian “fit-the-fit” pos-
+terior summarization strategies can be formalized from a decision theoretic perspective
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                             23
+
+
+
+
+Figure 7: Each gray dot depicts the estimated propensity and prognostic scores for an in-
+dividual. The solid bold line depicts a LOESS trend fit to these points; the monotonicity
+is suggestive of targeted selection. Compare to Figures 2 and 4.
+
+
+(Sivaganesan et al., 2017; Hahn and Carvalho, 2015); we do not explore this possibility
+further here.
+    From the above we conclude that how a model treats the age variable would seem to
+have an outsized impact on the way that predictive patterns are decomposed into treat-
+ment effect estimates based on this data, as age plausibly has prognostic, propensity
+and moderating roles simultaneously. Although it is difficult to trace the exact mech-
+anism by which it happens, the BART model clearly de-emphasizes the moderating
+role, whereas the BCF model is designed specifically to capture such trends. Possible
+explanations for the age heterogeneity could be a mixed additive-multiplicative effect
+combined with higher baseline expenditures for older individuals or possibly survivor
+bias (as also mentioned in Imai and Van Dyk (2004)), but further speculation is beyond
+the scope of this analysis.
+
+
+8     Discussion
+We conclude by drawing out themes relating the Bayesian causal forest model to earlier
+work and by explicitly addressing common questions we have received while presenting
+the work in conferences and seminars.
+
+
+8.1    Zellner priors for non- and semiparametric Bayesian causal
+       inference
+In Section 4 we showed that the current gold standard in nonparametric Bayesian
+regression models for causal inference (BART) is susceptible to regression induced con-
+founding as described by Hahn et al. (2016). The solution we propose is to include
+an estimate of the propensity score as a covariate in the outcome model. This induces
+a prior distribution that treats Zi and π̂i equitably, discouraging the outcome model
+from erroneously attributing the effect of confounders to the treatment variable. Here
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+24                         Bayesian regression tree models for causal inference
+
+
+
+
+Figure 8: Point estimates of individual treatment effects are shown in black. The smooth
+line depicts the estimates from BCF, which are ordered from smallest to largest. The
+unordered points represent the corresponding ITE estimates from BART. Note that the
+BART estimates seem to be higher, on average, than the BCF estimates. The upper and
+lower gray dots correspond to the posterior 95% credible interval end points associated
+with the BCF estimates; most ITE intervals contain zero, especially those with smaller
+(even negative) point estimates.
+
+
+
+
+Figure 9: Each point depicts the estimated treatment effect for an individual. The BCF
+model (left panel) detects pronounced heterogeneity moderated by the age variable,
+whereas BART (right panel) does not.
+
+
+
+
+                         imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                                     25
+
+
+
+
+Figure 10: Left panel: a summarizing regression tree fit to posterior point estimates of
+individual treatment effects. The top number in each box is the average subgroup treat-
+ment effect in that partition of the population, the lower number shows the percentage
+of the total sample constituting that subgroup. Age and gender are flagged as important
+moderating variables. Right panel: based on the tree in the left panel, we consider the
+difference in treatment effects between men younger than 46 and women older than 66;
+a posterior histogram of this difference shows that nearly all of the posterior mass is
+above zero, indicating that these two subgroups are discernibly different, with young
+men having substantially higher subgroup average treatment effect.
+
+
+we justify and collect arguments in favor of this approach. We discuss an argument
+against, namely that it does not incorporate uncertainty in the propensity score, in a
+later subsection.
+   Conditioning on an estimate of the propensity score is readily justified: Because
+our regression model is conditional on Z and X, it is perfectly legitimate to condition
+our prior on them as well. This approach is widely used in linear regression, the most
+common example being Zellner’s g-prior (Zellner, 1986) which parametrizes the prior
+covariance of a vector of regression coefficients in terms of a plug-in estimate of the
+predictor variables’ covariance matrix. Nodding to this heritage, we propose to call
+general predictor-dependent priors “Zellner priors”.
+    In the Bayesian causal forest model, we specify a prior over f by applying an in-
+dependent BART prior that includes π̂(xi ) as one of its splitting dimensions. That is,
+because π̂(xi ) is a fixed function of xi , f is still a function f : (X , Z) 7→ R; the inclusion
+of π̂(xi ) among the splitting dimensions does not materially change the support of the
+prior, but it does alter which functions are deemed more likely. Therefore, although
+writing f (xi , zi , π̂(xi )) is suggestive of how the prior is implemented in practice, we
+prefer notation such as
+                                                        iid
+                             Yi = f (xi , zi ) + i , i ∼ N(0, σ 2 ),
+                                                                                           (8.1)
+                              f ∼ BART(X, Z, π̂),
+
+where π̂ is itself a function of (X, Z). Viewing BART as a prior in this way highlights the
+
+
+
+
+                            imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+26                          Bayesian regression tree models for causal inference
+
+fact that various transformations of the data could be computed beforehand, prior to
+fitting the data with the default BART priors; the choice of transformations will control
+the nature of the regularization that is imposed. In conventional predictive modeling
+there is often no particular knowledge of which transformations of the covariates might
+be helpful. However, in the treatment effect context the propensity score is a natural
+and, in fact, critical choice.
+    Finally, some have argued that a committed subjective Bayesian is specifically en-
+joined from encoding prior dependence on the propensity score in the outcome model
+based on philosophical considerations (Robins and Ritov, 1997). We disagree; to the
+extent that phenomena like targeted selection are plausible, variation in treatment as-
+signment is informative about variation in outcomes under control, and it would be
+inadvisable for a Bayesian – committed subjective or otherwise – to ignore it.
+
+
+8.2    Why not use only the propensity score? vs. Why use the
+       propensity score at all?
+It has long been recognized that regression on the propensity score is a useful dimen-
+sion reduction tactic (Rosenbaum and Rubin, 1983). For the purpose of estimating
+average treatment effects, a regression model on the one-dimensional propensity score
+is sufficient for the task, allowing one to side-step estimating high dimensional nuisance
+parameters. In our notation, if π is assumed known, then one need only infer f (π). That
+said, there are several reasons one should include the control vector xi in its entirety
+(in addition to the propensity score).
+    The first reason is pragmatic: If one wants to identify heterogeneous effects, one needs
+to include any potential effect moderating variables anyway, precluding any dimension
+reduction at the outset.
+    Second, if we are to take a conditionally-iid Bayesian regression approach to inference
+and we do not in fact believe the response to depend on X strictly through the propensity
+score, we simply must include the covariates themselves and model the conditional
+distribution p(Y | Z, X) (otherwise the error distribution is highly dependent, integrated
+across X). The justification for making inference about average treatment effects using
+regression or stratification on the propensity score alone is entirely frequentist; this
+approach is not without its merits, and we do not intend to argue frequency calibration
+is not desirable, but a fully Bayesian approach has its own appeal.
+    Third, if our propensity score model is inadequate (misspecified or otherwise poorly
+estimated), including the full predictor vector allows for the possibility that the response
+surface model remains correctly specified.
+    The converse question, Why bother with the propensity score if one is doing a high
+dimensional regression anyway?, has been answered in the main body of this paper.
+Incorporating the propensity score (or another balancing score) yields a prior that can
+more readily adapt to complex patterns of confounding. In fact, in the context of re-
+sponse surface modeling for causal effects, failing to include an estimate of the propen-
+sity score (or another balancing score) can lead to additional bias in treatment effect
+
+
+
+
+                           imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                             27
+
+estimates, as shown by the simple, low-dimensional example in Section 4.
+
+
+8.3    Why not joint response-treatment modeling and what about
+       uncertainty in the propensity score?
+Using a presumptive model for Z to obtain π̂ invites the suggestion of fitting a joint
+model for (Y, Z). Indeed, this is the approach taken in Hahn et al. (2016) as well as
+earlier papers, including Rosenbaum and Rubin (1983), Robins et al. (1992), McCandless
+et al. (2009), Wang et al. (2012), and Zigler and Dominici (2014). While this approach
+is certainly reasonable, the Zellner prior approach would seem to afford all the same
+benefits while avoiding the distorted inferences that would result from a joint model if
+the propensity score model is misspecified (Zigler and Dominici, 2014).
+    One might argue that our Zellner prior approach gives under-dispersed posterior
+inference in the sense that it fails to account for the fact that π̂ is simply a point
+estimate (and perhaps a bad one). However, this objection is somewhat misguided. First,
+as discussed elsewhere (e.g. Hill (2011)), inference on individual or subgroup treatment
+effects follows directly from the conditional distribution (Y | Z, X). To continue our
+analogy with the more familiar Zellner g-prior, to model (Y | Z, X) we are no more
+obligated to consider uncertainty in π̂ than we are to consider uncertainty in (X0 X)−1
+when using a g-prior for on the coefficients of a linear model. Second, π̂ appears in
+the model along with the full predictor vector x: it is provided as a hint, not as a
+certainty. This model is at least as capable of estimating a complex response surface
+as the corresponding model without π̂, and the cost incurred by the addition of a one
+additional “covariate” can be more than offset by the bias reduction in the estimation
+of treatment effects.
+    On the other hand, we readily acknowledge that one might be interested in what
+inferences would obtain if we used different π̂ estimates. One might consider fitting a
+series of BCF models with different estimates of π̂, perhaps from alternative models
+or other procedures. This is a natural form of sensitivity analysis in light of the fact
+that the adjustments proposed in this paper only work if π̂ accurately approximates
+π. However, it is worth noting that the available (z, x) data speak to this question:
+a host of empirically proven prediction methods (i.e. neural networks, support vector
+machines, random forests, boosting, or any ensemble method) can be used to construct
+candidate π̂ and cross-validation may be used to gauge their accuracy. Only if a “tie” in
+generalization error (predicting Z) is encountered must one turn to sensitivity analysis.
+
+
+8.4    Connections to doubly robust estimation
+Our combination of propensity score estimation and outcome modeling is superficially
+reminiscent of doubly robust estimation (Bang and Robins, 2005), where propensity
+score and outcome regression models are combined to yield consistent estimates of
+finite dimensional treatment effects, provided at least one model is correctly specified.
+We do not claim our approach is doubly robust, however, and in all of our examples
+above we use the natural Bayesian estimates of (conditional) average treatment effects
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+28                          Bayesian regression tree models for causal inference
+
+rather than doubly robust versions. Empirically these seem to have good frequency
+properties. The motivation behind our approach (the parameterization and including an
+estimate of the propensity score) is in fact quite different than that behind doubly robust
+estimation, as we are not focused on consistency under partial misspecification, nor
+obtaining parametric rates of convergence for the ATE/ATT, but rather on regularizing
+in a way that avoids RIC. To our knowledge, none of the literature on doubly robust
+estimators explicitly considers bias-variance trade-off ideas in this way.
+    Although it was not our focus here we do expect that BCF would perform well in
+the context of doubly robust estimation. For example, a TMLE-based approach using
+SuperLearner with BART as a component of the ensemble was a top performer in
+the 2017 ACIC contest. BCF and ps-BART generally improve on vanilla BART, and
+should be useful in that context. As another example, Nie and Wager (2017) showed
+that using ps-BART (motivated by an early draft of this paper) as a component of a
+stacked estimator of heterogeneous treatment effects fitted using the R−learner yielded
+improved performance over the individual heterogeneous treatment effect estimators.
+We hope that researchers will continue to see the promise of BCF and related methods
+as components of estimators derived from frequentist considerations.
+
+
+8.5    The role of theory versus simulations in methodological
+       comparisons.
+Recent theory on posterior consistency and rates of posterior concentration for Bayesian
+tree models in prediction contexts (Linero and Yang, 2018; Rocková and van der Pas,
+2017; Rocková and Saha, 2019) should apply to the BCF parametrization with some
+adaptation. However, the existing results require significant modifications to the BART
+prior that may make them unreliable guides to practical performance. Likewise, recent
+results demonstrate the consistency of recursive approximations to single-tree Bayesian
+regression models (He, 2019) in the setting of generalized additive models and these
+results are possibly applicable to BCF type parametrizations.
+   Despite only nascent theory — and none speaking to frequentist coverage of Bayesian
+credible intervals — BCF should be of interest to anyone seeking reliable estimates of
+heterogeneous treatment effects, for two reasons. The first is that many of the exist-
+ing approaches to fusing machine learning and causal inference make use of first-stage
+regression estimates for which no dedicated theory is strictly necessary, for instance
+Künzel et al. (2019) and Nie and Wager (2017). In this context, BCF can be regarded
+as another supervised learning algorithm, alongside neural networks, support vector
+machines, random ,forests, etc. and would be of special interest insofar as it obtains
+better first-stage estimates than these other methods.
+    The second, and more important reason, that BCF is an important development is
+its performance in simulation studies by us and others. Unlike many simulation studies,
+designed with the goal of showcasing a method’s strengths, our simulation studies were
+designed prior to the model’s development, with an eye towards realism. Specifically,
+our simulation protocol was created specifically to correct perceived weaknesses in pre-
+vious synthetic data sets in the causal machine learning literature: no or very weak
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                               29
+
+confounding, implausibly large treatment effects, and unrealistically large variation in
+treatment effects (including sign variation). By contrast, our data generating processes
+reflect our assumptions about real data for which heterogeneous treatment effects are
+commonly sought: strong confounding, and modest treatment effects and treatment ef-
+fect heterogeneity (relative to the magnitude of unmeasured sources of variation). It
+was these considerations that led us to the concept of targeted selection (Section 4.2),
+for example.
+    By utilizing realistic, rather than convenient or favorable, data generating processes,
+our simulations are a principled approach to assessing the finite sample operating char-
+acteristics of various methods. Not only did this process reassure us that BCF has good
+frequentist properties in the regimes we examined, but it also alerted us to what cold
+comfort asymptotic theory can be in actual finite samples, as methods with available
+theory did not perform as well as the theory would suggest. Finally, we would also note
+that other carefully designed simulation studies reach similar conclusions (e.g. ACIC
+2016, described above, and Wendling et al. (2018); McConnell and Lindner (2019)).
+
+
+References
+Athey, S., Tibshirani, J., Wager, S., et al. (2019). “Generalized random forests.” The
+  Annals of Statistics, 47(2): 1148–1178. 3, 16, 17, 19
+Bang, H. and Robins, J. M. (2005). “Doubly robust estimation in missing data and
+  causal inference models.” Biometrics, 61(4): 962–973. 13, 27
+Breiman, L. (2001). “Random forests.” Machine learning, 45(1): 5–32. 3
+Chernozhukov, V., Chetverikov, D., Demirer, M., Duflo, E., Hansen, C., et al. (2016).
+  “Double machine learning for treatment and causal parameters.” arXiv preprint
+  arXiv:1608.00060 . 3, 8
+Chipman, H., George, E., and McCulloch, R. (1998). “Bayesian CART model search.”
+  Journal of the American Statistical Association, 93(443): 935–948. 6
+Chipman, H. A., George, E. I., and McCulloch, R. E. (2010). “BART: Bayesian additive
+  regression trees.” The Annals of Applied Statistics, 266–298. 3, 5, 6, 15, 16
+Dorie, V. and Hill, J. (2017). aciccomp2016: Atlantic Causal Inference Conference
+ Competition 2016 Simulation. R package version 0.1-0. 3, 19
+Dorie, V., Hill, J., Shalit, U., Scott, M., Cervone, D., et al. (2019). “Automated ver-
+ sus do-it-yourself methods for causal inference: Lessons learned from a data analysis
+ competition.” Statistical Science, 34(1): 43–68. 3, 5, 19, 20
+Efron, B. (2014). “Estimation and accuracy after model selection.” Journal of the
+  American Statistical Association, 109(507): 991–1007. 3
+Friedberg, R., Tibshirani, J., Athey, S., and Wager, S. (2018). “Local linear forests.”
+  arXiv preprint arXiv:1807.11408 . 3
+Ganin, Y., Ustinova, E., Ajakan, H., Germain, P., Larochelle, H., Laviolette, F., Marc-
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+30                         Bayesian regression tree models for causal inference
+
+     hand, M., and Lempitsky, V. (2016). “Domain-adversarial training of neural net-
+     works.” The Journal of Machine Learning Research, 17(1): 2096–2030. 3
+Gelman, A. et al. (2006). “Prior distributions for variance parameters in hierarchical
+ models (comment on article by Browne and Draper).” Bayesian Analysis, 1(3): 515–
+ 534. 15
+Giles, D. and Rayner, A. (1979). “The mean squared errors of the maximum likelihood
+  and natural-conjugate Bayes regression estimators.” Journal of Econometrics, 11(2):
+  319–334. 7
+Gramacy, R. B. and Lee, H. K. (2008). “Bayesian treed Gaussian process models with an
+  application to computer modeling.” Journal of the American Statistical Association,
+  103(483). 3
+Green, D. P. and Kern, H. L. (2012). “Modeling heterogeneous treatment effects in
+  survey experiments with Bayesian additive regression trees.” Public opinion quarterly,
+  nfs036. 5
+Gustafson, P. and Greenland, S. (2006). “Curious phenomena in Bayesian adjustment
+ for exposure misclassification.” Statistics in Medicine, 25(1): 87–103. 3
+Hahn, P. R. and Carvalho, C. M. (2015). “Decoupling shrinkage and selection in
+  Bayesian linear models: a posterior summary perspective.” Journal of the Ameri-
+  can Statistical Association, 110(509): 435–448. 23
+Hahn, P. R., Dorie, V., and Murray, J. S. (2018). Atlantic Causal Inference Conference
+  (ACIC) Data Analysis Challenge 2017 . 3, 20, 21
+Hahn, P. R., Puelz, D., He, J., and Carvalho, C. M. (2016). “Regularization and con-
+  founding in linear regression for treatment effect estimation.” Bayesian Analysis. 1,
+  2, 3, 7, 23, 27
+Hansen, B. B. (2008). “The prognostic analogue of the propensity score.” Biometrika,
+  95(2): 481–488. 14
+He, J. (2019). “Stochastic tree ensembles for regularized supervised learning.” Technical
+  report, University of Chicago Booth School of Business. 28
+Heckman, J. J., Lopes, H. F., and Piatek, R. (2014). “Treatment effects: A Bayesian
+  perspective.” Econometric reviews, 33(1-4): 36–67. 3
+Hill, J., Su, Y.-S., et al. (2013). “Assessing lack of common support in causal inference
+  using Bayesian nonparametrics: Implications for evaluating the effect of breastfeeding
+  on children’s cognitive outcomes.” The Annals of Applied Statistics, 7(3): 1386–1420.
+  5
+Hill, J. L. (2011). “Bayesian nonparametric modeling for causal inference.” Journal of
+  Computational and Graphical Statistics, 20(1). 2, 3, 5, 14, 20, 27
+Imai, K., Ratkovic, M., et al. (2013). “Estimating treatment effect heterogeneity in
+  randomized program evaluation.” The Annals of Applied Statistics, 7(1): 443–470.
+  14
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                             31
+
+Imai, K. and Van Dyk, D. A. (2004). “Causal inference with general treatment regimes:
+  Generalizing the propensity score.” Journal of the American Statistical Association,
+  99(467): 854–866. 21, 22, 23
+Imbens, G. W. and Rubin, D. B. (2015). Causal Inference in Statistics, Social, and
+  Biomedical Sciences. Cambridge University Press. 4
+Johnson, E., Dominici, F., Griswold, M., and Zeger, S. L. (2003). “Disease cases and
+  their medical costs attributable to smoking: an analysis of the national medical ex-
+  penditure survey.” Journal of Econometrics, 112(1): 135–151. 21
+Kern, H. L., Stuart, E. A., Hill, J., and Green, D. P. (2016). “Assessing methods
+  for generalizing experimental impact estimates to target populations.” Journal of
+  Research on Educational Effectiveness, 9(1): 103–127. 5
+Künzel, S. R., Sekhon, J. S., Bickel, P. J., and Yu, B. (2019). “Metalearners for esti-
+  mating heterogeneous treatment effects using machine learning.” Proceedings of the
+  National Academy of Sciences, 116(10): 4156–4165. 3, 14, 28
+Li, M. and Tobias, J. L. (2014). “Bayesian analysis of treatment effect models.” In Jeli-
+  azkov, I. and Yang, X.-S. (eds.), Bayesian Inference in the Social Sciences, chapter 3,
+  63–90. Wiley. 3
+Linero, A. R. and Yang, Y. (2018). “Bayesian regression tree ensembles that adapt to
+  smoothness and sparsity.” Journal of the Royal Statistical Society: Series B (Statis-
+  tical Methodology), 80(5): 1087–1110. 28
+McCaffrey, D. F., Griffin, B. A., Almirall, D., Slaughter, M. E., Ramchand, R., and
+ Burgette, L. F. (2013). “A tutorial on propensity score estimation for multiple treat-
+ ments using generalized boosted models.” Statistics in Medicine, 32(19): 3388–3414.
+ 3
+McCaffrey, D. F., Ridgeway, G., and Morral, A. R. (2004). “Propensity score estima-
+ tion with boosted regression for evaluating causal effects in observational studies.”
+ Psychological Methods, 9(4): 403. 3
+McCandless, L. C., Gustafson, P., and Austin, P. C. (2009). “Bayesian propensity score
+ analysis for observational data.” Statistics in Medicine, 28(1): 94–112. 27
+McConnell, K. J. and Lindner, S. (2019). “Estimating treatment effects with machine
+ learning.” Health services research. 3, 29
+Murray, J. S. (2017). “Log-Linear Bayesian Additive Regression Trees for Categorical
+ and Count Responses.” arXiv preprint arXiv:1701.01503 . 3
+Nie, X. and Wager, S. (2017). “Quasi-oracle estimation of heterogeneous treatment
+  effects.” arXiv preprint arXiv:1712.04912 . 3, 28
+Polson, N. G., Scott, J. G., et al. (2012). “On the half-Cauchy prior for a global scale
+  parameter.” Bayesian Analysis, 7(4): 887–902. 15
+Powers, S., Qian, J., Jung, K., Schuler, A., Shah, N. H., Hastie, T., and Tibshirani,
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+32                         Bayesian regression tree models for causal inference
+
+     R. (2018). “Some methods for heterogeneous treatment effect estimation in high
+     dimensions.” Statistics in medicine, 37(11): 1767–1787. 3
+Robins, J. M., Mark, S. D., and Newey, W. K. (1992). “Estimating exposure effects
+  by modelling the expectation of exposure conditional on confounders.” Biometrics,
+  479–495. 27
+Robins, J. M. and Ritov, Y. (1997). “Toward a curse of dimensionality appropriate
+  (CODA) asymptotic theory for semi-parametric models.” Statistics in medicine,
+  16(3): 285–319. 26
+Rocková, V. and Saha, E. (2019). “On Theory for BART.” In The 22nd International
+ Conference on Artificial Intelligence and Statistics, 2839–2848. 28
+Rocková, V. and van der Pas, S. (2017). “Posterior concentration for Bayesian regression
+ trees and forests.” Annals of Statistics (In Revision), 1–40. 28
+Rosenbaum, P. R. and Rubin, D. B. (1983). “The central role of the propensity score
+  in observational studies for causal effects.” Biometrika, 41–55. 26, 27
+Roy, J., Lum, K. J., Zeldow, B., Dworkin, J. D., Re III, V. L., and Daniels, M. J.
+  (2017). “Bayesian nonparametric generative models for causal inference with missing
+  at random covariates.” Biometrics. 3
+Shalit, U., Johansson, F. D., and Sontag, D. (2017). “Estimating individual treatment
+  effect: generalization bounds and algorithms.” In Proceedings of the 34th International
+  Conference on Machine Learning-Volume 70 , 3076–3085. JMLR. org. 3
+Sivaganesan, S., Müller, P., and Huang, B. (2017). “Subgroup finding via Bayesian
+  additive regression trees.” Statistics in Medicine. 5, 23
+Su, X., Kang, J., Fan, J., Levine, R. A., and Yan, X. (2012). “Facilitating score and
+  causal inference trees for large observational studies.” Journal of Machine Learning
+  Research, 13(Oct): 2955–2994. 3
+Taddy, M., Gardner, M., Chen, L., and Draper, D. (2016). “A Nonparametric Bayesian
+  Analysis of Heterogenous Treatment Effects in Digital Experimentation.” Journal of
+  Business & Economic Statistics, 34(4): 661–672. 3
+van der Laan, M. J. (2010a). “Targeted maximum likelihood based causal inference:
+  Part I.” The International Journal of Biostatistics, 6(2). 3
+— (2010b). “Targeted maximum likelihood based causal inference: Part II.” The In-
+ ternational Journal of Biostatistics, 6(2). 3
+Wager, S. and Athey, S. (2018). “Estimation and inference of heterogeneous treat-
+ ment effects using random forests.” Journal of the American Statistical Association,
+ 113(523): 1228–1242. 3
+Wager, S., Hastie, T., and Efron, B. (2014). “Confidence intervals for random forests:
+ The jackknife and the infinitesimal jackknife.” The Journal of Machine Learning
+ Research, 15(1): 1625–1651. 3
+
+
+
+
+                          imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+Hahn, Murray and Carvalho                                                            33
+
+Wang, C., Parmigiani, G., and Dominici, F. (2012). “Bayesian effect estimation ac-
+ counting for adjustment uncertainty.” Biometrics, 68(3): 661–671. 27
+Wendling, T., Jung, K., Callahan, A., Schuler, A., Shah, N., and Gallego, B. (2018).
+ “Comparing methods for estimation of heterogeneous treatment effects using obser-
+ vational data from health care databases.” Statistics in medicine, 37(23): 3309–3324.
+ 3, 5, 29
+Yang, Y., Cheng, G., and Dunson, D. B. (2015). “Semiparametric Bernstein-von Mises
+  Theorem: Second Order Studies.” arXiv preprint arXiv:1503.04493 . 8, 13
+Zaidi, A. and Mukherjee, S. (2018). “Gaussian Process Mixtures for Estimating Het-
+  erogeneous Treatment Effects.” arXiv preprint arXiv:1812.07153 . 3
+Zeger, S. L., Wyant, T., Miller, L. S., and Samet, J. (2000). “Statistical testimony on
+  damages in Minnesota v. Tobacco Industry.” In Statistical Science in the Courtroom,
+  303–320. Springer. 21
+Zellner, A. (1986). “On assessing prior distributions and Bayesian regression analysis
+  with g-prior distributions.” Bayesian inference and decision techniques: Essays in
+  Honor of Bruno De Finetti , 6: 233–243. 25
+Zigler, C. M. and Dominici, F. (2014). “Uncertainty in propensity score estimation:
+  Bayesian methods for variable selection and model-averaged causal effects.” Journal
+  of the American Statistical Association, 109(505): 95–107. 3, 27
+
+
+
+
+                         imsart-ba ver. 2014/10/16 file: BCF.tex date: November 14, 2019
+
