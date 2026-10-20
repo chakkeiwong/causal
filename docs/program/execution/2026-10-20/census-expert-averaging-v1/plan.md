@@ -1,0 +1,7 @@
+# Dynamic expert-guided averaging: source review and proposal implications
+
+Continue census candidate149, Dynamic Expert-Guided Model Averaging for Causal Discovery, via its recorded arXiv2601.16715 lead. Acquire genuine original and identity history through the fixed collector, select a pre-7October2026 version, and inspect the graph, averaging, expert/LLM information and uncertainty arguments. Check whether advice is used once or repeatedly, whether weights are evidence-based or heuristic, what graph classes and output types are supported, and what baseline and adverse results actually show.
+
+Review the proposed use in banking diagram construction and preserve any incompatibility between averaged structures, valid DAGs, posterior probabilities and intervention identification. Reproduce any new authored example independently with exact arithmetic. Native code, expert truth, independent calibration and bank qualification remain separate. Preserve the prior census and all other candidate records; integrate only supported findings into a successor of the current reader and sponsor. Continue other eligible work if an acquisition fails.
+
+Plan review: accepted for bounded original-source investigation. Main risks are assuming expert accuracy, treating graph weights as calibrated probabilities, losing cycles or uncertainty during graph aggregation, and transferring benchmark gains to banking without assumptions. Examine each against primary text before deciding what can be cited. No empirical or software capability is accepted by publishing this plan.

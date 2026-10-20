@@ -1,0 +1,9 @@
+# Python effect and heterogeneity coverage, 20 October 2026
+
+Reconcile the inherited cell's EconML, DoubleML and CausalML candidates plus its later Delicatessen and statsmodels inspections. Preserve exact pinned identities, observed distribution provenance and distinct runtime evidence. Do not relabel an R implementation as Python or a generic causal-learning name as a qualified engine. Preserve the saved cutoff search: its first page contains ten of23 metadata hits, not an exhaustive package survey or inspected scholarly literature.
+
+Trace the remaining statsmodels effect paths: all/treated/untreated populations, probability clipping, separate or weighted outcome fits, grouped observation ordering, joint GMM moments and final covariance settings. Derive exact authored examples separating ATE/ATT/ATU, clipping bias under a deliberately wrong outcome model, and scalar versus per-column moment centering. Do not run downloaded package code or infer calibration from algebra.
+
+Compare the five concrete candidates on target, nuisance fitting, folds, weighting, uncertainty, population keys, dependencies/rights and route to reuse. Treat DoWhy, zEpid, causallib and CausalPy as distinct complementary leads with bounded coverage; inspect available authentic entries and retain missing sources in an omissions register. Search cannot close unread sources. Complete the cell as inconclusive if breadth or essential provenance remains incomplete.
+
+Integrate the new connected target/clipping/covariance argument into preserving reader and sponsor successors, not just process records. Preserve every inherited citation context and give no duplicate depth credit for previous candidate reviews. Rebuild, verify exact source/math/economics and retain pending visual acceptance. Refresh the executable master with exact next work and continue independently eligible operations.
