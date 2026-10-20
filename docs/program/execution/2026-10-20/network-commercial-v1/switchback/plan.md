@@ -1,0 +1,9 @@
+# Commercial network and interference comparison
+
+Continue the controller-selected networks/interference cell, then its vendor comparison, without treating the cell boundary as a stop. The inherited commercial search failed and identified no candidates; do not turn this into a market absence claim.
+
+Review primary technical documentation for spatial outcome/treatment multipliers, supplied probabilistic networks and experimental interference. Start with Stata spatial regression and postestimation, SAS spatial regression, and ArcGIS spatial autoregression, then resolve additional commercial leads using acquired official links and preserved earlier vendor sources. Record exact product/version limits, graph or weight construction, exogeneity and feedback assumptions, uncertainty, deployment rights and unobserved prices.
+
+The public-data prototype must distinguish spatial association, an assumed structural intervention and a randomized exposure estimand. Develop exact small-network references for direct versus propagated effects, normalization, missing edges and assignment support. The proposal comparison may finish inconclusive for unmatched editions or unavailable originals; the next acquisition routes must be explicit and no source failure can establish absence. Integrate substantive findings into the reader and sponsor after review.
+
+Plan review: fixed official reads preserve original bytes and failures, with bounded time/size. Existing approved public collector has no vendor hosts; a separate fixed URL acquisition helper is used as in the earlier commercial reviews, without changing its allowlist or permission rules. No vendor contact, purchase, native package or sibling edit is authorized by this review. Historical cutoff-byte identity remains separate from post-cutoff acquisition.

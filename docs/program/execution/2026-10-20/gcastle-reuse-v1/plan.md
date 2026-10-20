@@ -1,0 +1,7 @@
+# gCastle bounded reuse decision
+
+Inspect the preserved May29 2026 gcastle revision and authenticate selected code against its Git tree. Resolve the package/import aliases, version declaration, dependencies, original terms and maintenance limits. Trace the PC partially directed output and constraints, and linear NOTEARS matrix direction, threshold, acyclicity function, optimization termination and missing input guards. Inspect supporting Tensor, CI, prior, validator and upstream test definitions without executing downloaded code.
+
+Compare conditional original-engine integration, narrow comparator use and porting; choose a bounded proposal disposition. Develop exact authored tests of graph conversion, threshold and tolerance so later native qualification has explicit targets. Preserve all missing environment/rights/coverage claims. Integrate the substantive rationale into the current reader and sponsor, renew exact-reader reviews, refresh master and commit. This is a proposal decision; no native admission, general calibration or bank acceptance is authorized by a source audit.
+
+Plan review: focus on method-specific semantics, CPDAG versus DAG output, base-array mutation, tolerance versus actual topology, declared version versus distribution identity, and selected static routines versus event-sequence/GPU families. Existing source comparisons remain preserved. No extra page-depth credit follows from duplicating them.
