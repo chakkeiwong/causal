@@ -1,0 +1,76 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# gsynth
+
+<!-- badges: start -->
+
+[![Lifecycle:
+stable](https://img.shields.io/badge/lifecycle-stable-green.svg)](https://www.tidyverse.org/lifecycle/#stablel)
+[![License:
+MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- badges: end -->
+
+**gsynth** implements the [generalized synthetic control
+method](https://doi-org.stanford.idm.oclc.org/10.1017/pan.2016.2), which
+imputes counterfactuals for each treated unit using control group
+information based on a linear interactive fixed effects model.
+
+**Authors:** [Yiqing Xu](https://yiqingxu.org/) (Stanford), [Licheng
+Liu](https://liulch.github.io/) (UMich), Ziyi Liu (Berkeley), Shiyun Hu
+(PKU)
+
+**Date:** Dec 7, 2025
+
+**Repos:** [Github](https://github.com/xuyiqing/gsynth) (1.3.1)
+[CRAN](https://cran.r-project.org/web/packages/gsynth/index.html)
+(1.3.1)
+
+**Example:** R code used in the
+[tutorial](https://yiqingxu.org/packages/gsynth/articles/tutorial.html)
+can be downloaded from
+[here](https://yiqingxu.org/packages/gsynth/gsynth_examples.R).
+
+------------------------------------------------------------------------
+
+## Installation
+
+You can install **gsynth** directly from CRAN by typing the following
+command in the **R** console:
+
+``` r
+install.packages('gsynth')
+```
+
+You can also install the development version of the package from Github
+by typing:
+
+``` r
+install.packages('devtools', repos = 'http://cran.us.r-project.org') # if not already installed
+devtools::install_github('xuyiqing/gsynth')
+```
+
+**gsynth** depends on the following packages, which will be installed
+automatically when **gsynth** is being installed; you can also install
+them manually:
+
+``` r
+packages <- c("ggplot2", "panelViews", "fect")
+
+# install packages if not already installed
+install_all <- function(packages) {
+  installed_pkgs <- installed.packages()[, "Package"]
+  for (pkg in packages) {
+    if (!pkg %in% installed_pkgs) {
+      install.packages(pkg)
+    }
+  }
+}
+install_all(packages)
+```
+
+## Report bugs
+
+**gsynth** is now a wrapper of **fect**. Please check [fect User
+Manual](https://yiqingxu.org/packages/fect/) for updates. We maintain
+**gsynth** solely for backward compatibility.

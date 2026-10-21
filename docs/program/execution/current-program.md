@@ -1,6 +1,6 @@
 # Current executable proposal program
 
-Updated 21 October 2026 after the other-language effects review. This is a
+Updated 21 October 2026 after the gsynth panel reuse review. This is a
 research and product proposal; prototype qualification, independent acceptance,
 bank validation and adoption remain separate.
 
@@ -11,21 +11,21 @@ Checkpoints and phase boundaries are continuation points, not permission gates.
 
 ## Current integrated documents
 
-Read the [1,193-page monograph](../../causal_proposal_effects_other_reviewed_2026-10-21.pdf)
-and its [39-page sponsor proposal](../../sponsor_proposal_effects_other_reviewed_2026-10-21.pdf).
-The monograph has 885 audited citation records and 216 genuine
-scholarly PDFs. The sponsor has 231 audited citations and is paired
+Read the [1,197-page monograph](../../causal_proposal_gsynth_reviewed_2026-10-21.pdf)
+and its [40-page sponsor proposal](../../sponsor_proposal_gsynth_reviewed_2026-10-21.pdf).
+The monograph has 888 audited citation records and 216 genuine
+scholarly PDFs. The sponsor has 236 audited citations and is paired
 to the exact reader bytes. Q2-Q4 pass for those bytes. Q1/Q5, all three mandatory
 repair rollups, rendered visual review and final proposal acceptance remain open.
 
-There are **177 recorded outcomes of 376 proposal operations**
-and **173 ready operations**. Recorded inconclusive work
+There are **178 recorded outcomes of 376 proposal operations**
+and **172 ready operations**. Recorded inconclusive work
 retains its unresolved obligations and does not close the gap.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | Software coverage | 2 | 36 | 64 | 102 |
-| Reuse decisions | 24 | 3 | 88 | 115 |
+| Reuse decisions | 25 | 3 | 87 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
 The frontier census remains **56 inspected and 57 unread out of 113 originals**,
@@ -34,33 +34,28 @@ requirements have scoped proposal outcomes, without runtime adoption claims.
 
 ## New integrated findings
 
-Physical PDF pages 290-295 develop CausalELM 0.8.0,
-CausalForest 0.1.5, TMLE 0.20.5 and CausalTables 1.3.4 at selected pre-cutoff
-revisions. Their MIT notices, estimator paths, nuisance fitting, missingness,
-influence scales and supplied-model roles were inspected. Matching CausalInference
-scope is preserved. Bounded official Rust searches return additional leads;
-source recovery and wider-language coverage remain incomplete.
+Physical PDF pages 393-396 develop gsynth1.4.0 and the
+selected fect2.4.5 dependency. The wrapper is maintained for compatibility,
+and its complete source declares a documented weight argument without forwarding
+it. The engine has distinct fitting/aggregation roles, canonical weighted outputs,
+method restrictions, sample removal, rank selection and uncertainty behavior.
+No downloaded upstream code was executed.
 
-The selected CausalELM standard-error expression has squared-outcome units.
-Its generic null draws do not preserve a fixed treatment count. CausalForest
-point-prediction paths do not qualify a variance contract; centering precedes
-per-tree honesty splits. TMLE preserves influence standard deviation and n,
-but complete-case handling can change the target population. CausalTables
-supplied-model truth supports public references, not identification of an
-unknown bank mechanism. No upstream code was executed.
+Exact authored examples give equal effect2 versus weighted-22/5, with margins1
+and-27/5 at assumed cost1. Unequal treatment durations give cell-average6 versus
+unit-average2. Rank-two worlds share the observed panel but imply effects6 or2
+because the pre-period factor rank is deficient. More rows need not add rank.
+These are public mathematical examples, not native or banking measurements.
 
-Exact authored laws give ATE 4, ATT -4/3 and residual coefficient 4/17. At cost 2,
-the population margin is 2 and the residual-based calculation is -30/17. MAR
-response selection changes the complete-case average to -12/5, while known-law
-response weighting recovers 4. Source-expression scaling and observationally
-identical SCM witnesses reproduce. These are mathematical examples, not bank
-measurements or native conformance results.
+The reference-only reuse decision leaves runtime admission false. A future direct
+fect worker requires full rights/environment review, native parity, explicit panel
+conversion/refusal and law-specific uncertainty qualification. All885 prior citation
+identities/contexts and269 compiled inputs survive. An out-of-range test-file anchor
+was refused; the original failed script/log and corrected successor are preserved.
 
-All 879 prior citation identities/contexts and 268 compiled content inputs survive.
-The collector's requested 16 MiB bound failed for the 17,486,799-byte CausalForest
-archive; actual bytes and bounded extraction are preserved, and subsequent
-metadata acquisition enforces a streamed limit. A refused source-audit build
-with erroneous line ranges is preserved beside its corrected successor.
+Candidate167, From Causal Parrots to Causal Prophets?, now has a recovered genuine
+publisher PDF and identity page. Acquisition alone does not earn census inspection
+credit; its technical review is the next independent action.
 
 ## Required standard and remaining work
 
@@ -87,18 +82,18 @@ independent proposal research.
 
 ## Exact continuation
 
-Controller next: **SW.DECISION.inherited_gsynth**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+Controller next: **LL.CENSUS**. Resolve the 82 relevant and 31 adjacent deferred candidates individually: inspect authentic originals, justify exclusion, or record unavailability/impact. Map all candidates to the 14 tasks; repeat failed longitudinal/off-policy and negative-result searches and record saturation limits.
 
-Resolve gsynth's inherited unpinned identity and its fect dependency at matching
-pre-cutoff revisions. Inspect estimator dispatch, ATT weighting, factor/rank
-selection, inference, missingness, treatment timing, license and data conversion.
-Then record a reasoned reuse disposition and continue the next ready branch.
-The effects review retains Rust sources/pagination/wider-language obligations;
-commercial missingness retains its vendor/edition/rights/search obligations.
+Inspect candidate167's complete primary argument, benchmark design, prompt/tool
+routes, error analysis and limits. Save its original under the required scholarly
+filename, bind source identity and inspected anchors, map the 14 tasks, then
+publish a preserving census/manuscript successor. The effects review retains
+Rust/source/pagination/wider-language obligations; commercial transport retains
+vendor/edition/rights/search duties. Independent eligible branches continue.
 
-[Every nonpassing obligation](2026-10-21/program-refresh-effects-other-v1/remaining-operations.json)
-and the [continuation checkpoint](2026-10-21/program-refresh-effects-other-v1/continuation-checkpoint.json)
-record exact actions and dependencies. The [previous master](2026-10-21/program-refresh-effects-other-v1/prior-current-program.md)
+[Every nonpassing obligation](2026-10-21/program-refresh-gsynth-v1/remaining-operations.json)
+and the [continuation checkpoint](2026-10-21/program-refresh-gsynth-v1/continuation-checkpoint.json)
+record exact actions and dependencies. The [previous master](2026-10-21/program-refresh-gsynth-v1/prior-current-program.md)
 preserves earlier status. Use short asynchronous commands and bounded output.
 No unattended research worker is running. The inherited image allowance is
 exhausted under `/home/ubuntu/AGENTS.md`; rendered visual acceptance needs a

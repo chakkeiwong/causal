@@ -1,0 +1,917 @@
+        From Causal Parrots to Causal Prophets? Towards Sound Causal
+                  Reasoning with Large Language Models
+                    Rahul B. Shrestha* and Simon Malberg* and Georg Groh
+                        School of Computation, Information and Technology
+                             Technical University of Munich, Germany
+                 {rahul.shrestha, simon.malberg}@tum.de, grohg@cit.tum.de
+                                       *
+                                           These authors contributed equally to this work
+
+
+
+                        Abstract                                   perform genuine causal reasoning is debated. Ex-
+                                                                   isting studies indicate that models perform poorly
+      Causal reasoning is a fundamental property of                when facing complex causal structures (Romanou
+      human and machine intelligence. While large
+                                                                   et al., 2023), engaging in counterfactual reasoning
+      language models (LLMs) excel in many natural
+      language tasks, their ability to infer causal re-            (Wu et al., 2024b), or applying formal causal rea-
+      lationships beyond memorized associations is                 soning when commonsense rules do not apply (Jin
+      debated. This study systematically evaluates re-             et al., 2023). Some findings suggest that LLMs
+      cent LLMs’ causal reasoning across three levels              act more like “causal parrots”, simply reciting
+      of Pearl’s Ladder of Causation—associational,                causal knowledge from their training data rather
+      interventional, and counterfactual—as well as                than engaging in true causal inference (Zečević
+      commonsensical, anti-commonsensical, and
+                                                                   et al., 2023). Understanding and improving LLMs’
+      nonsensical causal structures using the CL AD -
+      DER dataset. We further explore the effec-
+                                                                   causal reasoning capabilities remains critical for
+      tiveness of prompting techniques, including                  ensuring reliable LLM-supported decision-making,
+      chain of thought (C OT), self-consistency (SC),              particularly in high-stakes domains such as health-
+      and causal chain of thought (C AUSAL C OT),                  care, economics, or public policy.
+      in enhancing causal reasoning, and propose                      This study aims to bridge the gap by systemati-
+      two new techniques causal tree of thoughts                   cally evaluating LLMs on causal reasoning tasks,
+      (C AUSALT OT) and causal program of thoughts                 addressing the following research questions:
+      (C AUSAL P OT). While larger models tend to
+      outperform smaller ones and are generally                      1. How well do LLMs perform in different dis-
+      more robust against perturbations, our results                    ciplines of causal reasoning? We evaluate
+      indicate that all tested LLMs still have difficul-                a diverse set of models on causal reasoning
+      ties, especially with counterfactual reasoning.                   tasks from the CL ADDER dataset (Jin et al.,
+      However, our C AUSALT OT and C AUSAL P OT
+                                                                        2023) spanning Pearl and Mackenzie’s (2018)
+      significantly improve performance over exist-
+      ing prompting techniques, suggesting that hy-                     Ladder of Causation, including associational,
+      brid approaches combining LLMs with formal                        interventional, and counterfactual reasoning.
+      reasoning frameworks can mitigate these limita-                   The latter two in particular constitute essential
+      tions. Our findings contribute to understanding                   capabilities of humans and machines when
+      LLMs’ reasoning capacities and outline promis-                    planning and interacting with their environ-
+      ing strategies for improving their ability to rea-                ment.
+      son causally as humans would. We release our
+      code and data1 .                                               2. How well do LLMs generalize to causal
+                                                                        reasoning tasks where they cannot rely on
+1     Introduction                                                      learned commonsense knowledge? We sys-
+Causal reasoning, the ability to infer cause-and-                       tematically modify causal problems with anti-
+effect relationships, is a fundamental property of                      commonsensical and nonsensical perturba-
+intelligence (Jin et al., 2023) in humans and ma-                       tions and test LLMs’ performance. This ex-
+chines alike. While LLMs have achieved signifi-                         poses how much LLMs rely on learned world
+cant progress in natural language processing (Rad-                      knowledge when facing unknown causal rea-
+ford et al., 2019; Zhao et al., 2024), their ability to                 soning challenges.
+   1
+     Our code and data can be found here: https://github.            3. Can prompting techniques and external
+com/rahulbshrestha/causal-reasoning                                     tools enhance LLMs’ causal reasoning?
+                                                               319
+    Proceedings of the 5th International Conference on Natural Language Processing for Digital Humanities, pages 319–333
+                                May 3-4, 2025 ©2025 Association for Computational Linguistics
+     We evaluate zero-shot chain of thought (Ko-          causal discovery (e.g., Kıcıman et al., 2024; Long
+     jima et al., 2022), causal chain of thought          et al., 2024), causal effect estimation (e.g., Jin et al.,
+     (Jin et al., 2023), and chain of thought with        2023), and counterfactual reasoning (e.g., Lewis
+     self-consistency (Wang et al., 2023). Finally,       and Mitchell, 2024). Liu et al. (2025) survey ex-
+     we introduce new causal variants of tree of          isting work on the interplay between LLMs and
+     thoughts (Yao et al., 2023) and program of           causal inference, separating approaches that use
+     thoughts (Chen et al., 2023) with an integra-        causal inference frameworks for LLMs and ap-
+     tion of the DoWhy causal inference library           proaches that use LLMs for causal tasks. Similarly,
+     (Sharma and Kiciman, 2020) and demonstrate           Yu et al. (2025) provide a comprehensive overview
+     how these can elevate causal reasoning perfor-       of previous work using LLMs for causal reasoning,
+     mance.                                               dividing into methods that use LLMs as the main
+                                                          reasoning engine and methods that use LLMs only
+   Our main contributions include (1) a comprehen-        as a helper to traditional methods.
+sive evaluation of recent LLMs’ causal reasoning             While these works often find that LLMs out-
+abilities, updating previous work, (2) an assessment      perform existing algorithms in these tasks, LLMs
+of causal reasoning improvements coming through           still seem to have difficulties with some more chal-
+prompting techniques, and (3) two new prompt-             lenging tasks. Counterfactual reasoning on hypo-
+ing techniques C AUSALT OT and C AUSAL P OT to            thetical and unusual causal structures in particular
+enhance LLMs’ causal reasoning over previous              presents a challenge to LLMs, showing a degrada-
+baselines, borrowing ideas from formal causal rea-        tion of reasoning performance compared to non-
+soning techniques accessible to humans.                   counterfactual settings (Lewis and Mitchell, 2024;
+                                                          Li et al., 2022; Wu et al., 2024c). Li et al. (2022)
+2   Background and Related Work                           find that counterfactual reasoning of smaller lan-
+2.1 Ladder of Causation                                   guage models seems to be largely driven by simple
+                                                          lexical triggers. They observe that only their largest
+The Ladder of Causation, introduced by Pearl and
+                                                          model tested, GPT-3, was able to not only override
+Mackenzie’s (2018), structures causality into three
+                                                          real-world knowledge in counterfactual scenarios
+levels, often referred to as a ladder with three rungs:
+                                                          but also show somewhat greater sensitivity to more
+   Rung 1 (Association): The lowest rung repre-
+                                                          detailed linguistic cues.
+sents statistical associations and seeks to answer
+                                                             Zečević et al. (2023) argue that LLMs merely
+the question “What?” This level involves identi-
+                                                          behave like “causal parrots” simply reciting causal
+fying patterns or correlations in the data without
+                                                          knowledge from their training data. This indicates
+implying causation. For example, “What is the
+                                                          that LLMs reason in ways different from what
+probability of lung cancer among smokers?”
+                                                          trained humans would do. Chi et al. (2024) dis-
+   Rung 2 (Intervention): This rung focuses on
+                                                          cuss how autoregressive transformer-based LLMs
+the effects of interventions, addressing the question
+                                                          are not inherently causal. LLMs are able to imi-
+“What if?” It examines the impact of actively alter-
+                                                          tate causal reasoning only as long as similar causal
+ing a variable and observing its influence on other
+                                                          knowledge is available in their training data (Zhang
+variables. For example, “If I stop smoking, will my
+                                                          et al., 2023) or relevant domain-specific context and
+risk of lung cancer decrease?”
+                                                          causal knowledge is provided (Cai et al., 2024).
+   Rung 3 (Counterfactual): This highest rung
+involves counterfactual reasoning, which answers
+                                                          2.3   Causal Reasoning Benchmarks
+the questions “Why?” or “What if I had acted
+differently?” This level entails imagining hypo-          Multiple LLM-specific causal reasoning bench-
+thetical scenarios based on observed data. For in-        marks and evaluation frameworks have emerged.
+stance, “Given that I have lung cancer, if I had          Some notable benchmarks include CL ADDER (Jin
+never smoked, would I still have developed the            et al., 2023), C ORR 2C AUSE (Jin et al., 2024),
+disease?”                                                 C AUSAL B ENCH (Zhou et al., 2024; Wang, 2024),
+                                                          CRAB (Romanou et al., 2023), IfQA (Yu et al.,
+2.2 Causal Reasoning with LLMs                            2023), and CRASS (Frohberg and Binder, 2022).
+LLMs have been proposed for use in several causal         For a comprehensive list of additional benchmarks,
+natural language processing (NLP) tasks, such as          readers may refer to Liu et al. (2025).
+                                                      320
+2.4 Methodological Advances                             inference library DoWhy (Sharma and Kiciman,
+                                                        2020) and evaluates performance on a larger, bal-
+While many works focus on measuring the causal
+                                                        anced dataset from CL ADDER.
+reasoning abilities of LLMs, some proposals were
+made for how to turn LLMs into better causal rea-       3     Methods
+soners. Wu et al. (2024a) explore how causality
+can improve LLMs at all stages of their lifecycle,      3.1    Dataset
+looking at token embeddings, training, alignment,       Similar to several previous works, our experiments
+inference, and evaluation. Just like with other NLP     are based on CL ADDER (Jin et al., 2023), a dataset
+tasks, fine-tuning the LLMs may improve their           that tests formal causal reasoning capabilities. The
+accuracy also on causal tasks, as shown by Cai          causal questions in the dataset are represented in
+et al. (2024) for causal discovery. Liu et al. (2023)   natural language, yet the questions are grounded in
+even found that Code-LLMs seem to acquire better        symbolic logic and ground truth answers derived
+causal reasoning abilities than text-only LLMs and      using an oracle causal inference engine (Pearl and
+tend to be robust against format perturbations.         Mackenzie, 2018).
+   More advanced prompting techniques such as           Choice of CL ADDER Arguably, formal causal
+chain of thought (Wei et al., 2022b) were shown to      reasoning, and CL ADDER in particular, make an
+improve reasoning performance of LLMs, although         ideal test bench for LLMs’ causal reasoning abili-
+not with all LLMs and on all reasoning tasks (Wang      ties. The necessity to formalize multi-step thought
+and Shen, 2024; Yu et al., 2025). Jin et al. (2023)     processes makes transparent whether the LLM
+introduce a new causal variant of chain of thought      identifies true causation rather than just correla-
+called C AUSAL C OT. On CL ADDER, they demon-           tions. Further, the symbolic grounding offers much
+strate how a GPT-4 LLM achieves 62.03% accuracy         potential to comprehensively evaluate the integra-
+without C AUSAL C OT and 70.40% accuracy with           tion of external tools and reasoning frameworks. A
+C AUSAL C OT.                                           review of causal reasoning benchmarks by Yang
+   Gendron et al. (2024) propose a new counterfac-      et al. (2024) referred to CL ADDER as “the most
+tual causal inference framework (Counterfactual-        advanced causal benchmark available currently, as
+CI) for causal discovery reaching an accuracy           it holistically tests the LLM’s ability to synthesize
+of 60.53% on CL ADDER with a GPT-4o LLM.                several different components into a complex causal
+CARE-CA (Ashwani et al., 2024) attempts to im-          model, and then interprets the effects of interven-
+prove LLM causal reasoning by enriching prompts         tions or changes within that model”. CL ADDER ad-
+with relevant causal concepts from a knowledge          dresses key design issues identified in other bench-
+graph and counterfactual insights. The authors          marks by (1) covering all three rungs of the Ladder
+demonstrate CARE-CA’s abilities on CL ADDER,            of Causation, including interventional and counter-
+reporting a 63.0% accuracy with a T5 LLM, versus        factual questions, (2) requiring multi-step causal
+a 60.0% accuracy with T5 alone. Similar to CARE-        reasoning rather than simple one-step answers, and
+CA, the G²-Reasoner (Chi et al., 2024) retrieves        (3) testing for reasoning rather than retrieval by
+related general knowledge from a vector database        including perturbed versions of queries.
+and incorporates it in a goal-oriented prompt to
+guide the LLM in the reasoning process. While           Dataset Structure CL ADDER questions test the
+the authors do not evaluate the G²-Reasoner on          ability to correctly plan and execute the estima-
+CL ADDER, they report performance improvements          tion of a causal effect. Each question has a bi-
+similar to CARE-CA on other datasets.                   nary answer: yes or no. Questions cover all three
+                                                        rungs of the Ladder of Causation, span across
+   Yu et al. (2025) use Python scripts to solve 100
+                                                        nine distinct query types (e.g., marginal proba-
+causal questions from CL ADDER, achieving an ac-
+                                                        bility or average treatment effect), and represent
+curacy of 76%. However, their method does not
+                                                        one of three degrees of alignment with common-
+leverage the full potential of external causal infer-
+                                                        sense knowledge, namely commonsensical, anti-
+ence tools, merely leveraging Python as a calculator
+                                                        commonsensical, and nonsensical.
+for relatively simple computations. Their approach
+led to only a marginal improvement compared to          Sampling and Perturbations For our experi-
+the 75% accuracy achieved with C AUSAL C OT. In         ments, we sampled 1,000 commonsensical ques-
+contrast, our work integrates the external causal       tions from CL ADDER, maintaining a distribution
+                                                    321
+of question types similar to the original dataset (see                Model                         Version
+Appendix A for details on the distribution). We                       Mistral 7B                    2024-06-01
+excluded questions with the “backdoor adjustment”                     WizardLM 2 8x22B              2024-04-16
+query type, as they do not require formal calcula-                    Llama 3.1 8BB                 2024-07-23
+tions and multi-step reasoning. Unfortunately, the                    Llama 3.1 70B                 2024-07-23
+publicly available CL ADDER dataset contains the                      Llama 3.1 Nemotron 70B        2024-10-16
+anti-commonsensical and nonsensical counterparts                      Claude 3.5 Haiku              2024-10-22
+to only some but not all of the commonsensical                        Claude 3.5 Sonnet             2024-10-22
+questions in our sample. Therefore, we created                        GPT-3.5-Turbo                 2023-11-06
+new anti-commonsensical and nonsensical pertur-                       GPT-4o mini                   2024-07-18
+bations of the 1,000 sampled commonsensical ques-                     GPT-4o                        2024-08-06
+tions using GPT-4o:                                                   o3-mini                       2025-01-31
+                                                                      DeepSeek V3                   2025-01-03
+   • Anti-commonsensical perturbations: Given                         DeepSeek R1                   2025-01-22
+     a causal relationship X → Y (e.g., smok-
+                                                                        Table 1: LLMs evaluated in this study.
+     ing → lung cancer), we replaced Y with a
+     randomly selected noun unrelated to X (e.g.,
+     smoking → ice cream sales).                                   We performed a memorization test to check if the
+                                                                dataset was part of the models’ training data, simi-
+   • Nonsensical perturbations: Given a causal                  lar to the one performed by Kıcıman et al. (2024).
+     relationship X → Y (e.g., smoking → lung                   We found no evidence of the LLMs having memo-
+     cancer), both X and Y were replaced with                   rized CL ADDER questions. The prompts used for
+     randomly-generated four-letter words (e.g.,                this test can be found in Appendix C.
+     xacx → msad).
+                                                                3.3   Prompting Techniques
+   The CL ADDER paper applied similar perturba-
+tions, including anti-commonsensical and nonsen-                We test various prompting techniques to see if they
+sical variants, but used a fixed set of words for               improve the causal reasoning abilities of LLMs.
+substitutions. In contrast, we let GPT-4o generate
+                                                                Input-Output Prompting In this simple base-
+random words, introducing greater variability in
+                                                                line approach, the LLM is prompted with a ques-
+the perturbations. To ensure grammatical and logi-
+                                                                tion and an instruction to answer with a ’yes’ or
+cal soundness, we manually verified all generated
+                                                                ’no’ in the end.
+perturbations.
+   Details about the exact prompt used for the per-             Zero-shot Chain of Thought In this approach
+turbations can be found in Appendix B. An exam-                 (CoT), the prompt “Let’s think step by step” (Ko-
+ple image illustrating the two perturbations can be             jima et al., 2022) is appended to each question.
+found in Figure 6 in the Appendix.
+                                                                Causal Chain of Thought We use the causal
+3.2 Models                                                      chain of thought (C AUSAL C OT) prompt from Jin
+We list the models used for our experiments in                  et al. (2023). C AUSAL C OT is a six-step instruc-
+Table 1. Our selection includes a diverse range                 tion prompt for solving formal causal inference
+of open and closed-weight models with different                 problems. The exact prompt can be found in Ap-
+parameter counts. All models were tested with a                 pendix B.
+temperature of 1.0 to create sufficient variance in
+                                                                Causal Chain of Thought with Self-Consistency
+the answers, especially for generating diverse alter-
+                                                                We implement self-consistency (SC) decoding
+native thoughts with some of the tested prompting
+                                                                (Wang et al., 2023) with the C AUSAL C OT prompt.
+methods2 .
+                                                                With SC, multiple C AUSAL C OT reasoning chains
+   2
+    We ran tests with GPT-3.5-Turbo and observed only minor     are sampled from the LLM and their majority an-
+accuracy differences when changing the temperature (average     swer is selected as the final answer. We evaluate
+overall accuracy was 56.6% with temperature 0.0 vs. 57.5%
+with temperature 1.0). The CL ADDER dataset reports an          SC with 3, 5, and 10 parallel reasoning chains (SC-
+accuracy of 52.18% for GPT-3.5-Turbo.                           {3,5,10}).
+                                                              322
+             {Question} + “Generate 3 possible              to cater for the unique requirements of each step:
+             solutions for Step 1 of Causal
+         1   Chain of Thought: Extract the
+             causal graph ...”
+                                                                  (1)         (k    )      GENi+1
+                                                                                   i+1
+                                                                {zi+1 , · · · , zi+1   } ∼ pθ       (zi+1 |s)   (1)
+                               LLM
+                                                               For thought evaluation, C AUSALT OT self-
+                                                            selects the best thought by assigning a score be-
+  2                                                         tween 1 and 10 to each thought and continuing
+               Causal        Causal         Causal
+ LLM           Graph 1       Graph 2        Graph 3         with the highest-scoring thought zi∗ :
+                (6/10)         (9/10)        (3/10)
+
+             {Question} + {Causal Graph 2}                                                 (1)       (k )
+             “Generate 3 possible solutions for                     zi∗ ∼ pEV ALi ∗
+                                                                                 (zi |{zi , · · · , zi i })     (2)
+         3   Step 2 of Causal Chain of Thought:
+                                                                           θ
+             Identify query type ...”
+                                                               where EV ALi is the prompt for voting and se-
+                                                            lecting the best thought. Once the best thought has
+                               LLM                          been chosen, the process is repeated for the follow-
+                                                            ing steps, starting with the GENi+1 prompt again.
+                                                            This way, C AUSALT OT greedily decodes a causal
+                Query         Query         Query           chain of thought towards the final answer.
+                Type 1        Type 2        Type 3
+                                                               In their error analysis of C AUSAL C OT, Jin et al.
+                               ….                           (2023) argue that steps 2, 3, and 5 pose the great-
+                                                            est challenges to the LLM. Further, causal graphs
+Figure 1: Causal tree of thoughts (C AUSALT OT): (1)        extracted by the LLM in step 1 sometimes differ
+The LLM generates three possible causal graphs as the       from the ground truth causal graphs. Hence, we
+first step of C AUSAL C OT. (2) Each graph is evaluated
+                                                            decide to set ki = 3 for i ∈ {1, 2, 3, 5} to ex-
+with a score between 1 and 10 by the LLM. (3) The
+highest-scoring solution, along with the question, is
+                                                            plore alternative thoughts for each of these critical
+then used to generate three query types. This iterative     and error-prone steps. For the two other steps, we
+process continues for the six steps of C AUSAL C OT.        forego any branching (i.e., ki = 1, i ∈ {4, 6}), as
+                                                            these steps tend to be handled rather reliably by the
+                                                            LLM.
+Causal Tree of Thoughts We propose a new
+causal adaptation of the tree of thoughts (Yao et al.,      Causal Program of Thoughts We also intro-
+2023) prompting technique. This C AUSALT OT                 duce a causal version of the program of thoughts
+technique follows the six distinct steps of C AUSAL -       (Chen et al., 2023) prompting technique, which
+C OT, but is able to consider multiple alternative          uses DoWhy (Sharma and Kiciman, 2020), a
+thought candidates for each step i = 1, · · · , 6. Un-      Python library for causal inference that supports ex-
+like SC, C AUSALT OT self-evaluates thought candi-          plicit modeling and testing of causal assumptions.
+dates after each step and selects the best one to pro-      C AUSAL P OT uses an LLM to generate DoWhy
+ceed with. Figure 1 provides a high-level overview          code c to calculate a causal estimate for a question
+of how C AUSALT OT operates, illustrating its it-           x:
+erative process of generating, evaluating, and se-
+lecting causal thoughts for a question. Throughout                            c ∼ pCODE
+                                                                                   θ    (c|x)                   (3)
+this process, C AUSALT OT maintains a memory of                The DoWhy code is executed by a Python in-
+the reasoning state s = (x, z1···i ) consisting of the      terpreter f using REPL (LangChain Contributors,
+causal question x and all causal thoughts z1···i so         2024). A causal estimate ê is then computed and,
+far.                                                        along with the question, provided to the LLM to
+   For thought generation, C AUSALT OT queries              generate a final answer y:
+an LLM pθ with a GENi prompt (see Appendix
+B for the exact prompts used) to generate ki alter-                                ê = f (c)                   (4)
+native thought candidates following the thoughts
+from previous steps. Hereby, ki and GENi are
+different for each of the six steps and are curated                        y ∼ pAN
+                                                                                θ
+                                                                                   SW ER
+                                                                                         (y|x, ê)              (5)
+                                                          323
+ {Question} +
+                              import dowhy
+                                                             reasoning problems from the associational, inter-
+                              import numpy as np             ventional, and counterfactual rungs within the com-
+ “Generate doWhy
+ code to solve                                               monsensical subset of our CL ADDER sample. Re-
+                              n = 1000
+ this question.
+                              p_smoking = 0.54               sults can be seen in the left half of Table 2 (under
+ Example code:
+                              p_lungcancer =                 RQ1).
+                              0.32
+ import dowhy
+                              model =                            The results indicate significant discrepancies be-
+ …”
+                              CausalModel(...)               tween the LLMs. The weakest model, Mistral
+                                                             7B, performs only somewhat better than random
+       1                                                     guessing while the strongest model, DeepSeek R1,
+                       2
+                                       Python                achieves an average accuracy of 89.1% on the com-
+                                     Interpreter   3
+           LLM                                               monsensical questions. The largest and most recent
+                       4                                     LLMs seem to outperform the smaller and older
+                                                             LLMs.
+       5                      Causal Estimate
+                              = -0.324
+                                                                 The highest accuracy using input-output prompt-
+       {Answer}                                              ing reported in the original CL ADDER paper (Jin
+                                                             et al., 2023) on commonsensical questions was
+Figure 2: Causal program of thoughts (C AUSAL P OT):         62.27% with GPT-4. In our test, this accuracy is
+(1) The question and example code are input into the         beaten by 11 out of the 13 evaluated models. While
+LLM. (2) The LLM generates DoWhy code. (3) The               there may be minor differences in our sample and
+generated code is executed by the Python interpreter to      testing procedure vs. Jin et al.’s (2023), we hypoth-
+compute a causal estimate. (4) This estimate is returned     esize that the most likely explanation is a strong
+to the LLM. (5) The LLM decides the final answer.
+                                                             general improvement in causal reasoning perfor-
+                                                             mance in newer generations of LLMs.
+   Figure 2 provides a high-level overview of the                When comparing results across the three rungs,
+C AUSAL P OT methodology. The exact CODE                     it seems that a majority of the evaluated LLMs gen-
+and AN SW ER prompts used can be found in                    erally perform best on associational questions, fol-
+Appendix B. We include three code examples, one              lowed by interventional questions, and lastly coun-
+from each rung, in the CODE prompt. These                    terfactual questions, as the Ladder of Causation
+examples are not part of the sampled dataset and             suggests. This is unsurprising, as counterfactual
+are intended to guide the LLM in (1) using the               questions are inherently more complex, requiring a
+correct libraries from the DoWhy library to solve            deeper understanding of advanced causal inference
+the problem, (2) generating artificial data based            concepts. We provide example questions from each
+on the information in the causal question, which             rung of the dataset in Appendix D.
+is used to calculate the causal estimate, and (3)                The three lowest-performing LLMs, Mistral 7B,
+ensuring that the generated code is in the correct           Llama 3.1 8B, and GPT-3.5-Turbo surprisingly per-
+format for execution by the Python interpreter.              form significantly better on interventional prob-
+   Additionally, in the input prompt, we added an            lems than on associational problems. For all but
+instruction for the LLM to not mistake p(X | Y )             two LLMs, questions from the counterfactual rung
+with p(X ∩ Y ), which we frequently noticed in               are the most difficult, showing mostly sharp ac-
+our experiments. The LLM would evaluate a state-             curacy drops compared to the other two rungs.
+ment like “the probability of smoking and lung can-          This matches observations in related works that
+cer” as p(Smoking | LungCancer) rather than                  LLMs have difficulties with counterfactual reason-
+p(Smoking ∩ LungCancer).                                     ing (Lewis and Mitchell, 2024; Li et al., 2022; Wu
+                                                             et al., 2024c).
+4   Experiments                                                  To understand why and how models fail to reach
+                                                             correct answers, we manually assessed the model
+4.1 LLMs’ Causal Reasoning Performance
+                                                             outputs for GPT-4o and GPT-4o mini, represent-
+RQ1: How well do LLMs perform in different dis-              ing two high-performing models of different sizes.
+ciplines of causal reasoning?                                We classify a random sample of 100 incorrectly
+   To establish each model’s baseline causal rea-            answered reasoning questions into four error types:
+soning performance, we let the models predict the
+correct answers using input-output prompting on                  • Type 1: Misinterprets the question. The
+                                                           324
+                                         RQ1                                          RQ2
+                                     Commonsensical               Anti-commonsensical      Nonsensical
+  Model                   Avg.   Avg. R1    R2      R3           Avg. R1    R2     R3 Avg. R1     R2   R3
+  Mistral 7B              53.1   55.3 50.1 63.5 56.5             52.9 50.9 61.4 50.8 51.0 48.9 61.9 47.7
+  WizardLM 2 8x22B        77.4   79.2 88.4 82.7 68.1             77.4 86.7 86.3 63.6 75.6 83.0 85.8 63.1
+  Llama 3.1 8B            59.1   64.9 68.1 79.7 54.3             58.6 61.7 69.0 50.3 53.8 57.3 68.0 43.2
+  Llama 3.1 70B           78.6   79.7 86.2 87.8 69.1             79.0 83.7 89.8 68.8 77.1 81.0 86.8 68.3
+  Llama 3.1 Nemo. 70B     81.2   82.8 91.4 90.9 70.1             80.7 83.7 88.8 73.6 80.0 85.2 86.8 71.4
+  Claude 3.5 Haiku        78.0   78.6 87.9 87.3 64.8             79.9 90.4 92.4 63.1 75.5 85.4 87.8 59.3
+  Claude 3.5 Sonnet       84.1   85.3 94.1 85.8 76.1             84.2 90.4 90.9 74.6 82.8 90.6 87.8 72.4
+  GPT-3.5-Turbo           57.5   58.2 54.3 72.6 55.0             56.5 52.1 72.1 53.3 57.7 51.9 67.5 58.8
+  GPT-4o mini             78.4   79.8 92.1 85.3 64.6             78.1 86.7 83.2 66.8 77.2 91.4 77.7 62.6
+  GPT-4o                  82.0   84.3 95.1 90.9 70.1             82.4 90.1 93.9 68.8 79.3 89.9 88.3 64.1
+  o3-mini                 86.8   86.3 96.8 88.3 74.6             86.9 92.3 88.8 80.4 87.1 92.6 89.8 80.2
+  DeepSeek V3             80.9   81.2 95.8 87.3 63.3             81.5 92.8 88.3 66.6 80.1 92.6 86.3 64.3
+  DeepSeek R1             88.1   89.1 97.3 86.8 81.9             88.2 94.3 89.8 81.2 86.9 94.3 88.8 78.4
+  Average                 75.8   77.3 84.4 83.8 66.8             75.9 81.2 84.2 66.3 74.2 80.3 81.8 64.1
+
+Table 2: The table shows the causal reasoning accuracy of the evaluated models on the three dataset parts common-
+sensical (for RQ1), as well as anti-commonsensical and nonsensical (for RQ2). For each model and dataset part, the
+average accuracy per rung (R1: associational, R2: interventional, R3: counterfactual) and the average across the
+three rungs are reported. The leftmost column contains the overall average accuracy across all reasoning questions.
+
+
+     Error Type       GPT-4o      GPT-4o mini                right approach to solve the problem (incl. mis-
+       Type 1           42            33                     interpreting the question and relying on intuition
+       Type 2           23            40                     rather than calculations), or carry out calculations
+       Type 3            8            13                     with an incorrect formula. The smaller GPT-4o
+       Type 4           27            14                     mini seems to rely on intuition more often than its
+                                                             larger sibling GPT-4o, leading to relatively fewer
+Table 3: For a sample of 100 incorrect answers, we
+                                                             calculation-related errors. Since GPT-4o attempts
+identify the primary reasoning error that caused the
+wrong answer and classify it into one of four types:
+                                                             actual calculations more often, its most common
+misinterprets the question (Type 1), relies on intuition     errors affect the correct execution of these mathe-
+over computation (Type 2), incorrect data extraction         matical calculations.
+(Type 3), applies incorrect formula (Type 4).
+                                                             4.2    Reliance on Learned Knowledge
+                                                             RQ2: How well do LLMs generalize to causal rea-
+     model misunderstands the causal relationships
+                                                             soning tasks where they cannot rely on learned
+     in the question.
+                                                             commonsense knowledge?
+   • Type 2: Relies on intuition over computa-                  If LLMs do not perform genuine causal reason-
+     tion. Instead of performing probability calcu-          ing but rely on commonsense knowledge acquired
+     lations based on the given data, the model just         during training, one would expect that performance
+     provides an intuitive answer.                           drops sharply when models must reason about un-
+                                                             familiar structures. To test this, we repeat the
+   • Type 3: Incorrect data extraction. The                  previous experiment on the anti-commonsensical
+     model extracts incorrect probability data from          and nonsensical parts of the dataset. The anti-
+     the natural language question.                          commonsensical problems contain entities likely
+                                                             familiar to the LLM, but with uncommon causal
+   • Type 4: Applies incorrect formula. The                  relationships. The nonsensical problems contain
+     model understands the question but uses the             random four-letter words with unfamiliar causal
+     wrong formula to compute the causal effect.             relationships.
+                                                                The right half of Table 2 (under RQ2) shows
+  Table 3 reports the errors observed. Both, GPT-            the results of these experiments. While the two
+4o and GPT-4o mini seem to interpret the avail-              smallest 7B and 8B LLMs show the largest relative
+able data mostly correctly but fail to determine the         performance drop, the remaining medium-sized
+                                                           325
+and large models seem to reason almost as well           points, on average, versus input-output prompting.
+about the anti-commonsensical and nonsensical            Self-consistency (SC) performed similar to input-
+problems as about the commonsensical problems,           output prompting, independent of the number of
+sometimes even showing a slight accuracy increase.       parallel reasoning chains.
+This could indicate that genuine causal reasoning           Our new prompting techniques C AUSALT OT
+about unfamiliar structures is an ability emerging       and C AUSAL P OT outperform input-output prompt-
+in LLMs with scale (Wei et al., 2022a). Reason-          ing by an average of 4.4%-points and 8.8%-points,
+ing performance seems to be slightly higher on the       respectively. With C AUSALT OT, GPT-4o even
+anti-commonsensical problems than on the non-            reaches close to the performance of o3-mini and
+sensical problems, suggesting that models reason         DeepSeek R1, the strongest reasoning models we
+better when at least the entities are familiar, even     evaluated. With C AUSAL P OT, GPT-4o surpasses
+though causal relationships between these entities       o3-mini by 4.0%-points and DeepSeek R1 by 2.7%-
+are not. This may represent a confirmation of the        points, on average. This shows that in the domain
+results by Li et al. (2022) suggesting that reason-      of formal causal reasoning, the domain-specialized
+ing abilities of recent LLMs still somewhat depend       prompting techniques applied in C AUSALT OT and
+on simple lexical cues, which are present in the         C AUSAL P OT can match or even outperform the ex-
+anti-commonsensical problems but not in the non-         tensive but non-specialized test-time thinking done
+sensical problems.                                       by o3-mini and DeepSeek R1.
+                                                            Remarkably, C AUSALT OT outperforms all other
+4.3 Improvements through Prompting                       tested prompting techniques on questions from the
+    Techniques and Tool Usage                            associational rung, but loses accuracy on the other
+                                                         two rungs, especially on counterfactual questions.
+RQ3: Can prompting techniques and external tools
+                                                         On the other hand, C AUSAL P OT achieves slightly
+enhance LLMs’ causal reasoning?
+                                                         lower performance on associational questions than
+   Prompting techniques and usage of external tools      many of the other prompting techniques but main-
+have been shown to improve LLMs’ reasoning per-          tains a fairly consistent accuracy throughout all
+formance, often substantially (Wei et al., 2022b;        rungs. With that, C AUSAL P OT seems to be the
+Wang et al., 2023; Yao et al., 2023; Xu et al., 2023).   first prompting technique that performs similarly
+Jin et al. (2023) have demonstrated how the causal       well on counterfactual questions as on associational
+chain of thought (C AUSAL C OT) prompting tech-          or interventional questions.
+nique can improve GPT-4’s causal reasoning accu-
+                                                            An error analysis for each of our methods can be
+racy on CL ADDER from 62.03% to 70.40%, on
+                                                         found in Appendix E.
+average. In Section 3, we introduced two new
+causal prompting techniques C AUSALT OT and
+                                                         5   Conclusion
+C AUSAL P OT.
+   Table 4 shows the accuracy of different prompt-       Connecting to previous work on causal reasoning
+ing techniques on CL ADDER using a GPT-4o LLM.           in LLMs, we have presented a systematic evalua-
+We chose GPT-4o as a base model for this exper-          tion of causal reasoning abilities of the most recent
+iment as it strikes a reasonable balance between         LLMs. Our findings indicate that the latest mod-
+competitive reasoning accuracy, low cost, and short      els perform substantially better than older LLMs
+runtime. Interestingly, we observe C AUSAL C OT          evaluated in previous works. These state-of-the-
+to perform 2.4%-points worse than input-output           art LLMs seem to reason well, even on challeng-
+prompting when used with GPT-4o. It is worth not-        ing causal reasoning tasks and unfamiliar causal
+ing though that GPT-4o with input-output prompt-         structures. One exception is counterfactual rea-
+ing already achieves an overall average accuracy         soning, which still poses significant challenges to
+of 82.0%, which is substantially higher than the ac-     state-of-the-art LLMs. While we found that pre-
+curacy Jin et al. (2023) measured for GPT-4. This        vious prompting techniques designed to improve
+may indicate that recent advancements in model           LLMs’ reasoning performance no longer show the
+architectures and training procedures made sophis-       desired improvements on recent LLMs, we pro-
+ticated prompting techniques dispensable on the          posed two new causal prompting techniques. As
+CL ADDER problems. Noticeably, simple zero-shot          demonstrated, C AUSALT OT and C AUSAL P OT can
+C OT improved causal reasoning accuracy by 1.2%-         significantly elevate reasoning performance, even
+                                                     326
+                                                                    RQ3
+                                     Commonsensical         Anti-commonsensical             Nonsensical
+ Model                    Avg.   Avg. R1    R2      R3     Avg. R1     R2    R3      Avg.    R1    R2      R3
+ GPT-4o                   82.0   84.3 95.1 90.9 70.1       82.4 90.1 93.9 68.8       79.3   89.9 88.3     64.1
+ GPT-4o + C OT            83.2   85.3 95.6 92.9 71.1       83.7 92.6 93.9 69.6       80.7   91.6 90.9     64.6
+ GPT-4o + C AUSAL C OT    79.6   81.1 93.1 88.3 65.3       80.2 91.6 90.9 63.3       77.4   89.1 87.8     60.3
+ GPT-4o + SC-3            82.2   83.0 93.8 89.8 68.6       82.3 90.6 89.3 70.4       81.3   90.9 89.3     67.6
+ GPT-4o + SC-5            81.6   82.7 94.1 87.8 68.6       81.2 84.9 84.3 75.9       80.8   88.6 85.3     70.6
+ GPT-4o + SC-10           82.0   83.5 93.8 90.4 69.6       80.3 89.9 88.8 66.3       82.3   91.1 90.4     69.3
+ GPT-4o + C AUSALT OT     86.4   87.5 96.3 91.9 76.4       86.5 93.8 93.9 75.4       85.3   92.6 90.9     75.1
+ GPT-4o + C AUSAL P OT    90.8   92.5 91.6 94.4 92.5       90.3 89.1 92.9 90.2       89.6   90.6 91.9     87.4
+
+   Table 4: The table shows the causal reasoning accuracy with different prompting techniques using GPT-4o.
+
+
+of recent LLMs. C AUSAL P OT appears to be the           straints of our resources.
+only causal prompting technique that substantially          Our anti-commonsensical and nonsensical per-
+improves performance on counterfactual reasoning         turbations were generated using GPT-4o, raising
+problems.                                                concerns that this may have made it easier for GPT-
+                                                         4o to recognize its own perturbations, potentially
+Limitations and Future Work                              leading to an artificial inflation of its performance.
+In this paper, we focus exclusively on formal causal     However, a similar decline of performance from
+reasoning and do not evaluate LLMs’ capabili-            commonsensical to anticommonsensical to nonsen-
+ties on informal reasoning tasks. This is because        sical seen in GPT-4o is evident in other LLMs. We
+we believe that several works already discuss in-        also see a larger performance decline for GPT-4o
+formal causal reasoning with LLMs and, while             than what was reported in the CL ADDER paper
+their results are insightful and relevant, we see        (Jin et al., 2023) for GPT-4, suggesting that GPT-
+formal causal reasoning problems as more suit-           4o scores are not substantially inflated.
+able to assess whether LLMs can genuinely reason.           For future work, we still recommend evaluating
+Nonetheless, our proposed methods C AUSALT OT            C AUSAL P OT and C AUSALT OT on other formal
+and C AUSAL P OT were specifically designed for          causal reasoning datasets, such as Corr2Cause (Jin
+formal causal reasoning and problem formulations         et al., 2024), to assess their effectiveness and gen-
+similar to those included in CL ADDER. We leave it       eralizability. We believe that leveraging external
+to future work to ideate similar methods that gener-     libraries could enhance the performance of LLMs
+alize beyond the scope of formal causal reasoning.       in these tasks.
+   Some readers may criticize the limited breadth
+                                                         Ethical Considerations
+of evidence put forward in our analysis, where
+we evaluate all methods on CL ADDER only, with           While we have shed light on the causal reasoning
+CL ADDER being a synthetic dataset and our exper-        abilities of current LLMs, no general evaluation can
+imental sample being limited to 1,000 examples.          replace a detailed assessment of a specific LLM in
+We certainly encourage future work to continue to        the context of its final use case. Using LLMs for
+evaluate LLMs on several datasets. However, we           causal reasoning comes with risks and our results
+also note that CL ADDER alone is perhaps one of          should not be seen as a free pass for using LLMs for
+the most comprehensive evaluation tasks for formal       purely machine-based decision-making. An over-
+causal reasoning (Yang et al., 2024), covering all       simplification of complex causal phenomena may
+rungs of the Ladder of Causation, as well as com-        lead to high-stakes errors, particularly in domains
+monsensical, anti-commonsensical, and nonsensi-          such as healthcare or public policy. Open dissem-
+cal problem formulations, and nine different query       ination of powerful LLM-based causal methods
+types. In addition, the authors conduct a broad          risks malicious applications, including generating
+range of quality checks including grammaticality,        deceptive causal claims. Mitigation strategies may
+human readability, and naturalness/perplexity (Jin       include careful curation of training data, the inte-
+et al., 2023). For these reasons, we argue that          gration of formal causal inference tools, transparent
+CL ADDER served as the ideal evaluation bench            reporting of model capabilities and limitations, and
+to rigorously evaluate our methods within the con-       stricter governance of high-stakes use cases.
+                                                     327
+References                                                  Jiaxuan Li, Lang Yu, and Allyson Ettinger. 2022. Coun-
+                                                               terfactual reasoning: Do language models need world
+Swagata Ashwani, Kshiteesh Hegde, Nishith Reddy                knowledge for causal understanding?
+  Mannuru, Mayank Jindal, Dushyant Singh Sengar,
+  Krishna Chaitanya Rao Kathala, Dishant Banga,             Xiao Liu, Da Yin, Chen Zhang, Yansong Feng, and
+  Vinija Jain, and Aman Chadha. 2024. Cause and               Dongyan Zhao. 2023. The magic of if: Investigating
+  effect: Can large language models truly understand          causal reasoning abilities in large language models
+  causality?                                                  of code.
+
+Hengrui Cai, Shengjie Liu, and Rui Song. 2024. Is           Xiaoyu Liu, Paiheng Xu, Junda Wu, Jiaxin Yuan, Yifan
+  knowledge all large language models needed for              Yang, Yuhang Zhou, Fuxiao Liu, Tianrui Guan, Hao-
+  causal reasoning?                                           liang Wang, Tong Yu, Julian McAuley, Wei Ai, and
+                                                              Furong Huang. 2025. Large language models and
+Wenhu Chen, Xueguang Ma, Xinyi Wang, and                      causal inference in collaboration: A comprehensive
+ William W. Cohen. 2023. Program of thoughts                  survey.
+ prompting: Disentangling computation from reason-
+ ing for numerical reasoning tasks.                         Stephanie Long, Tibor Schuster, and Alexandre Piché.
+                                                               2024. Can large language models build causal
+Haoang Chi, He Li, Wenjing Yang, Feng Liu, Long                graphs?
+  Lan, Xiaoguang Ren, Tongliang Liu, and Bo Han.
+                                                            Judea Pearl and Dana Mackenzie. 2018. The Book
+  2024. Unveiling causal reasoning in large language
+                                                              of Why: The New Science of Cause and Effect, 1st
+  models: Reality or mirage? In Advances in Neural
+                                                              edition. Basic Books, Inc., USA.
+  Information Processing Systems, volume 37, pages
+  96640–96670. Curran Associates, Inc.                      Alec Radford, Jeffrey Wu, Rewon Child, David Luan,
+                                                              Dario Amodei, Ilya Sutskever, et al. 2019. Language
+Jörg Frohberg and Frank Binder. 2022. Crass: A novel          models are unsupervised multitask learners. OpenAI
+   data set and benchmark to test counterfactual reason-      blog, 1(8):9.
+   ing of large language models.
+                                                            Angelika Romanou, Syrielle Montariol, Debjit Paul,
+Gaël Gendron, Jože M. Rožanec, Michael Witbrock,              Leo Laugier, Karl Aberer, and Antoine Bosselut.
+  and Gillian Dobbie. 2024. Counterfactual causal             2023. Crab: Assessing the strength of causal re-
+  inference in natural language with large language           lationships between real-world events.
+  models.
+                                                            Amit Sharma and Emre Kiciman. 2020. Dowhy: An
+Zhijing Jin, Yuen Chen, Felix Leeb, Luigi Gresele,           end-to-end library for causal inference.
+  Ojasv Kamal, Zhiheng LYU, Kevin Blin, Fernando
+  Gonzalez Adauto, Max Kleiman-Weiner, Mrinmaya             Lei Wang and Yiqing Shen. 2024. Evaluating causal
+  Sachan, and Bernhard Schölkopf. 2023. Cladder:              reasoning capabilities of large language models: A
+  Assessing causal reasoning in language models. In           systematic analysis across three scenarios. Electron-
+  Advances in Neural Information Processing Systems,          ics, 13(23).
+  volume 36, pages 31038–31065. Curran Associates,
+  Inc.                                                      Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le,
+                                                              Ed Chi, Sharan Narang, Aakanksha Chowdhery, and
+Zhijing Jin, Jiarui Liu, Zhiheng Lyu, Spencer Poff, Mrin-     Denny Zhou. 2023. Self-consistency improves chain
+  maya Sachan, Rada Mihalcea, Mona Diab, and Bern-            of thought reasoning in language models.
+  hard Schölkopf. 2024. Can large language models           Zeyu Wang. 2024. CausalBench: A comprehensive
+  infer causation from correlation?                           benchmark for evaluating causal reasoning capabil-
+                                                              ities of large language models. In Proceedings of
+Takeshi Kojima, Shixiang (Shane) Gu, Machel Reid, Yu-         the 10th SIGHAN Workshop on Chinese Language
+  taka Matsuo, and Yusuke Iwasawa. 2022. Large lan-           Processing (SIGHAN-10), pages 143–151, Bangkok,
+  guage models are zero-shot reasoners. In Advances in        Thailand. Association for Computational Linguistics.
+  Neural Information Processing Systems, volume 35,
+  pages 22199–22213. Curran Associates, Inc.                Jason Wei, Yi Tay, Rishi Bommasani, Colin Raffel,
+                                                               Barret Zoph, Sebastian Borgeaud, Dani Yogatama,
+Emre Kıcıman, Robert Ness, Amit Sharma, and Chen-              Maarten Bosma, Denny Zhou, Donald Metzler, Ed H.
+  hao Tan. 2024. Causal reasoning and large language           Chi, Tatsunori Hashimoto, Oriol Vinyals, Percy
+  models: Opening a new frontier for causality.                Liang, Jeff Dean, and William Fedus. 2022a. Emer-
+                                                               gent abilities of large language models.
+LangChain Contributors. 2024. LangChain Python In-
+  tegration Documentation. Accessed: 2024-12-01.            Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten
+                                                               Bosma, brian ichter, Fei Xia, Ed Chi, Quoc V Le,
+Martha Lewis and Melanie Mitchell. 2024. Using coun-           and Denny Zhou. 2022b. Chain-of-thought prompt-
+  terfactual tasks to evaluate the generality of analogi-      ing elicits reasoning in large language models. In
+  cal reasoning in large language models.                     Advances in Neural Information Processing Systems,
+
+                                                        328
+  volume 35, pages 24824–24837. Curran Associates,         A    Comparison of Sampled and Original
+  Inc.                                                          Dataset Distributions
+Anpeng Wu, Kun Kuang, Minqin Zhu, Yingrong Wang,
+  Yujia Zheng, Kairong Han, Baohong Li, Guangyi            Table 5 presents the number of causal questions
+  Chen, Fei Wu, and Kun Zhang. 2024a. Causality for        across different properties in the sampled and orig-
+  large language models.                                   inal datasets. Figures 3, 4, and 5 illustrate the
+Zhaofeng Wu, Linlu Qiu, Alexis Ross, Ekin Akyürek,         data distribution for each metric in both datasets,
+  Boyuan Chen, Bailin Wang, Najoung Kim, Jacob An-         showing that the distribution of the sampled dataset
+  dreas, and Yoon Kim. 2024b. Reasoning or reciting?       (1,000 causal questions) closely matches that of
+  exploring the capabilities and limitations of language   the original commonsensical dataset (8,690 causal
+  models through counterfactual tasks.
+                                                           questions).
+Zhaofeng Wu, Linlu Qiu, Alexis Ross, Ekin Akyürek,
+  Boyuan Chen, Bailin Wang, Najoung Kim, Jacob An-             Metric                Sampled      Original
+  dreas, and Yoon Kim. 2024c. Reasoning or reciting?           Answer
+  exploring the capabilities and limitations of language
+  models through counterfactual tasks.                         No                       504         4345
+                                                               Yes                      496         4345
+Binfeng Xu, Zhiyuan Peng, Bowen Lei, Subhabrata
+  Mukherjee, Yuchen Liu, and Dongkuan Xu. 2023.
+                                                               Query Type
+  Rewoo: Decoupling reasoning from observations for            Marginal Prob.           209         1702
+  efficient augmented language models.                         ATE                      174         1518
+Linying Yang, Vik Shirvaikar, Oscar Clivio, and Fabian         Conditional Prob.        174         1518
+  Falck. 2024. A critical review of causal reasoning           ATT                      137         1288
+  benchmarks for large language models.                        Counterfactual           95          874
+Shunyu Yao, Dian Yu, Jeffrey Zhao, Izhak Shafran,              NIE                      92          870
+  Tom Griffiths, Yuan Cao, and Karthik Narasimhan.             NDE                      73          552
+  2023. Tree of thoughts: Deliberate problem solving           Collider Bias            23          184
+  with large language models. In Advances in Neural            Explaining Away          22          184
+  Information Processing Systems, volume 36, pages
+  11809–11822. Curran Associates, Inc.                         Rung
+                                                               Rung 1                   405         3584
+Longxuan Yu, Delin Chen, Siheng Xiong, Qingyang
+                                                               Rung 2                   398         3404
+  Wu, Qingzhen Liu, Dawei Li, Zhikai Chen, Xiaoze
+  Liu, and Liangming Pan. 2025. Causaleval: Towards            Rung 3                   197         1702
+  better causal reasoning in language models.
+                                                           Table 5: Number of causal questions per metric for
+Wenhao Yu, Meng Jiang, Peter Clark, and Ashish Sab-        sampled and original dataset
+ harwal. 2023. Ifqa: A dataset for open-domain ques-
+ tion answering under counterfactual presuppositions.
+Matej Zečević, Moritz Willig, Devendra Singh Dhami,      B   Prompts
+ and Kristian Kersting. 2023. Causal parrots: Large
+ language models may talk causality but are not            The code and prompts used for all experi-
+ causal.                                                   ments can be found in https://github.com/
+Cheng Zhang, Stefan Bauer, Paul Bennett, Jiangfeng         rahulbshrestha/causal-reasoning
+  Gao, Wenbo Gong, Agrin Hilmkil, Joel Jennings,              Specifically, the prompts used for the memoriza-
+  Chao Ma, Tom Minka, Nick Pawlowski, and James            tion test, causal chain of thought and program of
+  Vaughan. 2023. Understanding causality with large
+                                                           thoughts can be found in https://github.com/
+  language models: Feasibility and opportunities.
+                                                           rahulbshrestha/causal-reasoning/blob/
+Wayne Xin Zhao, Kun Zhou, Junyi Li, Tianyi Tang,           main/src/prompts.py
+ Xiaolei Wang, Yupeng Hou, Yingqian Min, Beichen
+ Zhang, Junjie Zhang, Zican Dong, Yifan Du, Chen
+ Yang, Yushuo Chen, Zhipeng Chen, Jinhao Jiang,
+                                                           C    Memorization Test
+ Ruiyang Ren, Yifan Li, Xinyu Tang, Zikang Liu,
+                                                           To verify that the dataset was not included in the
+ Peiyu Liu, Jian-Yun Nie, and Ji-Rong Wen. 2024. A
+ survey of large language models.                          training data for each model, we conducted a mem-
+                                                           orization test as outlined in Kıcıman et al.’s (2024).
+Yu Zhou, Xingyu Wu, Beicheng Huang, Jibin Wu, Liang
+  Feng, and Kay Chen Tan. 2024. Causalbench: A
+                                                              For the basic test, we asked the LLMs whether
+  comprehensive benchmark for causal learning capa-        they were familiar with the CL ADDER dataset us-
+  bility of llms.                                          ing the following prompt:
+                                                         329
+   “Do you know about the dataset CL ADDER:
+Assessing Causal Reasoning in Language Models?
+If yes, please provide the names of the authors, the
+number of questions in the dataset, and an example
+row from the dataset.”
+   We observed that all LLMs either fabricated the
+information for all three values or stated that they
+did not recognize the dataset.                           Figure 3: Comparison of Answer Distributions (Yes/No)
+   For a more rigorous evaluation, we employed           in Original vs. Sampled Datasets
+a memorization test prompt inspired by (Kıcıman
+et al., 2024). Details on the exact prompt used
+are provided in Appendix B. In this test, the LLM
+was tasked with recalling three partial questions
+from the dataset. To enhance the likelihood of suc-
+cessful reconstruction, the LLM was first provided
+with additional contextual information, including
+the dataset’s name, URL, a description extracted
+from the README file, and two few-shot exam-
+ples from the dataset.
+                                                         Figure 4: Comparison of Query Types Distributions in
+   The three partial questions are presented below.      Original vs. Sampled Datasets
+The italicized portions were deliberately omitted
+from the prompt, and the LLM was expected to
+reconstruct them.
+   Q1: The overall probability of manager signing
+the termination letter is 39%. For managers who
+don’t sign termination letters, the probability of em-
+ployee being fired is 22%. For managers who sign
+termination letters, the probability of employee be-
+ing fired is 60%. Is employee being fired less likely
+than employee not being fired overall?
+   Q2: For unvaccinated individuals, the probabil-
+ity of smallpox survival is 35%. For vaccinated          Figure 5: Comparison of Rung Type Distributions in
+individuals, the probability of smallpox survival        Original vs. Sampled Datasets
+is 40%. Does vaccination status positively affect
+smallpox survival through getting smallpox and           together form the causal question. “Answer” rep-
+vaccination reaction?                                    resents the ground truth. “Query Type” indicates
+   Q3: For infants with nonsmoking mothers, the          one of nine distinct query categories. “Rung” spec-
+probability of high infant mortality is 88%. For in-     ifies the causal hierarchy level of the answer (1 =
+fants with smoking mothers, the probability of high      Association, 2 = Intervention, 3 = Counterfactual).
+infant mortality is 64%. For infants with smoking        “Formal Form” provides the mathematical represen-
+mothers, would it be less likely to see high infant      tation of the query type, and “Reasoning” outlines
+mortality if the infant had a nonsmoking mother?         the step-by-step approach to solving the question.
+Let’s think step by step. Answer with ’yes’ or ’no’
+at the end.                                              D.1   Rung 1 Question
+   We observed that the LLMs failed to reconstruct
+                                                         Info: The overall probability of alarm set by hus-
+the questions accurately, instead generating random
+                                                         band is 73%. The probability of alarm not set by
+data that did not match the original dataset.
+                                                         husband and ringing alarm is 10%. The probability
+                                                         of alarm set by husband and ringing alarm is 40%.
+D    Sample Questions from CLadder
+                                                            Question: Is the chance of ringing alarm larger
+In this section, we present sample data points from      when observing alarm set by husband?
+the CL ADDER dataset. The “Info” and “Question”             Answer: yes
+                                                     330
+  Query type: correlation                                  5. P (Y = 1|V1 = 0, X = 0) = 0.43
+  Rung: 1                                                     P (Y = 1|V1 = 0, X = 1) = 0.81
+  Formal form: P (Y |X)                                       P (Y = 1|V1 = 1, X = 0) = 0.63
+  Reasoning:                                                  P (Y = 1|V1 = 1, X = 1) = 0.98
+                                                              P (V1 = 1) = 0.26
+  1. Let X = husband; V2 = wife; Y = alarm clock.
+                                                           6. 0.74 ∗ (0.81 − 0.43) + 0.26 ∗ (0.98 − 0.63) =
+  2. X → V2 , X → Y , V2 → Y                                  0.38
+                                                           7. 0.38 > 0
+  3. P (Y |X)
+                                                        D.3      Rung 3 Question
+  4. P (X = 1, Y = 1)/P (X = 1) − P (X =
+                                                        Info: For those who choose to take the stairs and
+     0, Y = 1)/P (X = 0)
+                                                        penguins who are sad, the probability of penguin
+                                                        death is 28%. For those who choose to take the
+  5. P (X = 1) = 0.73
+                                                        stairs and penguins who are happy, the probability
+     P (Y = 1, X = 0) = 0.10
+                                                        of penguin death is 60%. For those who choose
+     P (Y = 1, X = 1) = 0.40
+                                                        to take the elevator and penguins who are sad, the
+  6. 0.40/0.73 − 0.10/0.27 = 0.18                       probability of penguin death is 35%. For those
+                                                        who choose to take the elevator and penguins who
+  7. 0.18 > 0                                           are happy, the probability of penguin death is 74%.
+                                                        For those who choose to take the stairs, the prob-
+D.2 Rung 2 Question                                     ability of penguin happiness is 57%. For those
+Info: For CEOs who fire employees and managers          who choose to take the elevator, the probability of
+who don’t sign termination letters, the probability     penguin happiness is 22%.
+of employee being fired is 43%. For CEOs who fire          Question: Does my decision negatively affect
+employees and managers who sign termination let-        penguin survival through penguin mood?
+ters, the probability of employee being fired is 81%.      Answer: yes
+For CEOs who don’t fire employees and managers             Query type: NIE
+who don’t sign termination letters, the probability        Rung: 3
+of employee being fired is 63%. For CEOs who               Formal form: E[YX=0,V2 =1 − YX=0,V2 =0 ]
+don’t fire employees and managers who sign ter-            Reasoning:
+mination letters, the probability of employee being        1. Let X = my decision; V2 = penguin mood; Y
+fired is 98%. The overall probability of CEO’s                = penguin survival.
+decision to fire the employee is 26%.
+   Question: Will manager signing the termination          2. X → V2 , X → Y , V2 → Y
+letter decrease the chance of employee being fired?        3. E[YX=0,V2 =1 − YX=0,V2 =0 ]
+   Answer: no                                                   P
+   Query type: ATE                                         4.     V2 =v P (Y = 1|X = 0, V2 = v) ∗ [P (V2 =
+   Rung: 2                                                      v|X = 1) − P (V2 = v|X = 0)]
+   Formal form:                                            5. P (Y = 1|X = 0, V2 = 0) = 0.28
+E[Y |do(X = 1)] − E[Y |do(X = 0)]                             P (Y = 1|X = 0, V2 = 1) = 0.60
+   Reasoning:                                                 P (Y = 1|X = 1, V2 = 0) = 0.35
+                                                              P (Y = 1|X = 1, V2 = 1) = 0.74
+  1. Let V1 = CEO; V3 = director; X = manager;                P (V2 = 1|X = 0) = 0.57
+     Y = employee.                                            P (V2 = 1|X = 1) = 0.22
+  2. V1 → V3 , V1 → X, X → Y , V3 → Y                      6. 0.22 ∗ (0.60 − 0.28) + (1 − 0.22) ∗ (0.74 −
+                                                              0.35) − (0.57 ∗ (0.60 − 0.28) + (1 − 0.57) ∗
+  3. E[Y |do(X = 1)] − E[Y |do(X = 0)]                        (0.74−0.35)) = 0.0704+0.2964−(0.1824+
+       P                                                      0.1671) = 0.3668 − 0.3495 = 0.0173
+  4.      V1 =v P (V1 = v) ∗ [P (Y = 1|V1 = v, X =
+       1) − P (Y = 1|V1 = v, X = 0)]                       7. 0.0173 > 0
+                                                     331
+               Step     Error Count                            Distribution                        # Answers
+              Step 1         3                                 (5 yes + 0 no) or (0 yes + 5 no)       535
+              Step 2        18                                 (4 yes + 1 no) or (1 yes + 4 no)       246
+              Step 3        17                                 (3 yes + 2 no) or (2 yes + 3 no)       218
+              Step 4        12
+                                                              Table 8: Distribution of answers in SC-5 (5 chains)
+Table 6: For a sample of errors in C AUSAL C OT, we
+identify the step at which GPT-4o made a mistake.
+                                                                            Step     Error Count
+                                                                           Step 1         4
+E     Error Analysis                                                       Step 2        23
+                                                                           Step 3        12
+E.1    Causal Chain of Thought                                             Step 4        11
+For C AUSAL C OT, we conducted an error analy-            Table 9: For a sample of errors in C AUSALT OT, we
+sis on 50 samples, categorizing failures based on         identify the step at which GPT-4o made a mistake.
+the specific step in the prompt where the model
+made an error. Table 6 presents our findings. If a
+model fails at an earlier step, we do not assess its      E.3      Causal Tree of Thoughts
+performance on subsequent steps. Our results align
+with those reported by (Jin et al., 2023), who found      For C AUSAL C OT, we conducted an error analy-
+that LLMs most frequently fail at Steps 2, 3, and 5       sis on 50 samples, categorizing failures based on
+of C AUSAL C OT. Similarly, we observed errors in         the specific step in the prompt where the model
+Steps 2 and 3, but we did not encounter any cases         made an error. Table 9 presents our findings. We
+where the model successfully completed the first          categorize mistakes the LLM made in generating
+four steps and then failed at Step 5.                     or evaluating thoughts under the same step. If a
+                                                          model fails at an earlier step, we do not assess its
+E.2    Chain of Thought with Self-Consistency             performance on subsequent steps.
+
+To verify that C OT-SC produces different answers
+                                                          E.4      Causal Program of Thoughts
+for different reasoning chains—i.e., that there is
+variation—we analyzed the distribution of ‘yes’           For C AUSAL P OT, we conducted an error analysis
+and ‘no’ responses.                                       on 50 samples, categorizing failures based on 3
+   As shown in Tables 7 and 8, the model gener-           different error types. Results are shown in Table
+ated varying distributions of answers. In Table 5.1,      10.
+the highest frequency of responses falls into the
+(10 yes, 0 no) or (0 yes, 10 no) categories, with
+frequencies decreasing from there. This suggests               • Type 1: Incorrect causal graph extracted.
+that sampling different reasoning chains (for nearly             The model extracts an incorrect causal graph
+half the dataset) does not significantly impact most             based on the question.
+questions. The same pattern holds for SC-5 (5
+chains), which may explain why increasing to SC-               • Type 2: Incorrect library function call. The
+10 (10 chains) does not improve accuracy.                        model uses the wrong library function when
+                                                                 estimating causal effects. This often results
+ Distribution                           # Answers                from misidentifying the required rung type for
+ (10 yes + 0 no) or (0 yes + 10 no)        403                   solving the causal question.
+ (9 yes + 1 no) or (1 yes + 9 no)          169
+ (8 yes + 2 no) or (2 yes + 8 no)          127
+                                                               • Type 3: Incorrect code produced (code ex-
+ (7 yes + 3 no) or (3 yes + 7 no)          128
+                                                                 ecution failure). The model generates incor-
+ (6 yes + 4 no) or (4 yes + 6 no)          109
+                                                                 rect code due to formatting errors, incorrect
+ (5 yes + 5 no)                             59
+                                                                 library names, or other issues, causing execu-
+Table 7: Distribution of answers in SC-10 (10 chains)            tion failures or runtime errors.
+
+
+                                                        332
+                                               Error Type      Error Count
+                                                 Type 1            10
+                                                 Type 2            37
+                                                 Type 3            13
+
+Table 10: For a sample of errors in C AUSAL P OT, we classify the primary reasoning mistake into three types.
+
+                                                            The overall probability of smoking
+                                                            mother is 87%. For infants with
+                                                            nonsmoking mothers, the probability
+     The overall probability of smoking                     of high ice cream sales is 54%. For
+                                                            infants with smoking mothers, the
+     mother is 87%. For infants with
+                                                            probability of high ice cream sales is
+                                                                                                      Anti-commonsensical
+     non-smoking mothers, the
+     probability of high infant mortality is                31%. Is high ice cream sales less
+     54%. For infants with smoking                          likely than low ice cream sales
+     mothers, the probability of high                       overall?
+     infant mortality is 31%. Is high
+     infant mortality less likely than low
+     infant mortality overall?
+                                                            The overall probability of lkjh is 87%.
+       Commonsensical                                       For infants with non-lkjh, the
+                                                            probability of high cdre is 54%. For      Nonsensical
+                                                            infants with lkjh, the probability of
+                                                            high cdre is 31%. Is high cdre less
+                                                            likely than low cdre overall?
+
+
+
+                 Figure 6: Generating the anti-commonsensical and nonsensical perturbed datasets
+
+
+
+
+                                                            333
+
