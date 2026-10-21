@@ -1,0 +1,3 @@
+# CausalityCheck original recovery
+
+Continue LL.CENSUS after the C++ heterogeneous-effect coverage outcome. Recover candidate109 through matched public metadata and original locations, verify exact title/version against 7October2026, then inspect the primary methods, labels, causal levels, data provenance and negative results. Separate benchmark reasoning accuracy from identified intervention effects and transfer to banking. If the original is inaccessible, preserve routes and limits without marking the candidate inspected; continue other eligible candidates. No live models, downloaded code or sibling repositories are executed.

@@ -1,6 +1,6 @@
 # Current executable proposal program
 
-Updated 20 October 2026 after longitudinal reuse and commercial mediation reviews. This is research and a product proposal. Prototype qualification,
+Updated 21 October 2026 after native heterogeneous-effects and CausalityCheck reviews. This is research and a product proposal. Prototype qualification,
 independent acceptance, bank validation and adoption are separate outcomes.
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
@@ -10,24 +10,24 @@ evidence remain preserved. A checkpoint records continuation; it is not a stop g
 
 ## Current integrated documents
 
-Read the [1,168-page integrated monograph](../../causal_proposal_mediation_reviewed_2026-10-20.pdf)
-and its [34-page sponsor proposal](../../sponsor_proposal_mediation_reviewed_2026-10-20.pdf).
-They are paired by exact hashes. The reader has 856 audited
-citation records and 213 genuine scholarly PDFs.
+Read the [1,175-page integrated monograph](../../causal_proposal_causalitycheck_reviewed_2026-10-21.pdf)
+and its [37-page sponsor proposal](../../sponsor_proposal_causalitycheck_reviewed_2026-10-21.pdf).
+They are paired by exact hashes. The reader has 864 audited
+citation records and 215 genuine scholarly PDFs.
 Q2-Q4 pass for this reader. Q1/Q5, all three mandatory repair rollups, rendered
 review and final proposal acceptance remain open. Length is not acceptance.
 
-There are **172 recorded outcomes of 376 proposal operations**,
-with **177 ready**. An inconclusive outcome preserves
+There are **173 recorded outcomes of 376 proposal operations**,
+with **176 ready**. An inconclusive outcome preserves
 its unmet obligations and is not counted as substantive closure.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| Software coverage | 2 | 33 | 67 | 102 |
+| Software coverage | 2 | 34 | 66 | 102 |
 | Reuse decisions | 23 | 3 | 89 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-The frontier census remains **54 inspected and 59 unread out of113 originals**,
+The frontier census remains **55 inspected and 58 unread out of113 originals**,
 plus four separate crosscutting obligations. L1/L6 completeness, complementary
 searches and citation chaining remain open. Fourteen task reviews and twelve
 integration requirements have scoped proposal outcomes; these do not establish
@@ -35,39 +35,38 @@ runtime adoption.
 
 ## Substantive progress
 
-The commercial mediation comparison occupies physical PDF pages 222-227.
-All 849 earlier citation identities and contexts and
-262 compiled content inputs survive. Five official
-technical manuals, one author software-identity page and an exact authored
-reference add seven citations.
+The CausalityCheck discussion occupies physical PDF pages
+878-881. All 862
+earlier citation identities and contexts and 264
+compiled content inputs survive. A genuine ACL original and an authored exact
+reference add two citation records and one scholarly PDF.
 
-Stata's natural/controlled effects, interaction and covariate averaging are
-distinguished from the separate StataNow two-mediator feature. The selected
-Mplus chapter separates conventional latent-response products from counterfactual
-effects and identifies its single-mediator branch and moderation reference points.
-No native runtime, complete entitlement or superiority is established.
+The paper proposes a four-by-four textual reasoning checklist. Reported data
+flow1200 seeds/43200 generated/10800 selected/8920 retained is distinguished
+from runtime reproduction. Printed task counts and1880 exclusions reconcile.
+Annotation agreement varies,including AJ.72/.78 and CVA.59-.65. The paper's
+limited structural/counterfactual scope remains explicit.
 
-An exact interaction example gives total15 as6+9 or9+6. Two randomized-offer
-worlds have identical observed data but opposite natural decompositions when
-mediator ignorability fails. Offering the treatment versus changing only the
-mediator gives assumed margins80/-20. Covariate averaging versus evaluation at
-the mean gives assumed margins5/-5. A residual-correlation range4..8 is a
-sensitivity scenario set, not a confidence interval or sharp identified set.
+An accuracy difference is net discordance,not the rate of correct answers with
+wrong chains. Under an explicitly paired population,the same82.27%/59.46%
+marginals allow22.81%-40.54% discordance. A negative difference-5.12points
+permits0%-23.2%. These are authored illustrations,not bounds on the actual
+unmatched task outputs. Filtering50 of100 requests with45 correct gives90%
+selected accuracy but full45%-95%; assumed10/-30/1 economics gives margins
+-13..7 rather than the selected5.
 
-Coverage and commercial comparison are inconclusive: SAS, IBM/AMOS and PROCESS
-still need matched technical originals; broader sensitivity/negative-control
-discovery, editions, rights, prices and native parity remain open. Incomplete
-SAS transfers, generic Help Center shells, PROCESS TLS failure and IBM404 are
-preserved. Candidate45's identity is recovered, but two SSRN routes returned403;
-its original remains unread and the54/59 census is unchanged.
+The C++ comparison remains integrated at physical pages283-287. Its distinct
+slope/contrast,precision/target weights,priors,draw alignment and static hazards
+remain source-grounded proposal findings. BCF historical82% coverage at95%
+nominal is retained without claiming a current native ranking or reproduction.
 
-The sponsor preserves181 earlier citation records and adds9, for190.
-Both PDFs pass source and text-bounds checks. A failed ASCII-minus assertion
-was repaired by explicitly normalizing the extracted mathematical minus; no
-scientific value changed. Rendered visual and final acceptance remain open.
+The sponsor preserves198 prior citations and adds4,for202. Both PDFs pass
+source,exact arithmetic,preservation and extracted text-bounds checks.
+Rendered visual acceptance,complete repair rollups,Q1/Q5 and independent
+acceptance remain open. No live models or upstream code were executed.
 
-The [previous master view](2026-10-20/program-refresh-mediation-v1/prior-current-program.md)
-preserves the gfoRmula and earlier findings.
+The [previous master view](2026-10-21/program-refresh-causalitycheck-v3/prior-current-program.md)
+preserves the C++ and earlier findings.
 
 ## Required standard and remaining routes
 
@@ -94,24 +93,30 @@ are later conditional gates; they do not block independent proposal work.
 
 ## Exact continuation
 
-Next operation: **SW.CELL.effects_heterogeneity.Cxx**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Match ATE/ATT/CATE/dose-response targets, nuisance learning, cross-fitting, overlap, weighting and inference sampling units; banking example: servicing effects by risk group.
+Next operation: **SW.DECISION.inherited_grf**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
 
-The [C++ effects plan](2026-10-20/cxx-effects-v1/plan.md)
-preserves the earlier grf native/R boundary decision. Its selected April2026
-commit has a recovered nontruncated root tree. Inspect causal targets, nuisance
-fitting, honesty, weights and variance semantics, and compare alternative native
-forest lineages without counting aliases as separate implementations.
-Bounded repository discovery is a lead, not a capability or exhaustive search.
+The [grf inherited-entry plan](2026-10-21/grf-reuse-v1/plan.md) follows the
+controller's next eligible operation. Preserve the completed native boundary
+decision SW.DECISION.seed_080; reconcile the alias and R-wrapper scope at the
+pinned revision without repeating that decision or granting runtime admission.
+Bind dependencies,maintenance,rights,conversion and failure semantics before
+choosing a scoped reference/integrate/defer/reject disposition.
 
-The [candidate45 recovery](2026-10-20/census-medical-agents-v1/acquisition-review.json)
-records its original-source blocker. Other unread originals and complementary
-searches remain independently eligible under the
-[54/59 census](2026-10-20/census-hypothesis-v1/census-register.json).
+Candidate109 is technically inspected and integrated. Do not repeat its
+acquisition or publication. Continue58 unread originals,starting candidate26
+(ACE bowtie extraction) or another accessible original. Inspect authentic
+methods and negative evidence,verify cutoff identity,and update the census
+without granting runtime adoption. Candidate45's SSRN403 blocker remains local.
+
+Recover CausalityCheck pinned code/data and raw paired judgments before any
+runtime reuse. Its source-generation/filtering and model-policy alternatives
+remain unresolved. Complete complementary longitudinal/off-policy and negative
+searches,citation chaining and software candidate reviews independently.
 Continue every eligible branch across phase boundaries; record a local blocker
 and its acquisition/research trigger without stopping unrelated work.
 
-[Every nonpassing obligation](2026-10-20/program-refresh-mediation-v1/remaining-operations.json)
-· [Continuation checkpoint](2026-10-20/program-refresh-mediation-v1/continuation-checkpoint.json)
+[Every nonpassing obligation](2026-10-21/program-refresh-causalitycheck-v3/remaining-operations.json)
+· [Continuation checkpoint](2026-10-21/program-refresh-causalitycheck-v3/continuation-checkpoint.json)
 
 Use short commands, redirected logs and bounded text output. No unattended worker
 is running. The inherited image allowance is exhausted under `/home/ubuntu/AGENTS.md`;

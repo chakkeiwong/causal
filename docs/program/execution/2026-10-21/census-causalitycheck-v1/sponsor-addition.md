@@ -1,0 +1,10 @@
+## Evaluate paired reasoning errors and the full request population
+
+CausalityCheck provides a four-by-four task and robustness design for testing textual causal reasoning. Its genuine July 2026 ACL paper reports 1,200 seed questions, 43,200 generated instances, 10,800 selected and 8,920 retained after filtering. The framework is useful for a prototype evaluation, but its textual labels and accuracy do not establish identified banking effects. Some reported annotation-agreement values also fall below the paper's broad excellent-agreement description. citep{exec21_causalitycheck}
+
+A difference between answerability and process-judgment accuracy is a net difference of two discordance rates. It does not identify the frequency of correct answers supported by wrong reasoning. In an authored matched-population example, marginals of 82.27% and 59.46% permit that joint error rate to range from 22.81% to 40.54%. A negative difference of -5.12 points can coexist with a rate as high as 23.2%. The paper's actual task populations differ, so these are illustrations of the required measurement design, not empirical bounds on its models. citep{exec21_causalitycheck_reference}
+
+Filtering also changes the population. If 50 of 100 requests are retained and 45 are correct, selected accuracy is 90%, while full-population accuracy can range from 45% to 95%. Under explicitly assumed USD 10 gain, USD 30 error loss and USD 1 action cost, selected accuracy suggests USD 5 margin; the full-population range is USD -13 to USD 7. A real refusal policy requires its own costs and workload accounting. These are exact hypothetical witnesses, not measured returns. citep{exec21_causalitycheck_reference}
+
+The proposed public evaluation uses common seed identities, both discordance directions, known causal mechanisms, blind adjudication, inclusion/refusal records and fixed aggregation weights. Entity renaming is a stress test whose score changes can have several explanations. Pinned code/data, raw paired judgments, licenses and independent reproduction remain open; no live model or upstream package has been executed. citep{exec21_causalitycheck}
+
