@@ -1,0 +1,424 @@
+# CELL 2
+import pandas as pd
+import json
+
+dataset_path = "../data/cladder/cladder-v1-q-commonsense.json"
+with open(dataset_path, "r") as f:
+    data = json.load(f)
+    
+df = pd.DataFrame(data)
+df.rename(columns={'given_info': 'info'}, inplace=True)
+
+df = df[df['meta'].apply(lambda x: x.get('query_type') != 'backadj')].reset_index(drop=True)
+
+
+# CELL 3
+index = 6700
+
+print('Info: ', df.iloc[index]['info'])
+print('Question: ', df.iloc[index]['question'])
+print('Answer: ', df.iloc[index]['answer'])
+print('Graph ID: ', df.iloc[index]['meta']['graph_id'])
+print('Query type: ', df.iloc[index]['meta']['query_type'])
+print('Rung: ', df.iloc[index]['meta']['rung'])
+print('Formal form: ', df.iloc[index]['meta']['formal_form'])
+print('Reasoning: ' , df.iloc[index]['reasoning'])
+
+# CELL 4
+df['meta'][3]
+
+# CELL 5
+df_new = df.copy()
+meta_df = df_new['meta'].apply(pd.Series)
+meta_df
+df_new = pd.concat([df_new, meta_df], axis = 1)
+df_new = df_new.drop('meta', axis = 1)
+df_new.rename(columns={'given_info': 'given_info_meta', 'given_info': 'given_info'}, inplace=True)
+
+# CELL 6
+df_sampled = df_new.sample(n = 1000, random_state=25)
+print(len(df_sampled))
+
+# CELL 7
+column_names = ['answer', 'query_type', 'answer', 'graph_id', 'rung', 'query_type', 'story_id', 'polarity']
+
+for column_name in column_names:
+    print(df_sampled[column_name].value_counts())
+    print(df_new[column_name]. value_counts())
+    print('----------------------------------')
+
+# CELL 9
+df_cladder = df_sampled.copy()
+
+# CELL 10
+def add_column(df, model_name):   
+    if model_name not in df.columns: 
+        df[model_name] = None
+    else:
+        print(model_name + " already exists in Dataframe!")
+
+
+column_names = ['gpt-4o-mini']
+
+
+for c in column_names:
+    add_column(df_cladder, c)
+    add_column(df_cladder, c +'_reasoning')
+    
+
+df_cladder = df_cladder.reset_index(drop=True)
+
+# CELL 11
+# Check out index 550!
+
+index = 300
+print(df_cladder.iloc[index]['info'])
+print(df_cladder.iloc[index]['question'])
+print(df_cladder.iloc[index]['answer'])
+print(df_cladder.iloc[index]['reasoning'])
+
+# CELL 12
+df_cladder.iloc[index]
+
+# CELL 14
+from openai import OpenAI
+from constants import OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY) 
+
+def input_output(prompt, model='gpt-4o-mini', temperature=1.0):
+
+    prompt_question = prompt
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "user", "content": prompt_question}
+        ],
+        temperature=temperature,
+    )
+    
+    model_answer = completion.choices[0].message.content
+    return model_answer
+
+# CELL 15
+import re
+
+def extract_option(input_string):
+    """
+    Extracts the content inside the last pair of curly braces from a string.
+
+    Args:
+        input_string: The string containing the curly braces.
+
+    Returns:
+        A string representing the content inside the last pair of curly braces, 
+        or None if no curly braces are found.
+    """
+    try:
+        start_index = input_string.rfind("{")
+        end_index = input_string.rfind("}")
+
+        if start_index == -1 or end_index == -1 or start_index >= end_index:
+            return None
+
+        # Extract the content inside the last pair of curly braces
+        return input_string[start_index + 1 : end_index].strip()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+def extract_options(input_string):
+    """
+    Extracts the list of options from the last set of curly brackets in the input string.
+    Flattens any multiline content within the curly brackets into a single line and
+    returns only the content inside quotation marks as a list.
+
+    Args:
+        input_string (str): The string containing the list.
+
+    Returns:
+        list: A list of extracted options, or None if no valid list is found.
+    """
+    try:
+        start_index = input_string.rfind("{")
+        end_index = input_string.rfind("}")
+        if start_index == -1 or end_index == -1 or start_index >= end_index:
+            return None
+
+        # Extract the content between the curly brackets
+        content = input_string[start_index + 1:end_index]
+        # Flatten the multiline content into a single line
+        content = " ".join(content.splitlines())
+        content = " ".join(content.split())  # remove extra spaces
+
+        # Use regex to extract only the quoted strings
+        elements = re.findall(r'"([^"]*)"', content)
+        return elements
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+# CELL 16
+text = ''' Options: {
+  "E[prisoner | do(captain = release)] - E[prisoner | do(captain = execute)]", 
+  "P(prisoner = alive | do(captain = release)) - P(prisoner = alive | do(captain = execute))", 
+  "E[prisoner_life]_{do(captain = release)} - E[prisoner_life]_{do(captain = execute)}"
+}'''
+extract_options(text)
+
+# CELL 17
+text = '''
+"Step 1) Extract the causal graph: 
+Citrus Intake -> Scurvy, No Citrus -> Scurvy
+
+Step 2) Determine the query type: 
+"average treatment effect"
+
+Step 3) Formalize the query: 
+To analyze the average treatment effect of citrus intake on the probability of scurvy, we want to compare the probabilities of scurvy under different conditions of citrus consumption. The three possible formalizations could be:
+
+1) P(Scurvy | do(Citrus Intake)) - P(Scurvy | do(No Citrus))
+2) E[Scurvy | do(Citrus Intake)] - E[Scurvy | do(No Citrus)]
+3) P(Scurvy | do(Citrus Intake)) - P(Scurvy)
+
+List of options:
+{"P(Scurvy | do(Citrus Intake)) - P(Scurvy | do(No Citrus))", "E[Scurvy | do(Citrus Intake)] - E[Scurvy | do(No Citrus)]", "P(Scurvy | do(Citrus Intake)) - P(Scurvy)"}
+'''
+
+extract_options(text)
+
+# CELL 18
+text = 'Answer: {P(C) = 0.18; P(S | ~C) = 0.68; P(S | C) = 0.49}'
+extract_option(text)
+
+# CELL 19
+import re
+
+def extract_yes_or_no(input_string):
+    # Using regular expression to find all occurrences of 'yes' or 'no' in the input string
+    matches = re.findall(r'\b(?:yes|no)\b', input_string, re.IGNORECASE)
+
+    if matches:
+        # Return the last matched text in lowercase
+        return matches[-1].lower()
+    else:
+        # Return None if no match is found
+        return None
+
+# CELL 20
+causal_cot_prompts = [
+  "Step 1) Extract the causal graph: Identify the causal graph that depicts the relationships in the scenario. The diagram should simply consist of edges denoted in 'var1 -> var2' format, separated by commas.",
+  "Step 2) Determine the query type: Identify the type of query implied by the main question. Choices include 'marginal probability', 'conditional probability', 'explaining away effect', 'backdoor adjustment set', 'average treatment effect', 'collider bias', 'normal counterfactual question', 'average treatment effect on treated', 'natural direct effect' or 'natural indirect effect'. Your answer should only be a term from the list above, enclosed in 'quotation marks'.",
+  "Step 3) Formalize the query: Translate the query into its formal mathematical expression based on its type, utilizing the 'do(·)' notation or counterfactual notations as needed.",
+  "Step 4) Gather all relevant data: Extract all the available data. Your answer should contain nothing but marginal probabilities and conditional probabilities in the form 'P(...)=...' or 'P(...|...)=...', each probability being separated by a semicolon. Stick to the previously mentioned denotations for the variables.",
+  "Step 5) Deduce the estimand using causal inference: Given all the information above, deduce the estimand using skills such as do-calculus, counterfactual prediction, and the basics of probabilities.",
+  "Step 6) Calculate the estimand: Insert the relevant data in Step 4 into the estimand, perform basic arithmetic calculations, and derive the final answer. Answer with yes or no in the end"
+]
+
+generate_single_prompt = '''
+Question: {question} -> {causal_cot_prompt} -> Answer this and put it in curly brackets like Answer: {{X}}
+'''
+
+generate_prompt = '''
+Question: {question} -> {causal_cot_prompt} -> 
+-> Generate {num_generated_options} possible options for this, and then put all the options in a list, each option being a string, like
+Options: {{"X", "X", "X"}}. Make sure this is in a single line!
+'''
+
+evaluate_prompt = '''
+Question: {question} -> Options: {new_thoughts} -> 
+-> Assign a score between 1 - 10 for each option in Options: depending on how well it answers the question (10 being the highest or the best), then put the score into a list, each score being a string, like
+Options: {{"X", "X", "X"}}. Make sure this is in a single line!
+'''
+
+def generate_thoughts(model, question, num_generated_options, step): #TODO: Extend to cases when there is more than 1 selected 
+    
+    prompt = generate_prompt.format(question=question, causal_cot_prompt=causal_cot_prompts[step], num_generated_options=num_generated_options)
+    answer_prompt = input_output(prompt, model=model)
+    print('Answer prompt: ', answer_prompt)
+    answers = extract_options(answer_prompt)
+    
+    return answers
+
+def generate_single_thought(model, question, step): # For cases when step is skipped
+    
+    prompt = generate_single_prompt.format(question=question, causal_cot_prompt=causal_cot_prompts[step])
+    answer_prompt = input_output(prompt, model=model)
+
+    print('Single generate prompt: ', prompt)
+    print('Single answer prompt: ', answer_prompt)
+    
+    answers = extract_option(answer_prompt)
+    print('Single answers thought: ', answers)
+    
+    return answers
+
+
+def evaluate_thoughts(model, question, new_thoughts):
+    
+    prompt = evaluate_prompt.format(question=question, new_thoughts=str(new_thoughts))
+    answer_prompt = input_output(prompt, model=model)
+    print('Evaluate prompt: ', answer_prompt)
+
+    answer = extract_options(answer_prompt)
+    integer_list = [int(x) for x in answer]
+    return integer_list
+
+question = "The overall probability of citrus intake is 18%. For patients not consuming citrus, the probability of scurvy is 68%. For patients consuming citrus, the probability of scurvy is 49%. Is scurvy less likely than no scurvy overall?"
+question
+
+#generated_thoughts = generate_thoughts('gpt-4o-mini', question, 3, 0)
+#print("FINAL ANSWER: ", evaluate_thoughts('gpt-4o-mini', question, generated_thoughts))
+
+# CELL 21
+def search_algorithm(new_thoughts, ids, scores, n_select_sample):
+    selected_ids = sorted(ids, key=lambda x: scores[x], reverse=True)[:n_select_sample] # Take top n_select_sample from list based on scores
+    select_new_thoughts = [new_thoughts[select_id] for select_id in selected_ids]  
+    return select_new_thoughts
+
+# CELL 22
+def tree_of_thoughts(model, question, num_generated_options, num_selected_options):
+    
+    thoughts = ['']    
+    question = 'Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships:' + '\n' + question
+
+    for step in range(6):
+
+        print('STEP NUMBER: ', step)
+        
+        if step == 3 or step == 5: # Skipping steps 4 and 6 from the CausalCOT prompts
+            print('SKIPPING THIS STEP: ', step) 
+            single_thought = generate_single_thought(model, question, step)
+            question = question + "\n" +  causal_cot_prompts[step] +  "\n" + str(single_thought)
+
+            print('QUESTION SO FAR: ', question)
+            print('\n' + '-------' + '\n')
+        
+        else:
+            
+            new_thoughts = generate_thoughts(model, question, num_generated_options, step)
+            ids = list(range(len(new_thoughts)))
+
+            # Thought Generation
+            print('(Step 1) New Thoughts: ', new_thoughts)
+            print('(Step 1) ids ', ids)
+
+            # Thought Evaluation
+            scores = evaluate_thoughts(model, question, new_thoughts)
+            print('(Step 2) Scores: ', scores)
+
+            # Thought Selection (Search Algorithm) -> Here, we only select one highest scoring thought and progress
+            # to the next step
+            selected_thought = search_algorithm(new_thoughts, ids, scores, num_selected_options)
+            print('(Step 3) Selected thought: ', selected_thought)
+
+            # TODO: Change this later if multiple thoughts are selected
+            question = question + "\n" +  causal_cot_prompts[step] +  "\n" + str(selected_thought[0])
+
+            print('QUESTION SO FAR: ', question)
+            print('\n' + '-------' + '\n')
+
+    
+    return question
+            
+
+#question = "The overall probability of citrus intake is 18%. For patients not consuming citrus, the probability of scurvy is 68%. For patients consuming citrus, the probability of scurvy is 49%. Is scurvy less likely than no scurvy overall?"
+#tree_of_thoughts('gpt-4o-mini', question, 3, 1)
+
+# CELL 23
+def run_openai_tree_of_thoughts(df, model_col_name, model, min_range, max_range, temperature=1.0, overwrite=False):
+    
+    if model_col_name not in df.columns:
+        raise KeyError(model_col_name + " : Column name doesn't exist!")
+    
+    for i in range(min_range, max_range):
+
+        if df.iloc[i][model_col_name] is None or overwrite == True:
+            
+            prompt_question =  'Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships:' + '\n' + df.iloc[i]['info'] + " " + df.iloc[i]['question']
+            prompt_answer = tree_of_thoughts(model, prompt_question, 3, 1)
+            extracted_answer = extract_yes_or_no(prompt_answer)
+
+
+            print('PROMPT ANSWER: ', prompt_answer)
+            print('EXTRACTED ANSWER: ', extracted_answer)
+            
+            df.at[i, model_col_name] = extracted_answer
+            df.at[i, model_col_name + '_reasoning'] = prompt_answer
+            print('Generation completed: ', i)
+
+        else:
+        
+            print('Skipping: ', i)    
+
+
+run_openai_tree_of_thoughts(df_cladder, model_col_name='gpt-4o-mini', model='gpt-4o-mini', overwrite=True, min_range=270, max_range=300)
+
+# CELL 24
+import datetime
+
+# Save pickle
+df_cladder.to_pickle('../data/log/cladder-tree_of_thoughts' + '-' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '.pkl')
+
+# Read pickle
+#unpickled_df = pd.read_pickle('./cladder.pkl')
+#df_cladder = unpickled_df
+
+# CELL 25
+def generate_results(df, gt_column, pred_column):
+    # Check if the ground truth and predicted columns exist in the DataFrame
+    if gt_column not in df.columns or pred_column not in df.columns:
+        print("Specified columns not found in the DataFrame.")
+        return
+
+    # Calculate accuracy by comparing the ground truth and predicted columns
+    correct_predictions = (df[gt_column] == df[pred_column]).sum()
+    total_predictions = len(df)
+    accuracy = correct_predictions / total_predictions
+
+    # Print accuracy as a percentage
+    print(pred_column,f"accuracy: {accuracy * 100:.2f}%")
+
+
+for c in column_names:
+    generate_results(df_cladder, 'answer', c)
+    
+
+# CELL 26
+def generate_results(df, gt_column, pred_column):
+    
+    matching_rows = df[df[gt_column] == df[pred_column]]
+
+    if len(df_cladder[df_cladder[pred_column].notna()]) != 0:  
+        accuracy = len(matching_rows) / len(df_cladder[df_cladder[pred_column].notna()])
+        print('Accuracy for ' + pred_column + ' : ' + str(accuracy * 100))
+    else:
+        print('Accuracy for ' + pred_column + ' : None made!')
+
+
+for c in column_names:
+    generate_results(df_cladder, 'answer', c)
+
+# CELL 27
+def generate_results(df, gt_column, pred_column):
+    # Check if the ground truth and predicted columns exist in the DataFrame
+    if gt_column not in df.columns or pred_column not in df.columns:
+        print("Specified columns not found in the DataFrame.")
+        return
+
+    # Drop rows where either ground truth or prediction is None
+    valid_df = df.dropna(subset=[gt_column, pred_column])
+
+    # Calculate accuracy by comparing the ground truth and predicted columns
+    correct_predictions = (valid_df[gt_column] == valid_df[pred_column]).sum()
+    total_predictions = len(valid_df)
+    accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+
+    # Print accuracy as a percentage
+    print('Accuracy for ' + pred_column + f" : {accuracy * 100:.2f}%")
+
+# Loop through each specified column name for predictions
+for c in column_names:
+    generate_results(df_cladder, 'answer', c)
+

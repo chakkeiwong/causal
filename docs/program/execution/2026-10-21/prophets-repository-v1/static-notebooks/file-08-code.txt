@@ -1,0 +1,195 @@
+# CELL 2
+import pandas as pd
+import json
+
+dataset_path = "../data/cladder/cladder-v1-q-commonsense.json"
+with open(dataset_path, "r") as f:
+    data = json.load(f)
+    
+df = pd.DataFrame(data)
+df.rename(columns={'given_info': 'info'}, inplace=True)
+
+df = df[df['meta'].apply(lambda x: x.get('query_type') != 'backadj')].reset_index(drop=True)
+
+
+# CELL 3
+df.iloc[0]['question']
+
+
+# CELL 4
+df.head(2)
+
+# CELL 5
+df.iloc[100]['meta']
+
+# CELL 6
+index = 6330
+
+print('Info: ', df.iloc[index]['info'])
+print('Question: ', df.iloc[index]['question'])
+print('Answer: ', df.iloc[index]['answer'])
+print('Graph ID: ', df.iloc[index]['meta']['graph_id'])
+print('Query type: ', df.iloc[index]['meta']['query_type'])
+print('Rung: ', df.iloc[index]['meta']['rung'])
+print('Formal form: ', df.iloc[index]['meta']['formal_form'])
+print('Reasoning: ' , df.iloc[index]['reasoning'])
+
+# CELL 7
+df['meta'][3]
+
+# CELL 8
+df_new = df.copy()
+meta_df = df_new['meta'].apply(pd.Series)
+meta_df
+df_new = pd.concat([df_new, meta_df], axis = 1)
+df_new = df_new.drop('meta', axis = 1)
+df_new.rename(columns={'given_info': 'given_info_meta', 'given_info': 'given_info'}, inplace=True)
+
+# CELL 9
+df_new['query_type'].unique()
+
+# CELL 10
+df_new.columns
+
+# CELL 11
+df_sampled = df_new.sample(n = 1000, random_state=25)
+print(len(df_sampled))
+
+# CELL 12
+print(df_sampled.head(10))
+
+# CELL 13
+column_names = ['answer', 'query_type', 'answer', 'graph_id', 'rung', 'query_type', 'story_id', 'polarity']
+
+for column_name in column_names:
+    print(df_sampled[column_name].value_counts())
+    print(df_new[column_name]. value_counts())
+    print('----------------------------------')
+
+# CELL 15
+df_cladder = df_sampled.copy()
+
+# CELL 16
+from utils import add_columns_to_dataframe, generate_results, generate_results_per_rung
+
+
+model_names = ['gpt-4o-zeroshot', 'gpt-4o-ccot']
+df_cladder = add_columns_to_dataframe(df_cladder, model_names)
+
+# CELL 18
+from openai import OpenAI
+from constants import DEEPINFRA_API_KEY, OPENAI_API_KEY
+from model_inference import initialize_openai_client, run_model_on_cladder
+
+client = initialize_openai_client(api_key=OPENAI_API_KEY, base_url='https://api.openai.com/v1/')
+
+
+# CELL 19
+run_model_on_cladder(df=df_cladder, 
+                     output_column='gpt-4o-zeroshot', 
+                     model='gpt-4o', 
+                     method_name='zero_shot', 
+                     info_column='info', 
+                     question_column='question', 
+                     temperature=1.0, 
+                     overwrite=True, 
+                     min_range=0, 
+                     max_range=1000, 
+                     client=client)
+
+# CELL 20
+run_model_on_cladder(df=df_cladder, 
+                     output_column='gpt-4o-ccot', 
+                     model='gpt-4o', 
+                     method_name='causal_chain_of_thought', 
+                     info_column='info', 
+                     question_column='question', 
+                     temperature=1.0, 
+                     overwrite=True, 
+                     min_range=0, 
+                     max_range=1000, 
+                     client=client)
+
+# CELL 21
+import datetime
+
+# Save pickle
+df_cladder.to_pickle('../data/log/cladder-openai-zeroshot-ccot' + '-' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '.pkl')
+
+# Read pickle
+#unpickled_df = pd.read_pickle('./cladder.pkl')
+#df_cladder = unpickled_df
+
+# CELL 22
+generate_results(df_cladder, 'answer', model_names)
+
+# CELL 23
+generate_results_per_rung(df_cladder, 'answer', model_names)
+
+# CELL 25
+import pickle
+# Read pickle
+
+df_cladder_nonsensical = pd.read_pickle('../data/cladder/nonsensical-data.pkl')
+df_cladder_anticommonsensical = pd.read_pickle('../data/cladder/anticommonsensical-data.pkl')
+
+# CELL 26
+df_cladder_nonsensical = add_columns_to_dataframe(df_cladder_nonsensical, model_names)
+df_cladder_anticommonsensical = add_columns_to_dataframe(df_cladder_anticommonsensical, model_names)
+
+# CELL 27
+run_model_on_cladder(df=df_cladder_nonsensical, 
+                     output_column='gpt-4o-zeroshot', 
+                     model='gpt-4o', 
+                     method_name='zero_shot', 
+                     info_column='nonsensical_info', 
+                     question_column='nonsensical_question', 
+                     temperature=1.0, 
+                     overwrite=True, 
+                     min_range=0, 
+                     max_range=1000, 
+                     client=client)
+
+# CELL 28
+run_model_on_cladder(df=df_cladder_nonsensical, 
+                     output_column='gpt-4o-ccot', 
+                     model='gpt-4o', 
+                     method_name='causal_chain_of_thought', 
+                     info_column='nonsensical_info', 
+                     question_column='nonsensical_question', 
+                     temperature=1.0, 
+                     overwrite=True, 
+                     min_range=0, 
+                     max_range=1000, 
+                     client=client)
+
+# CELL 29
+generate_results(df_cladder_nonsensical, 'answer', model_names)
+generate_results_per_rung(df_cladder_nonsensical, 'answer', model_names)
+
+# CELL 30
+import datetime
+
+df_cladder_nonsensical.to_pickle('../data/log/cladder-openai-o3-mini-nonsensical' + '-' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '.pkl')
+#df_cladder_nonsensical.to_pickle('../data/log/cladder-openllms-nonsensical' + '-' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '.pkl')
+
+# CELL 31
+run_model_on_cladder(df=df_cladder_anticommonsensical, 
+                     output_column='o3-mini', 
+                     model='o3-mini', 
+                     method_name='input_output', 
+                     info_column='anticommonsensical_info', 
+                     question_column='anticommonsensical_question', 
+                     temperature=1.0, 
+                     overwrite=True, 
+                     min_range=0, 
+                     max_range=1000, 
+                     client=client)
+
+# CELL 32
+generate_results(df_cladder_nonsensical, 'answer', model_names)
+generate_results_per_rung(df_cladder_nonsensical, 'answer', model_names)
+
+# CELL 33
+df_cladder_anticommonsensical.to_pickle('../data/log/cladder-openai-o3-mini-anticommonsensical' + '-' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '.pkl')
+
