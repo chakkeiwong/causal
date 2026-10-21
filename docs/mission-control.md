@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program_reviews_v2.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**174 / 376 proposal operations have recorded outcomes; 175 are ready.** Next: **SW.CELL.transport_missingness.commercial**.
+**176 / 376 proposal operations have recorded outcomes; 174 are ready.** Next: **SW.CELL.effects_heterogeneity.other_relevant**.
 
-A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Specify target population, selection/measurement models, missingness, support and transport formulas; banking example: moving a pilot across branches.
+Fetch and inspect pinned trees, Project.toml, licenses, README and estimator/uncertainty source for CausalELM, CausalForest, TMLE and CausalTables; reuse matching CausalInference revision evidence after checking effects scope. Continue separate Rust/other-language discovery.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_ace_reviewed_2026-10-21.pdf) — 1181 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_transport_reviewed_v2_2026-10-21.pdf) — 1187 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 
