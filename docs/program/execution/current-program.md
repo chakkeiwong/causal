@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 21 October 2026 after the inherited grf reuse decision. This is a research
+Updated 21 October 2026 after grf reuse and ACE extraction reviews. This is a research
 and product proposal. Prototype qualification, independent acceptance, bank
-validation and adoption are separate outcomes.
+validation and adoption remain separate outcomes.
 
 Use python3 tools/run_program_reviews_v2.py status, next and check. The canonical
 ledger is [state.json](../state.json), governed by the
@@ -11,14 +11,15 @@ remain preserved. Checkpoints record continuation and are not permission gates.
 
 ## Current integrated documents
 
-Read the [1,178-page monograph](../../causal_proposal_grf_reuse_reviewed_2026-10-21.pdf)
-and its [37-page sponsor proposal](../../sponsor_proposal_grf_reuse_reviewed_2026-10-21.pdf).
-The exact reader has 866 audited citation records and 215 genuine scholarly PDFs.
-Q2-Q4 pass for these reader bytes. Q1/Q5, all three mandatory repair rollups,
-rendered review and final proposal acceptance remain open. Length is not acceptance.
+Read the [1,181-page monograph](../../causal_proposal_ace_reviewed_2026-10-21.pdf)
+and its [37-page sponsor proposal](../../sponsor_proposal_ace_reviewed_2026-10-21.pdf).
+The reader has 868 audited citation records and 216 genuine scholarly PDFs.
+The sponsor has 210 audited citations and is paired to the exact reader bytes.
+Q2-Q4 pass. Q1/Q5, all three mandatory repair rollups, rendered review and final
+proposal acceptance remain open. Length is not acceptance.
 
 There are **174 recorded outcomes of 376 proposal operations**,
-with **175 ready**. Inconclusive outcomes retain their unmet obligations.
+with **175 ready**. Inconclusive outcomes retain unmet obligations.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
@@ -26,50 +27,54 @@ with **175 ready**. Inconclusive outcomes retain their unmet obligations.
 | Reuse decisions | 24 | 3 | 88 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-The frontier census is **55 inspected and 58 unread out of 113 originals**, plus
-four crosscutting obligations. ACE's genuine publisher original is recovered;
-acquisition alone earns no inspection credit. Fourteen LLM task reviews and twelve
-integration requirements have scoped outcomes, not runtime adoption.
+The frontier census is **56 inspected and 57 unread out of 113 originals**, plus
+four crosscutting obligations. Fourteen task reviews and twelve integration
+requirements have scoped proposal outcomes, not executable adoption.
 
-## Completed continuation
+## Integrated findings
 
-The grf R package review is integrated on physical PDF pages 287-290. It preserves
-the completed native-route decision and recognizes one engine lineage. The chosen
-disposition is reference: retain the original R package as a candidate for a
-binary-action, independent-customer AIPW prototype. Integration remains unqualified.
+ACE occupies physical PDF pages 884-887. Its genuine July 2026 paper reports three
+bowtie extraction pipelines using retrieval, OCR or vision followed by another
+model. Three tabular component references and dynamic-seal narratives support a
+bounded extraction comparison. Narrative accuracy ratings 1.2-3.0, missing roles,
+implicit expert additions and hallucinated barriers remain explicit. Article
+attribution rights do not qualify code, model, handbook or dependency reuse.
 
-The source review distinguishes the marginal outcome regression from reconstructed
-treatment-specific regressions. An exact conditional bias identity and 108 rational
-checks show why correct marginal mean and conditional-effect inputs can still give
-expected score 1.5 rather than 2 with an incorrect propensity. This is a supplied-input
-witness, not an observed fitted-model failure. The proposal also distinguishes
-all, treated, control and overlap populations, actual method dispatch, OOB prediction,
-warnings, uncertainty fields, dependence restrictions and distribution obligations.
+Printed response categories 21/10/49 and 9/11/60 each sum 80; hallucinations decrease
+15 points while unclear outputs increase one. A 12/32 JSON failure rate uses a
+separate denominator. Exact authored examples show that a zero first-order context
+index can coexist with total-order index one; edge F1 of 198/199 can lose the entire
+critical path; and the same unsigned graph with opposite mechanisms gives assumed
+margins -12 and 8. These examples do not reproduce ACE's models or identify its actual
+sensitivity interactions. Ten repeated identical outputs do not identify quantization
+as their cause or establish scientific truth.
 
-For equal groups with effects -4 and 12 and propensities 1/2 and 1/10, the all-customer
-effect is 4 and overlap effect 4/17. Assumed cost 2 gives margins 2 and -30/17 for
-different populations. A stability recommendation cannot silently change the bank's
-decision population. No upstream engine, vendor runtime or live model was executed.
+All 866 prior citation identities/contexts and 266 compiled content inputs survive.
+One genuine primary paper and one authored exact reference add two records. Source,
+arithmetic, preservation and all-page text bounds pass. A checkpoint submission while
+the controller was idle was rejected and repaired by starting the operation; the
+failure and exact correction are preserved. No live model or upstream engine ran.
 
-All 864 earlier citation identities and contexts and 265 compiled content inputs
-survive. The sponsor preserves 202 earlier citations and now has 206. Source,
-arithmetic, preservation and all-page text-bounds checks pass. A copied review
-finding and a stacked-fraction text assertion were explicitly corrected with
-preserved failure evidence; neither is hidden or treated as visual acceptance.
+The grf reference disposition remains integrated on physical pages 287-290 with one
+R/native lineage. Correct marginal-outcome and conditional-effect inputs can still
+produce score expectation 1.5 versus 2 with wrong propensity in the stipulated law.
+All-customer effect 4 and overlap effect 4/17 give different-population assumed margins 2
+and -30/17 at cost 2. Prior C++ and CausalityCheck findings remain preserved.
 
-Prior C++ heterogeneous-effects and CausalityCheck reasoning remain integrated.
-The [previous master](2026-10-21/program-refresh-grf-reuse-v1/prior-current-program.md)
-preserves the preceding progress and limitations.
+The [previous master](2026-10-21/program-refresh-ace-v1/prior-current-program.md)
+retains earlier results and exact limitations. Commit f0a3bde4 preserves the completed
+grf review and has been pushed. The current continuation adds ACE and commercial
+source acquisition without claiming final proposal acceptance.
 
-## Required standard and open gaps
+## Required standard and remaining gaps
 
-Every banking use must connect its information clock to causal assumptions,
-identification or a justified limit, estimation, uncertainty, diagnostics,
-alternatives and monetary consequences. Distinguish inherited results, project
-derivations, hypothetical examples and verified implementation. Every source needs
-identity, version/date, original local bytes, SHA-256, inspected anchors and supported
-claims. Scholarly works need genuine PDFs. The literature cutoff is 7 October 2026.
-FinMarketing sets the scholarship standard, not a page-count acceptance rule.
+Every banking use connects its information clock to assumptions, identification or
+a justified limit, estimation, uncertainty, diagnostics, alternatives and monetary
+consequences. Distinguish inherited results, project derivations, hypothetical
+examples and verified implementation. Every source needs identity, version/date,
+original local bytes, SHA-256, inspected anchors and supported claims. Scholarly
+works need genuine PDFs. Literature cutoff: 7 October 2026. FinMarketing sets the
+scholarship standard, not a page-count acceptance rule.
 
 MR01 requires 17 areas across six dimensions and 100-150 substantive software pages.
 MR02 requires eight developed chapters, 14 tasks and approximately 100 pages
@@ -77,7 +82,7 @@ MR02 requires eight developed chapters, 14 tasks and approximately 100 pages
 with indicative depth 40-60 pages. Coverage, connected argument and exclusive depth
 must all pass; duplication earns no additional credit.
 
-Known routes include authentic source inspection, method-specific comparison,
+Known routes include authentic source inspection, method-specific comparisons,
 reasoned reuse decisions, complementary searches, exact counterexamples and public
 prototype designs. General hidden-confounder identification, arbitrary dependence,
 private-state policy inference and universal calibration remain research questions.
@@ -88,21 +93,23 @@ gates and do not block independent proposal work.
 
 Controller next: **SW.CELL.transport_missingness.commercial**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Specify target population, selection/measurement models, missingness, support and transport formulas; banking example: moving a pilot across branches.
 
-The independent ACE review can proceed immediately from the recovered publisher
-PDF and identity page. Inspect diagram roles, ground truth, prompt and parsing
-procedures, evaluation denominators, sensitivity design, narrative failures and
-reproducibility; do not equate a bowtie representation with an identified SCM.
-The publisher dates the work 3 July 2026; later retrieval does not prove exact
-cutoff-era byte identity. Preserve all source and runtime omissions.
+Follow the [commercial transport/missingness plan](2026-10-21/transport-commercial-v1/plan.md).
+The inherited coverage row has no reviewed candidates; a registered unfetched query
+is not an absence finding. Build explicit Stata/SAS/SPSS and additional-commercial
+candidate records. Inspect missingness assumptions, imputation and analysis compatibility,
+pooling, selection support and target-population transport separately. Preserve failed
+search tooling, 404 responses, timeouts and partial PDFs. Retrying official sources is a
+local acquisition step, not a global program blocker. Do not treat incomplete files as
+authentic complete manuals or infer that imputation supplies transport identification.
 
-Continue the other 58 unread originals and complementary literature searches.
-CausalityCheck code/data and raw paired judgments, candidate45's SSRN403 acquisition,
-and full software coverage remain separate obligations. Record local blockers and
-their reopening triggers while continuing eligible branches across phase boundaries.
+Continue 57 unread originals, complementary searches and citation chaining. Recover
+ACE exact prompts/model/code/raw evaluation and rights before native reuse. Recover
+CausalityCheck raw paired judgments before runtime claims. Candidate45's SSRN403
+blocker remains local. Continue eligible branches across phase boundaries.
 
-[Every nonpassing obligation](2026-10-21/program-refresh-grf-reuse-v1/remaining-operations.json)
-and [continuation checkpoint](2026-10-21/program-refresh-grf-reuse-v1/continuation-checkpoint.json).
+[Every nonpassing obligation](2026-10-21/program-refresh-ace-v1/remaining-operations.json)
+and [continuation checkpoint](2026-10-21/program-refresh-ace-v1/continuation-checkpoint.json).
 
-Use short commands, redirected logs and bounded text output. No unattended worker
-is running. The inherited image allowance is exhausted under /home/ubuntu/AGENTS.md;
-rendered acceptance needs a fresh visual session. Source and manuscript work continue.
+Use short commands, redirected logs and bounded text output. No unattended worker is
+running. The inherited image allowance is exhausted under /home/ubuntu/AGENTS.md;
+rendered acceptance needs a fresh visual session. Source/manuscript work remains eligible.

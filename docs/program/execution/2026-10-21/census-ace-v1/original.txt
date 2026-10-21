@@ -1,0 +1,690 @@
+      ACE – Automating Causal Extraction: Leveraging Large Language
+         Models for Bowtie Diagram Generation in Failure Analysis
+                                           Priyank Venkatesh1, 2, Jules Oudmans², Florian Zurfluh²
+
+              ¹Computational Science Lab, Informatics Institute, University of Amsterdam, Amsterdam, Netherlands
+
+                                                        ²UReason, Rotterdam, Netherlands
+                                   pvenkatesh@ureason.com, joudmans@ureason.com, fzurfluh@ureason.com
+
+                                                                            engineers to anticipate risks and communicate consequences.
+                              ABSTRACT                                      Tools such as FMEA and FMECA provide a systematic
+                                                                            framework for identifying failure points, but their tabular
+This paper investigates whether open-source, instruction-
+                                                                            outputs do not easily convey how failures escalate
+tuned large language models (LLMs) can automate the
+                                                                            (Segismundo & Miguel, 2008; Sharma & Srivastava, 2018).
+generation of Bowtie diagrams from Failure Mode and
+Effects Analysis (FMEA) documentation. Three pipelines are                  Visual tools such as Causal Loop Diagrams (CLDs) and
+developed: Retrieval-Augmented Generation (RAG), Optical                    Bowtie diagrams address this by making causal relationships
+Character Recognition (OCR) based extraction, and a vision-                 explicit. CLDs capture system-level feedback dynamics;
+enabled dual-LLM approach. Each is designed to handle both                  Bowtie diagrams map the specific causes, barriers, and
+structured FMEA tables and unstructured narrative text.                     consequences surrounding a single critical event (Turner,
+Three models (Mistral, Qwen-2.5, and LLaMA-3) are                           Hamilton, and Ramsden, 2017). Both are human resource-
+evaluated using Sobol sensitivity analysis, stochasticity                   intensive to construct manually, often requiring multi-hour
+experiments, and expert Likert scoring on narrative outputs.                expert workshops, which limits their scalability across large
+With strict schema-constrained prompts, models frequently                   industrial asset fleets.
+achieve Node and Edge F1 scores above 0.8 on tabular data.
+                                                                            LLMs offer a route to automating this process. They have
+Outputs were identical across repeated runs under fixed
+                                                                            demonstrated the ability to process structured and
+settings. Sobol analysis shows that prompt strictness and
+                                                                            unstructured technical content and extract structured
+prompt type are the dominant drivers of Bowtie quality,
+                                                                            representations (Li et al., 2024). Prior work has applied
+whereas decoding parameters have a negligible effect. On
+                                                                            LLMs to cause-effect extraction and CLD generation
+unstructured narrative text, all models struggled, producing
+                                                                            (Hassani et al., 2024; Liu & Keith, 2024; J. Yang et al., 2022),
+hallucinated nodes, incorrect role assignments, and diagrams
+                                                                            but the direct generation of Bowtie diagrams from FMEA
+that deviated from expert references. The results establish a
+                                                                            documentation remains an open area of research. LLMs also
+working approach for automating Bowtie generation from
+                                                                            introduce specific risks: hallucination, format non-
+FMEA tables and identify the specific obstacles to extending
+                                                                            compliance on inputs, misinterpretation of domain-specific
+this to narrative sources.
+                                                                            terminology, and challenges in parsing and integrating
+Keywords: Bowtie Diagrams, Large Language Models,                           information from multi-format or lengthy FMEA documents.
+FMEA, Prompt Engineering, RAG, Failure Analysis
+                                                                            To address these challenges, this work aims to reduce
+                                                                            reliance on manual expertise, improve the efficiency and
+1. INTRODUCTION                                                             consistency of failure analysis, and support more scalable risk
+As engineering systems grow more complex, identifying and                   modelling in complex technical fields. This paper addresses
+communicating failure risks has become harder. In industries                two research questions using an experimental framework
+such as chemical processing, manufacturing, aerospace, and                  built on three open-source instruction-tuned LLMs and a
+healthcare, minor malfunctions can propagate across                         dataset drawn from the US Navy Reliability Handbook
+interconnected systems, making it difficult for reliability                 (NSWC-11, 2011):
+                                                                              • RQ1: How closely do LLM-generated Bowtie diagrams,
+Priyank Venkatesh et al. This is an open-access article distributed under       derived from structured FMEA tables and unstructured
+the terms of the Creative Commons Attribution 3.0 United States License,        narratives, match expert-crafted Bowties in accuracy,
+which permits unrestricted use, distribution, and reproduction in any           interpretability, and structural completeness?
+medium, provided the original author and source are credited.
+
+
+
+
+                                                                                                                                          1
+                   EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+  • RQ2: Which prompting strategies and model                        (Turner et al., 2017). Figure 1 shows an example of a standard
+    configurations most effectively improve reliability,             Bowtie. Constructing them from FMEA documentation is
+    reduce hallucinations, and produce consistent, structured        labour-intensive, typically requiring multi-hour facilitated
+    outputs?                                                         workshops with multidisciplinary expert teams (Turner et al.,
+The main contributions are:                                          2017; Wierenga et al., 2009), which limits scalability. A
+                                                                     related visual tool, the Causal Loop Diagram (CLD), captures
+  • Three Bowtie generation pipelines for processing FMEA            system-level feedback dynamics through reinforcing and
+    documents (RAG, OCR, and vision-based);                          balancing loops, in which variables are linked by directed
+  • Evaluation of three different LLMs: Mistral-7B, Qwen-            arrows annotated with positive or negative signs to indicate
+    2.5, and LLaMA-3 across structured and narrative                 the direction of influence (Kim & Andersen, 2012). CLDs are
+    inputs;                                                          used in the model selection phase of this work as a benchmark
+  • Sobol-based sensitivity analysis identifying prompt              for causal extraction capability, as prior LLM-based CLD
+    design as the dominant quality driver;                           studies provide labelled datasets and evaluation metrics
+                                                                     directly applicable to our initial model ranking task.
+  • Stochasticity    experiments       revealing     pseudo-
+    deterministic behaviour in quantised LLMs; and
+  • Expert evaluation of narrative Bowtie outputs via Likert
+    scoring.
+The following sections detail the background, methodology,
+and experimental results supporting these contributions.
+
+2. BACKGROUND AND RELATED WORK
+
+2.1 FMEA and Bowtie Diagrams
+FMEA and its extension FMECA originated in US military                 Figure 1. Example Bowtie for a pump (UReason, 2024)
+practice in the 1940s (Sharma & Srivastava, 2018) and
+remain standard tools in reliability engineering. They provide       2.2 LLMs for Causal Extraction
+a systematic framework for identifying failure modes, their
+causes, and effects across a product or process lifecycle, from      LLMs have proven highly effective at extracting structured
+design FMEA through process and functional variants                  information from unstructured text (Schwitter, 2025;
+(Sharma & Srivastava, 2018). FMECA adds a Risk Priority              Kaddour et al., 2023; Yang, Jin et al., 2024). Before LLMs,
+Number (RPN), calculated from severity, occurrence, and              causal extraction relied on three broad approaches: rule-
+detection scores, to help prioritise corrective actions              based systems using manually defined linguistic patterns
+(Rouabhia-Essalhi, Boukrouh, and Ghemari, 2022).                     (e.g., detecting phrases such as "leads to" or "caused by"),
+                                                                     statistical machine learning models such as SVMs trained on
+FMEA documentation takes two forms. Structured FMEA                  labelled causal datasets, and early deep learning architectures
+tables, with columns such as Failure Mode, Failure Cause,            such as RNNs and CNNs. Each approach shared critical
+and Failure Effect, allow more direct Bowtie extraction, as          weaknesses, rigid domain assumptions, reliance on large
+content is explicitly labelled. Unstructured narrative               annotated corpora, and an inability to handle implicit causal
+descriptions often contain the same causal information buried        relationships or the technical jargon prevalent in engineering
+in dense text; for example, where a table might list “seal           documentation (J. Yang et al., 2022). These limitations make
+degradation” caused by “improper material selection”, a              them ill-suited to the variability of real-world FMEA
+narrative may only describe “significant wear, likely due to         documents, motivating a shift to LLMs. In failure analysis,
+material mismatches” (NSWC-11, 2011). Extracting                     LLMs reduce reliance on manual expert annotation by
+actionable information from unstructured text is considerably        parsing fault descriptions and consequences from narrative or
+harder.                                                              tabular inputs (Gopalakrishnan et al., 2024; Kiciman, Ness,
+Bowtie diagrams were first referenced in a 1979 ICI report           Sharma, and Tan, 2023). Wan et al. (2024) survey LLM
+and formalised by Royal Dutch Shell following the Piper              integration into causal discovery more broadly, noting
+Alpha disaster (Wolters Kluwer, 2024). They are now widely           promise but flagging hallucination, prompt sensitivity, and
+used in safety-critical industries, including rail (Turner et al.,   the absence of standardised benchmarks as key limitations.
+2017) and healthcare (Wierenga et al., 2009). A standard             Applied work includes Liu and Keith (2024), who
+Bowtie has four components: causes (initiating events), the          demonstrated GPT-based CLD extraction from text; Hassani
+critical event (central failure mode), consequences (resulting       et al. (2024), who automated FMEA generation with 84–85%
+outcomes), and barriers (both preventive measures on the             extraction accuracy using GPT-3.5; Hosseinichimeh,
+cause side and mitigating measures on the consequence side)          Majumdar, Williams, and Ghaffarzadegan (2024), who built
+                                                                     an SD Bot achieving 59% link accuracy on expert CLDs; and
+
+
+                                                                                                                                  2
+                  EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+Taramsari, Rao, Nilchiani, and Lipizzi, (2024), who applied      configuring LLM-based extraction pipelines. This work
+NLP techniques to U.S. Air Force accident reports to generate    directly addresses all three gaps.
+CLDs capturing cascading failure interdependencies in
+aerospace systems. However, no prior work directly targets       3. METHODOLOGY
+the automated generation of Bowtie diagrams from FMEA
+documentation.                                                   3.1 Experimental Overview
+Three prompting strategies are used in this study. Zero-shot     The experimental framework runs in three phases. Phase 1
+prompts give only a task description with no examples. Few-      benchmarks eight open-source LLMs on causal extraction
+shot prompts include input-output examples to guide output       and hallucination tendency to select the top three models.
+format (Brown et al., 2020). Chain-of-thought (CoT) prompts      Phase 2 applies a two-stage Sobol sensitivity analysis to
+ask the model to produce intermediate reasoning steps before     identify which parameters drive Bowtie quality. Phase 3 tests
+the final answer, improving performance on multi-step tasks      output consistency across random seeds for three mechanical
+(Wei et al., 2022). All three strategies have been shown to      components and evaluates model performance on
+influence reasoning ability and output quality (Anagnostidis     unstructured narrative input.
+& Bulian, 2024).
+                                                                 All experiments were run in Python 3.9, using llama-cpp-
+2.3 Retrieval-Augmented Generation                               python for local LLM inference. Semantic retrieval was
+                                                                 implemented using sentence-transformers and FAISS. PDF
+RAG improves LLM output by grounding responses in                extraction utilised PaddleOCR and pdfplumber. Models were
+retrieved external evidence, reducing hallucination (Lewis et    run in GGUF quantised format via llama.cpp. The vision
+al., 2021). A retriever identifies relevant passages from an     model used in Pipeline 3 is Mistral-Small.
+indexed knowledge base; these are concatenated with the
+query before generation. Dense Passage Retrieval                 3.2 Model Selection and Hallucination Testing
+(Karpukhin et al., 2020) further optimises retriever
+performance, allowing RAG to scale across larger datasets.       Eight open-source LLMs were evaluated on CLD extraction
+In failure analysis, RAG supports accurate causal link           tasks using four narrative examples from Liu and Keith
+generation by anchoring failure modes to their source            (2024), covering both explicit and implicit causal variables.
+evidence. Zhang et al. (2024) demonstrate this directly in       Models were assessed using Jaccard similarity for variable
+causal graph generation, showing that retrieval-augmented        extraction and precision, recall, and F1 for causal links
+models produce more precise outputs than standard LLMs           (Gopalakrishnan, Garbayo, and Zadrozny, 2024; Azam et al.,
+without RAG. The effectiveness depends on the quality of the     2024). The eight candidates were: LLaMA-3-Instruct (8B),
+knowledge base, and it is less applicable in domains with        Mistral-Base, Mistral-Code, Mistral-Instruct, Mistral-Math,
+scarce data (Gao et al., 2024; Khatibi, Abbasian, Yang,          Qwen-2.5-Instruct (all 7B), R1-Distill-LLaMA (8B), and R1-
+Azimi, and Rahmani, 2024).                                       Distill-Qwen (7B). A structured four-step CoT prompt
+                                                                 guided models through variable extraction, causal link
+2.4 Research Gap                                                 identification, CLD generation in DOT format (a standard
+                                                                 graph description language), and structured JSON output.
+Existing work has focused on CLD generation or generic
+                                                                 Hallucination tendencies were assessed using ten false-
+cause-and-effect extraction. Prior work has explored
+                                                                 premise and logically inconsistent questions (Yuan et al.,
+automated generation of CLDs using LLMs; however,
+                                                                 2024; Zhu et al., 2024; Li et al., 2025), evaluated under two
+generating Bowtie diagrams, which require stricter causal
+structure and explicit barrier modelling, remains largely        conditions: a baseline prompt with no uncertainty guidance,
+unexplored. Three specific gaps motivate this study. First, no   and an uncertainty-aware prompt instructing the model to
+                                                                 reply “I don’t know” if unsure. Responses were categorised
+prior work directly targets the automated construction of
+                                                                 as Hallucinated, Unclear/Hedged, or Correct Rejection.
+Bowtie diagrams from FMEA documentation; existing
+                                                                 Results from both tasks informed the selection of the top
+automation efforts have focused on CLDs or generic cause-
+and-effect extraction, neither of which requires the stricter    three models for downstream experiments.
+causal structure or explicit barrier modelling that Bowties
+demand. Second, existing LLM-based approaches are                3.3 Dataset and Ground Truth
+evaluated on simplified or synthetic text, rarely confronting    All pipelines are benchmarked using failure scenarios from
+the inconsistently formatted tables and mixed structured-        the US Navy Reliability Handbook (NSWC-11, 2011), which
+narrative content characteristic of real industrial FMEA         provides structured FMEA tables and narrative text for
+documents. Third, the combined effect of prompt type,            several mechanical components. Ground-truth Bowtie
+prompt strictness, context source, and decoding parameters       diagrams were constructed manually by a domain expert for
+on output quality has not been systematically studied; without   three components: a sensor, a valve assembly, and a shaft.
+such a study, practitioners have no principled basis for         Figure 2 shows a ground-truth example of a Bowtie detailing
+
+
+
+                                                                                                                            3
+                  EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+the cause and consequence of a cracked fitting housing. For      threshold of 0.75, selected empirically to balance precision in
+the narrative experiments, three expert Bowties centred on       role assignment against recall of semantically equivalent
+dynamic seal failures served as reference standards. A known     node labels. Jaccard similarity, precision, recall, F1 score,
+complication is that expert reference diagrams sometimes         and approximate Graph Edit Distance (GED) are then
+include implicit variables not stated explicitly in the source   computed for both nodes (by semantic role) and edges (by
+text, which can blur the line between valid abstraction and      type). The GED reported here is a simplified, count-based
+hallucination during evaluation.                                 proxy, as it is more computationally efficient compared to the
+                                                                 classic graph-theoretic minimum edit path. This equals the
+                                                                 sum of node and edge false positives and false negatives after
+                                                                 semantic alignment, providing a computationally efficient
+                                                                 estimate of the overall diagram discrepancy.
+
+                                                                 3.6 Sobol Sensitivity Analysis
+                                                                 Two global sensitivity analysis experiments were conducted
+                                                                 using the Sobol method (Saltelli et al., 2010; Sobol, 2001) to
+                                                                 decompose the output variance into contributions from the
+  Figure 2. Expert ground truth Bowtie: Valve Assembly           different experimental parameters. Confidence intervals were
+                                                                 estimated via 1000 bootstrap resamples using the SALib
+3.4 Bowtie Generation Pipelines                                  library (Herman & Usher, 2017). A fixed seed of 2242
+Three pipelines were developed to generate structured            ensured reproducibility. Three indices were computed: S1
+Bowtie JSON from FMEA documents; Table 1 summarises              (first-order, quantifying each parameter’s main effect), ST
+each of their workflows.                                         (total-order, capturing main effects plus all interactions), and
+                                                                 S2 (second-order, isolating pairwise interactions). Three
+    Table 1. High-level comparison of Bowtie pipelines           strictness levels were defined for each prompt type: Level 1
+ Pipeline     Input              Key steps           Output      provided minimal schema guidance, Level 2 included FMEA
+                                                                 field references and basic fallback logic, and Level 3
+  RAG       Markdown     1. Chunk & index             JSON       specified fully explicit extraction rules with field mappings
+             FMEA        2. Semantic retrieval          to
+              table      3. Structured Prompt →       Bowtie
+                                                                 and value constraints.
+                            JSON                                 Sobol Run 1 varied temperature (0.1–1.0), top-p (0.1–1.0),
+  OCR         Table      1. OCR                       JSON       and prompt strictness, with context type fixed to RAG and
+             images      2. Markdown clean-up           to       prompt type fixed to zero-shot (N = 64 base samples per
+                         3. Prompt → JSON             Bowtie     model, 512 evaluations total). Sobol Run 2 expanded the
+  Dual-       Table      1. Image → Vision LLM        JSON       parameter space to include prompt type (zero-shot, few-shot,
+  LLM        images      2. Markdown + Summary          to       CoT), prompt strictness (Levels 1–3), and context type
+ (Vision)                   sent to Small LLM         Bowtie     (RAG, OCR, Vision), using N = 1024 base samples per
+                         3. Small LLM → JSON                     model (8192 evaluations). The larger sample size in Run 2
+                                                                 produced narrower confidence intervals and greater statistical
+Pipeline 1 uses RAG: FMEA content is chunked, embedded           power.
+with all-MiniLM-L6-v2, and indexed with FAISS. Relevant
+chunks are retrieved by part name and passed as structured       3.7 Stochasticity and Narrative Experiments
+prompt context.
+                                                                 The top two prompt configurations per model from Sobol
+Pipeline 2 uses OCR: a table image is processed with             Run 2 were evaluated across 10 independent runs with
+PaddleOCR and Img2Table, then post-processed into                different random seeds, holding temperature at 0.5 and top-p
+Markdown and passed to the LLM via a structured prompt.          at 0.95 for all three FMEA components. For the narrative
+                                                                 experiment, the dynamic seal component was used as input.
+Pipeline 3 is a dual-LLM vision approach: Mistral-Small
+                                                                 Five domain experts rated each model-generated Bowtie on
+processes a table image, producing a Markdown table and a
+                                                                 usability, completeness, clarity, and accuracy using a 5-point
+structured description; a smaller second LLM then generates
+                                                                 Likert scale.
+Bowtie JSON from this intermediate output using a user-
+selected prompt strategy.
+                                                                 4. RESULTS
+3.5 Evaluation Metrics
+                                                                 4.1 Model Selection and Hallucination Testing
+Node labels in predicted Bowties are matched to ground-truth
+counterparts using SBERT-based cosine similarity at a            Table 2 summarises the performance of the three models
+                                                                 selected for downstream Bowtie experiments: Mistral-
+
+
+                                                                                                                               4
+                   EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+Instruct, LLaMA-3-Instruct, and Qwen-2.5-Instruct. Mistral-              top-p had negligible effects on both node and edge F1; their
+Instruct achieved the highest average F1 score of 0.65 across            S1 and ST values were near zero across all models. This
+all four test prompts. Models performed best on prompts with             justified setting the temperature to 0.5 and top-p to 0.95 for
+fewer implicit variables; prompts containing vague or                    all subsequent experiments.
+implicit causal relationships produced notably lower scores,
+                                                                         Sobol Run 2: For Node F1, prompt strictness and prompt type
+a pattern that would recur in narrative experiments.
+                                                                         both showed moderate first-order effects (e.g. LLaMA: S1 =
+            Table 2. Performance of selected models                      0.24, ST = 0.71 for strictness; Qwen: S1 = 0.44, ST = 0.80).
+                                                                         Context type was consistently non-significant (S1 ≈ 0),
+    Model        Jac.    Prec.   Rec.     F1      Hal.%       Hal.%
+                                                    (no        (with     indicating that all three pipelines are interchangeable under
+                                                 guidance)   guidance)   equivalent prompt conditions. Figure 3 shows the first- and
+    Mistral-     0.675   0.771   0.562   0.650    20.0%       20.0%      total-order indices for node F1. In the Sobol analysis figures,
+    Instruct
+                                                                         PT denotes prompt type, PS denotes prompt strictness, and
+   LLaMA-3-      0.712   0.687   0.500   0.578     0.0%       10.0%
+    Instruct
+                                                                         CT denotes context type.
+   Qwen-2.5-     0.650   0.750   0.478   0.583    10.0%        0.0%
+    Instruct
+
+
+The final trio spans three distinct architectural families:
+Mistral, Meta (LLaMA), and Alibaba (Qwen). R1-Distill
+variants were excluded despite competitive causal-extraction
+scores due to higher hallucination rates and reduced
+reliability on logically flawed inputs. Notably, models with
+built-in     chain-of-thought     reasoning     (DeepSeek-R1
+distillations) displayed more variable hallucination behaviour
+than standard instruction-tuned models, suggesting that
+advanced reasoning capabilities do not inherently reduce
+susceptibility to false premises. Mistral-Base, Mistral-Code,
+and Mistral-Math were excluded due to frequent schema
+violations and poor JSON validity.
+                                                                          Figure 3. Sobol Run 2: S1 and ST indices with confidence
+Across 80 total responses, uncertainty-aware prompting                               intervals for node F1 across models
+reduced hallucinated responses from 21 to 9 and unclear or
+                                                                         Prompt strictness was the dominant factor for edge F1 across
+hedged responses from 10 to 11, with correct rejections
+                                                                         all models (S1 = 0.34–0.56, ST = 0.72–0.92). Prompt type
+increasing from 49 to 60. LLaMA-3-Instruct showed a slight
+                                                                         showed a weaker first-order effect but moderate total-order
+increase in hallucinations when uncertainty guidance was
+                                                                         contributions, confirming interaction effects. Context type
+added; Qwen-2.5-Instruct improved; Mistral-Instruct was
+                                                                         remained negligible for edge F1 as well. Figure 4 shows the
+unchanged. Mistral-Code and Mistral-Base also exhibited a
+                                                                         corresponding indices.
+high frequency of unclear or hedged responses, outputs that
+avoided outright hallucination but failed to reject false
+premises clearly. In safety-critical domains, vague causal
+statements can erode trust as much as explicit errors.
+Of 32 outputs assessed for schema compliance, 12 were
+produced as plain text rather than valid JSON, an error rate
+of 37.5%. Qwen-2.5-Instruct was the most consistent,
+producing valid JSON across all four test inputs. Mistral-
+Code was the least reliable, failing on all inputs. This
+disconnect between semantic accuracy and schema validity
+underscores that strong causal reasoning ability does not
+guarantee compliance with structured output requirements, a
+critical limitation for automated, schema-dependent
+workflows.
+
+4.2 Sobol Sensitivity Analysis                                            Figure 4. Sobol Run 2: S1 and ST indices with confidence
+                                                                                     intervals for edge F1 across models
+Sobol Run 1: Across all three models, prompt strictness was
+the dominant factor (S1 ≈ 0.99, ST = 1.00). Temperature and              Figure 5 shows the corresponding second-order indices.
+                                                                         Second-order Sobol indices (S2) were computed to quantify
+
+
+                                                                                                                                      5
+                  EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+pairwise parameter interactions. Across all models and both      4.4 Stochasticity Results
+metrics, the interaction between prompt type and prompt
+                                                                 Outputs were pseudo-deterministic: for any fixed
+strictness was consistently the strongest effect (S2 = 0.24–
+                                                                 combination of model, prompt, and context, all 10 runs across
+0.33 for Node F1; S2 = 0.25–0.30 for Edge F1), and the only
+                                                                 different random seeds produced identical JSON outputs.
+interaction where the lower confidence bound consistently
+                                                                 This held across all components and configurations. Output
+exceeded zero. All other parameter pairs, including those
+                                                                 variability was driven by prompt design and model choice
+involving context type, showed weak or negligible
+                                                                 rather than by random sampling. However, this pattern may
+interactions (generally S2 < 0.16, with confidence intervals
+                                                                 not generalise to less-constrained tasks, ambiguous inputs, or
+overlapping zero). This confirms that prompt engineering
+                                                                 full-precision models. This behaviour is attributed to
+must be treated as a joint design problem: neither prompt type
+                                                                 quantisation effects that narrow the output probability
+nor strictness alone explains the observed variance.
+                                                                 distribution, combined with highly structured prompts that
+                                                                 reduce input ambiguity. Few-shot prompts at high strictness
+                                                                 were particularly prone to malformed outputs: LLaMA-3-
+                                                                 Instruct (vision pipeline) and Qwen-2.5-Instruct (OCR
+                                                                 pipeline) frequently produced no valid structure, instead
+                                                                 copying the input prompt or generating repetitive causal
+                                                                 chains. Table 4 shows the mean Node F1, Edge F1, and GED
+                                                                 across all three components for each configuration.
+                                                                 Table 4. Mean Metrics: Sensor, Valve, & Shaft components
+                                                                        Configuration          Node F1    Edge F1       GED
+                                                                    LLaMA-3 CoT+High             0.94        0.93         3
+                                                                    LLaMA-3 Zero+High            0.93        0.92         4
+Figure 5. Second-order Sobol indices (S2) with confidence         Qwen-2.5 CoT+Medium            0.92        0.90         4
+       intervals for pairwise parameter interactions
+                                                                     Mistral Zero+High           0.91        0.90         6
+4.3 Identification of Optimal Prompt Configurations                Mistral CoT+Medium            0.86        0.71         8
+                                                                  Qwen-2.5 Zero+Medium           0.81        0.58        13
+To identify optimal configurations, model performance was
+evaluated across all prompt types and strictness combinations
+for each model. LLaMA-3-Instruct achieved near-perfect           LLaMA-3-Instruct with CoT+High and Zero+High
+node and edge F1 with zero-shot + high and CoT + high            prompting consistently outperformed other configurations. A
+prompts, with sharp declines under less strict or few-shot       consistent positive trend was that critical event extraction was
+prompting. Mistral-Instruct performed best with zero-shot +      largely accurate across most configurations, especially under
+high and CoT + medium, while few-shot prompts caused             stricter prompting. For the Sensor component, almost all
+edge F1 to collapse to zero despite moderate node F1 scores.     configurations achieved perfect Node and Edge F1 of 1.0
+Qwen-2.5-Instruct was distinct in that medium strictness         with GED of 0; the sole exception was Mistral CoT+Medium,
+consistently outperformed high strictness, with CoT +            which missed the Barrier node, a single omission that
+medium and zero-shot + medium as optimal. Across all three       propagated to edge-level failures and a GED of 3. The Shaft
+models, edge F1 was more sensitive to prompt design than         component showed greater performance fluctuations than
+node F1; a moderately high node score did not guarantee a        Sensor or Valve, with several configurations showing large
+high edge score, as omitting intermediary roles such as          node-to-edge F1 gaps; for example, Qwen-2.5-Instruct
+Barrier or Mechanism breaks the causal chain regardless of       zero+medium achieved a node F1 of 0.80 but an edge F1 of
+how many other nodes are correctly extracted. Table 3 shows      only 0.44, reflecting cascading failures from a missed Critical
+the top two configurations per model selected for                Event node.
+downstream experiments.                                          Three recurring error patterns were observed: node omission
+       Table 3. Top prompt configurations per model              (Barrier and Mechanism nodes most vulnerable, with
+                                                                 omissions propagating to edge-level failures); hallucination
+       Model           Configuration 1      Configuration 2      and over-segmentation (multiline table entries split into
+ LLaMA-3-Instruct     Zero-shot + High        CoT + High         separate nodes, inflating false-positive counts); and role
+  Mistral-Instruct    Zero-shot + High      CoT + Medium         misassignment (causes placed in the Critical Event position
+                                                                 or vice versa). Figure 6a-c illustrates two representative
+ Qwen-2.5-Instruct     CoT + Medium           Zero-shot +        failure modes for the Bent Shaft component and the ground
+                                               Medium
+                                                                 truth.
+
+
+
+
+                                                                                                                               6
+                 EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+                                                               Table 5 shows average expert Likert scores (1–5 scale). Zero-
+                                                               shot prompting produced higher scores than CoT across
+                                                               LLaMA-3-Instruct and Mistral-Instruct. The strongest
+                                                               configuration was LLaMA-3-Instruct Zero+High (clarity
+                                                               3.80, usability 3.50). Qwen-2.5-Instruct Zero+Medium
+                                                               received the lowest ratings across all criteria (average ≈ 1.35),
+                                                               suggesting significant limitations in extracting accurate
+                                                               Bowtie structures from narrative text.
+                                                                Table 5. Average expert Likert scores for narrative outputs
+                                                                   Model /      Usability Completeness Clarity Accuracy
+Figure 6a. Qwen Zero+Medium: hallucinated critical event.          Prompt
+                                                                 LLaMA-3           3.50          3.20         3.80      3.00
+                                                                 Zero+High
+                                                                  Mistral          3.50          3.60         3.20      2.60
+                                                                 Zero+High
+                                                                 LLaMA-3           3.25          2.60         3.60      2.40
+                                                                 CoT+High
+                                                                  Qwen-2.5         2.75          2.40         2.80      2.20
+                                                                CoT+Medium
+                                                                  Mistral          2.00          2.40         2.20      2.00
+Figure 6b. Mistral CoT+Medium: hallucinated barrier nodes       CoT+Medium
+                                                                  Qwen-2.5         1.40          1.20         1.60      1.20
+                                                                 Zero+Med.
+
+                                                               Four consistent failure modes were identified: models
+                                                               frequently elevated causes or mechanisms to Critical Event
+                                                               status; implicit variables present in expert diagrams but
+                                                               absent from the source text were rarely extracted; barriers
+                                                               were often generic placeholders or hallucinated content; and
+                                                               models typically produced more Bowties than the expert
+            Figure 6c. Ground truth: Bent Shaft
+                                                               ground truth, fragmenting a single expert diagram into
+                                                               multiple smaller ones with similar structure and generic
+4.5 Narrative Input Results
+                                                               labels.
+All models struggled with unstructured narrative input. The
+                                                               One reviewer identified a specific hallucination where a
+dynamic seal component was used as the test case, with three
+                                                               model generated a node for "abrasive cutting and damage to
+expert Bowties covering Wear, Seal Failure, and Lifetime
+                                                               shafts", prompting the comment "a dynamic seal does not
+serving as reference standards. The Seal Failure Bowtie
+                                                               contain a shaft", illustrating how terms from elsewhere in the
+shown in Figure 7 is an example of an expert-generated
+                                                               source text can be misattributed to the wrong component.
+Bowtie that the LLM performance was compared to. Notably,
+                                                               While some outputs were described as "workable" with clear
+the consequence side could not be fully constructed here, as
+                                                               causal relationships, none fully matched the expert reference
+the narrative lacked barrier and consequence information.
+                                                               diagrams in structure or critical event identification.
+
+                                                               5. DISCUSSION
+
+                                                               5.1 Answering the Research Questions
+                                                               RQ1: With strict schema-constrained prompting, instruction-
+                                                               tuned LLMs generated Bowtie diagrams from FMEA tables
+                                                               that closely matched expert references, with Node and Edge
+                                                               F1 scores routinely above 0.8 and perfect extraction achieved
+                                                               for some components on tabular data. For unstructured
+                                                               narratives, performance dropped substantially: models failed
+   Figure 7. Expert Bowtie: Seal Failure (narrative input)     to identify critical events, misassigned roles, and hallucinated
+
+
+
+                                                                                                                               7
+                  EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+nodes. Interpretability and structural completeness were high     reasoning alone is sufficient; reliable automation will likely
+for curated tables but low for free-form technical text.          require combining prompt design with robust input
+                                                                  preprocessing, model safeguards, and post-processing
+RQ2: Prompt strictness and prompt type were the dominant
+                                                                  validation.
+drivers of output quality. Zero-shot and CoT prompts with
+explicit schema instructions consistently outperformed few-
+                                                                  5.4 Limitations
+shot approaches, maximising both node- and edge-level F1
+and minimising output variance across random seeds.               The evaluation was restricted to small, quantised, open-
+Pipeline choice played a secondary role as long as input          source models (7–8B parameters); proprietary models such
+quality was maintained. Uncertainty-aware prompting               as GPT-4.1 may perform differently. Prompt templates were
+reduced but did not eliminate hallucinations. Schema-             tailored to NSWC-11's specific column structure and
+constrained prompting produced quasi-deterministic outputs        vocabulary and are unlikely to generalise to FMEA
+for tabular data, though multi-line entries remained a            documents from other OEMs with different formatting or
+persistent edge case.                                             narrative styles without additional prompt engineering.
+                                                                  Narrative evaluation was limited to the dynamic seal
+5.2 Pseudo-Deterministic Behaviour                                component, and all experiments focused on single-
+                                                                  component failures; the pipelines do not support multi-
+The observation of identical outputs across 10 random seeds
+                                                                  component Bowtie chaining. All pipelines operate in single-
+can be attributed to four interacting factors. First,
+                                                                  pass inference mode with no mechanism to correct schema
+quantisation reduces the bit precision in model weights,
+                                                                  violations or missing roles. Evaluation relied on manually
+lowering the entropy of the output probability distributions
+                                                                  curated ground-truth diagrams, which introduces scalability
+and making sampling effectively deterministic. Second,
+                                                                  concerns for continuous validation in practice.
+highly structured, schema-constrained prompts paired with
+clean tabular input reduce ambiguity, leaving little room for
+                                                                  5.5 Future Work
+alternative outputs. Third, Sobol analysis showed that
+temperature, top-p, and seed have negligible effects,             Five directions are most promising. First, prompt ablation
+suggesting that the probability distributions are sharply         studies that vary individual schema elements, such as fallback
+peaked around a single dominant output. Fourth, all three         rules or step count, would isolate which prompt components
+models are instruction-tuned, which produces more                 matter most. Second, evaluation should extend to larger
+predictable outputs for well-defined tasks. This pattern may      open-source models (LLaMA 4, Mistral Magistral) and
+not hold for less constrained tasks, ambiguous inputs, or full-   proprietary APIs to test whether current limitations reflect
+precision models.                                                 model capability or scale. Third, multi-stage agentic
+                                                                  workflows, where specialised agents extract, validate, and re-
+5.3 Hallucinations and Extraction Challenges                      prompt for missing or inconsistent roles, could address the
+                                                                  single-pass limitation. Fourth, integrating explicit confidence
+Narrative extraction was considerably harder than tabular
+                                                                  scoring into LLM outputs would improve interpretability and
+extraction. The elevation of causes or mechanisms to Critical
+                                                                  support downstream expert validation; human-in-the-loop
+Event status and the failure to extract implicit variables not
+                                                                  review loops would be particularly valuable in edge cases.
+explicitly stated in the text were the most common failure
+                                                                  Finally, building on a Neo4j-based prototype developed
+modes. This aligns with findings from the SD Bot study
+                                                                  during this work, a knowledge graph backend would enable
+(Hosseinichimeh et al., 2024), which reported only 59% link
+                                                                  cross-component reasoning by capturing how consequences
+accuracy when expert CLDs required implicit causal
+                                                                  in one component propagate as causes in another, supporting
+variables, a limitation also observed here.
+                                                                  system-level failure analysis at scale.
+A specific contributor to role-assignment errors was open-
+ended fallback logic in medium-strictness prompts,                6. CONCLUSION
+instructions such as “extract mechanism from text; if none
+                                                                  This paper presented ACE, a framework for automating the
+available, use Mechanism”, which encouraged models to
+                                                                  generation of Bowtie diagrams from FMEA documentation
+populate every role even when ground-truth diagrams left
+                                                                  using open-source, instruction-tuned LLMs. Three extraction
+certain roles absent. Fallback instructions should be tightly
+                                                                  pipelines were developed and evaluated across structured
+constrained rather than open-ended. Additionally, implicit
+                                                                  tabular and unstructured narrative inputs. Sobol sensitivity
+variables such as “time” may not be stated explicitly in the
+                                                                  analysis identified prompt strictness and prompt type as the
+text but still appear as nodes in expert diagrams, posing a
+                                                                  dominant drivers of output quality, while decoding
+significant challenge for smaller LLMs. Hallucination and
+                                                                  parameters and pipeline choice had a negligible effect.
+over-segmentation issues also occurred in structured tables,
+                                                                  Hallucination testing further demonstrated that uncertainty-
+where multiline FMEA entries were sometimes split into
+                                                                  aware prompting and model selection can meaningfully
+separate nodes despite explicit instructions. These findings
+                                                                  reduce speculative outputs, though they do not eliminate the
+suggest that neither prompt engineering nor advanced model
+
+
+                                                                                                                               8
+                   EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+risk entirely. Under optimal prompt configurations, models
+                                                                     Few-
+achieved Node and Edge F1 scores above 0.8 on structured                     Prompting with example pairs
+                                                                     shot
+FMEA tables, with outputs remaining stable across repeated
+runs.                                                                FMEA Failure Mode and Effects Analysis
+                                                                     FMECA Failure Mode, Effects, and Criticality Analysis
+Narrative input generation remains an open problem: models
+struggled to identify critical events, extract implicit variables,   GED     Graph Edit Distance
+and align with expert reference diagrams. The                        GGUF GPT-Generated Unified Format
+generalisability of these results beyond well-structured             Jac.    Jaccard similarity
+FMEA tables requires further investigation. These findings
+                                                                     JSON    JavaScript Object Notation
+establish a working foundation for LLM-based Bowtie
+automation in industrial failure analysis while identifying the      LLM     Large Language Model
+specific barriers to broader deployment.                             Node F1 Node-level F1 score
+When paired with schema-constrained prompts and careful              OCR     Optical Character Recognition
+preprocessing, open-source LLMs can automate much of the             PHM     Prognostics and Health Management
+manual effort involved in Bowtie generation from structured          PS      Prompt Strictness
+technical documents, offering clear benefits for scalability
+                                                                     PT      Prompt Type
+and standardisation in contexts where FMEA formats are
+widely adopted.                                                      RAG     Retrieval-Augmented Generation
+                                                                     RPN     Risk Priority Number
+The success of such pipelines in real-world deployment will
+depend on the quality of OCR for scanned documents and on            S1      First-order Sobol sensitivity index
+careful preprocessing of both tabular and narrative input.           S2      Second-order Sobol sensitivity index
+LLM-driven Bowtie automation is best positioned to                   SALib   Sensitivity Analysis Library
+augment human expertise rather than replace it, reducing the
+effort required to construct first-pass Bowties while still                  Sentence-BERT (Bidirectional Encoder
+                                                                     SBERT
+relying on human-in-the-loop validation and more capable                     Representations from Transformers)
+models. Agentic workflows, larger models, and knowledge              ST      Total-order Sobol sensitivity index
+graph integration offer the most promising directions for            Zero-
+extending this capability to more complex, multi-component                   Prompting without examples
+                                                                     shot
+failure scenarios.
+For PHM practitioners, the most immediate implication is             REFERENCES
+that structured FMEA documentation, already standard in              Anagnostidis, S., & Bulian, J. (2024). How susceptible are
+many industrial asset management workflows, can serve as a               LLMs to influence in prompts? arXiv:2408.11865.
+direct input to automated Bowtie generation without manual           Azam, M., Chen, Y., Arowolo, M. O., Liu, H., Popescu, M.,
+reformatting. The three pipelines presented here                         & Xu, D. (2024). A comprehensive evaluation of large
+accommodate the two most common real-world input                         language models in mining gene relations and pathway
+formats: digital FMEA tables via RAG and scanned or image-               knowledge. Quantitative Biology, 12(4), 360–374.
+based tables via OCR and vision. When FMEA                           Brown, T., Mann, B., Ryder, N., Subbiah, M., et al. (2020).
+documentation is consistently structured, this approach offers           Language models are few-shot learners. Advances in
+a practical way to accelerate Bowtie creation and reduce the             Neural Information Processing Systems, 33, 1877–1901.
+burden on expert facilitation that currently limits Bowtie           Gao, Y., Xiong, Y., Gao, X., Jia, K., Pan, J., Bi, Y., Dai, Y.,
+adoption at scale.                                                       Sun, J., Wang, M., & Wang, H. (2024). Retrieval-
+                                                                         augmented generation for large language models: A
+NOMENCLATURE                                                             survey. arXiv:2312.10997.
+                                                                     Gopalakrishnan, S., Garbayo, L., & Zadrozny, W. (2024).
+ACE     Automating Causal Extraction                                     Causality extraction from medical text using large
+CLD     Causal Loop Diagram                                              language models (LLMs). arXiv:2407.10020.
+CoT     Chain-of-Thought prompting                                   Hassani, I. E., Masrour, T., Kourouma, N., Motte, D., &
+                                                                         Tavčár, J. (2024). Integrating large language models for
+CT      Context Type
+                                                                         improved FMEA: A framework and case study.
+DOT     Graphviz DOT graph description format                            Proceedings        of      the      Design         Society.
+DPR     Dense Passage Retrieval                                          doi:10.1017/pds.2024.204
+Edge F1 Edge-level F1 score
+FAISS Facebook AI Similarity Search
+
+
+
+                                                                                                                                  9
+                  EUROPEAN CONFERENCE OF THE PROGNOSTICS AND HEALTH MANAGEMENT SOCIETY 2026
+
+
+Herman, J., & Usher, W. (2017). SALib: An open-source             Naval Surface Warfare Center. (2011). Handbook of
+     Python library for sensitivity analysis. Journal of Open          reliability prediction procedures for mechanical
+     Source Software, 2(9), 97.                                        equipment          (NSWC-11).         Retrieved       from
+Hosseinichimeh, N., Majumdar, A., Williams, R., &                      https://reliabilityanalyticstoolkit.appspot.com
+     Ghaffarzadegan, N. (2024). From text to map: A system        Rouabhia-Essalhi, R., Boukrouh, E. H., & Ghemari, Y.
+     dynamics bot for constructing causal loop diagrams.               (2022). Application of failure mode effect and criticality
+     System Dynamics Review, 40(3), e1782.                             analysis to industrial handling equipment. The
+Kaddour, J., Harris, J., Mozes, M., Bradley, H., Raileanu, R.,         International Journal of Advanced Manufacturing
+     & McHardy, R. (2023). Challenges and applications of              Technology, 120(7), 5269–5280.
+     large language models. arXiv:2307.10169.                     Saltelli, A., et al. (2010). Variance based sensitivity analysis
+Karpukhin, V., Oguz, B., Min, S., Lewis, P., Wu, L., Edunov,           of model output. Computer Physics Communications,
+     S., Chen, D., & Yih, W. (2020). Dense passage retrieval           181(2), 259–280.
+     for open-domain question answering. arXiv:2004.04906.        Schwitter, N. (2025). Using large language models for
+Khatibi, E., Abbasian, M., Yang, Z., Azimi, I., & Rahmani,             preprocessing and information extraction from
+     A. M. (2024). ALCM: Autonomous LLM-augmented                      unstructured text. Methodological Innovations, 18(1),
+     causal discovery framework. arXiv:2405.01744.                     61–65.
+Kiciman, E., Ness, R., Sharma, A., & Tan, C. (2023). Causal       Segismundo, A., & Cauchick Miguel, P. A. (2008). Failure
+     reasoning and large language models: Opening a new                mode and effects analysis (FMEA) in the context of risk
+     frontier for causality. arXiv:2305.00050.                         management in new product development. International
+Kim, H., & Andersen, D. F. (2012). Building confidence in              Journal of Quality & Reliability Management, 25(9),
+     causal maps generated from purposive text data:                   899–912.
+     Mapping transcripts of the federal reserve. System           Sharma, K. D., & Srivastava, S. K. (2018). Failure mode and
+     Dynamics Review, 28(4), 311–328.                                  effect analysis (FMEA) implementation: A literature
+Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V.,          review.                    Retrieved                  from
+     Goyal, N., Küttler, H., Lewis, M., Yih, W., Rocktäschel,          https://api.semanticscholar.org/CorpusID:115607603
+     T., Riedel, S., & Kiela, D. (2021). Retrieval-augmented      Sobol, I. M. (2001). Global sensitivity indices for nonlinear
+     generation for knowledge-intensive NLP tasks.                     mathematical models and their Monte Carlo estimates.
+     arXiv:2005.11401.                                                 Mathematics and Computers in Simulation, 55(1–3),
+Li, B., Jiang, G., Li, N., & Song, C. (2024). Research on              271–280.
+     large-scale structured and unstructured data processing      Taramsari, H. B., Rao, B., Nilchiani, R., & Lipizzi, C. (2024).
+     based on large language model. In Proceedings of                  Identification of variables impacting cascading failures
+     MLPRAE ’24 (pp. 111–116). ACM.                                    in aerospace systems: A NLP approach. In Conference
+Li, N., Song, Y., Wang, K., Li, Y., Shi, L., Liu, Y., & Wang,          on Systems Engineering Research (pp. 413–427).
+     H.     (2025).     Detecting     LLM      fact-conflicting        Springer.
+     hallucinations enhanced by temporal-logic-based              Turner, C., Hamilton, W. I., & Ramsden, M. (2017). Bowtie
+     reasoning. arXiv:2502.13416.                                      diagrams: A user-friendly risk communication tool.
+Liu, N.-Y. G., & Keith, D. (2024). Leveraging large language           Proceedings of the Institution of Mechanical Engineers,
+     models for automated causal loop diagram generation.              Part F, 231(10), 1088–1097.
+     Available at SSRN 4906094.
+
+
+
+
+                                                                                                                               10
+
