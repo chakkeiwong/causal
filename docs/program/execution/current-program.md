@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 22 October 2026 after the domain-knowledge and causal-graph literature review.
-The [queue-wide review](2026-10-22/program-refresh-domain-v1/program-review.json)
-binds the current plan, evidence and independent next actions. This is a research
-and product proposal; native qualification, bank validation and adoption are later.
+Updated 22 October 2026 after commercial observation coverage and comparison.
+The [queue-wide review](2026-10-22/program-refresh-observations-v1/program-review.json)
+binds every nonpassing obligation and independent next action. This is a research
+and product proposal. Native qualification, bank validation and adoption are later.
 
 Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
 The canonical ledger is [state.json](../state.json); the
@@ -12,83 +12,75 @@ remain historical snapshots. Continue eligible work across phase boundaries.
 
 ## Current integrated documents
 
-Read the [1,220-page monograph](../../causal_proposal_domain_knowledge_reviewed_2026-10-22.pdf)
-and its [45-page sponsor proposal](../../sponsor_proposal_domain_knowledge_reviewed_2026-10-22.pdf).
-The monograph contains 908 audited citation records and 219 genuine
-scholarly PDFs; the sponsor contains 272 audited citations and binds
-the exact current monograph. Q2-Q4 pass for these bytes. Q1/Q5, all three mandatory
-repairs, rendered review and final acceptance remain open.
+Read the [1,224-page monograph](../../causal_proposal_observations_reviewed_v2_2026-10-22.pdf)
+and its [46-page sponsor proposal](../../sponsor_proposal_observations_reviewed_2026-10-22.pdf).
+The reader has 915 audited citation records and 219 genuine scholarly PDFs;
+the sponsor has 281 audited citations and binds the exact reader.
+Q2-Q4 pass. Q1/Q5, all mandatory repairs, rendered review and final acceptance remain open.
 
-There are **186 recorded outcomes of 376 proposal operations**,
-with **165 ready operations**. Outcomes include
-inconclusive findings; they are not completed products or native integrations.
+There are **188 recorded outcomes of 376 proposal operations**,
+with **164 ready operations**. Inconclusive outcomes
+are retained as unfinished obligations; these counts are not native capabilities.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| Software coverage | 2 | 38 | 62 | 102 |
+| Software coverage | 2 | 39 | 61 | 102 |
 | Reuse decisions | 30 | 3 | 82 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-The frontier census is **59 inspected and 54 unread originals out of 113**,
-plus four crosscutting obligations. Fourteen LLM task and twelve integration
-reviews have scoped proposal outcomes; they do not establish live-model results
-or cross-repository adoption.
+The frontier census remains **59 inspected and 54 unread originals out of 113**,
+plus four crosscutting obligations. Fourteen LLM-task and twelve integration reviews
+have scoped outcomes, without live-model superiority or cross-repository adoption.
 
-## Findings integrated in this continuation
+## Integrated findings
 
-Physical monograph pages 771-775, section 45.30, compare Aziz and
-Brookhart's statin graph-elicitation study with Lin and colleagues' chronic-pain
-knowledge-retrieval preprint. The former's completeness proxy is predictor recall,
-not causal-edge truth. The latter uses a cyclic expert reference and the same
-document corpus used to build it. Its strongest F1 is 0.745 versus 0.714 for ordinary
-retrieval and 0.737 for graph retrieval alone; rankings depend on the query.
+Physical pages 357-361, section 24.13, compare AWS Entity Resolution,
+IBM QualityStage, Databricks feature lookup and Snowflake historical storage.
+Six official originals support separate contracts for matching scores, availability
+clocks, training/serving behavior, inclusion, schema and replay. Four other families,
+exact cutoff revisions, detailed IBM scoring and commercial rights remain unresolved.
 
-Exact authored examples distinguish direct edges from ancestry and show that union
-can lower F1 and create a three-cycle. Two Gaussian models have identical observed
-laws but intervention effects -1/2 and 0; stipulated costs imply margins USD 30 and -20.
-These are mathematical examples, not measured bank effects. The public evaluation
-design separates evidence entailment, graph semantics, identification and value.
-
-The ontology article remains unread after publisher 403 and an alternate-location
-check. Its failure is local. [Exact omissions and follow-ups](2026-10-22/census-domain-knowledge-v1/omissions-register.json)
-retain supplemental outputs, raw code/data, rights, held-out evaluation and visual
-review separately. All earlier sources, citation contexts and chapter inputs survive.
+Exact authored examples show event-only lookup returning 9 when only 2 was available;
+two map contrasts +4/-4 become 2.4 at stipulated probability 0.8, changing hypothetical
+margin from USD 10 to USD -6. Selection changes population effect 4 to 5.2. These are
+reproducible mathematical examples, not vendor measurements or bank returns.
+The [omissions](2026-10-22/observations-commercial-v1/omissions-register.json)
+give candidate-specific next actions. All prior sources and chapter inputs survive.
 
 ## Required standard and remaining gaps
 
-Each banking use must connect the decision and information clock to its target,
-assumptions, identification or limits, estimation, uncertainty, diagnostics,
-alternatives and monetary consequences. Sources require authentic bytes, identity,
-version/date, hash and inspected supporting anchors. Scholarly citations require
-real PDFs; the cutoff is 7 October 2026. FinMarketing sets the scholarly standard.
-Total length is not acceptance.
+Each banking use connects decision, information clock, target, assumptions,
+identification or limits, estimation, uncertainty, diagnostics, alternatives and
+monetary consequences. Sources need authentic bytes, identity/version/date, hashes
+and inspected anchors; scholarly citations need real PDFs. Cutoff: 7 October 2026.
+FinMarketing sets the scholarly standard; total length does not establish acceptance.
 
 MR01 requires 17 areas across six dimensions and 100-150 substantive software pages.
 MR02 requires eight developed chapters, fourteen tasks and 96-112 pages. MR03
 requires four integration chapters and twelve requirements, with indicative 40-60
-pages. Exclusive depth and systematic coverage both matter.
+pages. Exclusive depth and complete systematic coverage both matter.
 
-Known routes are primary-source recovery, complementary searches, reasoned reuse,
-connected synthesis and public known-law studies. Expensive bank studies follow
-demonstrated prototype merit. General latent identification, arbitrary dependence,
-private-state optimal-policy uncertainty and universal calibration require narrower
-claims or additional information; there is no promised general solution.
+Known routes are source recovery, complementary searches, reasoned reuse, connected
+synthesis and public known-law studies. General latent identification, arbitrary
+dependence, private-state optimal-policy uncertainty and universal score calibration
+need narrower claims or additional information; no general solution is promised.
 
 ## Exact continuation
 
-Controller next: **SW.CELL.observations_data.commercial**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Carry identity/ownership, linkage uncertainty, event and availability clocks, inclusion and audit truth; banking example: linked customer observations.
+Controller next: **SW.DECISION.inherited_honestdid**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
 
-The [remaining-operation register](2026-10-22/program-refresh-domain-v1/remaining-operations.json)
-contains every nonpassing obligation and dependency; the
-[checkpoint](2026-10-22/program-refresh-domain-v1/continuation-checkpoint.json)
-lists independent next actions. Python IV/RD sources have a saved preflight;
-commercial observation software and open reuse decisions remain eligible.
-The [rechecked Python preflight](2026-10-22/census-domain-knowledge-v1/next-lane-review.json)
-corrects an earlier scope ambiguity: CausalPy's inherited review covers sharp RD
-only, with equal-tail plotting quantiles; its IV path needs a separate review.
+The [remaining register](2026-10-22/program-refresh-observations-v1/remaining-operations.json)
+retains all 251 nonpassing obligations and dependencies. The
+[checkpoint](2026-10-22/program-refresh-observations-v1/continuation-checkpoint.json)
+lists independent next actions. The
+[Python source continuation](2026-10-22/python-iv-rd-preflight-v2/review.json)
+records two cutoff commits and eight verified originals. Next inspect delegated
+rank/covariance/diagnostic kernels and separate overidentification tests from
+weak-IV coefficient confidence sets. Python RD and CausalPy IV still need review;
+inherited CausalPy evidence covers sharp RD with equal-tail quantiles only.
 
-Keep tool output bounded and serialize canonical mutations through completion.
-Preserve failures and earlier releases. Checkpoints and Git preservation are not
-permission gates. No global blocker or unattended research worker is present.
-The inherited six-preview allowance under `/home/ubuntu/AGENTS.md` is exhausted;
-rendered acceptance requires a fresh visual session, while research continues.
+Wait for every canonical mutation to finish before a dependent transition.
+Checkpoints and Git preservation are not permission gates. No global blocker or
+unattended research worker exists. The inherited six-preview allowance under
+`/home/ubuntu/AGENTS.md` is exhausted; rendered acceptance needs a fresh visual
+session, while source research and manuscript work remain eligible.
