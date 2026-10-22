@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program_reviews_v2.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**188 / 376 proposal operations have recorded outcomes; 164 are ready.** Next: **SW.DECISION.inherited_honestdid**.
+**190 / 376 proposal operations have recorded outcomes; 162 are ready.** Next: **SW.CELL.iv_rd_design.Java**.
 
-Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_observations_reviewed_v2_2026-10-22.pdf) — 1224 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_workflow_reviewed_2026-10-22.pdf) — 1240 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

@@ -1,0 +1,2307 @@
+from __future__ import annotations
+
+import re
+import warnings
+from dataclasses import replace
+from functools import partial
+from importlib import import_module
+from typing import ClassVar, Literal, cast, overload
+
+import formulaic
+import numpy as np
+import pandas as pd
+from scipy.sparse import csc_matrix, diags
+from scipy.sparse.linalg import lsqr
+from scipy.stats import t
+
+from pyfixest.core.demean import Preconditioner
+from pyfixest.errors import VcovTypeNotSupportedError
+from pyfixest.estimation.formula import FORMULAIC_TRANSFORMS
+from pyfixest.estimation.formula import model_matrix as model_matrix_fixest
+from pyfixest.estimation.formula.formulaic_compat import (
+    i_term_columns,
+    materialize_model_spec_with_unseen_mask,
+)
+from pyfixest.estimation.formula.model_matrix import ModelMatrix, _ModelMatrixKey
+from pyfixest.estimation.formula.parse import Formula as FixestFormula
+from pyfixest.estimation.internals.collinearity import drop_multicollinear_variables
+from pyfixest.estimation.internals.demean_ import DemeanCache, DemeanedData
+from pyfixest.estimation.internals.families import T_DIST
+from pyfixest.estimation.internals.fit_ import fit_ols
+from pyfixest.estimation.internals.fit_statistics import (
+    FitStatistics,
+    linear_fit_statistics,
+)
+from pyfixest.estimation.internals.literals import (
+    HacVcovTypeOptions,
+    HeteroVcovTypeOptions,
+    PredictionErrorOptions,
+    PredictionType,
+    WaldDistributionOptions,
+    WeightsTypeOptions,
+    _validate_literal_argument,
+)
+from pyfixest.estimation.internals.model_state import (
+    Capabilities,
+    CollinearityCheck,
+    EstimationOptions,
+    EstimationSample,
+    FittedValues,
+    FixedEffectCounts,
+    ModelDescription,
+    ObservationWeights,
+    RitestStatistics,
+    SampleSplit,
+    SandwichComponents,
+    VarianceCovariance,
+    VcovSpec,
+    WaldTest,
+    WithinLinearData,
+)
+from pyfixest.estimation.internals.retention import (
+    omitted_attributes,
+    require_retained,
+)
+from pyfixest.estimation.internals.vcov_ import (
+    meat_crv1,
+    meat_hac,
+    meat_hetero,
+    vcov_crv3_fast,
+    vcov_iid_ols,
+)
+from pyfixest.estimation.internals.vcov_utils import (
+    ClusterSmallSampleCorrection,
+    VcovTerm,
+    combine_terms,
+    get_ssc_cluster,
+    prepare_cluster_state,
+)
+from pyfixest.estimation.models._result_accessor_mixin import ResultAccessorMixin
+from pyfixest.estimation.post_estimation.decomposition import (
+    GelbachDecomposition,
+    _decompose_arg_check,
+)
+from pyfixest.estimation.post_estimation.fixed_effects import (
+    FixedEffectEstimates,
+    build_fixed_effects,
+    check_fe_dtype_compatibility,
+    contrast_code_fixed_effects,
+    fixed_effects_to_frame,
+    predict_fixed_effects,
+    warn_on_unseen_fixed_effect_levels,
+)
+from pyfixest.estimation.post_estimation.prediction import _compute_prediction_error
+from pyfixest.estimation.post_estimation.wald import wald_test
+from pyfixest.estimation.refit import refit
+from pyfixest.utils.dev_utils import (
+    DataFrameType,
+    _find_stack_level,
+    _narwhals_to_pandas,
+)
+from pyfixest.utils.utils import (
+    DegreesOfFreedomCounts,
+    SmallSampleCorrection,
+    get_ssc,
+)
+
+decomposition_type = Literal["gelbach"]
+prediction_type = Literal["response", "link"]
+
+
+def _fixed_effect_names(
+    model_matrix: ModelMatrix, fixest_formula: FixestFormula
+) -> tuple[str, ...]:
+    """Name the absorbed fixed effects in the order the formula writes them.
+
+    Empty when the materialized model matrix carries no fixed-effect block.
+    """
+    if model_matrix.fixed_effects is None:
+        return ()
+    return tuple(str(fixest_formula.fixed_effects).replace(" ", "").split("+"))
+
+
+class Feols(ResultAccessorMixin):
+    """
+    Non user-facing class to estimate a linear regression via OLS.
+
+    Users should not directly instantiate this class,
+    but rather use the [feols()](/reference/estimation.api.feols.feols.qmd)
+    function. This class constructs within-scale arrays through a shared
+    ``DemeanCache``; the estimation runner supplies that cache for reuse across
+    multiple fits.
+
+    Parameters
+    ----------
+    FixestFormula : Formula
+        Parsed fixest formula of the model to fit.
+    data : pd.DataFrame
+        Estimation data, already converted to pandas and reindexed.
+    options : EstimationOptions
+        Every estimation option the fit is built with, as built by the
+        estimation function.
+    lookup_demeaned_data : dict[frozenset[int], DemeanedData]
+        Demeaning cache shared across the models of one cache block.
+    lookup_preconditioner : Optional[dict[frozenset[int], Preconditioner]]
+        Preconditioner cache shared across the models of one cache block.
+    sample_split : SampleSplit or None
+        The variable and value by which the estimation sample was split.
+        ``None`` if the model was fit on the entire input data set (minus
+        dropping of missings etc). For all model classes.
+
+    Attributes
+    ----------
+    model : ModelDescription
+        What the model estimates: its formula, the estimation function and its
+        inference distribution, the sample split, the dependent variable, the
+        absorbed fixed effects, the `i()` interaction coefficients, and the
+        formulaic model specification.
+    model_matrix : ModelMatrix
+        Model frames containing the response, regressors, and other model inputs.
+    within_data : WithinLinearData
+        Response and regressors after demeaning by fixed effects and removing
+        collinear regressor columns, without multiplication by square-root weights.
+    _X_is_empty : bool
+        Indicates whether the X array is empty.
+    options : EstimationOptions
+        The estimation options the model was built with: the small-sample
+        correction, the sample, weight, and offset options, the collinearity
+        tolerance, the solver, the demeaner, the storage policy, and the
+        formulaic context.
+    _coefnames : list
+        Names of the coefficients (of the design matrix X).
+    collinearity : CollinearityCheck
+        Names and column mask of the regressors dropped by the rank check,
+        set in get_fit().
+    observation_weights : ObservationWeights
+        User-scale weights and their analytic or frequency interpretation.
+    sample_info : EstimationSample
+        Observation counts and the dropped rows, by position and by stage.
+    fixef_counts : FixedEffectCounts
+        Level counts of the fixed effects in the estimation sample and the
+        counts derived from them for inference.
+    sandwich : SandwichComponents
+        Weighted scores, Hessian, and bread of the sandwich covariance, set in
+        get_fit().
+    _k : int
+        Number of independent variables (or features).
+    capabilities : Capabilities
+        Inference and post-estimation features this model class supports.
+    _data : Any
+        Data used in the regression, to be enriched outside of the class.
+    _beta_hat : np.ndarray
+        Estimated regression coefficients.
+    fitted_values : FittedValues
+        In-sample predictions on the link and the response scale, set in
+        get_fit().
+    _u_hat : np.ndarray
+        Residuals of the regression model.
+    variance_covariance : VarianceCovariance
+        Covariance estimate published by `vcov()`: the adjusted matrix, the
+        meat where a sandwich exists, small-sample factors, degrees of
+        freedom, and the requested estimator with its cluster variables.
+    wald : WaldTest
+        Wald test published by `wald_test()`: the statistic of the reference
+        distribution used, its p-value, both scalings of the quadratic form,
+        and the degrees of freedom.
+    ritest_statistics : RitestStatistics
+        Randomization-inference draws, the centered sample statistic, and the
+        p-value, set by `ritest(store_ritest_statistics=True)`.
+    coeftable : CoefficientTable
+        Coefficient table published by `get_inference()`: estimates, standard
+        errors, t-statistics, p-values, and confidence bounds.
+    _F_stat : Any
+        F-statistic for the model, set in get_Ftest().
+    fixef_estimates : FixedEffectEstimates
+        Fixed-effect estimates published by `fixef()`: the coefficient records
+        grouped by fixed effect, the dummy-coded solution `alpha`, and the
+        per-observation fixed-effect contribution `sumFE`.
+    fitstat : FitStatistics
+        Goodness-of-fit measures computed by `_fit_statistics()` and published
+        right after get_fit(); ``NaN`` where the estimator defines none.
+    _data: pd.DataFrame
+        The data frame used in the estimation. None if arguments `lean = True` or
+        `store_data = False`.
+    _model_name_plot: str
+        The name of the model used when plotting and summarizing models. Usually identical to
+        `model.model_name`. This might be different when pf.summary() or pf.coefplot() are called
+        and models with identical model names are passed. In this case,
+        the _model_name_plot attribute will be modified.
+    """
+
+    # Set in get_fit().
+    collinearity: CollinearityCheck
+    sandwich: SandwichComponents
+    fitted_values: FittedValues
+    # Set in _publish_fit_statistics() right after get_fit().
+    fitstat: FitStatistics
+    # Set in vcov().
+    variance_covariance: VarianceCovariance
+    # Set in wald_test().
+    wald: WaldTest
+    # Set in ritest() when store_ritest_statistics is True.
+    ritest_statistics: RitestStatistics
+    # Set in fixef().
+    fixef_estimates: FixedEffectEstimates
+
+    # The fit is a single least-squares solve, so the fast CRV3 jackknife and
+    # the fast ritest algorithm apply. Subclasses with other fits override it.
+    _closed_form_ols: bool = True
+
+    # Features this model class supports; __init__ copies them to
+    # `capabilities`. Each subclass declares its own value in full.
+    _declared_capabilities: ClassVar[Capabilities] = Capabilities(
+        covariance_update=True,
+        crv3_inference=True,
+        hac_inference=True,
+        multiway_clustering=True,
+        wildboottest=True,
+        cluster_causal_variance=True,
+        decomposition=True,
+        prediction=True,
+        fixed_effect_recovery=True,
+        randomization_inference=True,
+        sherman_morrison_update=True,
+        anytime_valid_inference=True,
+    )
+
+    def __init__(
+        self,
+        FixestFormula: FixestFormula,
+        data: pd.DataFrame,
+        *,
+        options: EstimationOptions,
+        lookup_demeaned_data: dict[frozenset[int], DemeanedData],
+        lookup_preconditioner: dict[frozenset[int], Preconditioner] | None = None,
+        sample_split: SampleSplit | None = None,
+    ) -> None:
+        self.options = options
+        self.model = self._describe_model(
+            fixest_formula=FixestFormula, sample_split=sample_split
+        )
+        self._model_name_plot = self.model.model_name
+
+        if sample_split is None:
+            pass
+        elif sample_split.value is None:
+            data = data.loc[data[sample_split.var].notnull()]
+        else:
+            data = data.loc[data[sample_split.var] == sample_split.value]
+
+        data = data.reset_index(drop=True)
+
+        self._data = data.copy() if options.copy_data else data
+        self._demean_cache = DemeanCache(lookup_demeaned_data, lookup_preconditioner)
+
+        self.capabilities = self._declared_capabilities
+        if self.options.has_weights:
+            self.capabilities = replace(self.capabilities, wildboottest=False)
+
+    def _describe_model(
+        self,
+        *,
+        fixest_formula: FixestFormula,
+        sample_split: SampleSplit | None,
+    ) -> ModelDescription:
+        """Describe the model this class fits, before its model matrix exists.
+
+        Subclasses override this to name their estimation function and its
+        inference distribution. The matrix-time fields stay empty until
+        `_publish_model_matrix()` republishes the description with them. An
+        unsplit fit publishes ``None`` as its split variable and value.
+        """
+        return ModelDescription(
+            formula=fixest_formula.formula,
+            fixest_formula=fixest_formula,
+            method="feols",
+            is_iv=False,
+            model_name=(
+                fixest_formula.formula
+                if sample_split is None
+                else f"{fixest_formula.formula} (Sample: {sample_split.var} = "
+                f"{'all' if sample_split.value is None else sample_split.value})"
+            ),
+            sample_split=sample_split,
+            inference_dist=T_DIST,
+        )
+
+    def prepare_model_matrix(self):
+        """Build and retain the canonical formula-derived estimator inputs."""
+        model_matrix = model_matrix_fixest.create_model_matrix(
+            formula=self.model.fixest_formula,
+            data=self._data,
+            drop_singletons=self.options.drop_singletons,
+            drop_intercept=self.options.drop_intercept,
+            weights=self.options.weights,
+            offset=self.options.offset,
+            context=self.options.context,
+        )
+        self._publish_model_matrix(model_matrix)
+
+        # an empty drop still rebuilds the whole frame, so guard it
+        if model_matrix.dropped_row_index:
+            self._data.drop(index=list(model_matrix.dropped_row_index), inplace=True)
+
+        return model_matrix
+
+    # Deliberately untyped: an annotation makes mypy check this body, whose published
+    # attribute types are still transitional or loose; see the typing follow-up.
+    def _publish_model_matrix(self, model_matrix):
+        """Publish structurally immutable formula, sample, and weight state."""
+        self.model_matrix = model_matrix
+        independent = model_matrix.independent
+        self.model = replace(
+            self.model,
+            depvar=model_matrix.dependent.columns[0],
+            fixed_effects=_fixed_effect_names(
+                model_matrix=model_matrix, fixest_formula=self.model.fixest_formula
+            ),
+            interacted_covariates=(
+                tuple(i_term_columns(model_matrix.model_spec[_ModelMatrixKey.main].rhs))
+            ),
+            model_spec=model_matrix.model_spec,
+        )
+        self._X_is_empty = independent.shape[1] == 0
+
+        self._coefnames = independent.columns.tolist()
+
+        fixed_effects = model_matrix.fixed_effects
+        self.fixef_counts = (
+            FixedEffectCounts(
+                n_levels_by_fe=tuple(
+                    int(size) for size in fixed_effects.nunique(axis=0)
+                )
+            )
+            if fixed_effects is not None
+            else FixedEffectCounts()
+        )
+
+        self.observation_weights = self._set_observation_weights()
+        weights = self.observation_weights
+        n_rows = model_matrix.n_rows
+        # Frequency weights count repeated observations; other fits count rows.
+        if weights.weights_type == "fweights":
+            assert weights.values is not None
+            n_obs: int | float = float(weights.values.sum())
+        else:
+            n_obs = n_rows
+        self.sample_info = EstimationSample(
+            dropped_row_index=model_matrix.dropped_row_index,
+            n_rows=n_rows,
+            n_obs=n_obs,
+            dropped_by_stage=model_matrix.dropped_by_stage,
+        )
+
+    def _validate_response(self) -> None:
+        """Validate estimator-specific response constraints, if any."""
+
+    def _set_observation_weights(self) -> ObservationWeights:
+        """Build canonical user-scale observation weights for this row sample."""
+        weights = self.model_matrix.weights
+        if weights is None:
+            return ObservationWeights.unweighted()
+
+        # `weights_type` is validated at the API boundary (estimation/api/utils.py).
+        weights_type = cast(WeightsTypeOptions, self.options.weights_type)
+        return ObservationWeights.from_values(
+            weights.to_numpy().reshape(-1),
+            weights_type=weights_type,
+        )
+
+    def _demean(self) -> WithinLinearData:
+        """Convert model frames to arrays and residualize them on the fixed effects.
+
+        The returned arrays are in the units of the data; they are not
+        multiplied by square-root weights.
+        """
+        response_frame = self.model_matrix.dependent
+        design_frame = self.model_matrix.independent
+        response = response_frame.to_numpy(dtype=np.float64)
+        design = design_frame.to_numpy(dtype=np.float64)
+
+        fixed_effects = self.model_matrix.fixed_effects
+        if fixed_effects is not None:
+            response, design, _ = self._demean_cache.demean_yx(
+                response,
+                design,
+                y_names=tuple(response_frame.columns),
+                x_names=tuple(design_frame.columns),
+                fe=fixed_effects.to_numpy(),
+                weights=self.observation_weights.values,
+                na_index=self.sample_info.dropped_row_index,
+                demeaner=self.options.demeaner,
+            )
+        return WithinLinearData(response=response, design=design)
+
+    @property
+    def preconditioner(self) -> Preconditioner | None:
+        """The within preconditioner used during demeaning, if any.
+
+        ``None`` when no preconditioner participated in the solve —
+        ``preconditioner='off'``, single-FE designs (MAP fallback), or any
+        non-within backend. Otherwise the instance built on the first solve
+        for this model's row sample. Pass it back via
+        ``LsmrDemeaner(backend='within', preconditioner=...)`` to skip the
+        setup phase on a later fit over the same design.
+        """
+        return self._demean_cache.lookup_preconditioner.get(
+            self.sample_info.dropped_row_index
+        )
+
+    def _drop_multicollinear_within_data(
+        self, within_data: WithinLinearData
+    ) -> WithinLinearData:
+        """Return within data after the established unweighted rank check."""
+        design = within_data.design
+        if design.shape[1] == 0:
+            # Fixed-effects-only model: nothing to check, but the attribute is
+            # published for every fitted model.
+            self.collinearity = CollinearityCheck(
+                dropped_coef_names=(),
+                mask=tuple(False for _ in self._coefnames),
+                coefnames=tuple(self._coefnames),
+            )
+            return within_data
+
+        design, collinearity = drop_multicollinear_variables(
+            design,
+            self._coefnames,
+            self.options.collin_tol,
+        )
+        self.collinearity = collinearity
+        self._coefnames = list(collinearity.coefnames)
+
+        return replace(within_data, design=design)
+
+    def _set_within_data(self, within_data: WithinLinearData) -> None:
+        """Publish canonical within data after column selection."""
+        self.within_data = within_data
+        self._X_is_empty = within_data.design.shape[1] == 0
+        self._k = within_data.design.shape[1]
+
+    def _prediction_design(self) -> np.ndarray:
+        """Return the coefficient-ordered design for the shared predict() method.
+
+        Linear and quantile models retain it in within_data. The GLM override
+        reads the corresponding final IRLS design from working_state.
+        """
+        require_retained(self, "predict", "within_data")
+        return self.within_data.design
+
+    def _fixef_dependent(self) -> np.ndarray:
+        """Return the dependent variable of the fixed-effect regression in `fixef()`.
+
+        `fixef()` regresses this variable minus `X @ beta_hat` on the fixed
+        effects. Linear models use the observed `Y` of the estimation sample;
+        the GLM override uses the linear predictor net of the offset.
+        """
+        return self.model_matrix.dependent.to_numpy().flatten().astype(np.float64)
+
+    def get_fit(self) -> None:
+        """
+        Fit an OLS model.
+
+        Returns
+        -------
+        None
+        """
+        within_data = self._drop_multicollinear_within_data(self._demean())
+        self._set_within_data(within_data)
+
+        if self._X_is_empty:
+            # Fixed-effects-only model: no coefficients, residuals are the
+            # within-transformed response, and the plan skips vcov().
+            self._beta_hat = np.empty(0)
+            self._u_hat = within_data.response.flatten()
+        else:
+            fit = fit_ols(
+                X=within_data.design,
+                Y=within_data.response,
+                weights=self.observation_weights.values,
+                solver=self.options.solver,
+            )
+
+            self._beta_hat = fit.beta
+            self._u_hat = fit.residuals
+            self.sandwich = fit.sandwich
+
+        # The response minus the residual carries the fixed-effect
+        # contribution, which `design @ beta_hat` alone would omit.
+        fitted = self.model_matrix.dependent.to_numpy().flatten() - self.resid()
+        self.fitted_values = FittedValues(link=fitted, response=fitted)
+
+    def _publish_fit_statistics(self) -> None:
+        """Publish `_fit_statistics()` as `fitstat`."""
+        self.fitstat = self._fit_statistics()
+
+    def _fit_statistics(self) -> FitStatistics:
+        """Compute the goodness-of-fit measures of the fitted model.
+
+        `_publish_fit_statistics()` stores the result as `fitstat` right after
+        `get_fit()`, before `lean=True` clears the arrays read here.
+        Subclasses override this hook to compute their own measures; an
+        override returns ``FitStatistics()`` where the estimator defines none.
+        """
+        # Empty designs are used only for demeaning and may have no residual
+        # degrees of freedom. Leave their fit statistics undefined.
+        if self._X_is_empty:
+            return FitStatistics()
+        return linear_fit_statistics(
+            Y=self.model_matrix.dependent.to_numpy(),
+            Y_within=self.within_data.response,
+            residuals=self._u_hat,
+            weights=self.observation_weights.values,
+            N=self.sample_info.n_obs,
+            k=self._k,
+            k_fe=self.fixef_counts.fixef_dof,
+            has_intercept=not self.options.drop_intercept,
+            has_fixef=self.model.has_fixef,
+        )
+
+    def _finalize_fit(self) -> None:
+        """Run the OLS Wald test that all coefficients are zero."""
+        self.wald_test()
+
+    def _iter_fitted_models(self) -> tuple[Feols, ...]:
+        """Yield this fitted result to the result container."""
+        return (self,)
+
+    def vcov(
+        self,
+        vcov: str | dict[str, str],
+        vcov_kwargs: dict[str, str | int] | None = None,
+        data: DataFrameType | None = None,
+    ) -> Feols:
+        """
+        Compute covariance matrices for an estimated regression model.
+
+        Parameters
+        ----------
+        vcov : Union[str, dict[str, str]]
+            A string or dictionary specifying the type of variance-covariance matrix
+            to use for inference.
+            If a string, it can be one of "iid", "hetero", "HC1", "HC2", "HC3", "NW", "DK".
+            If a dictionary, it should have the format {"CRV1": "clustervar"} for
+            CRV1 inference or {"CRV3": "clustervar"}
+            for CRV3 inference. Note that CRV3 inference is currently not supported
+            for IV estimation.
+        vcov_kwargs : Optional[dict[str, any]]
+             Additional keyword arguments for the variance-covariance matrix.
+        data: Optional[DataFrameType], optional
+            The data used for estimation. If None, tries to fetch the data from the
+            model object. Defaults to None.
+
+
+        Returns
+        -------
+        Feols
+            An instance of class [Feols](/reference/estimation.models.feols_.Feols.qmd) with updated inference.
+
+        Examples
+        --------
+        Updates the variance estimator of a fitted model without refitting it.
+        The model is modified in place and returned.
+
+        ```{python}
+        import pyfixest as pf
+
+        fit = pf.feols("Y ~ X1 + X2 | f1", pf.get_data())
+        fit.vcov("iid").tidy()
+        ```
+
+        ```{python}
+        # switch to cluster-robust inference
+        fit.vcov({"CRV1": "f1"}).tidy()
+        ```
+
+        See [On Small Sample Corrections](/explanation/ssc.qmd) for how the
+        `ssc` adjustments interact with each estimator.
+        """
+        self._require_capability(
+            capability="covariance_update",
+            method="vcov",
+            exception_type=VcovTypeNotSupportedError,
+        )
+        spec = VcovSpec.from_user_input(vcov, vcov_kwargs)
+        self._check_vcov_support(spec)
+        return self._vcov_from_spec(spec, data=data)
+
+    def _check_vcov_support(self, spec: VcovSpec) -> None:
+        """Reject a covariance estimator this model cannot compute.
+
+        Reads only the model description, options, and capabilities, so the
+        estimation pipeline runs it before fitting.
+        """
+        if spec.vcov_type_detail in ("HC2", "HC3"):
+            if self.model.has_fixef:
+                raise VcovTypeNotSupportedError(
+                    "HC2 and HC3 inference types are not supported for regressions with fixed effects."
+                )
+            if self.model.is_iv:
+                raise VcovTypeNotSupportedError(
+                    "HC2 and HC3 inference types are not supported for IV regressions."
+                )
+        if spec.vcov_type == "CRV":
+            if len(spec.clustervar) > 1 and not self.capabilities.multiway_clustering:
+                raise NotImplementedError(
+                    f"Multiway clustering is not (yet) supported for {type(self).__name__} models."
+                )
+            if spec.vcov_type_detail == "CRV3" and not self.capabilities.crv3_inference:
+                raise VcovTypeNotSupportedError(
+                    f"CRV3 inference is not for models of type '{self.model.method}'."
+                )
+        if spec.vcov_type == "HAC":
+            if not self.capabilities.hac_inference:
+                raise NotImplementedError(
+                    "HAC inference is not supported for this model type."
+                )
+            if self.options.has_weights and self.options.weights_type == "fweights":
+                raise NotImplementedError(
+                    "HAC inference (NW, DK) is not supported with `weights_type='fweights'`."
+                )
+        if spec.vcov_type == "nid":
+            raise NotImplementedError(
+                "Only models of type Quantreg support a variance-covariance matrix of type 'nid'."
+            )
+
+    def _vcov_from_spec(
+        self, spec: VcovSpec, data: DataFrameType | None = None
+    ) -> Feols:
+        """Compute and publish the covariance of a parsed, supported `spec`.
+
+        `vcov()` parses and checks the user's input first; the estimation
+        pipeline passes the spec it parsed before fitting.
+        """
+        require_retained(self, "vcov", "_data")
+
+        data_to_check = data if data is not None else self._data
+        try:
+            data_to_check = _narwhals_to_pandas(data_to_check)
+        except TypeError as e:
+            raise TypeError(
+                f"The data set must be a DataFrame type. Received: {type(data)}"
+            ) from e
+
+        vcov_type = spec.vcov_type
+
+        # Every estimator follows the same three steps: small-sample factors,
+        # one unadjusted term per cluster dimension, and their combination.
+        G: tuple[int, ...] = ()
+        df_t: int | float
+        correction: SmallSampleCorrection | ClusterSmallSampleCorrection
+        if vcov_type == "CRV":
+            prep = prepare_cluster_state(
+                data=data_to_check,
+                clustervar=list(spec.clustervar),
+                ssc=self.options.ssc,
+                fixef=self.model.fixed_effects,
+                fe=self.model_matrix.fixed_effects,
+                n_levels_by_fe=self.fixef_counts.n_levels_by_fe,
+            )
+            G = tuple(int(g) for g in prep.G)
+            correction = get_ssc_cluster(
+                prep=prep, ssc_options=self.options.ssc, dof_counts=self._dof_counts
+            )
+            ssc, df_k, df_t = correction.adj, correction.df_k, correction.df_t
+            terms = [
+                self._vcov_crv_cluster(
+                    clustid=clustid,
+                    cluster_col=cluster_col,
+                    vcov_type_detail=spec.vcov_type_detail,
+                )
+                for clustid, cluster_col in prep.dimensions()
+            ]
+        else:
+            ssc_G: int | float
+            if vcov_type == "iid":
+                ssc_vcov_type, ssc_G = "iid", 1
+                term = self._vcov_iid()
+            elif vcov_type == "hetero":
+                # fixest:::vcov_hetero_internal: adj = ifelse(ssc$cluster.adj, n/(n - 1), 1)
+                ssc_vcov_type, ssc_G = "hetero", self.sample_info.n_obs
+                term = self._vcov_hetero(vcov_type_detail=spec.vcov_type_detail)
+            elif vcov_type == "HAC":
+                # G is the number of unique time periods T used
+                ssc_vcov_type = "HAC"
+                ssc_G = np.unique(self._data[spec.time_id]).shape[0]
+                term = self._vcov_hac(spec)
+            elif vcov_type == "nid":
+                ssc_vcov_type, ssc_G = "hetero", self.sample_info.n_obs
+                term = self._vcov_nid()
+            else:
+                raise ValueError(f"Unknown vcov type {vcov_type!r}.")
+            correction = get_ssc(
+                self.options.ssc, self._dof_counts(G=ssc_G), vcov_type=ssc_vcov_type
+            )
+            ssc = np.array([correction.adj])
+            df_k, df_t = correction.df_k, correction.df_t
+            terms = [term]
+        term = combine_terms(terms, ssc)
+
+        self.variance_covariance = VarianceCovariance(
+            vcov=term.vcov,
+            meat=term.meat,
+            ssc=ssc,
+            df_k=df_k,
+            df_t=df_t,
+            spec=spec,
+            G=G,
+        )
+        # update p-value, t-stat, standard error, confint
+        self.get_inference()
+
+        return self
+
+    def _dof_counts(
+        self,
+        *,
+        G: int | float,
+        k_fe_nested: int = 0,
+        n_fe_fully_nested: int = 0,
+    ) -> DegreesOfFreedomCounts:
+        "Bundle the model counts that enter get_ssc()."
+        return DegreesOfFreedomCounts(
+            N=self.sample_info.n_obs,
+            k=self._k,
+            k_fe=self.fixef_counts.n_levels,
+            n_fe=self.fixef_counts.n_fixef,
+            k_fe_nested=k_fe_nested,
+            n_fe_fully_nested=n_fe_fully_nested,
+            G=G,
+        )
+
+    def _vcov_crv_cluster(
+        self,
+        *,
+        clustid: np.ndarray,
+        cluster_col: np.ndarray,
+        vcov_type_detail: str,
+    ) -> VcovTerm:
+        "Pick CRV1 / CRV3-fast / CRV3-slow for one cluster column."
+        if vcov_type_detail == "CRV1":
+            return self._vcov_crv1(clustid=clustid, cluster_col=cluster_col)
+
+        use_fast = self._closed_form_ols and not self.model.has_fixef
+        crv3 = self._vcov_crv3_fast if use_fast else self._vcov_crv3_slow
+        return VcovTerm(vcov=crv3(clustid=clustid, cluster_col=cluster_col), meat=None)
+
+    def _vcov_iid(self) -> VcovTerm:
+        vcov = vcov_iid_ols(
+            residuals=self._u_hat,
+            bread=self.sandwich.bread,
+            N=self.sample_info.n_obs,
+            weights=self.observation_weights.values,
+        )
+        return VcovTerm(vcov=vcov, meat=None)
+
+    def _vcov_hetero(self, *, vcov_type_detail: str) -> VcovTerm:
+        observation_weights = self.observation_weights.values
+        meat = meat_hetero(
+            sandwich=self.sandwich,
+            X=self.within_data.design,
+            frequency_weights=(
+                observation_weights.reshape((-1, 1))
+                if observation_weights is not None
+                and self.options.weights_type == "fweights"
+                else None
+            ),
+            normal_equation_weights=observation_weights,
+            vcov_type_detail=cast(HeteroVcovTypeOptions, vcov_type_detail),
+        )
+        bread = self.sandwich.bread
+        return VcovTerm(vcov=bread @ meat @ bread, meat=meat)
+
+    def _vcov_hac(self, spec: VcovSpec) -> VcovTerm:
+        _data = self._data
+        time_id, panel_id = spec.time_id, spec.panel_id
+
+        # some data checks on input pandas df
+        # time needs to be numeric or date else we cannot sort by time
+        if not np.issubdtype(_data[time_id], np.number) and not np.issubdtype(
+            _data[time_id], np.datetime64
+        ):
+            raise ValueError(
+                "The time variable must be numeric or date, else we cannot sort by time."
+            )
+
+        _time_arr = _data[time_id].to_numpy()
+        _panel_arr = _data[panel_id].to_numpy() if panel_id is not None else None
+
+        meat = meat_hac(
+            scores=self.sandwich.scores,
+            time_arr=_time_arr,
+            panel_arr=_panel_arr,
+            lag=spec.lag,
+            vcov_type_detail=cast(HacVcovTypeOptions, spec.vcov_type_detail),
+        )
+        bread = self.sandwich.bread
+        return VcovTerm(vcov=bread @ meat @ bread, meat=meat)
+
+    def _vcov_nid(self) -> VcovTerm:
+        raise NotImplementedError(
+            "Only models of type Quantreg support a variance-covariance matrix of type 'nid'."
+        )
+
+    def _vcov_crv1(self, clustid: np.ndarray, cluster_col: np.ndarray) -> VcovTerm:
+        meat = meat_crv1(
+            scores=self.sandwich.scores,
+            clustid=clustid,
+            cluster_col=cluster_col,
+        )
+        bread = self.sandwich.bread
+        return VcovTerm(vcov=bread @ meat @ bread, meat=meat)
+
+    def _vcov_crv3_fast(self, clustid, cluster_col) -> np.ndarray:
+        return vcov_crv3_fast(
+            X=self.within_data.design,
+            Y=self.within_data.response,
+            weights=self.observation_weights.values,
+            beta_hat=self._beta_hat,
+            clustid=clustid,
+            cluster_col=cluster_col,
+        )
+
+    def _vcov_crv3_slow(self, clustid, cluster_col) -> np.ndarray:
+        beta_jack = np.zeros((len(clustid), self._k))
+
+        for ixg, g in enumerate(clustid):
+            # direct leave one cluster out implementation
+            data = self._data[~np.equal(g, cluster_col)]
+            fit = refit(
+                self,
+                data=data,
+                # inference not needed, iid fastest to compute
+                vcov=VcovSpec(vcov_type="iid", vcov_type_detail="iid"),
+            )
+            beta_jack[ixg, :] = fit.coef().to_numpy()
+
+        # optional: beta_bar in MNW (2022)
+        # center = "estimate"
+        # if center == 'estimate':
+        #    beta_center = beta_hat
+        # else:
+        #    beta_center = np.mean(beta_jack, axis = 0)
+        beta_center = self._beta_hat
+
+        vcov_mat = np.zeros((self._k, self._k))
+        for ixg, _ in enumerate(clustid):
+            beta_centered = beta_jack[ixg, :] - beta_center
+            vcov_mat += np.outer(beta_centered, beta_centered)
+
+        return vcov_mat
+
+    def _clear_attributes(self):
+        """Apply the configured fitted-model retention policy."""
+        for attr in omitted_attributes(self.options.retention):
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+    def wald_test(
+        self,
+        R: np.ndarray | None = None,
+        q: float | np.ndarray | None = None,
+        distribution: WaldDistributionOptions = "F",
+    ) -> WaldTest:
+        """
+        Conduct Wald test.
+
+        Compute a Wald test for a linear hypothesis of the form R * beta = q.
+        where R is m x k matrix, beta is a k x 1 vector of coefficients,
+        and q is m x 1 vector.
+        By default, tests the joint null hypothesis that all coefficients are zero.
+
+        Parameters
+        ----------
+        R : array-like, optional
+            The matrix R of the linear hypothesis.
+            If None, defaults to an identity matrix.
+        q : array-like, optional
+            The vector q of the linear hypothesis.
+            If None, defaults to a vector of zeros.
+        distribution : str, optional
+            The distribution to use for the p-value. Can be either "F" or "chi2".
+            Defaults to "F". The F distribution is only used for the joint null
+            that all coefficients are zero; any other restriction falls back to
+            "chi2" with a warning.
+
+        Returns
+        -------
+        WaldTest
+            The test statistic of the reference distribution used, its p-value,
+            both scalings of the Wald quadratic form, and the degrees of
+            freedom. See [WaldTest](/reference/estimation.state.WaldTest.qmd).
+
+        Examples
+        --------
+        ```{python}
+        import numpy as np
+        import pyfixest as pf
+
+        data = pf.get_data()
+        fit = pf.feols("Y ~ X1 + X2| f1", data, vcov={"CRV1": "f1"}, ssc=pf.ssc(k_adj=False))
+
+        R = np.array([[1,-1]] )
+        q = np.array([0.0])
+
+        # Wald test
+        wald = fit.wald_test(R=R, q=q, distribution = "chi2")
+
+        print(f"Python statistic: {wald.stat}")
+        print(f"Python p-value: {wald.pvalue}")
+        ```
+        """
+        _validate_literal_argument(distribution, WaldDistributionOptions)
+
+        # If R is None, default to the identity matrix
+        R = np.eye(self._k) if R is None else np.atleast_2d(np.asarray(R, dtype=float))
+
+        covariance = self.variance_covariance
+        if covariance.spec.is_clustered:
+            df2: int | float = min(covariance.G) - 1
+        else:
+            df2 = self.sample_info.n_obs - self._k - self.fixef_counts.n_levels
+
+        # The F distribution is only used for the joint test that all
+        # coefficients are zero (R identity, q zero).
+        if distribution == "F" and (
+            not np.array_equal(R, np.eye(self._k)) or (q is not None and np.any(q))
+        ):
+            warnings.warn(
+                "Distribution changed to chi2, as R is not an identity matrix and q is not a zero vector.",
+                UserWarning,
+                stacklevel=_find_stack_level(),
+            )
+            distribution = "chi2"
+
+        self.wald = wald_test(
+            beta_hat=self._beta_hat,
+            vcov=covariance.vcov,
+            R=R,
+            q=q,
+            df2=df2,
+            distribution=distribution,
+            vcov_type=covariance.spec.vcov_type_detail,
+        )
+
+        return self.wald
+
+    def wildboottest(
+        self,
+        reps: int,
+        cluster: str | None = None,
+        param: str | None = None,
+        weights_type: str = "rademacher",
+        impose_null: bool = True,
+        bootstrap_type: str = "11",
+        seed: int | None = None,
+        k_adj: bool = True,
+        G_adj: bool = True,
+        parallel: bool = False,
+        return_bootstrapped_t_stats=False,
+    ):
+        """
+        Run a wild cluster bootstrap based on an object of type "Feols".
+
+        Parameters
+        ----------
+        reps : int
+            The number of bootstrap iterations to run.
+        cluster : Union[str, None], optional
+            The variable used for clustering. Defaults to None. If None, then
+            uses the variable specified in the model's `clustervar` attribute.
+            If the model is not clustered, runs a heteroskedasticity-
+            robust bootstrap.
+        param : Union[str, None], optional
+            A string of length one, containing the test parameter of interest.
+            Defaults to None.
+        weights_type : str, optional
+            The type of bootstrap weights. Options are 'rademacher', 'mammen',
+            'webb', or 'normal'. Defaults to 'rademacher'.
+        impose_null : bool, optional
+            Indicates whether to impose the null hypothesis on the bootstrap DGP.
+            Defaults to True.
+        bootstrap_type : str, optional
+            A string of length one to choose the bootstrap type.
+            Options are '11', '31', '13', or '33'. Defaults to '11'.
+        seed : Union[int, None], optional
+            An option to provide a random seed. Defaults to None.
+        k_adj : bool, optional
+            Indicates whether to apply a small sample adjustment for the number
+            of observations and covariates. Defaults to True.
+        G_adj : bool, optional
+            Indicates whether to apply a small sample adjustment for the number
+            of clusters. Defaults to True.
+        parallel : bool, optional
+            Indicates whether to run the bootstrap in parallel. Defaults to False.
+        seed : Union[str, None], optional
+            An option to provide a random seed. Defaults to None.
+        return_bootstrapped_t_stats : bool, optional:
+            If True, the method returns a tuple of the regular output and the
+            bootstrapped t-stats. Defaults to False.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the original, non-bootstrapped t-statistic and
+            bootstrapped p-value, along with the bootstrap type, inference type
+            (HC vs CRV), and whether the null hypothesis was imposed on the
+            bootstrap DGP. If `return_bootstrapped_t_stats` is True, the method
+            returns a tuple of the regular output and the bootstrapped t-stats.
+
+        Examples
+        --------
+        ```{python}
+        #| echo: true
+        #| results: asis
+        #| include: true
+
+        import re
+        import pyfixest as pf
+
+        data = pf.get_data()
+        fit = pf.feols("Y ~ X1 + X2 | f1", data)
+
+        fit.wildboottest(
+            param = "X1",
+            reps=1000,
+            seed = 822
+        )
+
+        fit.wildboottest(
+            param = "X1",
+            reps=1000,
+            seed = 822,
+            bootstrap_type = "31"
+        )
+
+        ```
+        """
+        if param is not None and param not in self._coefnames:
+            raise ValueError(
+                f"Parameter {param} not found in the model's coefficients."
+            )
+
+        if not self.capabilities.wildboottest:
+            if self.options.has_weights:
+                raise NotImplementedError(
+                    "Wild cluster bootstrap is not supported for WLS estimation."
+                )
+            raise NotImplementedError(
+                "Wild cluster bootstrap is only supported for unweighted OLS models; "
+                "it is not available for IV, GLM, quantile regression, or DID2S fits."
+            )
+
+        cluster_list = []
+
+        if cluster is not None and isinstance(cluster, str):
+            cluster_list = [cluster]
+        if cluster is not None and isinstance(cluster, list):
+            cluster_list = cluster
+
+        if cluster is None and self.variance_covariance.spec.is_clustered:
+            cluster_list = list(self.variance_covariance.spec.clustervar)
+
+        run_heteroskedastic = not cluster_list
+
+        if not run_heteroskedastic and not len(cluster_list) == 1:
+            raise NotImplementedError(
+                "Multiway clustering is currently not supported with the wild cluster bootstrap."
+            )
+
+        if self.model.has_fixef or not run_heteroskedastic:
+            require_retained(self, "wildboottest", "_data")
+        else:
+            require_retained(self, "wildboottest", "within_data")
+
+        if not run_heteroskedastic and cluster_list[0] not in self._data.columns:
+            raise ValueError(
+                f"Cluster variable {cluster_list[0]} not found in the data."
+            )
+
+        try:
+            from wildboottest.wildboottest import WildboottestCL, WildboottestHC
+        except ImportError as exc:
+            raise ImportError(
+                "wildboottest() requires the optional `wildboottest` package. "
+                "Install it with `pip install wildboottest`."
+            ) from exc
+
+        _Y, _X, _xnames = self._model_matrix_one_hot()
+
+        # later: allow r <> 0 and custom R
+        R = np.zeros(len(_xnames))
+        if param is not None:
+            R[_xnames.index(param)] = 1
+        r = 0
+
+        if run_heteroskedastic:
+            inference = "HC"
+
+            boot = WildboottestHC(X=_X, Y=_Y, R=R, r=r, B=reps, seed=seed)
+            boot.get_adjustments(bootstrap_type=bootstrap_type)
+            boot.get_uhat(impose_null=impose_null)
+            boot.get_tboot(weights_type=weights_type)
+            boot.get_tstat()
+            boot.get_pvalue(pval_type="two-tailed")
+            full_enumeration_warn = False
+            ssc_value = boot.small_sample_correction
+
+        else:
+            inference = f"CRV({cluster_list[0]})"
+
+            cluster_array = self._data[cluster_list[0]].to_numpy().flatten()
+
+            boot = WildboottestCL(
+                X=_X,
+                Y=_Y,
+                cluster=cluster_array,
+                R=R,
+                B=reps,
+                seed=seed,
+                parallel=parallel,
+            )
+            boot.get_scores(
+                bootstrap_type=bootstrap_type,
+                impose_null=impose_null,
+                adj=k_adj,
+                cluster_adj=G_adj,
+            )
+            _, _, full_enumeration_warn = boot.get_weights(weights_type=weights_type)
+            boot.get_numer()
+            boot.get_denom()
+            boot.get_tboot()
+            boot.get_vcov()
+            boot.get_tstat()
+            boot.get_pvalue(pval_type="two-tailed")
+
+            if full_enumeration_warn:
+                warnings.warn(
+                    "2^G < the number of boot iterations, setting full_enumeration to True.",
+                    UserWarning,
+                    stacklevel=_find_stack_level(),
+                )
+            ssc_value = boot.ssc
+
+        if np.isscalar(boot.t_stat):
+            boot.t_stat = np.asarray(boot.t_stat)
+        else:
+            boot.t_stat = boot.t_stat[0]
+
+        res = {
+            "param": param,
+            "t value": boot.t_stat.astype(np.float64),
+            "Pr(>|t|)": np.asarray(boot.pvalue).astype(np.float64),
+            "bootstrap_type": bootstrap_type,
+            "inference": inference,
+            "impose_null": impose_null,
+            "ssc": ssc_value,
+        }
+
+        res_df = pd.Series(res)
+
+        if return_bootstrapped_t_stats:
+            return res_df, boot.t_boot
+        else:
+            return res_df
+
+    def ccv(
+        self,
+        treatment,
+        cluster: str | None = None,
+        seed: int | None = None,
+        n_splits: int = 8,
+        pk: float = 1,
+        qk: float = 1,
+    ) -> pd.DataFrame:
+        """
+        Compute the Causal Cluster Variance following Abadie et al (QJE 2023).
+
+        Parameters
+        ----------
+        treatment: str
+            The name of the treatment variable.
+        cluster : str
+            The name of the cluster variable. None by default.
+            If None, uses the cluster variable from the model fit.
+        seed : int, optional
+            An integer to set the random seed. Defaults to None.
+        n_splits : int, optional
+            The number of splits to use in the cross-fitting procedure. Defaults to 8.
+        pk: float, optional
+            The proportion of sampled clusters. Defaults to 1, which
+            corresponds to all clusters of the population being sampled.
+        qk: float, optional
+            The proportion of sampled observations within each cluster.
+            Defaults to 1, which corresponds to all observations within
+            each cluster being sampled.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with inference based on the "Causal Cluster Variance"
+            and "regular" CRV1 inference.
+
+        Examples
+        --------
+        ```{python}
+        import pyfixest as pf
+        import numpy as np
+
+        data = pf.get_data()
+        data["D"] = np.random.choice([0, 1], size=data.shape[0])
+
+        fit = pf.feols("Y ~ D", data=data, vcov={"CRV1": "group_id"})
+        fit.ccv(treatment="D", pk=0.05, qk=0.5, n_splits=8, seed=123).head()
+        ```
+        """
+        if not self.capabilities.cluster_causal_variance:
+            raise NotImplementedError(
+                "The causal cluster variance estimator is not supported for models "
+                f"of type '{self.model.method}'."
+            )
+        if not isinstance(treatment, str):
+            raise TypeError("treatment must be a string.")
+        if not (isinstance(cluster, str) or cluster is None):
+            raise TypeError("cluster must be a string or None.")
+        if not (isinstance(seed, int) or seed is None):
+            raise TypeError("seed must be an integer or None.")
+        if not isinstance(n_splits, int):
+            raise TypeError("n_splits must be an integer.")
+        if n_splits < 1:
+            raise ValueError(f"n_splits must be a positive integer, got {n_splits}.")
+        for name, share in (("pk", pk), ("qk", qk)):
+            if not isinstance(share, (int, float)):
+                raise TypeError(f"{name} must be a number.")
+            if not 0 <= share <= 1:
+                raise ValueError(f"{name} must be between 0 and 1, got {share}.")
+
+        if self.model.has_fixef:
+            raise NotImplementedError(
+                "The causal cluster variance estimator is currently not supported for models with fixed effects."
+            )
+        if self.options.has_weights:
+            raise NotImplementedError(
+                "The causal cluster variance estimator is currently not supported for models with weights."
+            )
+
+        if treatment not in self._coefnames:
+            raise ValueError(
+                f"Variable {treatment} not found in the model's coefficients."
+            )
+
+        if cluster is None:
+            clustervar = self.variance_covariance.spec.clustervar
+            if not clustervar:
+                raise ValueError("No cluster variable found in the model fit.")
+            elif len(clustervar) > 1:
+                raise ValueError(
+                    "Multiway clustering is currently not supported with the causal cluster variance estimator."
+                )
+            else:
+                cluster = clustervar[0]
+
+        # check that cluster is in data
+        require_retained(self, "ccv", "_data", "within_data")
+        if cluster not in self._data.columns:
+            raise ValueError(
+                f"Cluster variable {cluster} not found in the data used for the model fit."
+            )
+
+        if not self.variance_covariance.spec.is_clustered:
+            warnings.warn(
+                "The initial model was not clustered. CRV1 inference is computed and stored in the model object.",
+                UserWarning,
+                stacklevel=_find_stack_level(),
+            )
+            self.vcov({"CRV1": cluster})
+
+        rng = np.random.default_rng(seed)
+
+        data = self._data
+        Y = self.within_data.response.flatten()
+        W = data[treatment].to_numpy()
+        if not np.all(np.isin(W, [0, 1])):
+            raise ValueError(
+                f"Treatment variable '{treatment}' must be binary with values 0 and 1."
+            )
+        X = self.within_data.design
+        cluster_vec = data[cluster].to_numpy()
+        unique_clusters = np.unique(cluster_vec)
+
+        tau_full = float(self.coef().xs(treatment))  # type: ignore[arg-type]
+
+        N = self.sample_info.n_obs
+        G = len(unique_clusters)
+
+        ccv_module = import_module("pyfixest.estimation.post_estimation.ccv")
+        _compute_CCV = ccv_module._compute_CCV
+
+        vcov_splits = 0.0
+        for _ in range(n_splits):
+            vcov_ccv = _compute_CCV(
+                fit_fn=partial(
+                    refit,
+                    self,
+                    # only the coefficients are read; iid is fastest to compute
+                    vcov=VcovSpec(vcov_type="iid", vcov_type_detail="iid"),
+                ),
+                Y=Y,
+                X=X,
+                W=W,
+                rng=rng,
+                data=data,
+                treatment=treatment,
+                cluster_vec=cluster_vec,
+                pk=pk,
+                tau_full=tau_full,
+            )
+            vcov_splits += vcov_ccv
+
+        vcov_splits /= n_splits
+        vcov_splits /= N
+
+        crv1_idx = self._coefnames.index(treatment)
+        vcov_crv1 = self.variance_covariance.vcov[crv1_idx, crv1_idx]
+        vcov_ccv = qk * vcov_splits + (1 - qk) * vcov_crv1
+
+        se = np.sqrt(vcov_ccv)
+        tstat = tau_full / se
+        df = G - 1
+        pvalue = 2 * (1 - t.cdf(np.abs(tstat), df))
+        alpha = 0.95
+        z = np.abs(t.ppf((1 - alpha) / 2, df))
+        z_se = z * se
+        conf_int = np.array([tau_full - z_se, tau_full + z_se])
+
+        res_ccv_dict: dict[str, float | np.ndarray] = {
+            "Estimate": tau_full,
+            "Std. Error": se,
+            "t value": tstat,
+            "Pr(>|t|)": pvalue,
+            "2.5%": conf_int[0],
+            "97.5%": conf_int[1],
+        }
+
+        res_ccv = pd.Series(res_ccv_dict)
+
+        res_ccv.name = "CCV"
+
+        res_crv1 = cast(pd.Series, self.tidy().xs(treatment))
+        res_crv1.name = "CRV1"
+
+        return pd.concat([res_ccv, res_crv1], axis=1).T
+
+    @overload
+    def _model_matrix_one_hot(
+        self, output: Literal["numpy"] = ...
+    ) -> tuple[np.ndarray, np.ndarray, list[str]]: ...
+
+    @overload
+    def _model_matrix_one_hot(
+        self, output: Literal["sparse"]
+    ) -> tuple[np.ndarray, csc_matrix, list[str]]: ...
+
+    def _model_matrix_one_hot(
+        self, output: Literal["numpy", "sparse"] = "numpy"
+    ) -> tuple[np.ndarray, np.ndarray | csc_matrix, list[str]]:
+        """
+        Transform a model matrix with fixed effects into a one-hot encoded matrix.
+
+        Parameters
+        ----------
+        output : str, optional
+            The type of output. Defaults to "numpy", in which case the returned matrices
+            Y and X are numpy arrays. If set to "sparse", the returned design matrix X will
+            be sparse.
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray, list[str]]
+            A tuple with the dependent variable, the model matrix, and the column names.
+        """
+        if self.model.has_fixef:
+            fml_linear, fixef = self.model.formula.split("|")
+            fixef_vars = fixef.split("+")
+            fixef_vars_C = [f"C({x})" for x in fixef_vars]
+            fixef_fml = "+".join(fixef_vars_C)
+            fml_dummies = f"{fml_linear} + {fixef_fml}"
+            # output = "pandas" as Y, X need to be np.arrays for parallel processing
+            # if output = "numpy", type of Y, X is not np.ndarray but a formulaic object
+            # which cannot be pickled by joblib
+
+            Y, X = formulaic.Formula(fml_dummies).get_model_matrix(
+                self._data,
+                output=output,
+                context=FORMULAIC_TRANSFORMS | {**self.options.context},
+            )
+            xnames = X.model_spec.column_names
+            Y = Y.toarray().flatten() if output == "sparse" else Y.flatten()
+            X = csc_matrix(X) if output == "sparse" else X
+
+        else:
+            Y = self.within_data.response.flatten()
+            X = self.within_data.design
+            xnames = self._coefnames
+
+        X = csc_matrix(X) if output == "sparse" else X
+
+        return Y, X, xnames
+
+    def _require_capability(
+        self,
+        *,
+        capability: str,
+        method: str,
+        exception_type: type[Exception] = NotImplementedError,
+    ) -> None:
+        """Reject a post-estimation method the model class does not support."""
+        if getattr(self.capabilities, capability):
+            return
+        estimator = f"'{self.model.method}' fits"
+        if self.model.is_iv:
+            estimator += " with instruments"
+        raise exception_type(
+            f"{method}() is not supported for {estimator}: "
+            f"fit.capabilities.{capability} is False."
+        )
+
+    def decompose(
+        self,
+        param: str | None = None,
+        x1_vars: list[str] | str | None = None,
+        decomp_var: str | None = None,
+        type: decomposition_type = "gelbach",
+        cluster: str | None = None,
+        combine_covariates: dict[str, list[str]] | None = None,
+        reps: int = 1000,
+        seed: int | None = None,
+        nthreads: int | None = None,
+        agg_first: bool | None = None,
+        only_coef: bool = False,
+        digits=4,
+    ) -> GelbachDecomposition:
+        """
+        Implement the Gelbach (2016) decomposition method for mediation analysis.
+
+        Compares a short model `depvar on param` with the long model
+        specified in the original feols() call.
+
+        For details, take a look at
+        "When do covariates matter?" by Gelbach (2016, JoLe). You can find
+        an ungated version of the paper on SSRN under the following link:
+        https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1425737 .
+
+        When the initial regression is weighted, weights are interpreted as frequency
+        weights. Inference is not yet supported for weighted models.
+
+        Parameters
+        ----------
+        param : str
+            The name of the focal covariate whose effect is to be decomposed into direct
+            and indirect components with respect to the rest of the right-hand side.
+        x1_vars : list[str]
+            A list of covariates that are included in both the baseline and the full
+            regressions.
+        decomp_var : str
+            The name of the focal covariate whose effect is to be decomposed into direct
+            and indirect components with respect to the rest of the right-hand side.
+        type : str, optional
+            The type of decomposition method to use. Defaults to "gelbach", which
+            currently is the only supported option.
+        cluster: Optional
+            The name of the cluster variable for the bootstrap. If None, uses the
+            cluster variable from the model fit. Only one-way clustering is
+            supported; a fit with multiway clustering raises ``ValueError`` unless
+            a single cluster variable is passed here. Defaults to None.
+        combine_covariates: Optional.
+            A dictionary that specifies which covariates to combine into groups.
+            See the example for how to use this argument. Defaults to None.
+        reps : int, optional
+            The number of bootstrap iterations to run. Defaults to 1000.
+        seed : int, optional
+            An integer to set the random seed. Defaults to None.
+        nthreads : int, optional
+            The number of threads to use for the bootstrap. Defaults to None.
+            If None, uses all available threads minus one.
+        agg_first : bool, optional
+            If True, use the 'aggregate first' algorithm described in Gelbach (2016).
+            False by default, unless combine_covariates is provided.
+            Recommended to set to True if combine_covariates is argument is provided.
+            As a rule of thumb, the more covariates are combined, the larger the performance
+            improvement.
+        only_coef : bool, optional
+            Indicates whether to compute inference for the decomposition. Defaults to False.
+            If True, skips the inference step and only returns the decomposition results.
+        digits : int, optional
+            The number of digits to round the results to. Defaults to 4.
+
+        Returns
+        -------
+        GelbachDecomposition
+            A GelbachDecomposition object with the decomposition results.
+            Use `tidy()` and `etable()` to access the estimation results.
+
+        Examples
+        --------
+        ```{python}
+        import re
+        import pyfixest as pf
+        from pyfixest.utils.dgps import gelbach_data
+
+        data = gelbach_data(nobs = 1000)
+        fit = pf.feols("y ~ x1 + x21 + x22 + x23", data=data)
+
+        # simple decomposition
+        gb = fit.decompose(decomp_var = "x1", reps = 10, nthreads = 1)
+        type(gb)
+
+        gb.tidy()
+        gb = fit.decompose(decomp_var = "x1", reps = 10, nthreads = 1, x1_vars = ["x21"])
+        # combine covariates
+        gb = fit.decompose(decomp_var = "x1", reps = 10, nthreads = 1, combine_covariates = {"g1": ["x21", "x22"], "g2": ["x23"]})
+        # supress inference
+        gb = fit.decompose(decomp_var = "x1", reps = 10, nthreads = 1, combine_covariates = {"g1": ["x21", "x22"], "g2": ["x23"]}, only_coef = True)
+        # print results
+        gb.etable()
+
+        # group covariates via regex
+        res = fit.decompose(decomp_var="x1", combine_covariates={"g1": re.compile("x2[1-2]"), "g2": re.compile("x23")})
+        ```
+        """
+        self._require_capability(capability="decomposition", method="decompose")
+
+        has_param = param is not None
+        has_decomp = decomp_var is not None
+
+        if not has_param and not has_decomp:
+            raise ValueError("Either 'param' or 'decomp_var' must be provided.")
+
+        if has_param and has_decomp:
+            raise ValueError(
+                "The 'param' and 'decomp_var' arguments cannot be provided at the same time."
+            )
+
+        if has_param:
+            warnings.warn(
+                "The 'param' argument is deprecated. Please use 'decomp_var' instead.",
+                FutureWarning,
+                stacklevel=_find_stack_level(),
+            )
+            decomp_var = param
+
+        if x1_vars is not None:
+            if isinstance(x1_vars, str):
+                x1_vars = [x.strip() for x in x1_vars.split("+")]
+            else:
+                x1_vars = list(x1_vars)
+
+        _decompose_arg_check(
+            type=type,
+            has_weights=self.options.has_weights,
+            weights_type=self.options.weights_type,
+            is_iv=self.model.is_iv,
+            method=self.model.method,
+            only_coef=only_coef,
+        )
+
+        require_retained(self, "decompose", "within_data", "observation_weights")
+        if (
+            self.model.has_fixef
+            or cluster is not None
+            or self.variance_covariance.spec.is_clustered
+        ):
+            require_retained(self, "decompose", "_data")
+
+        nthreads_int = -1 if nthreads is None else nthreads
+
+        rng = (
+            np.random.default_rng(seed) if seed is not None else np.random.default_rng()
+        )
+
+        if agg_first is None:
+            agg_first = combine_covariates is not None
+
+        cluster_df: pd.Series | None = None
+        if cluster is not None:
+            cluster_df = self._data[cluster]
+        elif self.variance_covariance.spec.is_clustered:
+            clustervar = self.variance_covariance.spec.clustervar
+            if len(clustervar) > 1:
+                raise ValueError(
+                    "Multiway clustering is currently not supported with the Gelbach "
+                    "decomposition bootstrap. Pass a single cluster variable via "
+                    "`cluster` instead."
+                )
+            cluster_df = self._data[clustervar[0]]
+
+        Y, X, xnames = self._model_matrix_one_hot(output="sparse")
+
+        if combine_covariates is not None:
+            for key, value in combine_covariates.items():
+                if isinstance(value, re.Pattern):
+                    matched = [x for x in xnames if value.search(x)]
+                    if len(matched) == 0:
+                        raise ValueError(f"No covariates match the regex {value}.")
+                    combine_covariates[key] = matched
+
+        med = GelbachDecomposition(
+            decomp_var=cast(str, decomp_var),
+            x1_vars=x1_vars,
+            coefnames=xnames,
+            depvarname=self.model.depvar,
+            cluster_df=cluster_df,
+            nthreads=nthreads_int,
+            combine_covariates=combine_covariates,
+            agg_first=agg_first,
+            only_coef=only_coef,
+            atol=1e-12,
+            btol=1e-12,
+        )
+
+        med.fit(
+            X=X,
+            Y=Y,
+            weights=(
+                np.ones((self.sample_info.n_rows, 1))
+                if self.observation_weights.values is None
+                else self.observation_weights.values[:, None]
+            ),
+            store=True,
+        )
+
+        if not only_coef:
+            med.bootstrap(rng=rng, B=reps)
+
+        self.GelbachDecompositionResults = med
+
+        return med
+
+    def summary(self, **kwargs):
+        """Print a summary of this model. See [`pyfixest.summary`](report.summary.qmd) for the arguments."""
+        from pyfixest.report import summary
+
+        return summary(models=self, **kwargs)
+
+    def etable(self, **kwargs):
+        """Create a regression table. See [`pyfixest.etable`](report.etable.qmd) for the arguments."""
+        from pyfixest.report import etable
+
+        return etable(models=self, **kwargs)
+
+    def coefplot(self, **kwargs):
+        """Plot the coefficients. See [`pyfixest.coefplot`](report.coefplot.qmd) for the arguments."""
+        from pyfixest.report import coefplot
+
+        return coefplot(models=self, **kwargs)
+
+    def iplot(self, **kwargs):
+        """Plot the `i()` interaction coefficients. See [`pyfixest.iplot`](report.iplot.qmd) for the arguments."""
+        from pyfixest.report import iplot
+
+        return iplot(models=self, **kwargs)
+
+    def fixef(self, atol: float = 1e-06, btol: float = 1e-06) -> pd.DataFrame:
+        """
+        Compute the coefficients of (swept out) fixed effects for a regression model.
+
+        Publishes the estimates as `fixef_estimates`, a `FixedEffectEstimates`
+        value holding the coefficient records, the dummy-coded solution
+        `alpha`, and the per-observation contribution `sumFE`.
+
+        Parameters
+        ----------
+        atol : Float, default 1e-6
+            Stopping tolerance for scipy.sparse.linalg.lsqr().
+            See https://docs.scipy.org/doc/
+                scipy/reference/generated/scipy.sparse.linalg.lsqr.html
+        btol : Float, default 1e-6
+            Another stopping tolerance for scipy.sparse.linalg.lsqr().
+            See https://docs.scipy.org/doc/
+                scipy/reference/generated/scipy.sparse.linalg.lsqr.html
+
+        Returns
+        -------
+        pd.DataFrame
+            A tidy DataFrame with columns `variable`, `code`, `level`, and
+            `coefficient` containing the estimated fixed effects.
+
+        Examples
+        --------
+        ```{python}
+        import pyfixest as pf
+
+        fit = pf.feols("Y ~ X1 + X2 | f1", pf.get_data())
+        fixed_effects = fit.fixef()
+        fixed_effects.head()
+        ```
+        """
+        if not self.model.has_fixef:
+            raise ValueError("The regression model does not have fixed effects.")
+
+        self._require_capability(capability="fixed_effect_recovery", method="fixef")
+
+        require_retained(self, "fixef", "_data", "model_matrix")
+
+        model_spec = self.model.model_spec
+        assert model_spec is not None, "fixef() runs after the model matrix is built"
+        fe_spec = model_spec[_ModelMatrixKey.fixed_effects]
+
+        # flatten() copies: the weighting below scales uhat in place and must
+        # not touch the fitted values the GLM hook may return.
+        uhat = self._fixef_dependent().flatten()
+        if not self._X_is_empty:
+            # model_matrix keeps the columns the collinearity check dropped;
+            # _coefnames names the estimated ones.
+            X = self.model_matrix.independent[self._coefnames].to_numpy()
+            uhat = uhat - X @ self._beta_hat
+        # one-hot encoding of fixed effects (treatment coding: reference level
+        # dropped for the second and subsequent FEs via ensure_full_rank=True).
+        contrast_coding = contrast_code_fixed_effects(
+            fixed_effects=self.model.fixest_formula.fixed_effects_wrapped,
+            fixed_effect_names=fe_spec.column_names,
+            data=self._data,
+            context=FORMULAIC_TRANSFORMS | {**self.options.context},
+            transform_state=fe_spec.transform_state,
+        )
+        D = contrast_coding.matrix
+        D_w = D
+        if self.options.has_weights:
+            # Weighted least squares: min || sqrt(w) (uhat - D alpha) ||.
+            observation_weights = self.observation_weights.values
+            assert observation_weights is not None
+            weights_sqrt = np.sqrt(observation_weights)
+            uhat *= weights_sqrt
+            D_w = diags(weights_sqrt, 0).dot(D)
+
+        alpha = lsqr(D_w, uhat, atol=atol, btol=btol)[0]
+
+        self.fixef_estimates = FixedEffectEstimates(
+            coefficients=build_fixed_effects(
+                fixed_effect_coefficients=alpha,
+                contrast_coding=contrast_coding,
+                transform_state=fe_spec.transform_state,
+            ),
+            alpha=alpha,
+            # Fixed-effect contribution per observation, in the units of Y.
+            sumFE=D.dot(alpha),
+        )
+
+        return fixed_effects_to_frame(self.fixef_estimates.coefficients)
+
+    def predict(
+        self,
+        newdata: DataFrameType | None = None,
+        atol: float = 1e-6,
+        btol: float = 1e-6,
+        type: PredictionType = "link",
+        se_fit: bool | None = False,
+        interval: PredictionErrorOptions | None = None,
+        alpha: float = 0.05,
+    ) -> np.ndarray | pd.DataFrame:
+        """
+        Predict values of the model on new data.
+
+        Return a flat np.array with predicted values of the regression model.
+        If new fixed effect levels are introduced in `newdata`, predicted values
+        for such observations will be set to NaN.
+
+        Parameters
+        ----------
+        newdata : DataFrameType, optional
+            A narwhals compatible DataFrame (polars, pandas, duckdb, etc).
+            If None (default), the data used for fitting the model is used.
+        type : str, optional
+            The type of prediction to be computed.
+            Can be either "response" (default) or "link". For linear models, both are
+            identical.
+        atol : Float, default 1e-6
+            Stopping tolerance for scipy.sparse.linalg.lsqr().
+            See https://docs.scipy.org/doc/
+                scipy/reference/generated/scipy.sparse.linalg.lsqr.html
+        btol : Float, default 1e-6
+            Another stopping tolerance for scipy.sparse.linalg.lsqr().
+            See https://docs.scipy.org/doc/
+                scipy/reference/generated/scipy.sparse.linalg.lsqr.html
+        type:
+            The type of prediction to be made. Can be either 'link' or 'response'.
+             Defaults to 'link'. 'link' and 'response' lead
+            to identical results for linear models.
+        se_fit: Optional[bool], optional
+            If True, the standard error of the prediction is computed. Only feasible
+            for models without fixed effects. GLMs are not supported. Defaults to False.
+        interval: str, optional
+            The type of interval to compute. Can be either 'prediction' or None.
+        alpha: float, optional
+            The alpha level for the confidence interval. Defaults to 0.05. Only
+            used if interval = "prediction" is not None.
+
+        Returns
+        -------
+        Union[np.ndarray, pd.DataFrame]
+            Returns a pd.Dataframe with columns "fit", "se_fit" and CIs if argument "interval=prediction".
+            Otherwise, returns a np.ndarray with the predicted values of the model or the prediction
+            standard errors if argument "se_fit=True".
+
+        Examples
+        --------
+        In-sample predictions:
+
+        ```{python}
+        import pyfixest as pf
+
+        data = pf.get_data()
+        fit = pf.feols("Y ~ X1 + X2 | f1", data)
+        fit.predict()[:5]
+        ```
+
+        Pass `newdata` to predict out of sample. Fixed effect levels that do not
+        appear in the estimation sample return missing values.
+
+        ```{python}
+        fit.predict(newdata=data.head())
+        ```
+        """
+        self._require_capability(capability="prediction", method="predict")
+
+        if interval == "prediction" or se_fit:
+            if self.model.has_fixef:
+                raise NotImplementedError(
+                    "Prediction errors are currently not supported for models with fixed effects."
+                )
+
+            if self.options.has_weights:
+                raise NotImplementedError(
+                    "Prediction errors are currently not supported for models with weights."
+                )
+
+        _validate_literal_argument(type, PredictionType)
+        if interval is not None:
+            _validate_literal_argument(interval, PredictionErrorOptions)
+
+        if newdata is None:
+            # note: no need to worry about fixed effects, as not supported with
+            # prediction errors; will throw error later;
+            X = self._prediction_design()
+            y_hat = getattr(self.fitted_values, type)
+            n_observations = self.sample_info.n_rows
+        else:
+            newdata = _narwhals_to_pandas(newdata).reset_index(drop=True)
+            n_observations = newdata.shape[0]
+            context = FORMULAIC_TRANSFORMS | {**self.options.context}
+            # Use na_action="drop" on each sub-spec separately because dependent variable
+            # may not be available in newdata, then intersect indices so a NaN in *any* variable
+            # (covariate or FE) marks the whole row as NaN in the output.
+            model_spec = self.model.model_spec
+            assert model_spec is not None, (
+                "predict() runs after the model matrix is built"
+            )
+            rhs_spec = model_spec[_ModelMatrixKey.main].rhs
+            X_mm, unseen = materialize_model_spec_with_unseen_mask(
+                rhs_spec, newdata, context
+            )
+            valid_idx = X_mm.index.to_numpy()
+            # rows with a categorical level unseen during fitting (in C()/i()) would
+            # be silently encoded as the reference level -> drop them to NaN instead,
+            # matching how unseen fixed-effect levels are handled below.
+            valid_idx = valid_idx[~unseen[valid_idx]]
+            if self.model.has_fixef:
+                fe_spec = model_spec[_ModelMatrixKey.fixed_effects]
+                check_fe_dtype_compatibility(fe_spec, newdata)
+                # na_action="ignore" keeps unseen-level rows as NaN codes
+                fe_mm = fe_spec.get_model_matrix(
+                    newdata, context=context, na_action="ignore"
+                )
+                warn_on_unseen_fixed_effect_levels(fe_mm, fe_spec, newdata)
+                valid_fixed_effects = fe_mm.notna().all(axis="columns").to_numpy()
+                valid_idx = valid_idx[valid_fixed_effects[valid_idx]]
+                if not hasattr(self, "fixef_estimates"):
+                    require_retained(self, "predict", "_data")
+                    self.fixef(atol, btol)
+                fe_hat = predict_fixed_effects(
+                    model_matrix=fe_mm.loc[valid_idx],
+                    coefficients=self.fixef_estimates.coefficients,
+                )
+
+            X_coef = X_mm.loc[valid_idx, self._coefnames].to_numpy()
+            y_hat = np.full(n_observations, np.nan)
+            y_hat[valid_idx] = X_coef @ self._beta_hat
+            if self.model.has_fixef:
+                y_hat[valid_idx] += fe_hat
+            # Pad X to full size; NaN rows yield NaN SE/CI via einsum propagation.
+            X = np.full((n_observations, X_coef.shape[1]), np.nan)
+            X[valid_idx] = X_coef
+            if self.options.offset is not None:
+                offset_mm = model_spec[_ModelMatrixKey.offset].get_model_matrix(
+                    newdata,
+                    context=context,
+                    na_action="drop",
+                    output="pandas",
+                )
+                if not offset_mm.index.equals(newdata.index):
+                    raise ValueError(
+                        f"Offset expression '{self.options.offset}' evaluates to missing "
+                        "values in `newdata`."
+                    )
+
+                y_hat += offset_mm.iloc[:, 0].to_numpy()
+
+        if se_fit or interval == "prediction":
+            prediction_df = _compute_prediction_error(
+                model=self,
+                nobs=n_observations,
+                yhat=y_hat,
+                X=X,
+                alpha=alpha,
+            )
+            if interval == "prediction":
+                return prediction_df
+            else:
+                return prediction_df["se_fit"].to_numpy()
+        else:
+            return y_hat
+
+    def ritest(
+        self,
+        resampvar: str,
+        cluster: str | None = None,
+        reps: int = 100,
+        type: str = "randomization-c",
+        rng: np.random.Generator | None = None,
+        choose_algorithm: str = "auto",
+        store_ritest_statistics: bool = False,
+        level: float = 0.95,
+    ) -> pd.Series:
+        """
+        Conduct Randomization Inference (RI) test against a null hypothesis of
+        `resampvar = 0`.
+
+        Parameters
+        ----------
+        resampvar : str
+            The name of the variable to be resampled.
+        cluster : str, optional
+            The name of the cluster variable in case of cluster random assignment.
+            If provided, `resampvar` is held constant within each `cluster`.
+            Defaults to None.
+        reps : int, optional
+            The number of randomization iterations. Defaults to 100.
+        type: str
+            The type of the randomization inference test.
+            Can be "randomization-c" or "randomization-t". Note that
+            the "randomization-c" is much faster, while the
+            "randomization-t" is recommended by Wu & Ding (JASA, 2021).
+        rng : np.random.Generator, optional
+            A random number generator. Defaults to None.
+        choose_algorithm: str, optional
+            The algorithm to use for the computation. Defaults to "auto".
+            The alternatives are "fast" and "slow". The fast algorithm requires
+            the optional `numba` extra (install via `pip install pyfixest[numba]`);
+            without it, the fast path raises an `ImportError`. The slow path
+            does not require numba.
+        include_plot: bool, optional
+            Whether to include a plot of the distribution p-values. Defaults to False.
+        store_ritest_statistics: bool, optional
+            Whether to store the simulated statistics of the RI procedure.
+            Defaults to False. If True, publishes the draws, the centered
+            sample statistic, and the p-value as a `RitestStatistics` value
+            in the model's `ritest_statistics` attribute.
+        level: float, optional
+            The level for the confidence interval of the randomization inference
+            p-value. Defaults to 0.95.
+
+        Returns
+        -------
+        A pd.Series with the regression coefficient of `resampvar` and the p-value
+        of the RI test. Additionally, reports the standard error and the confidence
+        interval of the p-value.
+
+        Examples
+        --------
+        ```{python}
+
+        #| echo: true
+        #| results: asis
+        #| include: true
+
+        import pyfixest as pf
+        data = pf.get_data()
+        fit = pf.feols("Y ~ X1 + X2", data=data)
+
+        # Conduct a randomization inference test for the coefficient of X1
+        fit.ritest("X1", reps=1000)
+
+        # use randomization-t instead of randomization-c
+        fit.ritest("X1", reps=1000, type="randomization-t")
+
+        # store statistics for plotting
+        fit.ritest("X1", reps=1000, store_ritest_statistics=True)
+        ```
+        """
+        from pyfixest.estimation.post_estimation.ritest import (
+            _HAS_NUMBA,
+            _decode_resampvar,
+            _get_ritest_pvalue,
+            _get_ritest_stats_fast,
+            _get_ritest_stats_slow,
+        )
+
+        resampvar = resampvar.replace(" ", "")
+        resampvar_, h0_value, hypothesis, test_type = _decode_resampvar(resampvar)
+
+        self._require_capability(capability="randomization_inference", method="ritest")
+
+        # check that resampvar in _coefnames
+        if resampvar_ not in self._coefnames:
+            raise ValueError(f"{resampvar_} not found in the model's coefficients.")
+
+        if self.options.has_weights:
+            raise NotImplementedError(
+                """
+                Regression Weights are not supported with Randomization Inference.
+                """
+            )
+
+        require_retained(self, "ritest", "_data")
+
+        if cluster is not None and cluster not in self._data:
+            raise ValueError(f"The variable {cluster} is not found in the data.")
+
+        clustervar_arr = (
+            self._data[cluster].to_numpy().reshape(-1, 1) if cluster else None
+        )
+
+        if clustervar_arr is not None and np.any(np.isnan(clustervar_arr)):
+            raise ValueError(
+                """
+            The cluster variable contains missing values. This is not allowed
+            for randomization inference via `ritest()`.
+            """
+            )
+
+        if type not in ["randomization-t", "randomization-c"]:
+            raise ValueError("type must be 'randomization-t' or 'randomization-c.")
+
+        if isinstance(reps, bool) or not isinstance(reps, int):
+            raise TypeError("reps must be an integer.")
+        if reps < 1:
+            raise ValueError(f"reps must be a positive integer, got {reps}.")
+
+        # update vcov if cluster provided but not in model
+        if cluster is not None and not self.variance_covariance.spec.is_clustered:
+            warnings.warn(
+                "The initial model was not clustered. CRV1 inference is computed and stored in the model object.",
+                UserWarning,
+                stacklevel=_find_stack_level(),
+            )
+            self.vcov({"CRV1": cluster})
+
+        rng = np.random.default_rng() if rng is None else rng
+
+        sample_coef = np.array(self.coef().xs(resampvar_))
+        sample_tstat = np.array(self.tstat().xs(resampvar_))
+        sample_stat = sample_tstat if type == "randomization-t" else sample_coef
+
+        # always run slow algorithm for randomization-t
+        choose_algorithm = "slow" if type == "randomization-t" else choose_algorithm
+
+        if choose_algorithm == "auto":
+            choose_algorithm = "fast" if _HAS_NUMBA else "slow"
+
+        if choose_algorithm == "slow" or not self._closed_form_ols:
+            vcov_input: str | dict[str, str]
+            if cluster is not None:
+                vcov_input = {"CRV1": cluster}
+            else:
+                # "iid" for models without controls, else HC1
+                vcov_input = (
+                    "hetero"
+                    if (self.model.has_fixef and len(self._coefnames) > 1)
+                    or len(self._coefnames) > 2
+                    else "iid"
+                )
+
+            # for performance reasons
+            if type == "randomization-c":
+                vcov_input = "iid"
+
+            ri_stats = _get_ritest_stats_slow(
+                data=self._data,
+                resampvar=resampvar_,
+                clustervar_arr=clustervar_arr,
+                fml=self.model.formula,
+                reps=reps,
+                type=type,
+                rng=rng,
+                fit_fn=partial(
+                    refit,
+                    self,
+                    vcov=VcovSpec.from_user_input(vcov_input),
+                    # permutations change the treatment, not the rows
+                    same_sample=True,
+                ),
+            )
+
+        else:
+            weights = (
+                np.ones(self.sample_info.n_rows)
+                if self.observation_weights.values is None
+                else self.observation_weights.values
+            )
+            # encoded fixed effects also cover interactions and expressions
+            fval_df = self.model_matrix.fixed_effects
+            D = self._data[resampvar_].to_numpy()
+
+            ri_stats = _get_ritest_stats_fast(
+                Y=self.within_data.response,
+                X=self.within_data.design,
+                D=D,
+                coefnames=self._coefnames,
+                resampvar=resampvar_,
+                clustervar_arr=clustervar_arr,
+                reps=reps,
+                rng=rng,
+                fval_df=fval_df,
+                weights=weights,
+            )
+
+        ri_pvalue, se_pvalue, ci_pvalue = _get_ritest_pvalue(
+            sample_stat=sample_stat,
+            ri_stats=ri_stats[1:],
+            method=test_type,
+            h0_value=h0_value,
+            level=level,
+        )
+
+        if store_ritest_statistics:
+            self.ritest_statistics = RitestStatistics(
+                statistics=ri_stats,
+                sample_stat=float(sample_stat - h0_value),
+                pvalue=float(ri_pvalue),
+            )
+
+        res = pd.Series(
+            {
+                "H0": hypothesis,
+                "ri-type": type,
+                "Estimate": sample_coef,
+                "Pr(>|t|)": ri_pvalue,
+                "Std. Error (Pr(>|t|))": se_pvalue,
+            }
+        )
+
+        alpha = 1 - level
+        ci_lower_name = str(f"{alpha / 2 * 100:.1f}% (Pr(>|t|))")
+        ci_upper_name = str(f"{(1 - alpha / 2) * 100:.1f}% (Pr(>|t|))")
+        res[ci_lower_name] = ci_pvalue[0]
+        res[ci_upper_name] = ci_pvalue[1]
+
+        if cluster is not None:
+            res["Cluster"] = cluster
+
+        return res
+
+    def plot_ritest(self, plot_backend="lets_plot"):
+        """
+        Plot the distribution of the Randomization Inference Statistics.
+
+        Parameters
+        ----------
+        plot_backend : str, optional
+            The plotting backend to use. Defaults to "lets_plot". Alternatively,
+            "matplotlib" is available.
+
+        Returns
+        -------
+        A lets_plot or matplotlib figure with the distribution of the Randomization
+        Inference Statistics.
+        """
+        from pyfixest.estimation.post_estimation.ritest import _plot_ritest_pvalue
+
+        if not hasattr(self, "ritest_statistics"):
+            raise ValueError(
+                """
+                            The randomization inference statistics have not been stored
+                            in the model object. Please set `store_ritest_statistics=True`
+                            when calling `ritest()`
+                            """
+            )
+
+        stored = self.ritest_statistics
+
+        return _plot_ritest_pvalue(
+            ri_stats=stored.statistics,
+            sample_stat=stored.sample_stat,
+            plot_backend=plot_backend,
+        )
+
+    def update(
+        self, X_new: np.ndarray, y_new: np.ndarray, inplace: bool = False
+    ) -> np.ndarray:
+        """
+        Update coefficients for new observations using Sherman-Morrison formula.
+
+        Parameters
+        ----------
+        X_new : np.ndarray
+            Covariates for new data points. Users expected to ensure conformability
+            with existing data.
+        y_new : np.ndarray
+            Outcome values for new data points.
+        inplace : bool, optional
+            Must be `False`. In-place updates are unsupported because appending
+            design rows cannot reconstruct the complete fitted-result state.
+
+        Returns
+        -------
+        np.ndarray
+            Updated coefficients.
+
+        Notes
+        -----
+        Updates the coefficients in closed form via the Sherman-Morrison
+        identity instead of refitting on the full sample. `X_new` has to include
+        the intercept column. The returned coefficients do not mutate the fitted
+        result. Models with fixed effects are not supported.
+
+        Examples
+        --------
+        Fit on all but the last observation, then add it:
+
+        ```{python}
+        import numpy as np
+        import pyfixest as pf
+
+        data = pf.get_data().dropna()
+        fit = pf.feols("Y ~ X1 + X2", data.iloc[:-1])
+
+        last = data.iloc[[-1]]
+        X_new = np.column_stack(
+            [np.ones(1), last["X1"].to_numpy(), last["X2"].to_numpy()]
+        )
+        y_new = last["Y"].to_numpy()
+
+        fit.update(X_new, y_new)
+        ```
+        """
+        if self.model.has_fixef:
+            raise NotImplementedError(
+                "The update() method is currently not supported for models with fixed effects."
+            )
+        self._require_capability(capability="sherman_morrison_update", method="update")
+        if self.options.has_weights:
+            raise NotImplementedError(
+                "The update() method is currently not supported for models with weights."
+            )
+        if inplace:
+            raise NotImplementedError(
+                "update(..., inplace=True) is not supported because appending design "
+                "rows cannot safely update the complete fitted-result state; use the "
+                "returned coefficients instead."
+            )
+        require_retained(self, "update", "within_data")
+        if not np.all(X_new[:, 0] == 1):
+            X_new = np.column_stack((np.ones(len(X_new)), X_new))
+        X_n_plus_1 = np.vstack((self.within_data.design, X_new))
+        epsi_n_plus_1 = y_new - X_new @ self._beta_hat
+        gamma_n_plus_1 = np.linalg.inv(X_n_plus_1.T @ X_n_plus_1) @ X_new.T
+        beta_n_plus_1 = self._beta_hat + gamma_n_plus_1 @ epsi_n_plus_1
+        return beta_n_plus_1
