@@ -7,12 +7,12 @@ It is unfinished and does not establish an accepted bank product.
 - [Proposal scope and public-data portfolio](program/master-program-proposal.md)
 - [Mission Control](mission-control.md) · [HTML dashboard](mission-control.html)
 - [Canonical machine state](program/state.json)
-- [Working monograph — 1,240 pages](causal_proposal_workflow_reviewed_2026-10-22.pdf)
-- [Paired working sponsor proposal — 50 pages](sponsor_proposal_workflow_reviewed_2026-10-22.pdf)
+- [Working monograph — 1,247 pages](causal_proposal_detailed_workflow_reviewed_2026-10-23.pdf)
+- [Paired working sponsor proposal — 52 pages](sponsor_proposal_detailed_workflow_reviewed_2026-10-23.pdf)
 - [Public-data survey](program/public-data-v15/public-data-survey.pdf)
 
-Run `python3 tools/run_program_reviews_v2.py status`, `check`, and `next` from the repository root.
+Run `python3 tools/run_program_checkpoint_v3.py status`, `check`, and `next` from the repository root.
 
-The current pair has passed source, arithmetic and extracted-text checks. Coverage,
+The pair passed preservation, source, arithmetic and extracted-text reviews. Coverage,
 mandatory repairs, fresh visual review and final proposal acceptance remain open.
-The live program records progress made after the paired release separately.
+The current program records further live progress separately from the paired release.

@@ -1,123 +1,117 @@
 # Current executable proposal program
 
-Updated 22 October 2026 after the workflow release and the linearmodels reuse decision.
-The [queue-wide review](2026-10-22/program-refresh-workflow-v1/program-review.json) reconciles every nonpassing
-obligation and independent action. This is a scholarly research and product proposal.
-Public/generated prototype evidence should justify any expensive bank experiment.
-Bank qualification, production reliability and adoption remain later claims.
+Updated 23 October 2026. The [queue-wide review](2026-10-23/program-refresh-detailed-workflow-v2/program-review.json)
+reconciles all 376 proposal operations and every nonpassing obligation. The goal is
+a scholarly research and product proposal using public/generated evidence to justify
+expensive bank experiments. Bank qualification and adoption are later work.
 
-Use `python3 tools/run_program_reviews_v2.py status`, `next` and `check`.
-The canonical ledger is [state.json](../state.json), governed by the
-[proposal scope](../master-program-proposal.md). Earlier numbered masters and scope
-counts are historical snapshots. Continue eligible work across phase boundaries.
+Use `python3 tools/run_program_checkpoint_v3.py status`, `next` and `check`.
+The [canonical ledger](../state.json), [proposal scope](../master-program-proposal.md)
+and actual evidence dependencies govern execution. Continue eligible work across phase boundaries.
 
 ## Current integrated documents
 
-Read the [1,240-page monograph](../../causal_proposal_workflow_reviewed_2026-10-22.pdf)
-and its [50-page sponsor proposal](../../sponsor_proposal_workflow_reviewed_2026-10-22.pdf).
-The reader audits 932 citations and 221 genuine scholarly PDFs; the sponsor
-has 305 audited citations and binds the exact reader bytes.
-Q2-Q4 pass for this working reader. Q1/Q5, the three mandatory repairs, fresh visual
-review and final acceptance remain open. All-page text bounds and extracted-text
-checks passed; they do not grant visual acceptance.
+The current pair is the [1,247-page monograph](../../causal_proposal_detailed_workflow_reviewed_2026-10-23.pdf) and
+[52-page sponsor proposal](../../sponsor_proposal_detailed_workflow_reviewed_2026-10-23.pdf). Their audits retain
+946 and 323 citations respectively; the reader includes 223 genuine scholarly
+PDFs. The sponsor binds exact reader bytes. Q2-Q4 pass for this reader. Q1/Q5,
+mandatory repairs, fresh visual review and final proposal acceptance remain open.
 
-The paired release captures 189 recorded outcomes. The later linearmodels proposal
-reference decision brings the live queue to **190 recorded outcomes
-of 376**, **162 ready operations**, and
-**249 nonpassing obligations**. Its native integration remains disabled.
-This is an explicit editorial delta for the next substantive release; the existing
-reader already develops its IV rank, covariance and diagnostic semantics. Do not
-rebuild the whole reader solely to update a process count.
+The live queue has **191 recorded outcomes of 376**,
+**161 ready operations**, and **248 nonpassing obligations**.
+Recorded inconclusive outcomes are unfinished.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | Software coverage | 2 | 39 | 61 | 102 |
-| Reuse decisions | 32 | 3 | 80 | 115 |
+| Reuse decisions | 33 | 3 | 79 | 115 |
 | Chapter reviews | 20 | 2 | 0 | 22 |
 
-Inconclusive outcomes remain unfinished obligations. The frontier census has
-**61 inspected and 52 unread originals out of 113**, plus four
-crosscutting searches. Fourteen LLM-task and twelve integration reviews have scoped
-proposal outcomes; they establish neither live-model superiority nor repository adoption.
+The frontier census has **63 inspected and 50 unread originals of 113**,
+plus four crosscutting searches. Fourteen LLM-task and twelve integration reviews have
+scoped proposal outcomes; these do not establish live-model superiority or adoption.
 
-## Integrated findings and source limits
+## Substantive findings now integrated
 
-Physical PDF pages 658-662 (printed pages 635-639),
-section 39.8, connect commercial orchestration to scientific replay. Six current
-official manuals across five families describe Databricks repair and monitoring,
-Snowflake task graphs, Azure ML reuse, AWS error handling and Dataiku automation.
-None has an authenticated cutoff-era edition. Their current mechanisms supplement
-the survey without closing historical coverage. Detailed Dataiku technical pages,
-SAS Viya, Domino, Posit and complementary market discovery remain open.
+The reader and sponsor preserve all four previously reviewed developments. The linearmodels
+and lmtp reuse choices remain reference-only, **integration_allowed=false**, with
+no native capability. The Tetrad source addresses supplied pure latent measurement
+models; it does not establish generic IV/RD coverage. Conversion, rank and covariance
+concerns remain source-level questions requiring caller/backend checks.
 
-In the exact authored example, three units have contrast 6 and one has -2.
-The intended average is 4. Appending two partial results and then all four on retry
-changes the stored-row mean to 14/3; keyed recovery returns 4 while preserving six
-attempts. Changing the target can change net value from 3 to -1. These stipulated
-values motivate public known-law recovery trials; they are not measured vendor
-failures or bank returns. The library, CLI and MCP must preserve the target, data
-vintage, assumptions, numerical settings and failure history as well as the number.
-All 925 earlier citation identities/contexts and 280 compiled inputs survive.
+For lmtp, seventeen authenticated originals distinguish intended cluster identity
+from an outer-fold field mismatch, and documented bounds from effective call paths.
+Downstream `ife` uncertainty semantics remain uninspected. AGPL rights need a specific
+integration assessment. Exact authored two-period policy values are 7.36, 18.24 and
+107/9 USD for natural, risk-shift and odds-tilt laws. These are stipulated mathematical
+values, not package executions or bank returns.
 
-The integrated factuality and weighted-target sections preserve the distinction
-between attribution, external correctness, causal identification and target validity.
-The census advanced from 59/54 to 61/52. The sensitivity/IV material distinguishes
-trend restrictions, full covariance, projected rank and actual diagnostic distributions.
-HonestDiD and linearmodels have reference-only proposal decisions with
-**integration_allowed=false**. Native dependencies, release equivalence, conversion
-behavior and calibration remain unqualified. Python IV/RD coverage remains open.
+The contextual-causality discussion distinguishes textual interventions from changes
+to a data-generating process. Two observationally identical models imply net contact
+values of USD 90 and USD -10. The multimodal-conflict discussion derives a precise
+disagreement/correctness identity, checks the reported DCD gains, retains conflicting
+tables and leaves code/data/rights unqualified. Survey citations do not qualify unread
+cited originals. Neither example turns LLM output into causal truth.
 
-## Required standard and complete gap register
+Earlier source records, citation contexts and compiled content survive. Original layout,
+source-schema, preparation and program-refresh failures remain preserved with successful
+successors. Text bounds and source/arithmetic reviews passed; visual acceptance is open.
 
-Each banking use connects decision, information clock, population/target, assumptions,
-identification or limits, estimation, uncertainty, diagnostics, substantive alternatives
-and monetary consequences. Every citation needs authentic local bytes, source identity,
-version/date, SHA-256, inspected primary anchors and supported claims. Scholarly works
-need genuine PDFs. The literature cutoff is 7 October 2026; later observations remain
-labeled. FinMarketing sets connected scholarly depth, not a total-length target.
+The new Dataiku development inspects step controls, triggers, scenario steps and
+release identity. In an exact authored two-cohort construction, the full target has
+net value -11 USD per member; omitting the missing negative cohort reports +9.
+Assumed missing-effect bounds give net [-21,29], with no guaranteed positive return.
+A selected count/max-date proxy can remain unchanged as relevant data change.
+These are mathematical illustrations and proposed contract tests, not native runs.
+DSS 15.0.2 is listed before cutoff, whereas 15.1/15.2 are later; current major-version
+manuals still do not authenticate exact cutoff patch bytes. Wider vendor coverage,
+rights, prices and native qualification remain open.
 
-MR01 requires 17 areas across six language/commercial dimensions, reasoned reuse
-choices and 100-150 substantive software pages. MR02 requires eight chapters,
-fourteen tasks and 96-112 substantive LLM/agent pages. MR03 requires four integration
-chapters and twelve requirements, with indicative 40-60 pages. Exclusive depth and
-complete coverage both matter. L1 and L6 remain inconclusive despite their depth.
+## Required standard and remaining gaps
 
-The [remaining register](2026-10-22/program-refresh-workflow-v1/remaining-operations.json) retains every one of the
-249 nonpassing obligations with dependencies, evidence and a next action.
-Known routes are primary-source recovery, complementary searches, edition-specific
-comparisons, reasoned reuse, reviewed public/generated studies, and integrated
-chapter/release reconciliation. Commercial source omissions and missing native
-qualification are local obligations, not global blockers.
+Each banking use must connect decision, information clock, population and target,
+assumptions, identification or limits, estimation, uncertainty, diagnostics, substantive
+alternatives and monetary consequences. Each source needs authentic local bytes,
+identity, version/date, SHA-256, inspected primary anchors and supported claims.
+Scholarly works need genuine PDFs. The cutoff is 7 October 2026; later observations
+remain labeled. FinMarketing sets connected scholarly depth.
 
-There is no established universal repair for unrestricted latent identification,
-arbitrary persistent dependence, hidden-state optimal-policy uncertainty or arbitrary
-learner remainders. Narrow claims, explicit negative findings or justified extra
-information are valid proposal outcomes. No universal conversion of an LLM, vendor
-or linkage score into causal truth is established. Bank truth, independent acceptance,
-production service levels and actual bank economics require later external evidence.
+MR01 covers seventeen areas across six language/commercial dimensions, reasoned reuse
+choices and 100-150 substantive software pages. MR02 requires eight chapters, fourteen
+tasks and 96-112 substantive LLM/agent pages. MR03 requires four integration chapters
+and twelve requirements, with indicative 40-60 pages. Exclusive depth and complete
+coverage both matter. L1 and L6 remain inconclusive.
 
-## Exact continuation and execution discipline
+The [remaining register](2026-10-23/program-refresh-detailed-workflow-v2/remaining-operations.json) retains all 248
+nonpassing obligations, evidence, actual prerequisites and exact actions. Known routes
+are primary-source inspection, complementary searches, cutoff-edition comparisons,
+reasoned reuse, public/generated studies and substantive chapter/release reconciliation.
+Commercial temporal omissions and native qualification remain separate obligations.
 
-Controller next: **SW.CELL.iv_rd_design.Java**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
+No universal repair is established for unrestricted latent identification, arbitrary
+persistent dependence, hidden-state optimal-policy uncertainty or arbitrary learner
+remainders. Use justified restrictions, explicit negative results or new information.
+No general conversion of LLM, vendor or linkage scores into causal truth is established.
+Bank truth, independent institutional acceptance, target-platform reliability and actual
+bank economics require later external evidence; they do not block independent proposal work.
+
+## Exact continuation
+
+Controller next: **SW.CELL.iv_rd_design.Cxx**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
 
 Independent eligible lanes retain only their actual prerequisites:
 
-- **software: SW.CELL.iv_rd_design.Java**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
-- **commercial: SW.CELL.computation_workflow.commercial**. Recover authenticated cutoff revisions for the six current manuals, inspect Dataiku detailed technical pages, SAS Viya, Domino and Posit originals, and complete complementary market discovery. Preserve separate license/price/runtime omissions. The main-reader integration is already delivered; avoid repeating it without new substantive evidence.
-- **reuse: SW.DECISION.inherited_lmtp**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
-- **llm: LL.CENSUS**. Inspect52 remaining originals and complete four crosscutting searches with explicit pre-cutoff editions, primary anchors and coverage limits. Integrate reviewed findings in connected existing chapters. Continue independent commercial computation/workflow, reuse and Python IV/RD work; Python IV fit/covariance kernels are already acquired and inspected.
+- **software: SW.CELL.iv_rd_design.Cxx**. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
+- **commercial: SW.CELL.computation_workflow.commercial**. Authenticate the cutoff technical revision (DSS 15.0.2 is listed before 7 October 2026; 15.1/15.2 are later); retain historical omissions for all earlier six manuals. Inspect SAS Viya, Domino and Posit primary originals and complementary market discovery. Further Dataiku trigger/API details, rights, prices and native qualification remain separate. Detailed Dataiku and earlier six-manual/semantic paired integrations are delivered; do not repeat them.
+- **reuse: SW.DECISION.inherited_ltmle**. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+- **llm: LL.CENSUS**. Inspect the 50 unread originals and four crosscutting searches in the authenticated census register. Acquire genuine originals, verify cutoff versions, inspect technical and adverse-result anchors, then retain, justify exclusion or record a real access failure. Preserve existing access failures and citation-chain limits. The contextual-causality and multimodal-conflict integrations are delivered in both current PDFs; do not repeat them. Independent commercial, reuse and IV/RD work remains eligible.
 
-The [commercial continuation](2026-10-22/computation-workflow-reader-v1/integrated-progress.json)
-marks the integration already delivered and lists the actual source work remaining.
-The [Python continuation](2026-10-22/python-iv-kernels-v1/review.json) identifies
-remaining RD/CausalPy IV originals and numerical delegates; do not reacquire inspected
-kernels. The [linearmodels decision](2026-10-22/linearmodels-reuse-v1/review.json)
-binds its local reference role and later qualification obligations.
+Use the latest authenticated checkpoint for each operation. Preserve the specific
+R IV/RD and commercial observation follow-ups. Do not repeat already acquired and
+inspected Python IV kernels, completed source reviews or delivered integration.
+Await actual canonical mutation completion before dependent transitions.
 
-Await process completion, not merely a session ID, before a dependent canonical
-transition. Preserve failed attempts and exact successor repairs. Independent reads
-may overlap; edits and canonical state changes are sequential. Batch related source
-and editorial work into substantive releases; a publication checkpoint is not a stop
-or permission gate. No global blocker or unattended research worker exists.
-The six-preview session allowance in `/home/ubuntu/AGENTS.md` is exhausted; a fresh
-image session is required for visual acceptance. Source and manuscript work remain eligible.
+Checkpoints preserve recovery and create no permission gates. There is no global
+blocker or unattended worker. The six-preview allowance in `/home/ubuntu/AGENTS.md`
+is exhausted; a fresh session is needed for further visual acceptance. This affects
+visual review only. Source, manuscript and other independent work remain eligible.

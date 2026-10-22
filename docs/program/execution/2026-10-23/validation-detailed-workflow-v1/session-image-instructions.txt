@@ -1,0 +1,36 @@
+# Agent tool-output safety
+
+Visual reviews can make a Codex session unusable when image data URLs accumulate
+in tool results. A short-running command or a low `max_output_tokens` setting on
+`exec_command` does not limit image payloads forwarded by `functions.exec`.
+
+- For `tools.view_image` through `functions.exec`, forward at most one image per
+  call. Never forward a full-resolution contact sheet, use `detail: "original"`
+  for a sheet, batch several `image(...)` outputs, or print an `image_url` with
+  `text(...)`.
+- First make a compressed JPEG preview or a focused crop. Check its file size
+  before viewing; target at most 200,000 bytes. In the `functions.exec` script, reject
+  `r.image_url.length >= 300000` before calling `image(r.image_url)`.
+  For example, forward one preview with this `functions.exec` script:
+
+  ```js
+  const r = await tools.view_image({path: "/tmp/preview.jpg", detail: "high"});
+  if (r.image_url.length >= 300000) { text("crop or compress preview"); exit(); }
+  image(r.image_url, "high");
+  ```
+- Forward no more than six previews in one session, and keep their combined
+  image URLs below 2 MB. Record findings in a small text checkpoint and use a
+  fresh session for more images.
+  If a turn fails with `Request payload is too large`, do not retry that thread:
+  its old image results may be replayed. Start a new thread from the checkpoint.
+- Inspect saved session rollouts with a local parser that returns bounded event
+  summaries and image-length counts. Do not print raw JSONL lines or search
+  hits that may contain serialized image data.
+
+# Sequential editing and review
+
+The user's 11 October 2026 preference is to work with one inspector at a time,
+examine its report, resolve and verify its findings, then begin the next unit.
+The coordinator owns manuscript edits and shared evidence. Inspectors write
+only their assigned findings file and return text, without forwarding images
+or inheriting earlier image history. Do not run concurrent editing agents.
