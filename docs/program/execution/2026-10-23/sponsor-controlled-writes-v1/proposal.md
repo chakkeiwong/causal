@@ -1,0 +1,2128 @@
+# The decision this proposal supports
+
+A universal bank needs to know when a proposed action is likely to improve a
+financial outcome, which assumptions make that answer possible, and when the
+available information cannot distinguish competing decisions. The proposed
+investment is a small reusable causal-analysis service supporting four journeys:
+funding responses, sequential servicing, intervention queries after causal
+discovery, and the construction of trustworthy observations. Its immediate
+deliverable is a bounded prototype and an evidence-based recommendation about
+what to build, reuse or leave unsupported.
+
+The recommendation is to develop and compare a narrow set of these operations
+using public records, documented public experiments and generated cases with
+known truth. Existing local research supplies selected working constructions and
+substantial negative evidence. It does not yet establish a complete product or a
+positive return on deployment. Expensive bank experiments should follow a
+prototype result that makes their cost worth considering. The absence of bank
+data, institutional sign-off or production access does not prevent completion
+of the present proposal. \citep{sp13_scope}
+
+This brief accompanies the 23 October 2026 working monograph, which has 1,299 pages and 992 audited citation records, including 232 genuine scholarly PDFs. The software, LLM/agent and integration comparisons have expanded substantially, but their coverage is still incomplete. Aggregate length does not establish completeness. Literature coverage retains the 7 October 2026 cutoff, with later acquisitions and uncertain historical versions explicitly distinguished. The recommendation remains provisional where evidence or comparison is incomplete. \citep{sp23nt_reader,sp23lt_reader,sp23dw_reader,sp23sm_reader,sp22wf_reader,sp22ft_reader,sp22si_reader,sp22ob_reader,sp22dk_reader,sp22iv_reader,sp22bs_reader,sp21rr_reader,sp21pr_reader,sp21gs_reader,sp21eo_reader,sp21tr_reader,sp21ae_reader,sp21gr_reader,sp21ck_reader,sp21cx_reader,sp20md_reader,sp20gf_reader,sp20hy_reader,sp20je_reader,sp20nc_reader,sp20gc_reader,sp20ea_reader,sp20vm_reader,sp20pye_reader,sp20fx_reader,sp20pa_reader,sp20rfx_reader}
+
+The preceding brief and its source and coverage snapshot are the preserved baseline for these additional comparisons. \citep{sp18_reader,sp18_progress,sp18_census,sp19rs_reader,sp19rs_progress,sp19em_reader,sp19em_progress,sp19oi_reader,sp19oi_progress}
+
+The preceding R/framework brief and its exact-reader coverage snapshot remain the preserved baseline for the following graph and panel additions. \citep{sp18f_reader,sp18f_progress}
+
+The preceding graph/panel brief and its exact-reader coverage snapshot remain the preserved baseline for the following Python identification comparison. \citep{sp18gp_reader,sp18gp_progress}
+
+The preceding Python identification brief and its exact-reader coverage snapshot remain the preserved baseline for the following causal-agent comparison. \citep{sp18pi_reader,sp18pi_progress}
+
+The preceding causal-agent brief and its exact-reader snapshot remain the preserved baseline for this analytical-preparation addition. \citep{sp18ar_reader,sp18ar_progress}
+
+The preceding analytical-preparation brief and its exact-reader snapshot remain the preserved baseline for the following Java identification comparison. \citep{sp19dd_reader,sp19dd_progress}
+
+The preceding Java identification brief and its exact-reader coverage snapshot remain the preserved baseline for this evaluation comparison. \citep{sp19ji_reader,sp19ji_progress}
+
+The preceding evaluation/code brief and its exact-reader coverage snapshot remain the preserved baseline for this state-space comparison. \citep{sp19ec_reader,sp19ec_progress}
+
+The preceding Dynamax brief and its exact-reader snapshot remain the preserved baseline for this synthetic-control comparison. \citep{sp19dx_reader,sp19dx_progress}
+
+The preceding commercial synthetic-control brief and its exact-reader snapshot remain the preserved baseline for this native identification comparison. \citep{sp19sc_reader,sp19sc_progress}
+
+The preceding native identification brief and its exact-reader snapshot remain the preserved baseline for this retrieval and adaptive-repair comparison. \citep{sp19ci_reader,sp19ci_progress}
+
+## The reusable product and its customer
+
+The first user is an analyst who can state a banking decision and inspect its
+assumptions. The reusable input records a target population, action and
+comparator, information available before the action, outcome and horizon,
+measurement units, observation process, causal restrictions and sampling unit.
+An offer, its receipt and the later balance are different variables. A measured
+association is not automatically the effect of changing an offer.
+
+The output keeps the target attached to its evidence. It may be an identified
+formula, an estimate with justified uncertainty, a set of compatible effects,
+an informative refusal or a failed computation. Unresolved graph endpoints,
+unbounded confidence sets and numerical failures require different responses.
+The library, command line and MCP interface should preserve these distinctions
+so that a downstream application can decide whether to act, ask for information
+or fall back to its existing workflow. A callable endpoint alone does not
+establish identification, useful precision or interoperability.
+\citep{sp13_interfaces}
+
+The shared layer would organize three workspaces: intervention studies,
+sequential decisions and dynamic systems. The four banking journeys pass
+through these workspaces, with observation quality affecting all three. This
+organization avoids building a separate estimation stack for every business
+team while retaining each team's population, timing and economic account.
+The initial service would require analyst review of consequential scientific
+choices. No autonomous bank action is proposed.
+
+## A concrete first slice
+
+A useful first demonstration begins with a public or generated business brief,
+constructs an explicit question and alternative diagrams, checks the available
+identification route, and returns a result whose assumptions and information
+limits remain visible through the library, CLI and MCP. For a randomized offer,
+the first target can be the effect of assignment. A receipt effect requires
+additional compliance and exclusion assumptions. For a confounded observational
+table, the correct result may be a documented ambiguity rather than a number.
+
+The comparison must include an expert-designed template and a directly composed
+existing-package workflow. The new service earns its place only if the common
+representation and checks reduce consequential mistakes or repeated effort
+without discarding valid alternatives. A generated example can expose a wrong
+answer cheaply; it cannot establish how often the same failure occurs at a bank.
+
+# What the evidence currently supports
+
+## Funding and observations
+
+Earlier registered synthetic funding work found a passing construction under a
+demanding information design: known randomized action moments, truthful sampled
+links, known inclusion probabilities and independent calendars. Its six valid
+cells passed the prespecified minimum-coverage screen. False exogeneity, wrong
+inclusion probabilities and label errors retained adverse findings. This
+supports a selected procedure conditional on its information law, rather than
+a general correction for one dependent bank panel. \citep{sp13_funding}
+
+The newer joint-dependence argument makes that limitation more explicit. A
+finite confidence-region construction can use declared nuisance bounds and
+conservative projection. Its representative precision is inadequate under the
+reviewed design. An exact persistence argument also shows why an unrestricted
+claim cannot obtain useful shrinking uncertainty merely by lengthening a
+single highly persistent series. The practical next choices are to narrow the
+dependence family, obtain justified additional information, or accept wider
+and possibly unbounded results. The new derivation has not been turned into a
+qualified numerical projection service. \citep{sp13_persistence}
+
+Observation linkage is part of the scientific problem. If different customer
+histories are observationally compatible but imply different intervention
+values, more computation on the same summaries cannot choose among them.
+Public/generated linkage cases can test whether the prototype preserves this
+ambiguity. A later bank study would need representative truth labels and an
+explicit inclusion mechanism; labels with unknown selection do not establish
+the same result. \citep{sp13_public,sp13_persistence}
+
+## Servicing and learned policies
+
+Selected earlier servicing studies support fixed-policy inference in a
+restricted nonlinear family under truthful state audits, supplied historical
+action probabilities and independent customer trajectories. Their wrong-logger
+and information-leakage cases remain failures. They do not establish the value
+of an unrestricted learned policy with hidden borrower state.
+\citep{sp13_servicing}
+
+A new argument handles estimated action and observation probabilities in a
+finite, prespecified history table with bounded rewards. It separates training
+from evaluation and makes the support and observation assumptions explicit.
+Exact calculations check its policy-value identities and counterexamples.
+Its conservative uncertainty can nevertheless exceed the complete target
+range at a representative sample size. The public servicing design uses
+continuous histories and unbounded Gaussian/quadratic quantities, so this
+finite-table theorem cannot simply be attached to that design. A useful next
+study needs a reviewed tighter argument, a separately declared bounded target,
+or a different experiment. It must preserve the failed predecessor rather than
+change the target after evaluation. \citep{sp13_servicing_successor}
+
+## Discovery and agent support
+
+Graph discovery constrains possible relationships under stated assumptions.
+It may return an equivalence class whose members imply different interventions.
+The proposed service must retain that class and distinguish uncertainty in
+graph learning from uncertainty in an effect. Exact latent-risk examples in
+the current comparison exhibit identical observed Gaussian distributions
+with action effects of zero and three fifths. They prove nonidentification
+within a class containing both models; they do not enumerate the entire
+identified set. \citep{exec13_latent_examples}
+
+LLMs are proposed as aids for translating business language, finding missing
+timing definitions, suggesting diagrams and alternatives, and preparing
+auditable tool requests. A model-generated diagram is a candidate assumption,
+not observed causal truth. The evaluation must score false confidence,
+unsupported orientations, omitted alternatives and appropriate requests for
+information. Deterministic task fixtures and exact examples already support
+some checks; no live-model superiority or bank decision gain is established
+by the new task designs. A live comparison would require a frozen backend,
+held-out tasks, reference adjudication, costs and equally informed baselines.
+\citep{sp13_public}
+
+# Build, reuse and commercial alternatives
+
+The economic case depends on reusing capable existing systems and adding a
+scientific connection that users currently have to construct themselves.
+Reimplementation is justified only when a measured constraint or missing
+capability outweighs the extra verification and maintenance burden.
+
+\begin{longtable}{@{}p{.19\linewidth}p{.37\linewidth}p{.36\linewidth}@{}}
+\toprule
+Candidate & Proposed role & Evidence still needed \\
+\midrule
+\endfirsthead
+\toprule
+Candidate & Proposed role & Evidence still needed \\
+\midrule
+\endhead
+y0 & Restricted integration of symbolic unconditional identification on a declared DAG/ADMG. Conditional queries use an identified joint law and normalization; the native conditional route remains disabled. & Execute the pinned dependency environment and the exact conversion/failure cases. This is a local integration choice, not runtime admission. \\
+DoWhy & Preferred candidate for a supplied-graph identification path, retaining its separation of identification and estimation. & Executable admission is deferred pending dependency/license closure and behavioral checks. No unrestricted estimator or discovery adoption. \\
+R and Java candidates & Maintain separate language boundaries and preserve package-specific graph and query semantics. & Execute selected adapters and compare matched scientific operations. A reviewed contract or source algorithm is insufficient evidence of interoperability. \\
+Commercial latent engines & Compare supplied-model fitting, measurement, clustering and trial-specific effects with the same configured targets. & Verify edition, interface, rights, fitting diagnostics and actual execution before a licensed trial or procurement recommendation. \\
+Shared causal layer & Build the question, assumptions, graph ambiguity, result qualifiers and evidence connections around selected engines. & Demonstrate a complete useful workflow and its failure behavior against expert composition and templates. \\
+\bottomrule
+\end{longtable}
+\citep{sp13_choices,sp13_interfaces}
+
+These distinctions matter commercially. The current primary-document comparison
+credits GeNIe with parameter learning on a supplied network; BayesiaLab with
+latent representations and segmentation alternatives; Netica with conditional
+probability learning and a separately documented predictive structure path;
+Stata with supplied latent-class fitting; and SAS CALIS with specified latent
+structural models and diagnostics. These systems have modeling capabilities
+that the proposed shared layer has not implemented. Their fitted latent
+variables are not, by that fact alone, a discovered causal graph class or a
+measured confounder. \citep{exec13_latent_genie_parameters,
+exec13_latent_bayesia_data,exec13_latent_netica_algorithms,
+exec13_latent_stata_lca,exec13_latent_sas_calis}
+
+Mplus is a particularly relevant causal-effect comparator: its mixture guide
+documents complier-average effects in randomized trials. The prototype cannot
+claim novelty simply by combining a latent class with a causal target. Its
+proposed additional value is preserving which experimental restrictions,
+population and financial question justify the operation, then comparing that
+whole workflow with the documented alternative. No commercial engine was run
+for this comparison. \citep{exec13_latent_mplus}
+
+The October 13 latent-variable comparison preserved unresolved edition-specific evidence for several vendors; its omissions are a dated source-specific result, not a current finding that those products lack causal capabilities. The expanded commercial chapter now separates the purchasing unit, supported scientific task, interface and rights, capacity constraints and full-workflow cost. Its current omissions still include unresolved additional panel vendors, synthetic-control, transport and latent-discovery scope, inaccessible selected policy originals, and uncertain historical edition bytes. Complete parity, unattended deployment rights and procurement recommendations require narrower evidence than a public feature page. No paid engine or matched bank workflow was executed in that chapter. \citep{sp13_commercial,sp18_commercial}
+
+Cross-repository reuse also remains conditional. FinMarketing, MacroFinance,
+BayesFilter and data/learning repositories are prospective consumers or component
+providers under the reviewed architecture. The current work specifies contracts
+inside this repository; it does not establish that sibling repositories have
+adopted them or that their owners accept the result semantics.
+\citep{sp13_interfaces}
+
+## What the expanded interface work now demonstrates
+
+The proposal now develops request admission, result interpretation, publication integrity, retention and capacity as parts of the same workflow. A local standalone-client check made six actual library and CLI calls across three requests: a conditional expression, an unsupported sampling setting and a contradicted premise. Their scientific meanings agreed. Four effect-set examples were preserved response replays; they were not four fresh calculations. Five malformed replies were rejected. This evidence supports the inspected local examples and their declared schemas. It does not establish a running notebook kernel, a newly executed MCP integration, another repository's adoption or production service levels. \citep{sp18_clients}
+
+The retention argument is likewise a design result with a finite reference. Across ten allowed publication/collection orders, a stale-snapshot collector loses an artifact needed by a live request in three orders. A coordinated recheck against current roots avoids that failure in all ten, with nine successful publications and one safe rejection. This motivates pins, a live-root check and an explicit rule for stale publishers. It is not an estimated failure probability or an implemented storage collector. The prototype should test those semantics under realistic interruption and restart before an operating guarantee is proposed. \citep{sp18_retention}
+
+## What Bayesian advice adds, and what it cannot justify
+
+A corrected University of Sao Paulo thesis, published before the cutoff, supplies a useful adverse comparison for LLM-assisted graph discovery. Its reported DiBS graph-distance results improve with a GPT prior on Sachs but worsen on MAGIC-7, MAGIC-ORIGINAL and the authored Summer case. A DeepSeek prior improves the Summer result while worsening the two smaller reported alternatives. These are the thesis's tabulated means, not new experimental runs or significance tests. The integrated discussion retains its selected feedback experiments, omitted adverse trials and appendix reproducibility discrepancies. It therefore supports an experiment comparing information channels, rather than a claim that LLM advice improves discovery universally. \citep{exec18_videira_thesis}
+
+Repeated model answers estimate response behavior under the query mechanism. A model can repeat a correct or an incorrect answer equally consistently. The exact examples in the monograph also show that restricting an edge model to legal graphs changes its marginal probabilities, and that a Bayesian feedback update is justified only by its stipulated likelihood. A proposed deposit-diagram assistant should preserve response frequencies, semantic categories, admitted graph support and the evidence for adviser accuracy separately. Adopt these design lessons now; defer executable DiBS, ancestral-graph or DSPy integration until pinned code, rights, prompts and experiment artifacts have been inspected. \citep{exec18_bayesian_reference,exec18_videira_thesis}
+
+## R identification and framework evaluation
+
+The expanded R comparison distinguishes graphical adjustment, symbolic ID/IDC,
+counterfactual identification, restricted sharp bounds and Bayesian causal
+queries. These operations answer different questions. In an exact authored
+repayment example, a point-identified average effect coexists with a nontrivial
+counterfactual interval, while two admissible priors give different posterior
+summaries. The supplied assumptions and result type therefore need to survive
+any language adapter. Selected pinned sources support the comparison;
+native R execution, broader census and complete dependency/rights qualification
+remain unresolved. The causaleffect disposition is reference use with
+executable integration deferred. \citep{sp18f_r_identification}
+
+Two additional originals help specify a framework comparison. The selected
+autonomous-agent survey organizes profile, memory, planning and action, and
+discusses prompt fragility, hallucination, information leakage and efficiency.
+PromptBench provides a documented modular evaluation design and custom metric
+hooks; its historical findings do not show that one prompt is best for every
+task. These sources support a proposed evaluator whose references check the
+banking target, assumptions and valid nonidentification responses. They do not
+establish a qualified causal agent, current model ranking or licensed software
+integration. \citep{exec18_framework_agents_survey,exec18_framework_promptbench}
+
+An exact bookkeeping illustration separates completion from correctness. Across
+forty fixed requests in twenty paired families, stipulated system A has 22
+correct, two wrong and sixteen unanswered requests; B has thirty correct, six
+wrong and four unanswered. Accuracy among completed requests favors A, whereas
+correct responses per planned request favor B. With assumed value and error
+costs, their net-value ranking can reverse. These are authored outcomes and
+prices, not observed model or bank performance. A justified scientific refusal
+can be a completed correct answer; an execution failure remains in the planned
+denominator. The comparison should preserve both distinctions and pairing.
+\citep{exec18_framework_reference,sp18f_framework_review}
+
+## Graph adjustment and staggered panel comparisons
+
+A pinned DAGitty R-wrapper is now a scoped reference-reuse choice for a supplied
+observed DAG and one total-effect adjustment query. Invalid questions, a valid
+empty covariate set, no returned adjustment set and an incomplete capped search
+need different result types. Failure of adjustment need not imply failure of
+all identification methods. The inspected wrapper and JavaScript entry point
+also differ when exposure or outcome is omitted. A future adapter must validate
+the question before interpreting a Boolean. This remains a source-reviewed
+proposal: no R, Node, browser or upstream test was executed. The selected
+components have distinct GPL/MIT declarations, and the dependency resolution
+and intended distribution still need a complete rights review.
+\citep{exec18_gp_dagitty}
+
+Exact authored repayment laws show why preserving the graph is consequential.
+One gives an adjusted effect of one quarter versus an unadjusted five sixteenths;
+a second introduces a spurious negative contrast by conditioning on documentation
+completion, a collider; and a third changes the total-effect target by adjusting
+for subsequent engagement. These are stipulated structural examples, not
+DAGitty trial results or empirical bank effects. They provide concrete positive
+and negative references for a proposed conversion test.
+\citep{exec18_gp_graph_reference}
+
+The commercial panel comparison now has four inspected Stata manuals and an
+EViews introduction. Stata distinguishes scalar DID from heterogeneous
+cohort-time effects, repeated cross-sections from panels, never-treated from
+not-yet-treated controls, and alternative base periods and aggregation weights.
+Its inspected postestimation restrictions also make interval and aggregation
+options estimator-specific. The EViews introduction is a narrower capability
+lead. These public snapshots do not establish licensed edition parity, precise
+cutoff-era bytes or executable compatibility; SAS, SPSS, MATLAB and additional
+commercial frontends remain unresolved for this specific comparison.
+\citep{exec18_gp_stata_did,exec18_gp_stata_hdid,exec18_gp_stata_xthdid,
+exec18_gp_stata_post,exec18_gp_eviews}
+
+An exact five-branch, three-date rollout makes the target distinction concrete.
+All stipulated treatment effects are positive and the treated-period average
+is USD 34,000, but the scalar two-way fixed-effects projection is minus
+USD 11,375 because one cohort-time effect receives negative weight. Separate
+rational calculations reproduce both quantities. Exact preperiod equality also
+fails to identify an untreated postperiod shock. No commercial engine,
+confidence-coverage study or bank rollout was executed. The saved dependent-panel
+request to the local common dispatcher returned unsupported; other panel
+research code is not ruled out. Build a declared cohort-time request with cells,
+weights and compatible inference options before proposing a matched licensed
+comparison. \citep{exec18_gp_panel_reference,exec18_gp_dispatch}
+
+## Python identification and the limits of a customer's counterfactual
+
+The four-family Python comparison separates candidate adjustment sets,
+intervention identification, conditional intervention and cross-world queries.
+DoWhy, pgmpy and y0 retain their inspected component-specific boundaries.
+The selected Ananke 0.5.0 archive adds a district-fixing reference whose functional
+output is a string, not a fitted estimator or a typed portable expression.
+Its supplied-model oracle bypasses identification; its missing-data and
+average-effect components answer distinct questions. Experimental precondition
+failures must remain distinct from scientific nonidentification even where the
+upstream exception has the same name. These are authenticated source findings,
+not native package trials. The selected 2023 release is not claimed to be newest.
+\citep{exec18_pyid_contract,exec18_pyid_one_line,exec18_pyid_oracle,
+exec18_pyid_missing,exec18_pyid_mean}
+
+An exact authored example gives two randomized models with the same observed
+law, intervention means of one half and average treatment effect zero. Among
+factual untreated failures, conditional success under the other assignment is
+zero in one model and one in the other. A response-type construction proves
+sharp conditional bounds from zero to one. With an assumed USD 400 success
+value and USD 50 intervention cost, the corresponding retrospective net range
+is minus USD 50 to USD 350. The factual failure was unavailable before the
+original action, so this is not a prospective policy-value or bank-ROI claim.
+Randomization alone does not identify the customer's cross-world coupling.
+\citep{exec18_pyid_coupling}
+
+Component reuse must also respect incompatible declared environments: the
+selected Ananke NumPy/statsmodels ranges conflict with the inspected DoWhy
+and pgmpy requirements. Separate pinned processes and typed conversion are
+proposed, with graph validation and distinct invalid-input, unsupported,
+nonidentified and engine-failure results. No dependency solution or adapter was
+executed. The archive's Apache 2.0 texts coexist with an Other/Proprietary
+metadata classifier; distribution review must resolve the declarations for the
+intended component and use. Wider GCM, general counterfactual-identification and
+bounds-optimizer coverage remains an explicit omission.
+\citep{exec18_pyid_graph,exec18_pyid_metadata,exec18_pyid_license,exec18_pyid_contract}
+
+## Causal-agent ambition, evidence and the decision being answered
+
+Two selected originals sharpen what the proposed agent should do. The biomedical
+position paper proposes linking language models, structured knowledge,
+heterogeneous observations and formal causal tools. It supplies an agenda for
+controlled actions, verification and evaluation, not a new qualified end-to-end
+causal agent. A philosophical neuron-diagram study supplies a mechanism and
+asks whether events occur and what causes them. Its small historical examples
+and proposed DEF-1 attribution rule do not measure statistical discovery from
+unrestricted data or general current model competence. The study's selected
+diagrams also helped develop its labeling rule. The monograph records a
+citation-chain mismatch in the biomedical discussion and localized explanatory
+and target inconsistencies in the diagram transcripts. Each requires resolution
+before the affected source path or case becomes an admitted benchmark.
+\citep{exec18_reasoning_biomedical,exec18_reasoning_neuron}
+
+A new exact servicing example separates causal attribution from incremental
+value. The stipulated priority route suppresses an available backup; either
+executed route succeeds. Removing priority alone restores the backup, whereas
+removing both priority and backup removes recovery. With assumed USD 200
+success value, USD 40 priority cost and USD 10 executed-backup cost, priority
+returns USD 160 net and backup USD 190 when backup is available. Priority thus
+provides the factual recovery path while adding minus USD 30 net value. If
+backup availability is unknown before action and has stipulated probability
+$p$, priority's expected advantage is $160-190p$ USD per case, positive exactly
+when $p<16/19$. This is an authored structural and monetary construction,
+not a DEF-1 implementation, model trial or bank ROI.
+\citep{exec18_reasoning_reference}
+
+The prototype recommendation is to evaluate mechanism propagation, attribution,
+intervention semantics and prospective value as distinct tasks. Freeze the
+rubric before evaluation, adjudicate disputed transcripts, and keep generated
+graph families separate from those used to develop the rules. Public and
+synthetic evidence can establish whether the proposed interfaces preserve those
+contracts and whether further experiments are worthwhile. The truth of a bank's
+assignment and audit processes still needs later institution-specific evidence.
+
+## Analytical preparation before causal claims
+
+The proposed local preparation layer now has a bounded DuckDB reuse choice at
+historical version 1.4.0. Twenty-three authenticated source files support a
+review of build and notice boundaries, query completion, missingness, ordering,
+transactions and external-access controls. The preferred prototype path keeps
+the original engine behind typed requests and immutable input copies. Executable
+admission remains deferred until the actual client/distribution, notices and
+native conformance are reviewed. Source tests inspected in a repository are not
+runtime tests passed by our library. The external-access switch also retains
+permissions for already attached database/log paths and configured temporary
+storage; it is not a read-only guarantee or an operating-system sandbox.
+\citep{exec19_duckdb_source}
+
+An exact six-account example illustrates why this belongs in the product
+proposal. Contacted outcomes are one observed recovery and two missing outcomes;
+uncontacted outcomes are one recovery and two failures. The observed-outcome
+contrast is $2/3$, but the feasible full-cohort descriptive contrasts are
+$0,1/3,2/3$. With a purely assumed USD 300 value per unit contrast and USD 40
+cost, the corresponding values are minus USD 40, USD 60 and USD 160 per case.
+These are finite descriptive completions, not causal effects or bank ROI.
+A separate account-to-contact join changes an account-level USD 50 contrast to
+USD 75 by duplicating one positive account, without changing an outcome. A
+preaction clock example excludes a feature observed only after the decision.
+\citep{exec19_duckdb_reference}
+
+The proposal consequently requires declared keys and join cardinality, preserved
+missingness and denominators, explicit event/availability clocks, reversible
+types and units, total output ordering, and complete error handling. Transparent
+file references and separately reviewed SQL, dataframe and columnar alternatives
+remain comparators. A public or synthetic native conformance study can test the
+preparation contract before expensive bank experiments; it cannot establish the
+truth of bank assignment or observation mechanisms.
+
+## Java identification and scientific failure states
+
+Nine pinned Tetrad source interfaces expose a separate Identifiability path
+alongside IDA effect-candidate interfaces. They also expose why a typed product
+boundary matters: singleton evidence can be treated as intervention without
+checking its manipulation flag; a probability failure uses minus one; some
+paths require a more specific observational-probability object than the public
+parameter type states; and selected candidate failures can become zero or
+omitted values. A PAG-related class name does not override its constructor's
+DAG/PDAG guard. These are inspected source paths, not native Java trial results.
+The named algorithm proof, helper behavior and wider Java candidate survey
+remain unresolved, so this coverage result is inconclusive.
+\citep{exec19_javaid_source}
+
+Two exact lending mechanisms share the same positive observed approval/repayment
+law while giving intervention effects zero and one-half. With purely assumed
+USD 200 per unit probability improvement and USD 20 action cost, the associated
+net values are minus USD 20 and USD 80 per case. These two witnesses do not
+constitute a sharp identified set or measured bank ROI. A separate example
+shows that identical observed and marginal intervention distributions can still
+give conditional individual counterfactual probabilities zero and one under
+different potential-outcome couplings. The business question must specify which
+of these targets it needs before an agent selects a tool.
+\citep{exec19_javaid_reference}
+
+The proposed adapter must distinguish identified, certified nonidentified,
+unknown, unsupported and execution/numerical failure. It must preserve subtype,
+graph, category, evidence and intervention contracts and every attempted effect
+candidate. A finite effect list, its interval hull and a calibrated confidence
+set remain different objects. Public source review and exact synthetic cases
+can clarify these obligations before any expensive institution-specific trial.
+
+## Evaluate accepted causal outputs and all-request cost
+
+Two inspected historical surveys organize evaluation by task, benchmark and
+protocol, and code generation by its data, workflow and evaluation lifecycle.
+Their compiled model scores and framework discussions remain secondary evidence
+for the constituent systems. Evaluation must separately test contamination,
+prompt robustness, human disagreement and model-judge bias; a dynamically
+generated benchmark does not establish novelty by itself. The code survey's
+June 2024 initial-version identity is retained alongside its conflicting
+September 2024 template footer and distinct later discovery record.
+\citep{exec19_surveys_evaluation,exec19_surveys_code}
+
+The code survey's finite-pool pass-at-k formula and its description of the
+successful-count variable conflict. Our exact illustration resolves the
+counting convention explicitly: among ten candidates with three test passes,
+a uniformly drawn pair contains a pass with probability 8/15. Choosing one
+candidate uniformly gives only 3/10. Incorrectly substituting the success count
+inside the selected pair produces 16/135. Turning at-least-one success into
+output success therefore requires a qualified selector, whose errors and costs
+must also be measured. Even correct tests do not establish the causal target.
+\citep{exec19_surveys_code,exec19_surveys_reference}
+
+In a separate stipulated workflow, twenty requests yield sixteen runnable
+outputs, twelve test passes, seven target-valid results and five fully accepted
+outputs. The runnable test-pass rate is 75 percent, while all-attempt acceptance
+is 25 percent. Assumed generation and harness costs of USD 3 per attempt and
+review costs of USD 5 per test pass total USD 120, or USD 24 per accepted output.
+At an assumed USD 30 benefit per accepted output, net value is USD 30, or
+USD 1.50 per attempt. Treating every test pass as accepted overstates total net
+value by USD 210. These are illustrative assumptions, not observed performance,
+provider prices or bank ROI. The proposed public/synthetic trial must retain
+all attempts, retries, failures, abstentions, scientific adjudication and costs.
+\citep{exec19_surveys_reference}
+
+## State-space reuse and the information available when acting
+
+Twelve pinned Dynamax originals support a bounded proposal choice: retain the
+original engine as a conditional-state-space comparator behind a narrow adapter,
+while deferring executable admission. The selected HMM wrapper supplies initial,
+transition and emission factors, without automatically adding a private-action
+likelihood. Standard transitions may accept but ignore inputs; generic transition
+indexing and the low-level description require an explicit clock mapping.
+Filtering and smoothing use different information. Selected source tests and
+numerical/parameter paths were inspected, but the engine was not run.
+\citep{exec19_dynamax_source}
+
+An exact stipulated repayment model illustrates the distinction. An action
+reveals latent propensity but has no structural effect on the outcome. The
+observed action contrast is 12/25 while the causal effect is zero. Including
+the informative action gives latent-state posterior 36/37; omitting its logger
+gives 4/5. At assumed value USD 200 per probability unit and USD 20 action cost,
+the observational calculation reports USD 76 while the stipulated causal value
+is minus USD 20. These are authored mechanisms and assumed money, not measured
+bank returns or Dynamax results.\citep{exec19_dynamax_reference}
+
+A separate two-signal example gives an online filtered state probability 1/5
+and a retrospective smoothed probability 1/2. Under an assumed USD 100 reward
+in that state and USD 30 contact cost, the online expected net is minus USD 10;
+using the later signal gives USD 20. An adapter must preserve the decision's
+information clock rather than silently replace filtering with smoothing.
+\citep{exec19_dynamax_reference}
+
+The historical root notice is MIT, and project metadata requires Python at
+least 3.10 with eight unversioned direct dependencies including TFP-nightly.
+That is not a resolved distribution or a complete transitive-rights review.
+Public conformance should check support, nonfinite failures, parameter flags,
+input timing, finite-path likelihoods, optimization traces and full device cost.
+No need for a whole-engine port has been demonstrated. Conditional likelihood,
+intervention identification, parameter uncertainty and policy value remain
+separate obligations.\citep{exec19_dynamax_source}
+
+## Synthetic controls inside a commercial host
+
+Twelve pinned originals from Synth for Stata0.0.8 distinguish an author-maintained
+community estimator from its proprietary statistical host. Default donors are
+all other panel units, predictor means can ignore missing observations and
+explicit MSPE windows are checked for existing dates rather than a separate
+before-treatment restriction. The scientific donor and clock contract therefore
+needs its own validation. Five other candidate families remain uninspected;
+this is an inconclusive commercial coverage result, not evidence of absence.
+\citep{exec19_synth_stata_source}
+
+The help specifies margin0.05 and precision7, while command defaults are0.005
+and12. The optimizer wrapper stores a returned primal vector and returns zero
+without branching on the optimizer status, despite distinct optimal, iteration-
+limit and infeasible statuses in the header. RMSPE precedes a compiled rounding
+routine whose body remains uninspected. These are static source findings;
+no vendor binary was run. A negative squared-error objective also explains why
+selecting the larger nested objective is correct, avoiding a false sign defect.
+\citep{exec19_synth_stata_source}
+
+In a declared regional-portfolio example, half-half donor weights exactly fit
+two preperiods and give a stipulated USD 20,000 effect. A USD 20,000 spillover
+in one donor reduces the apparent effect to USD 10,000. Selecting weights using
+the treated postintervention outcome can reduce the gap to zero. The changing
+gap reflects changed assumptions and information; it does not establish that a
+real intervention stopped working. Placebo fractions1/5 and1/2 likewise depend
+on the retained denominator and need a justified null and selection protocol.
+\citep{exec19_synth_contract_reference}
+
+The README's GPL>=2 statement coexists with bundled proprietary and commercial-
+use restriction notices. That unresolved record requires authoritative
+clarification for the exact distribution; this proposal grants no reuse rights.
+Retain the estimator as a documentary comparator, defer executable admission,
+and preserve separate obligations for host entitlement, plugin provenance,
+numerical status, donor validity and inference. Public sources can advance the
+proposal while those precise adoption gaps remain open.
+\citep{exec19_synth_stata_source}
+
+## Native identification and individual counterfactuals
+
+Twelve pinned aGrUM3.2.0 originals extend the native C++ review beyond dispatch.
+The implementation contains recursive identification and conditional-query
+paths, but exact proof alignment, multi-variable graph surgery, accumulated
+kernels, support-zero numerics and complete wrapper conversions remain
+qualification obligations. A symbolic expression, numerical availability and
+a counterfactual structural model are separate deliverables. No installed
+native engine or upstream test was run. Other C++ candidates remain open.
+\citep{exec19_cxx_identification_source}
+
+The selected counterfactual builder reconstructs from the observational
+Bayesian network and replaces selected parentless-node priors with their
+individual posterior marginals. Conditioning can induce dependence among those
+roots. An exact authored example has independent fair roots U,V, and observed
+profile A=0,Y=1 requiring U=V. The joint posterior equality probability is1;
+multiplying the separate root marginals instead gives1/2. Two structural worlds
+share the same observed and marginal intervention laws but have individual
+counterfactual success probabilities1and0 for this profile. Thus neither an
+intervention average nor a stable numerical answer supplies missing cross-world
+coupling. This is source-motivated arithmetic, not a measured native defect.
+\citep{exec19_cxx_identification_source,exec19_cxx_identification_reference}
+
+With an assumed USD100 success payoff and USD20 action cost, those answers
+imply conditional values of USD80, USD-20 and USD30. They are not incremental
+returns against a measured baseline. Retain structural functions and joint
+abduction, justify a sufficient posterior factorization, provide a justified
+set over couplings, or refuse the individual answer. The Rcpp dosearch
+alternative also needs typed timeout versus nonidentification states and its
+supported environment. Reuse remains deferred pending independent-oracle
+conformance, exact graph identity, numeric support, wrapper and rights checks.
+\citep{exec19_cxx_identification_source,exec19_cxx_identification_reference}
+
+## Retrieval and adaptive repair before expensive experiments
+
+The earlier retrieval review brought the census to 48 inspected and 65 unread candidates after adding a
+March 2024 RAG survey and an August 2024 self-correcting data-science code study.
+The survey separates retrieval quality, faithfulness and response relevance.
+Its counterfactual robustness means resistance to false retrieved text, not
+identification of potential outcomes. Relevant evidence can still come from
+the wrong population, assignment mechanism or time window; the proposed causal
+assistant must preserve source versions and the exact assumptions supported.
+Historical package descriptions remain leads for original inspection.
+\citep{exec19_rag_survey}
+
+CoT-SelfEvolve combines StackOverflow retrieval, prompt generation and external
+syntax/executor feedback. Its pass@n means tests passed within at most n adaptive
+attempts. It is not an independent candidate-pool pass@k estimate or a causal
+acceptance rate. The reported Table1 aggregate 30.5 to 35.5 percent is 5 percentage
+points, with heterogeneous library results. The reported one-to-five-attempt
+experiment rises 14.0 to 83.2 percent while prompt tokens rise 2.54 to 9.29 million.
+These are historical source-reported outcomes; no backend was run here.
+The 2024 arXiv original retains a 2025 publication template, placeholder DOI and
+ANONYMIZED-LINK for code/data. Artifact identity and retrieval/benchmark
+overlap remain unresolved, not silently accepted.
+\citep{exec19_selfcorrection_study}
+
+An authored ten-request example uses 23 attempts for six eventual test successes,
+of which four satisfy a separate causal acceptance check. With assumed USD 2
+per attempt and USD 15 per accepted output, cost is USD 46, cost per acceptance
+USD 11.50 and net value USD 14. Treating all six test passes as accepted produces
+USD 44 net and overstates value by USD 30. Actual prices and bank ROI remain unknown.
+\citep{exec19_retrieval_repair_reference}
+
+The next public prototype should compare one-shot, executor-feedback and
+retrieval-assisted repair under matched budgets. Freeze the corpus/exclusions,
+model and environment, hold final causal acceptance tests outside adaptive
+feedback, include misleading and missing evidence, and retain every failed
+attempt and cost. Require correct estimands, clocks, graph/identification
+scope, uncertainty and justified refusal before counting an output as accepted.
+Resolve the study's real artifact and inspect any adopted package originals
+before executable admission. Public evidence can justify a later expensive
+bank trial without pretending to supply institutional data truth.
+\citep{exec19_rag_survey,exec19_selfcorrection_study,exec19_retrieval_repair_reference}
+
+## EconML: a reference choice with target and history safeguards
+
+The selected EconML source, at a 1 October 2026 commit declaring version 0.17.0,
+is a useful reference for heterogeneous effects and selected dynamic-panel
+comparisons. Its effect model and supplied prediction population determine
+what is averaged. A flexible nuisance learner cannot correct an omitted effect
+modifier by itself. The proposed adapter must preserve the action contrast,
+pre-action adjustment, effect-function class, population and monetary units.
+This is a completed proposal choice; executable integration remains deferred.
+\citep{exec19_econml_source}
+
+An exact authored example assigns half the customers to each of two observed
+strata. Offer probabilities are one half and one tenth, while stratum effects
+are USD 0 and USD 100. The population effect is USD 50. A deliberately
+misspecified constant residual regression instead targets USD 450/17, about
+USD 26.47, because it weights strata by treatment variation. At an assumed
+cost of USD 35, the population decision has net value USD 15; mislabelling
+the projection gives about USD -8.53. This is target misspecification, not a
+reported library error under a correct effect model. \citep{exec19_econml_reference}
+
+The selected dynamic path infers periods from row occurrence inside a customer,
+requires equal history lengths and ignores supplied sample weights and sample
+variances with a warning. The inspected bootstrap call path resamples time rows
+inside fixed customer groups, so it can duplicate or reverse a history. An
+authored two-date enumeration preserves the original ordered history in only
+one of four equally likely row draws. No installed EconML bootstrap was run,
+and this is not a measured coverage failure. Group-aware nuisance folds and
+within-unit covariance also do not establish protection against common calendar
+shocks across customers. \citep{exec19_econml_source,exec19_econml_reference}
+
+Start with a narrow public or synthetic static prototype, using exact nuisance
+and target references. Then test chronological unit/time conversion, weight
+refusal, actual bootstrap draws, warnings and declared sampling laws before
+admitting a dynamic adapter. Preserve applicable MIT and BSD notices, lock
+package and native dependencies, and measure fitting, resampling, failed-run
+and maintenance costs. A Python boundary is a candidate; a wholesale port
+is not justified by the present evidence. Public conformance can establish
+whether this route merits later bank trials. \citep{exec19_econml_source}
+
+## Julia and JavaScript: an adjustment search is only part of identification
+
+The selected Julia and DAGitty originals support useful graphical operations,
+but a graph edit, an adjustment set and a numerical intervention answer have
+different meanings. Julia's selected do! method removes incoming arrows; its
+adjustment searches require explicit restrictions to observed variables.
+DAGitty's total and direct-effect interfaces admit different graph classes,
+while its selected MAG/PAG validation still records unfinished validation.
+A failed or capped search cannot automatically mean that the business effect
+is zero or generally not identified. \citep{exec19_otherid_julia,exec19_otherid_dagitty}
+
+An exact authored lending example has a hidden assignment/outcome cause and
+an observed mediator. Its intervention effect is one quarter; the observed
+contrast is three eighths and ordinary mediator standardization gives one
+eighth. At an assumed USD 100 success payoff and USD 20 offer cost, these imply
+USD 5, USD 17.50 and USD -7.50 respectively. A frontdoor expression matches
+the direct intervention calculation for this stipulated positive law, although
+there is no permitted backdoor set. This checks one transparent mechanism,
+not a general theorem, upstream runtime or bank profit. \citep{exec19_otherid_reference}
+
+The proposed boundary preserves observed/latent status, query validity,
+graph profile, criterion, emitted solutions and search completion separately.
+One empty adjustment set differs from no emitted solutions; an exception
+remains an execution error. Public graph fixtures can test these distinctions
+before costly bank work. Broader language coverage, the source-linked proof
+originals, native failure behavior and actual distribution correspondence
+remain unresolved. This is a bounded source comparison with no executable
+integration permission. \citep{exec19_otherid_julia,exec19_otherid_dagitty,exec19_otherid_reference}
+
+## COAT: use proposed factors with measurement and discovery safeguards
+
+COAT's selected October 2025 revision proposes and parses factors from
+unstructured observations, then uses conventional causal-discovery feedback.
+Its blanket, PAG and adjustment tasks are distinct. Its theory requires
+conditional independences to survive parsing, appropriate graph premises and
+useful-factor proposal ability. Its convergence proof explicitly uses a
+Gaussian approximation to a binomial useful-round count. These conditions
+must not become an unconditional finite guarantee for an adaptive agent.
+The actual code artifact and native correspondence remain to be reviewed.
+\citep{exec19_coat}
+
+An exact authored example has no offer effect but a noisy confounder that is
+75 percent accurate. Adjusting for that proxy gives a spurious effect of one
+fifth. At an assumed USD 100 incremental-success payoff and USD 10 offer cost,
+the proxy suggests USD 10 net value while the true offer value is USD -10.
+Another exact example gives no useful discovery in four rounds with
+probability 1/16 under independent half-success draws and 1/2 when all draws
+share one latent success state. These are assumption checks, not measured
+COAT errors or live model performance. \citep{exec19_coat_reference}
+
+The source's marketing study uses synthesized text and three repeated
+experiments; reported estimation errors vary by model and comparator.
+Its historical financial case requires separate timing, dependence and
+complete-cost checks before any economic interpretation here. A public
+prototype should freeze factor meanings and their information clock, compare
+parsed variables against generated or public gold factors, preserve uncertain
+graph marks, and keep final tasks outside adaptive feedback. Bank truth and
+institutional acceptance remain later evidence. \citep{exec19_coat}
+
+## Feast: preserve the information available when acting
+
+The selected 7 October 2026 Feast revision provides optional creation-time
+filtering for historical retrieval. The reviewed passthrough provider checks
+support, and selected Dask and BigQuery paths implement the extra condition.
+Views without a creation field are unaffected. Creation time must also mean
+when the value was actually usable: a record created at hour 9 but delivered
+at hour 12 was unavailable to a decision at hour 10. Upstream test definitions
+and source inspection are distinct from running the selected provider.
+\citep{exec19_feast_source}
+
+An exact generated example has two equally likely hidden applicant types.
+Success under action has probability four fifths or one fifth; all available
+predecision inputs are identical and give probability one half. With an
+assumed USD 100 success payoff and USD 50 action cost, every feasible rule has
+expected net value zero. A later correction that reveals type makes an
+unavailable rule appear to earn USD 15 per applicant by acting only for the
+better type. Creation filtering fixes a late-created correction, but fails
+to resolve a distinct delivery delay when creation precedes availability.
+The example measures neither a Feast defect nor bank ROI. It motivates
+public tests of both clocks, revision conflicts and preservation of decisions
+whose features are missing. \citep{exec19_feast_reference}
+
+The proposed reuse route retains an original provider behind a typed
+historical boundary, with complete package rights and native conformance
+still to be qualified. Its root license is Apache-2.0; provider and MCP extras
+have their own dependencies. The selected standalone MCP proxy exposes
+latest online retrieval, but also push and materialization tools. The
+in-process MCP server is a separate interface. A causal agent should request
+a separately specified historical operation with frozen inputs and clocks;
+a successful online tool call does not reconstruct past information.
+State-changing operations need their own operating contract.
+\citep{exec19_feast_source}
+
+A small bitemporal file or database query remains the transparent public
+reference. Compare complete rows, missing and conflicting states, duplicate
+requests and errors before claiming provider equivalence. The data owner
+must establish availability semantics, the scientific owner must own the
+causal target, and the adapter owner must preserve types, populations and
+failures. History retention, joins, transfers and upgrades remain unpriced.
+The current source-grounded choice extends the prior proposal without
+closing broader software coverage or institutional gates.
+\citep{sp19coat_reader,sp19coat_progress}
+
+## Dynamic panels: distinguish valid instruments from a larger table
+
+The new commercial comparison inspects Stata's difference-GMM, system-GMM
+and local-projection manuals and EViews' panel-estimation chapter. These
+products already expose substantial estimation and diagnostic capabilities.
+The proposed service must preserve the selected target, instrument lags,
+regressor timing, transformation, usable horizons and uncertainty settings.
+System GMM adds initial-condition restrictions; a two-step variance
+correction cannot establish those restrictions. EViews' dynamic instrument
+syntax and covariance options also require exact configuration rather than
+translation by a generic model name. The manuals were acquired after the
+literature cutoff; their embedded or displayed dates do not prove exact
+historical bytes. \citep{exec19_dynamic_stata_ab,exec19_dynamic_stata_system,
+exec19_dynamic_stata_lp,exec19_dynamic_eviews_panel}
+
+An exact authored dynamic model gives a proposed system-instrument moment
+of one half under one initialization and zero under a stated mean-stationary
+initialization. More branches do not repair the nonzero population moment.
+Another exact law has independent calendar shocks shared by branches. With
+100 branches and 25 dates, treating all rows as independent understates the
+variance of the overall mean by a factor of 50.5. At a stipulated USD 10,000
+response scale, the correct standard deviation is approximately USD 2,010,
+compared with USD 283 under the false independence assumption. These are
+population-law illustrations, not measured bank losses, confidence intervals
+or reports of commercial software defects. \citep{exec19_dynamic_reference}
+
+Local projections provide flexible horizon-specific regressions and
+covariance choices, but they still require a justified shock or exogenous
+input. Longer horizons reduce usable dates. Existing structural-VAR and
+external-instrument sources retain their own restrictions and normalization.
+The proposed public comparison should align targets and calendars, report
+actual instrument counts and rank, preserve failures, and separate pointwise
+from joint uncertainty. It can establish whether a licensed prototype and
+later bank experiment are worth funding. \citep{exec19_dynamic_stata_lp,
+exec13_ct_stata_svar,exec13_ct_stata_ivsvar}
+
+Coverage remains partial across eight families and leads. MathWorks'
+selected official route returned an access error, while other families
+still need exact manuals, editions or numerical backends. Prices, deployment
+rights and native conformance remain unresolved. These are evidence gaps,
+not findings that the products lack the capability. This successor retains
+the preceding Feast information-clock and integration proposal.
+\citep{sp19feast_reader,sp19feast_progress}
+
+
+## R effect estimation: agree on the decision before comparing packages
+
+The new R comparison distinguishes individual conditional effects, population
+and treated-group averages, pooled slopes and continuous dose curves. The
+inspected R DoubleML implementation has explicit ATE/ATTE score paths and
+cluster-aware splitting and variance calculations. Its multiplier bootstrap
+rejects clustered data; the proposed service must preserve that refusal when
+joint uncertainty is requested. The grf averaging routes have their own target
+and uncertainty restrictions. A Python implementation with the same name does
+not establish the behavior of the R version.
+\citep{exec20_rfx_doubleml_r,exec13_grf_rpath}
+
+The tmle documentation's broad missing-treatment wording is narrowed by its
+actual argument guard: the selected function rejects missing treatment labels.
+Its null-treatment input selects a mean-outcome path, not a recovery of unknown
+assignments. An exact generated example has identical observed data but effects
+of USD 100 and USD 0 at a stipulated outcome scale. The example deliberately
+lacks observation support for the group with erased labels; it motivates a
+truthful label or additional-assumption requirement rather than a claim that
+all missing-data analysis is impossible. \citep{exec20_rfx_tmle,exec20_rfx_reference}
+
+Continuous-exposure engines also require unit and target checks. In an authored
+credit example, a USD 1,000 increase has a stipulated margin contrast of USD 15;
+using a pooled slope instead would give USD 35. CausalGPS weighting and causaldrf
+dose prediction expose different transformation and uncertainty obligations.
+The proposed public prototype should test conditional scales, exposure units,
+counterfactual-dose scores, zero weights and full-stage resampling before any
+bank experiment. These examples are not measured returns or native R tests.
+\citep{exec20_rfx_reference,exec20_rfx_causalgps,exec20_rfx_causaldrf}
+
+The adoption proposal is to wrap supported grf, R DoubleML and observed-treatment
+tmle paths conditionally, while deferring native ports and unqualified continuous
+exposure paths. BART-based alternatives, causalweight, further ecosystem aliases,
+complete distribution rights and native conformance remain open. This successor
+retains the preceding commercial dynamic-panel comparison and Feast proposal.
+\citep{sp19dyn_reader,sp19dyn_progress}
+
+
+## Simulated respondents and causal assistants need separate evidence
+
+The subpopulation-model survey distinguishes response fidelity, necessity,
+robustness, sensitivity and fairness. These give a useful public-data evaluation
+framework for simulated respondents. Repeating a language model's answers
+reduces simulation noise around that model's response law; it does not remove
+its difference from the target population. In an exact assumed example, a
+response probability of 0.60 instead of 0.50 makes a USD 100 response payoff
+less a USD 55 contact cost appear worth USD 5 rather than USD -5. The numbers
+are authored illustrations, not measured returns or incremental causal effects.
+\citep{exec20_population,exec20_population_attribution_reference}
+
+Cai and colleagues' selected May 2026 revision compares names and numerical
+information in causal prompts, then fine-tunes an assistant to use discovery
+outputs. It reports overall pairwise accuracy 0.90 versus 0.82 for GPT-4 turbo,
+but 0.58 versus 0.66 in the undefined scenario. Native model identity, the
+residual-independence test, uncertainty and domain transfer still need review.
+Zero correlation of a regression residual does not establish independence;
+our exact witness shows this distinction in both regression directions.
+\citep{exec20_attribution,exec20_population_attribution_reference}
+
+A public prototype should compare simulated responses against a frozen public
+population dataset and test the causal assistant separately on generated
+mechanisms with known or explicitly unidentified answers. Prompt variants
+must stay grouped by mechanism. Numerical-engine, deterministic-translation,
+untuned-assistant and tuned-assistant comparisons should preserve refusals and
+uncertainty. These tests can establish whether further development is useful;
+actual bank validation and observed economic value remain later evidence.
+
+
+## Fixed-effect panel software must preserve the decision target
+
+The proposal conditionally selects the original fixest engine behind a typed R worker for an initial linear fixed-effect profile. The inspected 26 June 2026 commit declares version 0.14.2 and GPL-3; complete distribution and dependency rights and native conformance remain admission requirements. The source review identifies consequential choices in row exclusions, collinear treatments, covariance defaults, degrees of freedom and event-time coding. A fixed-effect formula alone does not establish clustered uncertainty, and a treatment removed by the fixed effects must return an unavailable target. \citep{exec20_fixest_source}
+
+Exact authored examples make the contract concrete. Within-branch and explicit-dummy regression both give a coefficient of USD 4. Two stated small-sample covariance conventions give variances 4/3 and 10/3 without changing that coefficient. For two cohort coefficients, shares 3/4 and 1/4 give an effect of USD 3.50 and variance 51/16, using the full covariance. Equal shares instead give USD 5. At an assumed incremental cost of USD 4, the implied net margin changes from USD -0.50 to USD 1. These are algebraic proposal examples, with no native execution or observed bank return. \citep{exec20_fixest_reference}
+
+The first public prototype should compare native output and failure handling against exact small panels, retained row identities, absorbed treatments, covariance settings and cohort-support cases. Library, CLI and MCP requests must preserve the same design and uncertainty choices. A Python implementation needs its own qualification; a port must justify the additional burden of recreating these semantics. Worker setup, conversion, memory, covariance computation and upgrade maintenance are costs to measure. This completes a bounded reuse recommendation while executable admission stays deferred.
+
+
+## Python effect software needs an explicit population and uncertainty contract
+
+The comparison now reconciles selected EconML, DoubleML, CausalML, Delicatessen and statsmodels paths. They offer different effect models, scores, arm-specific fits and estimating-equation interfaces. Their nuisance splits, prediction populations and covariance laws must remain explicit. Earlier DoubleML matching remains limited to its fixed identical predictions and folds; the new review does not admit a general adapter. \citep{exec19_econml_source,runtime_doubleml_scope,exec14_causalml_primary,v13_sw_delicatessen,v131_sw_delicatessen}
+
+The inspected statsmodels paths distinguish all, treated and untreated populations. Propensity clipping affects both selected point and joint-moment calculations. The final joint-GMM covariance has its own options; a robust label on a preliminary outcome regression does not establish clustered or temporal uncertainty. The new trace follows all five point-treatment procedures through their target, weighting and covariance steps. \citep{exec20_python_effect_source}
+
+Exact authored examples give effects of USD 50, USD 65 and USD 35 for three different populations under the same stipulated risk-group law. At cost USD 55, their net averages are USD -5, USD 10 and USD -20. A second example shows how clipping an almost-certain propensity from 0.9995 to 0.999, with deliberately wrong outcome functions, changes an expected augmented score from USD 60 to approximately USD 70.04. At cost USD 65, the implied margin changes from USD -5 to approximately USD 5.04. Correct outcome functions remove that bias in the example. These are exact score calculations, not fitted-package results or measured bank benefits. \citep{exec20_python_effect_reference}
+
+The proposed public prototype should match target populations and row identities before comparing outputs, preserve clipping and nuisance choices, and inspect optimizer residuals, rank and final covariance. Complementary packages and continuous-treatment families still require original-source review. Distribution provenance, native conformance and broader search coverage remain open; this review supplies concrete tests without declaring the Python survey complete.
+
+
+## Validate the grader before interpreting an assistant's improvement
+
+A better evaluation score can reflect a change in grading behavior rather than
+an improvement in causal reasoning. Lin's methodological workflow separates
+research tools, model evaluation, human simulation and cognitive explanation,
+and calls for instrument validation, held-out assessment, controlled execution
+and analysis that respects dependence. It offers a design framework and
+illustrative code, not an empirical validation of a banking assistant.
+\citep{exec20_validity}
+
+An exact proposal example makes the investment implication visible. True
+correctness is 60% in both workflows. The first grader sensitivity and specificity
+are 80% and 90%; for the second workflow they are 95% and 80%. Observed passing
+rises from 52% to 65% despite unchanged correctness. Under an assumed value of
+USD 100 per additional correct result and extra workflow cost of USD 8, the
+grade-based incremental value is USD 5 while the true incremental value is
+USD -8. These are imposed probabilities and planning values. Held-out calibration
+and its uncertainty are necessary before correcting real scores.
+\citep{exec20_validity_reference}
+
+The proposed public evaluation would preserve whole held-out mechanisms and
+scenario families, compare frozen workflows on paired scenarios, record useful
+refusals and every failed request, and verify grading on both arms. Repeated
+answers do not create independent scenarios; averaging cannot remove shared
+environmental shocks. A fixed model comparison supports claims about the tested
+versions and scenario population, with transfer to future models and customers
+requiring separate evidence. Costs should include grading and adjudication as
+well as model execution. This defines a prototype evaluation to justify later
+bank experiments; it does not claim that such an experiment has been run.
+
+
+## Use expert-guided ensembles to propose graphs with explicit limits
+
+Tench and Demeester combine discovery algorithms by counting connections,
+separating orientation, checking cycles and querying an expert on selected
+disagreements. Their method is a candidate for the proposed diagram-review
+workflow. Its main evidence uses synthetic categorical networks. A narrower
+five-network model study reports mean orientation accuracy of 93.3% and
+existence accuracy of 66.4%, while existence accuracy is 43.9% on Property.
+Responses are cached across repeated seeds and sample sizes. These reported
+results support further comparison, with domain dependence, shared errors and
+memorization concerns retained. \citep{exec20_expert_averaging}
+
+The proposed interface must distinguish a plausible causal path from a direct
+edge and preserve unresolved graph types. Two printed algorithm details require
+source inspection before reuse: rejected existence calls appear not to increment
+the budget, and the exhausted orientation branch omits the majority fallback
+described in the prose. These are specification discrepancies, not demonstrated
+runtime defects. Physical calls, both argument orders, retries and cache reuse
+must be accounted for before estimating operating cost.
+\citep{exec20_expert_averaging_reference}
+
+A graph vote is also not a calibrated probability of an intervention effect.
+An exact example gives the same observational Gaussian distribution under two
+models whose effects are 0.6 and zero. With assumed value USD 100 per outcome
+unit and intervention cost USD 40, their margins are USD 20 and USD -40.
+Giving the first model an unjustified 90% probability based on its vote yields
+an apparent USD 14 margin. Valid temporal or experimental information could
+resolve the direction; algorithm agreement alone cannot. Public prototype
+evaluation should therefore compare intervention answers, useful refusal,
+ambiguity and total review cost alongside graph accuracy. This retains the
+method as a proposal candidate while source identity, rights and executable
+conformance remain to be qualified. \citep{exec20_expert_averaging_reference}
+
+
+## Preserve graph meaning when reusing discovery software
+
+The gCastle recommendation retains selected PC and linear NOTEARS methods as references and proposes a pinned original Python worker for a public prototype. PC can return unresolved orientations, while NOTEARS returns weighted directions. An unresolved pair must survive conversion; it cannot silently become two causal arrows or a claim of hidden confounding. Explicit variable identifiers, units, restrictions and failure states must pass unchanged through the library, CLI and MCP. The selected source review also exposes dependency differences, limited input guards and conditional-test support cases that the prototype must address. \citep{exec20_gcastle_source}
+
+Exact authored examples show why these contracts matter. Two weights of 0.01 have an acyclicity residual of $5\times10^{-9}$, below $10^{-8}$, but remain a directed cycle at a deliberately chosen threshold of 0.005; the default 0.3 threshold removes them. This is a mathematical witness, not an observed package failure. In a separate stipulated causal model, a coefficient of 0.3, an intervention of 100 units and a cost of USD 20 give USD 10; a mistaken graph transposition gives USD -20. Fitted weights still need an identification argument before carrying that economic interpretation. \citep{exec20_gcastle_reference}
+
+The selected upstream PC and NOTEARS test methods log caught exceptions without asserting graph correctness. The prototype should therefore use explicit expected graph and failure results, and measure setup, computation, conversion and maintenance cost. Apache 2.0 source terms do not complete a dependency rights inventory. An original worker is the preferred experiment; a new port lacks a demonstrated platform or cost justification. This completes the bounded reference decision while native admission and bank usefulness remain unqualified. \citep{exec20_gcastle_source}
+
+
+## Compare network effects under the same intervention
+
+The commercial comparison now has primary technical profiles for Stata, SAS/ETS, ArcGIS Pro and Statsig. Spatial regressions, exposure experiments and population switchbacks answer different questions. Stata documents average own, spillover and total derivatives; ArcGIS documents simple impacts with the direct impact equal to the coefficient. SAS documents supplied-network model and covariance choices, including default row normalization and missing weights replaced by zero. These semantics must remain explicit in any common interface. \citep{exec20_network_stata_spregress,exec20_network_stata_impacts,exec20_network_stata_panel,exec20_network_sas_latest_spatial,exec20_network_arcgis_method,exec20_network_arcgis_tool}
+
+In an exact two-branch feedback example, an assumed coefficient of USD 10 produces an own response of USD 13.33 and portfolio response of USD 20. At assumed cost USD 12, the corresponding margins are USD -2, USD 1.33 and USD 8. Omitting one network tie changes the modeled portfolio margin to USD -2. A separate covariance example gives variance 28 with the full parameter covariance and 20 when the cross term is dropped. These are authored references, not vendor results or bank returns. \citep{exec20_network_reference}
+
+Statsig's saved documentation supplies concrete alternatives: analysis across organization/user units and switchback windows with attribution, burn periods and bucket bootstrapping. A prototype must still qualify cluster boundaries, exposure support, schedule randomization, carryover and dependence. An authored time trend gives an observed contrast of 102 for a causal effect of 2; alternating treatment with carryover gives an observed -2, an immediate effect of 2 and a sustained effect of 6. Repeated computation does not resolve an undefined target or missing assignment information. \citep{exec20_network_statsig_types,exec20_network_statsig_units,exec20_network_statsig_switchback,exec20_network_reference}
+
+Public or generated data suffice for the first contract and computation trials. Matched commercial execution, prices and deployment rights remain unverified. Four additional families—Optimizely, EViews, IBM SPSS and commercial probabilistic-network tools—still need exact target-specific originals; the acquired Optimizely route redirected to a general homepage. These gaps keep the market comparison inconclusive while the supported prototype routes proceed.
+
+
+## Require the Java engine to preserve the decision target
+
+The Java survey now distinguishes H2O-3 uplift forests from Tetrad's graph-compatible slopes and stability rankings. The selected source revisions precede the 7 October 2026 cutoff. H2O returns treated/control response predictions and their difference; its selected ATE/ATT/ATC metrics average predicted scores over retained rows. The selected training interface rejects weights and built-in cross-validation. Tetrad's minimum absolute effects rank magnitude and do not retain benefit direction by themselves. Neither a ranking curve nor selection frequency establishes a calibrated causal interval. \citep{exec20_javaeffects_h2o,exec20_javaeffects_tetrad}
+
+Exact authored examples show why these distinctions matter to the proposal. A confounded population has observed response difference 0.36 despite zero causal effect; assumed value USD 100 and cost USD 20 turn an apparent USD 16 margin into USD -20. Scores with identical rankings can have average predictions 0.25 and 0.50. Signed graph candidates -2 and -0.5 have minimum magnitude 0.5, but treating that magnitude as beneficial changes hypothetical margins -220/-70 into USD 30. These are transparent constructions, not measured package or bank results. \citep{exec20_javaeffects_reference}
+
+The public prototype should first reconcile a documented-versus-literal KL split expression, missing-support and root-only branches, category mappings, and complete engine/MOJO roundtrips. The equal-probability source expression gives -1 where the documented KL node value is zero; no native failure is asserted. A proposed Java worker must return typed predictions, graph candidates, rankings, numerical failures and qualified uncertainty separately through the library, CLI and MCP. Complementary software search, full distribution rights and held-out validation remain open; the source review supports a concrete experiment, not runtime admission. \citep{exec20_javaeffects_h2o,exec20_javaeffects_tetrad,exec20_javaeffects_reference}
+
+## Use literature graphs to propose testable interventions
+
+Tong and colleagues offer a concrete design for combining literature extraction, graph links and hypothesis generation. Their July 2024 article reports 43,312 psychology papers and expert ratings of generated well-being hypotheses. Those ratings concern novelty and usefulness; they do not experimentally validate the proposed mechanisms. Of 238 pairs labelled causal by the model, 156 received matching human causal labels, while 207 were recognized as relationships of some kind. The distinction matters when translating a business question into a causal diagram. \citep{exec20_hypothesis_generation}
+
+The proposal should evaluate source-supported extraction, operational question translation, blind hypothesis quality and intervention identification separately. A graph-similarity construction has Jaccard score one with zero causal effect: at assumed value USD 100 and cost USD 20, treating similarity as success would suggest USD 80 while the actual stipulated incremental margin is USD -20. These are authored examples, not bank results. The source also contains printed ANOVA quantities that do not reconcile under the ordinary stated model; raw analysis and the revised supplement remain necessary before inheriting those inferential claims. \citep{exec20_hypothesis_reference,exec20_hypothesis_generation}
+
+A public prototype can compare retrieval-only, model-only, graph-assisted and human-assisted pipelines with held-out document and mechanism families. It should retain unsupported claims, reviewer disagreement, refusals and full model/expert costs. Library, CLI and MCP outputs should distinguish an extracted claim, a hypothesis, a reviewed assumption and an identified query. Code adoption, exact models, graph conventions and full rights remain open. \citep{exec20_hypothesis_generation,exec20_hypothesis_reference}
+
+
+## Preserve the meaning of repeated servicing policies
+
+The gfoRmula review recommends retaining its pinned original R implementation as a reference candidate for longitudinal simulation. The inspected source distinguishes terminal outcomes from survival risks, orders evolving covariates before interventions, and resamples whole people with their histories. It declares version 1.1.2 but leaves the release date as TBD. A future worker must preserve the intervention clock, competing-event target, range clipping and requested versus successful bootstrap counts. Native execution, complete dependency rights and qualification for shared bank or calendar shocks remain open.\citep{exec20_gformula_reuse}
+
+An exact generated two-period example gives beneficial-outcome probabilities of 0.13 under never acting, 0.60 under always acting and 0.425 under a specified dynamic policy. Replacing individual histories with conditional means changes the dynamic calculation to 0.365. At an assumed USD 100 per additional beneficial result and a fixed incremental USD 20 cost per eligible account, the proper dynamic-policy margin is USD 9.50; the shortcut gives USD 3.50. A separate competing-event example gives risks 0.3096 and 0.36 in different event worlds, a USD 50.40 difference at an assumed USD 1,000 loss. These are reproducible design references, not package benchmark results or bank returns.\citep{exec20_gformula_reference}
+
+The proposed route is to compare a frozen original R worker with these exact public mechanisms before considering a port. The comparison must expose clipping, history conventions, failed fits, numerical error and uncertainty under the declared sampling unit. Library, CLI and MCP should return the same typed target and failure information. This completes a bounded proposal choice while leaving implementation and broader software coverage open.\citep{exec20_gformula_reuse,exec20_gformula_reference}
+
+
+## Distinguish explaining a channel from changing it
+
+Stata and Mplus provide documented mediation workflows that our proposed service would need to preserve or compare. Stata's selected one-mediator interface distinguishes natural and controlled effects, interactions and output scales; its two-mediator feature belongs separately to StataNow. The inspected Mplus chapter distinguishes conventional coefficient products, including latent-response scales, from counterfactual effects. These are documented capabilities; our current comparison has exact reference examples and proposed interfaces, without a qualified vendor adapter.\citep{exec20_med_stata_one,exec20_med_stata_intro,exec20_med_stata_post,exec20_med_stata_multiple,exec20_med_mplus_ch17}
+
+An exact interaction example decomposes a total effect of 15 as either 6+9 or 9+6, depending on the natural-effect definition. A separate pair of generated worlds has identical observed data and randomized treatment but opposite channel decompositions because one world contains unobserved mediator-outcome confounding. The original treatment gives an assumed margin of USD 80; directly changing the mediator gives USD -20 under the stipulated law. Channel attribution therefore cannot be treated automatically as the return from a channel intervention. Averaging over customers versus evaluating at mean covariates also changes an exact example's assumed margin from USD 5 to USD -5. A residual-correlation sensitivity range remains a scenario range rather than a confidence interval.\citep{exec20_med_reference}
+
+Commercial coverage remains inconclusive because SAS, IBM/AMOS and PROCESS still need matched technical originals. The PROCESS author page identifies it as a separate extension for SPSS, SAS and R; that does not establish native host capability or distribution rights. The proposal now specifies typed mediation targets, uncertainty, sensitivity, failure and refusal across library, CLI and MCP, with exact public mechanisms for the first qualification experiment. Full version, license, price, sensitivity coverage and native parity reviews remain open.\citep{exec20_med_process_lead}
+
+
+## Preserve the meaning of native heterogeneous effects
+
+A fast causal forest is useful only if its result answers the requested action and population question. The inspected grf, bcf, XBCF and flexBCF versions offer different moment, prior and posterior designs. The proposed initial route is a qualified process adapter preserving each native model's assumptions, weights, draw identities and persistence. A direct port would transfer responsibility for all of those numerical and statistical choices. The current review grants no runtime admission. \citep{exec21_cxx_grf,exec21_cxx_bcf,exec21_cxx_xbcf,exec21_cxx_flexbcf}
+
+Exact project examples show why these distinctions affect a decision. A continuous-treatment covariance slope can be zero while a finite action contrast is one. For two equally represented groups, an effect of USD 2 becomes USD 5.20 if likelihood precision is mistakenly reused as population weighting: at USD 3 cost, the apparent margin changes from USD -1 to USD 2.20. Restoring posterior treatment scales draw by draw gives a mean of USD 22.50 in another example; omitting a scale factor gives USD 15. At USD 20 cost the corresponding margins are USD 2.50 and USD -5. Common posterior draws must also be retained when aggregating customers. These are hypothetical, reproduced examples, not measured package failures or banking returns. \citep{exec21_cxx_reference}
+
+The genuine inspected BCF preprint supports a public evaluation and cautions against blanket acceptance. Its retrospective ACIC comparison reports 82% coverage for BCF intervals labeled nominal 95%; the paper does not claim double robustness or a universal coverage theorem. Historical performance does not rank today's source versions. The next prototype should measure matched target error, coverage, width, failures and decision consequences under known public mechanisms before expensive institutional trials. \citep{exec21_cxx_hahn}
+
+Static XBCF wrapper inconsistencies and flexBCF row/cohort conventions require focused tests. The broader C++ census, additional method originals, dependency rights and native parity remain unresolved. This is a bounded, inconclusive software-coverage result with concrete integration choices and tests; it does not close the complete software repair. \citep{exec21_cxx_xbcf,exec21_cxx_flexbcf}
+
+
+## Evaluate paired reasoning errors and the full request population
+
+CausalityCheck provides a four-by-four task and robustness design for testing textual causal reasoning. Its genuine July 2026 ACL paper reports 1,200 seed questions, 43,200 generated instances, 10,800 selected and 8,920 retained after filtering. The framework is useful for a prototype evaluation, but its textual labels and accuracy do not establish identified banking effects. Some reported annotation-agreement values also fall below the paper's broad excellent-agreement description. \citep{exec21_causalitycheck}
+
+A difference between answerability and process-judgment accuracy is a net difference of two discordance rates. It does not identify the frequency of correct answers supported by wrong reasoning. In an authored matched-population example, marginals of 82.27% and 59.46% permit that joint error rate to range from 22.81% to 40.54%. A negative difference of -5.12 points can coexist with a rate as high as 23.2%. The paper's actual task populations differ, so these are illustrations of the required measurement design, not empirical bounds on its models. \citep{exec21_causalitycheck_reference}
+
+Filtering also changes the population. If 50 of 100 requests are retained and 45 are correct, selected accuracy is 90%, while full-population accuracy can range from 45% to 95%. Under explicitly assumed USD 10 gain, USD 30 error loss and USD 1 action cost, selected accuracy suggests USD 5 margin; the full-population range is USD -13 to USD 7. A real refusal policy requires its own costs and workload accounting. These are exact hypothetical witnesses, not measured returns. \citep{exec21_causalitycheck_reference}
+
+The proposed public evaluation uses common seed identities, both discordance directions, known causal mechanisms, blind adjudication, inclusion/refusal records and fixed aggregation weights. Entity renaming is a stress test whose score changes can have several explanations. Pinned code/data, raw paired judgments, licenses and independent reproduction remain open; no live model or upstream package has been executed. \citep{exec21_causalitycheck}
+
+
+## Preserve the customer population when reusing a causal forest
+
+The grf R package and its native core are one implementation lineage. The original pinned R package remains a reference candidate for an initial binary-action, independent-customer prototype. Reusing it would preserve the nuisance-fitting and average-effect wrapper as well as the C++ forest. Integration, dependency rights, calibration, persistence and full workflow costs still require qualification. The proposed process boundary does not itself settle distribution rights. \citep{exec21_grf_reuse}
+
+The wrapper's doubly robust score reconstructs two treatment-specific outcome regressions from the supplied marginal outcome mean, propensity and conditional effect. An exact hypothetical law shows why those inputs need precise provenance: with true propensity one quarter and effect two, supplying the correct marginal mean and effect but a propensity of one half yields an expected score of 1.5. Correct propensity or both correctly reconstructed outcome regressions restores two in this example. This is an algebraic qualification fixture, not an observed fitted-model failure or a coverage claim. \citep{exec21_grf_reference}
+
+An overlap-weighted effect also changes the business population. In two equally represented groups with effects USD -4 and USD 12 and propensities one half and one tenth, the all-customer effect is USD 4 but the overlap effect is USD 4/17. At an assumed offer cost of USD 2, the corresponding margins are USD 2 and approximately USD -1.76. The second margin cannot be substituted for the first without changing the decision. A prototype should retain target identity, nuisance provenance, actual estimator, warnings and all failed requests, and compare accepted outputs before claiming an economic advantage. \citep{exec21_grf_reuse,exec21_grf_reference}
+
+
+## Treat document extraction as a proposed causal structure
+
+The ACE study supplies three reported routes from failure documents to bowtie diagrams: retrieval from digital tables, OCR from table images, and vision extraction followed by a second language model. Selected structured-table results are substantially stronger than narrative results. The original evaluates three tabular components and dynamic-seal narratives, with expert reference diagrams that can include implicit information absent from the source. A banking prototype should distinguish explicit source evidence, expert-added hypotheses, missing roles and model inference before asking an intervention question. \citep{exec21_ace}
+
+High aggregate graph accuracy can hide a consequential omission. An authored 100-edge chain with one missing bridge has edge F1 of 198/199, about 0.995, yet loses the entire initiating-event-to-loss path. A second exact example gives a zero first-order sensitivity index but a total-order index of one: a small main effect alone does not show that context pipelines are interchangeable. Both examples motivate held-out document tests, critical-role/path metrics, paired comparisons and preservation of every invalid output. They are mathematical witnesses, not reproduced ACE performance. \citep{exec21_ace_reference}
+
+A common graph topology also does not price a control. With the same unsigned action-to-loss arrow, two stipulated mechanisms give intervention effects of opposite sign. At assumed loss USD 10 and action cost USD 2, their margins are USD -12 and USD 8. The next public prototype should retain source spans, clocked roles, mechanism assumptions, refusal states and full review costs. ACE's proposed agentic correction and knowledge-graph extensions remain future work; neither the paper nor this review establishes an implemented banking integration. \citep{exec21_ace,exec21_ace_reference}
+
+## Preserve missingness assumptions when extending a pilot
+
+A profitable pilot need not justify a rollout to a different customer mix.
+The commercial comparison now inspects ten complete official originals for
+Stata MI, SAS/STAT 14.1 MI/MIANALYZE and IBM SPSS Missing Values 31.0.2.
+These systems document substantive workflows that a new proposal must match:
+imputation identity and variable roles, appropriate conditional models,
+diagnostics, completed-data estimates and uncertainty combination. Exact
+licensed builds and broader vendor coverage remain unresolved.
+\citep{exec21_transport_stata_mi,exec21_transport_stata_substantive,exec21_transport_sas_mi_intro,exec21_transport_spss_missing}
+
+The comparison exposes important requirements for integration. Stata's
+sample-change and estimation-failure guards must survive an automatic wrapper.
+IBM distinguishes parameter-only pooling from pooling with uncertainty and
+does not equate accepting analysis weights with handling complex sampling.
+SAS distinguishes generation from combination and documents assumption-sensitive
+inference. A stable imputation trace does not establish compatible conditional
+models, and a missingness sensitivity analysis does not discover the missing
+outcomes. The proposed interfaces need to preserve these distinctions.
+\citep{exec21_transport_stata_estimate,exec21_transport_stata_chained,exec21_transport_sas_mianalyze_intro,exec21_transport_sas_assumptions,exec21_transport_sas_combining,exec21_transport_sas_sensitivity}
+
+Exact authored examples show the monetary consequence. With stratum effects
+USD 10 and USD -10, moving from an 80/20 pilot mix to a 20/80 target mix changes
+the effect from 6 to -6. At assumed action cost USD 2, margins change from
+USD 4 to USD -8. A separate example has identical observed records under two
+missing-outcome laws but complete-population effects 0 and 10, giving margins
+USD -4 and USD 6 at assumed cost USD 4. Neither more imputation draws nor a
+weight column resolves absent identifying information. These are reproducible
+counterexamples, not measured bank returns. \citep{exec21_transport_reference}
+
+The first investment should therefore support matched public or generated
+tests before expensive bank trials. Compare declared populations and missingness
+laws, covariance and failure handling, sensitivity, coverage, interval width
+and complete workflow cost. A licensed isolated worker is a proposed reuse
+route; native adapters, engine redistribution rights and prices have not been
+qualified. The contribution under consideration is a consistent causal and
+uncertainty contract across library, CLI and MCP use.
+
+
+## Match software outputs to the servicing decision
+
+The Julia comparison distinguishes CausalELM 0.8.0, CausalForest 0.1.5,
+TMLE 0.20.5 and CausalTables 1.3.4 at selected revisions preceding the literature
+cutoff. Their inspected source supports different roles: fitted effect
+contrasts, tree predictions, targeted mean estimation and supplied-model
+reference generation. These roles need distinct adoption decisions.
+\cite{exec21_effects_causalelm,exec21_effects_causalforest,exec21_effects_tmle,exec21_effects_causaltables}
+
+An exact public example gives a population effect of USD 4 but a residual
+regression coefficient of 4/17 dollars. At cost USD 2, the population margin
+is USD 2 while the coefficient-based calculation is negative. Another example
+with missingness depending only on observed risk changes the complete-case
+average to -12/5 dollars. Neither a method name nor a more accurate treatment
+propensity model settles the required population. The selected CausalELM
+standard-error expression also has squared outcome units; converting dollars
+to cents scales it by 10,000 instead of 100. These are exact authored and
+source-level findings, not native runtime results. \cite{exec21_effects_reference}
+
+The proposal should prioritize a bounded TMLE worker design and CausalTables
+public reference generation while preserving influence scales, missingness
+targets, unit identities and the provenance of supplied graphs. CausalELM's
+selected uncertainty path needs repair and fresh qualification; the inspected
+CausalForest prediction paths do not supply a calibrated variance object.
+Additional Rust candidates were found in bounded official metadata searches,
+but their technical originals and historical versions remain unread.
+\cite{exec21_effects_discovery}
+
+
+## Preserve the target when adopting panel software
+
+The selected gsynth 1.4.0 is a compatibility wrapper around fect; the reviewed
+engine candidate is fect 2.4.5. The complete wrapper declares a documented
+weight argument but never forwards it. A stored request can therefore say
+weights were requested without establishing that the engine used them. The
+wrapper also remaps estimator and inference choices and supplies defaults
+that differ from direct fect use. This is a pinned source finding; no native
+execution or general package failure claim is made.
+\cite{exec21_gsynth_wrapper,exec21_gsynth_engine}
+
+Exact public examples show the stakes. Effects of USD -6 and USD 10 average
+USD 2, but weights 9:1 give USD -4.4. At assumed cost USD 1, the corresponding
+margins are USD 1 and USD -5.4. A separate example gives a treated-period
+average of USD 6 and an equal-unit average of USD 2, with margins USD 2 and
+USD -2 at cost USD 4. A deterministic factor example preserves the complete
+observed panel while allowing effects USD 6 or USD 2 because a factor
+direction is absent before treatment. Adding pre-period rows need not add
+that information. These examples are outside full-rank identification and
+are not native estimator failures or observed bank returns.
+\cite{exec21_gsynth_reference}
+
+The proposal keeps the wrapper as a reference and identifies a direct fect
+worker as a future candidate. Admission requires explicit target and weight
+roles, method and dependency pins, retained-sample and donor records, rank
+and convergence diagnostics, and an uncertainty contract that counts failed
+fits and bootstrap draws. Source inspection also finds restrictions on
+treatment reversals, distinct fitting/aggregation weight columns and
+clustered jackknife. Complete license-template and dependency review,
+native parity and declared-law calibration remain prototype obligations.
+Public panels and known-law examples can establish the value of that work
+before expensive bank experiments.
+
+
+## Test causal calculation support against an audited reference
+
+Shrestha, Malberg and Groh's causal program of thoughts generates DoWhy/Python
+code, executes it and returns the result to the model. On its formal synthetic
+benchmark, GPT-4o's reported overall accuracy rises from 82.0% to 90.8%, an
+8.8 percentage-point difference; a causal tree of thoughts reaches 86.4%.
+The commonsensical subset has different scores: 84.3%, 92.5% and 87.5%,
+respectively. These results motivate a public prototype of calculation support.
+They do not establish faithful business translation, graph identification or
+effects from authentic banking observations. The study excludes
+backdoor-adjustment questions and generates artificial data from facts supplied
+in the question.\citep{exec21_prophets,exec21_prophets_reference}
+
+The reference answers need scrutiny too. Sample query counts sum to 999 while
+rung counts sum to 1,000; an error-category table totals 60 although the prose
+describes 50 cases. Literal evaluation of two different expressions in an
+appendix mediation example gives -0.112 and 0.0245, with the latter printed as
+0.0173. Outcome coding and the intended target also need reconciliation. These
+are documented inconsistencies, not a declaration of corrected benchmark
+truth. Raw question-level records and code are needed before replication or
+reuse.\citep{exec21_prophets,exec21_prophets_reference}
+
+For a payment-holiday decision, the assistant must preserve the offer,
+population, information available before action, loss horizon and accounting
+target. A correct calculation for customers who accept an offer can answer a
+different question from the effect of making it. A public prototype should
+compare verbal answers, exact formula checks, constrained library calls and
+generated programs on the same known-law cases. Score translation,
+identification, numerical accuracy, justified refusal and full workflow cost
+separately. Freeze disputed references before evaluation, retain failures and
+test renamed or contradictory cases without leaking paraphrases across splits.
+CLI and MCP requests should carry the target, source evidence and unresolved
+assumptions; successful execution alone cannot authorize a causal conclusion.
+This supplies a testable route before costly bank studies, without assuming a
+qualified implementation or measured return.
+
+
+## Saved results support a prototype, with specific reuse repairs
+
+The paper-linked repository now supplies authenticated prompts, code and three
+RQ3 result tables. All twenty-four reported subset accuracy averages reproduce
+against the saved labels on the same 1,000 question identifiers. The sample
+has 138 treatment-on-the-treated questions, resolving the printed count of
+137. In the commonsensical subset, the program corrects 141 baseline errors
+but loses 59 previously correct answers. These paired records support a more
+informative public comparison; they are not a fresh model trial or independent
+validation of the reference labels.\citep{exec21_prophets_repo,exec21_prophets_repo_reference}
+
+The appendix mediation example maps to question 2883. Its unrounded
+probabilities yield about -0.112176, agreeing with its saved numerical target.
+The death/survival wording and formal notation remain unresolved. Empty
+self-consistency histories and missing error-category annotations prevent
+reconciliation of the other appendix counts. These findings qualify the
+earlier paper-only account of missing records.\citep{exec21_prophets_repo_reference}
+
+Unchanged execution is unsuitable: the selected self-consistency caller and
+helper have incompatible arguments, client plumbing is incomplete, and the
+README's pip instruction points to a platform-specific Conda export. The
+illustrative program prompt also omits a common cause from its graph. Under
+its intended independent-draw generator, the treatment effect is zero while
+the observational difference is 6/793. A successful numerical call could
+therefore answer the wrong causal question.\citep{exec21_prophets_repo,exec21_prophets_repo_reference}
+
+Retain the material as a research reference, repair the runner and environment
+in a separate prototype, and require agreement between the mechanism, graph
+and estimand. Audit inherited-data and dependency rights beyond the root MIT
+license. Compare a constrained library and an exact formula checker with
+generated code before paying for bank experiments. The saved-score audit
+justifies a concrete next test; it does not establish a qualified product or
+measured economic benefit.
+
+
+## Hidden-state tools need a causal and information contract
+
+The commercial Bayesian/state comparison now distinguishes five supported vendor
+families from five families still needing matched originals. Stata documents
+linear-state estimation, separate filtered and smoothed predictions, explicit
+Bayesian priors and simulation diagnostics. GeNIe/SMILE supplies fixed-structure
+DBN learning and temporal representations; Netica supplies parameter-learning
+alternatives; BayesiaLab distinguishes observation from intervention; Mplus
+supplies a Bayesian dynamic-SEM route. These are documented strengths. Exact
+builds, deployment rights, prices and native comparisons remain unresolved.
+The failed SAS, EViews and HUGIN acquisitions are not absence findings.
+\citep{exec22_state_stata_sspace,exec22_state_stata_sspace_post,
+exec22_state_stata_bayesmh,exec13_ct_genie_dbn,exec13_ct_genie_learning,
+exec13_ct_smile_tutorial,exec13_latent_netica_algorithms,
+exec13_ct_bayesia_inference,exec13_ct_bayesia_identification,exec13_ct_mplus81}
+
+The banking examples explain why an adapter needs more than an inference call.
+Two specified mechanisms give identical observed action/default data but imply
+default reductions of zero and 0.6. At an assumed USD 1,000 loss and USD 100
+action cost, their margins are USD -100 and USD 500. Posterior model odds remain
+prior odds in this example; priors of 0.1 and 0.9 on the causal mechanism give
+margins of USD -40 and USD 440. This is a transparent sensitivity calculation,
+not evidence that either mechanism describes bank customers.
+\citep{exec22_state_reference}
+
+A separate exact example produces a filtered distress probability of 0.75 and a
+later smoothed probability of 0.5. With the stipulated causal benefit and cost,
+the respective margins are USD 15 and USD -10. The future observation was not
+available when the action was chosen. Stata's documented prediction RMSE also
+excludes parameter-estimation error, and its Bayesian simulation exports compress
+repeated states into frequency-weighted rows. Dropping those frequencies changes
+the example posterior mean from 0.18 to 0.5. A usable common service must preserve
+both the information clock and the meaning of uncertainty.
+\citep{exec22_state_stata_sspace_post,exec22_state_stata_bayesmh,
+exec22_state_reference}
+
+The proposed route is a versioned licensed worker with explicit model and
+intervention assumptions, observation availability, parameter and state mappings,
+chain metadata, diagnostics and refusal conditions. Exact public laws can test
+these semantics before costly bank trials. They can also expose unobservable
+state contrasts and near-threshold decisions sensitive to numerical error.
+The present evidence establishes a proposal and reproducible reference cases;
+it establishes neither a working vendor adapter nor measured commercial value.
+\citep{exec22_state_reference}
+
+## Instruments and credit thresholds require different decision targets
+
+The R comparison now distinguishes six pinned packages: AER and ivreg for
+separate regression interfaces; ivmodel for model-specific weak-instrument and
+sensitivity procedures; rdrobust for continuity-based threshold inference;
+rddensity for density diagnostics; and rdlocrand for local randomization.
+The selected rdrobust version is 4.0.0: the 4.1.1 CRAN publication timestamp falls
+after the exact client cutoff despite its 7 October package date.
+\citep{exec22_riv_aer,exec22_riv_ivreg,exec22_riv_ivmodel,exec22_riv_rdrobust,exec22_riv_rddensity,exec22_riv_rdlocrand}
+
+An exact hypothetical credit example gives a USD 150 loss reduction among
+compliers and USD 70 across the full population. With a USD 100 treatment cost,
+these imply margins of USD 50 and USD -30 respectively. A separate encouragement
+policy has margin USD 10 after incremental take-up and encouragement costs.
+The complier effect cannot be substituted for the effect of treating everyone.
+Another exact example shows that two continuous loss models agree at all observed
+integer scores while implying threshold effects of USD -20 and zero. A declared
+slope bound yields a net-margin set of USD -10 to USD 30 rather than a uniformly
+profitable action. These are authored laws, not measured bank returns.
+\citep{exec22_riv_reference}
+
+The proposed interfaces must preserve disconnected and unbounded confidence
+sets, distinguish an empty finite search grid from a globally empty set, and
+separate density diagnostics from evidence for the causal design. Inspection of
+ivmodel's pinned CLR source found numerical-error branches that substitute zero;
+native integration needs an explicit way to detect or repair those paths before
+treating their outputs as valid inference. The five reuse dispositions are
+reference-only; no R adapter or package benchmark has been executed.
+\citep{exec22_riv_ivmodel,exec22_riv_reference}
+
+Original R workers are preferred candidates for a bounded prototype because
+porting adds numerical and maintenance obligations. The actual distribution
+still needs dependency and rights review: inspected package-level license texts,
+including ivmodel's MIT alternative, do not clear every dependency or packaging
+choice. Public/generated conformance cases and prospectively specified calibration
+studies can address these questions before a costly bank experiment.
+\citep{exec22_riv_gpl2,exec22_riv_gpl3,exec22_riv_ivmodel}
+
+
+# What domain-knowledge assistance can justify
+
+Two clinical studies support testing an assistant that proposes variables and
+retrieves evidence for causal graphs. They do not establish reliable autonomous
+graph construction. In a fifteen-output statin scenario, graphs were usually
+acyclic but sources were sometimes missing or nonexistent. A separate chronic-pain
+preprint reports F1 of 0.745 for combined graph retrieval and observational
+discovery, versus 0.714 for ordinary retrieval and 0.737 for graph retrieval alone.
+The expert reference contains cycles and was built from the same literature
+supplied to retrieval. These are useful, qualified reconstruction results;
+they are not independent intervention validation.\cite{exec22_domain_aziz,exec22_domain_lin}
+
+An exact proposal example gives two Gaussian models with identical observed
+records but different servicing effects. At stipulated USD100 per loss unit and
+USD20 incremental cost, their modeled margins are USD30 and USD-20. More confident
+graph prose cannot resolve the difference. A public prototype should test
+source accuracy, direct versus indirect relations, conflicting evidence,
+abstention and valid identification before measuring decision value. Compare
+ordinary and graph retrieval at matched evidence budgets and include graph
+construction and human review costs.\cite{exec22_domain_reference}
+
+The proposed adoption decision is to use typed evidence and relation interfaces,
+retain uncertain alternatives and require a matched public benefit test before
+porting a retrieval stack or funding private bank experiments. No live model,
+native package or bank workflow was executed in this review.
+
+# What commercial observation infrastructure can support
+
+Customer matching, feature retrieval and storage history solve different parts of
+the evidence problem. AWS Entity Resolution distinguishes matching rules, group
+confidence and, for incremental ML, record confidence. IBM QualityStage documents
+tunable linkage and specification review. Databricks provides historical feature
+joins, but documents different lookback behavior for training/batch and online
+inference. Snowflake provides retained storage states with edition, schema and
+transaction-boundary limits. These are conditional integration candidates; the
+proposal does not yet have qualified native adapters. Exact cutoff-era versions,
+commercial terms and four other candidate families remain unresolved.
+\cite{exec22_obs_aws_er_manual,exec22_obs_ibm_matching,exec22_obs_databricks_pit,exec22_obs_databricks_feature,exec22_obs_snowflake_time,exec22_obs_snowflake_at}
+
+The commercial opportunity is to preserve the meaning needed for a causal
+decision across these systems. A historical event timestamp does not establish
+when information became usable. A match identifier does not independently verify
+customer ownership. In an exact hypothetical example, two possible complete
+linkage maps give contrasts +4 and -4. Giving the first map probability 0.8 yields
+an averaged contrast 2.4. With USD 10 per outcome unit and USD 30 offer cost,
+accepting the first map gives USD 10 margin, while the mixture gives USD -6.
+The mixture probability and costs are stipulated, not vendor calibration or
+measured banking returns. Another example changes the population effect from 4
+to 5.2 merely by selecting which records remain linked.
+\cite{exec22_obs_reference}
+
+The next justified test uses generated customer histories with hidden identity
+truth, late arrivals, false merges, excluded records and known treatment effects.
+It should compare matched baselines and report linkage errors, future-information
+violations, effect distortion and decision loss. Library, CLI and MCP must expose
+the same provenance and refusals. This public route can establish prototype merit
+before paying for commercial qualification or an experiment with private bank data.
+
+# What sensitivity and IV engines must preserve
+
+A branch-offer estimate can look attractive because a noisy pretrend has been
+treated as known. A causal proposal must instead connect the substantive trend
+restriction, the joint sampling uncertainty and the offer's monetary target.
+HonestDiD supplies a valuable R reference for sensitivity to departures from
+parallel trends, supported by Rambachan and Roth's identification and inference
+arguments. The proposed reuse choice is to retain that reference and consider
+an isolated R worker after qualification. It does not yet admit a native engine.
+The selected repository revision declares version 0.2.8; equality to a particular
+distributed release, solver behavior and transitive dependency rights remain
+unqualified. A new port would add statistical and numerical parity obligations
+without a demonstrated benefit \citep{rambachan2023,exec22_honestdid_engine}.
+
+The economic distinction is concrete. In a three-period example, normalize the
+untreated group difference in the reference period to zero and call its earlier
+value \(x\). Let the postperiod contrast be \(y=\tau+\delta_1\), where
+\(\tau\) is the target offer effect. Bounding the next untreated first difference
+by a multiplier \(m\) gives effects in \([y-m|x|,y+m|x|]\). Bounding the change
+in that first difference by an absolute amount \(M\) instead gives
+\([y+x-M,y+x+M]\). At \(x=-2,y=4\), setting the respective tuning values to
+zero gives effects 4 and 2: a flat differential trend and continuation of a
+linear differential trend are different assumptions. The multiplier is
+dimensionless, while the smoothness bound has outcome units on a specified
+calendar \citep{rambachan2023,exec22_honestdid_reference}.
+
+An authored known-Gaussian experiment then illustrates the value of retaining
+covariance. With estimated pretrend 0, postperiod contrast 4, multiplier 1,
+variances 1 and 4 and covariance 1.5, projecting a joint 95% confidence ellipse
+through the relative-magnitude restriction gives approximately
+\([-2.9233,10.9233]\). A stipulated offer cost of USD 1 per exposure changes
+this to net bounds of approximately \([-3.9233,9.9233]\). The corresponding
+stipulated population example has effect 4 and net value 3, but a confidently
+positive investment conclusion does not follow from this interval. These are
+reproducible mathematical examples under a declared law, not measured bank
+returns or an execution of HonestDiD's optimized procedures
+\citep{exec22_honestdid_reference}.
+
+An adapter must retain more than endpoints. The inspected R paths differ in
+default methods, tuning grids and forwarding of options. Selected paths reduce
+accepted grid nodes to their minimum and maximum; that hull can conceal gaps or
+unresolved search extent. Some inspected population-bound failure branches can
+return the unadjusted target as both endpoints. These source paths are not
+observed runtime failures, but they make solver status, grid membership, warnings
+and the executed restriction necessary parts of the interface. Conversion from
+event-study engines must preserve coefficient ordering, reference removal,
+target aggregation and full covariance \citep{exec22_honestdid_engine,exec22_honestdid_bridges}.
+
+Instrumental-variable engines require a parallel discipline. Separate full ranks
+of the action design and the instrument matrix do not establish a full-rank
+projected design or a valid exclusion restriction. An exact four-row witness
+has projected Gram \(4\varepsilon^2\) and IV ratio
+\(2+1/(100\varepsilon)\): a stipulated small direct instrument effect changes
+the fitted ratio from 3 to 12 as relevance shrinks. This motivates generated
+comparisons that vary instrument strength and exclusion separately. The inspected
+Python paths also differ in weighting, column removal and covariance defaults;
+heteroskedastic-robust covariance does not automatically address calendar
+dependence \citep{exec22_pyiv_kernels_linearmodels,exec22_pyiv_kernels_pyfixest,exec22_pyiv_reference}.
+
+Diagnostic names must preserve their actual null and reference distribution.
+A selected first-stage helper can display a Wald quadratic divided by its
+restriction count while returning a chi-square p-value. For quadratic 8 and
+two restrictions the displayed value is 4; chi-square-two and an F distribution
+with 2 and 20 degrees of freedom give p-values about 0.0183 and 0.0346. Likewise,
+an inspected Anderson--Rubin overidentification property is not a coefficient-null
+confidence-set inversion. The library, CLI and MCP should therefore retain the
+restriction, distribution, degrees of freedom, covariance and numerical status
+instead of unifying similarly named fields into a generic interval
+\citep{exec22_pyiv_kernels_pyfixest,exec22_pyiv_diagnostics_linearmodels,exec22_pyiv_reference}.
+
+The next investment is a bounded public prototype: frozen model conversions,
+known-law panels, prespecified restrictions, malformed-input and solver-status
+cases, and matched decision comparisons that retain failures in the denominator.
+Its full cost includes fitting, covariance construction, repeated inversions,
+environment support and investigation of refused results. Python regression
+discontinuity and CausalPy IV still require their own primary review. These
+specific remaining tasks can establish whether native integration merits a
+later costly bank experiment.
+
+# Preserve evidence and the customer population
+
+A causal assistant needs to check what the source supports and whose effect is
+being estimated. A correct quotation can describe an association, a different
+customer population or an intervention whose identifying assumptions do not
+hold for the proposed decision. Wang and colleagues' factuality survey helps
+organize retrieval, attribution, human review and model judging. Its surveyed
+finance language tasks do not establish causal validity, and its accounts of
+other studies do not replace independent inspection of those originals.
+\citep{exec22_factuality_wang}
+
+The proposal should retain evidence spans and their population/time scope,
+separate supported premises from unverified causal assumptions, and expose
+conflicting or insufficient evidence. Structured retrieval can help map entities
+and policies, but a knowledge-graph relationship is not automatically a causal
+edge. Several agents agreeing on the same retrieved premise do not create
+independent evidence. Compare these workflows against simpler retrieval and
+human-assisted baselines with matched documents, review time and budgets.
+Evaluate citation support, causal identification/refusal, target preservation
+and decision loss separately. These are proposed public prototype studies,
+with actual reliability and cost still to be measured.
+\citep{exec22_factuality_wang}
+
+Vilfort's weighted-estimands paper addresses another failure route: different
+reasonable customer mixtures can imply different effects even when group
+effects are valid. In an authored illustration, stipulated group effects of
+USD 6 and USD -2 per customer give contribution USD 4 under weights 3/4 and
+1/4, but contribution USD 0 under weights 1/4 and 3/4. A stipulated USD 1 cost
+changes the respective net values to USD 3 and USD -1. Allowing a fraction
+epsilon of baseline weight to move to any group gives a worst-case net value
+of 3-6 epsilon; strictly positive value requires epsilon below 1/2. This
+illustrates target sensitivity, with no observed bank effects or unknown
+population weights inferred from the example.
+\citep{exec22_weighted_vilfort,exec22_weighted_reference}
+
+Sampling uncertainty adds a separate requirement. The paper's exact model uses
+normally distributed group-effect estimates, known positive-definite joint
+covariance and fixed known weight classes. Its guarantees distinguish coverage
+for each fixed alternative target from simultaneous coverage of the entire
+target set. At alpha=beta=0.05, the lower guarantees are 90% for each fixed
+target and 85% for the simultaneous two-sided event. A possible allocation for
+a 95% simultaneous guarantee is alpha=0.0125 and beta=0.025, under the exact
+assumptions. A result-selected customer mix needs the appropriate protection;
+the words "95% confidence" alone cannot specify it.
+\citep{exec22_weighted_vilfort,exec22_weighted_reference}
+
+The feasible extensions require covariance/weight consistency and conditions
+on estimated classes. Boundary targets need a containment argument; the
+paper's positive-slack theorem cannot be justified merely by unchanged rounded
+results at zero slack. The proposed library, CLI and MCP output should carry
+the target, full covariance, class, confidence event, error budgets and numerical
+status. No native robust-interval solver or adapter has been qualified here.
+Public known-law effects and independent evidence corpora can test these
+requirements before expensive bank experiments. Weight robustness still
+presupposes valid group effects and does not repair confounding.
+\citep{exec22_weighted_vilfort}
+
+# Recover the scientific request with the job
+
+A repaired nightly causal batch must preserve its customer population, input
+vintage, estimator, uncertainty settings and failed-request ledger. Six current
+official manuals across five families give concrete alternatives to building
+another scheduler: Databricks partial repair and monitoring, Snowflake task
+graphs, Azure ML pipeline reuse, AWS error handling and Dataiku automation.
+The retrieved editions do not authenticate 7 October capabilities. Databricks
+displays later October updates; Azure's displayed March date coexists with
+October repository metadata; the other mutable manuals lack a pinned cutoff
+revision. These are explicitly later observations, with historical coverage
+remaining open.\citep{exec22_workflow_databricks_repair,exec22_workflow_databricks_monitor,exec22_workflow_snowflake_graphs,exec22_workflow_azure_reuse,exec22_workflow_aws_errors,exec22_workflow_dataiku_scenarios}
+
+The substantive choices differ. Databricks documents repair with current
+settings and warns that retries do not make partial writes idempotent.
+Snowflake versions task properties separately from called procedure
+definitions. Azure reuse depends on declared determinism and matching
+execution artifacts. AWS describes retry counts that can reset on redrive,
+ordered error handlers and transition billing. Dataiku's index supports an
+automation scope, while its detailed semantics still need inspection.
+The proposed library should reuse suitable orchestration and bind the
+scientific request through a common library/CLI/MCP manifest. These manuals
+do not prove that such an adapter already works.
+\citep{exec22_workflow_databricks_repair,exec22_workflow_snowflake_graphs,exec22_workflow_azure_reuse,exec22_workflow_aws_errors,exec22_workflow_dataiku_scenarios}
+
+An exact authored example uses three units with stipulated effect 6 and one
+with effect -2, giving mean 4 and net 3 at cost 1. If two positive units are
+appended before a crash and all four appended on retry, the six-row mean is
+14/3. Identifier-keyed recovery under the same semantic manifest restores
+four unique units and mean 4; all six write attempts remain in the history.
+Changing population weights can instead change the true target to 0 and net
+to -1. These constructed values show why result identity, target identity and
+attempt accounting must be tested separately. They are not vendor failures or
+measured bank returns.\citep{exec22_workflow_reference}
+
+The next matched public/known-law protocol prespecifies partial writes, lost
+responses, changed data/procedures, stale reuse, skipped requests, payload
+limits and exhausted retry budgets. It requires output/status equivalence or
+explicit refusal, unique commits and a complete attempt/cost ledger. Native
+commercial qualification, actual prices, wider market coverage and bank
+acceptance remain later evidence. The paired reader develops the exact
+example and source-specific limitations.\citep{sp23nt_reader,sp23nt_progress}
+
+# Preserve the intervention before investing in an answer
+
+A recent survey of contextual causality draws a useful boundary for the proposed
+assistant. Extracting a causal sentence, changing a story and answering a
+counterfactual question about that story differ from identifying the effect of
+changing a bank action. The selected September 2026 survey explicitly makes this
+distinction. Its benchmark review and call for extrinsic decision evaluation
+help design a prototype; they do not independently qualify every cited method
+or establish monetary benefit from financial-text accuracy.
+\citep{exec23_contextual_causality_survey}
+
+An exact authored example shows why the distinction affects investment. Let an
+unobserved account state be zero or one with equal probability, and let natural
+contact equal that state. In one compatible law, gross response is USD 100
+times contact; in another, it is USD 100 times the latent state. Both produce
+the same observed contact/response pairs. At USD 10 per contact, all-contact
+versus no-contact incremental net is USD 90 in the first law and USD -10 in
+the second. Rephrasing the observations cannot resolve this ambiguity.
+A justified design or restriction must supply the missing causal information;
+merely measuring the latent state would still leave no within-state contact
+variation under this natural rule. These are stipulated laws and values,
+not bank observations or model performance.
+\citep{exec23_context_reference}
+
+The adjacent multimodal literature supplies another qualification. A selected
+2024 original studies conflicting textual and visual answers and proposes
+dynamic contrastive decoding. Its reported LLaVA-34b gains in two Table 4
+accuracy cells are 2.36 and 2.12 percentage points. An equal-score cell, a
+cross-table baseline conflict and four inconsistent Table 5 subtractions limit
+broader conclusions. Those contradictions remain explicit. Answer agreement
+can be jointly wrong; disagreement does not identify hidden knowledge conflict
+or causal validity. The repository, code, data and license remain unqualified.
+Public or generated chart/table/narrative trials can compare correctness,
+conflict handling, refusal and total cost before a costly live bank study.
+\citep{exec23_cross_modality_conflict,exec23_context_reference}
+
+Software reuse must preserve the same discipline. The pinned linearmodels IV
+source supports a reasoned reference choice with sample, weight, covariance
+and diagnostic contracts. Its NCSA terms and build requirements are inspected,
+but native admission and transitive rights are not established. Tetrad's
+inspected two-stage class instead targets supplied pure latent measurement
+models, including marker normalization. Source-level axis, inverse and local
+covariance concerns require caller/backend reproduction before any executed
+failure is claimed. It does not establish generic Java IV/RD coverage.
+\citep{exec22_linearmodels_reuse,exec22_java_latent_iv_preflight}
+
+The lmtp reference makes policy conversion economically explicit. With two
+servicing contacts and a declared known law, natural, risk-style shift and
+odds-tilt net values are USD 7.36, USD 18.24 and USD 107/9. The same parameter
+value of two represents different probability maps and different targets.
+The inspected AGPL license, cluster-field naming, effective prediction bounds
+and delegated variance semantics remain separate integration questions.
+No package execution or bank return is asserted. These findings justify
+specific known-law policy/fold/contrast tests rather than general adoption.
+\citep{exec22_lmtp_reuse,exec23_policy_reference}
+
+The paired monograph develops these arguments within its existing software,
+business-translation and evaluation chapters. Its source review now records
+70 inspected and 43 unread originals out of 113, with four crosscutting
+searches still open. The current reference decisions grant no native adapter
+capability. Source completion, public/generated prototype evidence and later
+bank acceptance remain distinct steps in the investment case.
+\citep{sp23nt_reader,sp23nt_progress}
+
+# Preserve the requested population through workflow failures
+
+Detailed Dataiku scenario manuals document configurable warning downgrades,
+conditional execution, trigger suppression and squashing of delayed runs.
+These are useful orchestration choices whose scientific consequences depend
+on the declared workload. A fixed cohort-request ledger should preserve failed,
+skipped and tolerated-without-effect requests, weights and information clocks.
+No native Dataiku adapter has been executed here.
+\citep{exec23_dss_latest_flow,exec23_dss_latest_triggers,exec23_dss_latest_steps,exec23_dss_dss14_flow}
+
+An exact authored example stipulates two equal-weight cohorts with contact
+effects of USD 10 and USD -30, at USD 1 per contact. The all-contact policy's
+net value is USD -11 per member. If the negative cohort's effect is missing,
+the available cohort alone gives USD 9; renaming it the original population
+answer creates a USD 20 error and reverses the sign. Both requests remain in
+the proposed ledger. With an independently justified missing-cohort effect
+range [-50,50], the original net range is [-21,29], with no guaranteed positive
+return. These are stipulated mathematical values, not estimated bank returns
+or recorded vendor failures. A chosen row-count/maximum-date trigger proxy can
+also stay unchanged while relevant data change.
+\citep{exec23_dss_denominator_reference}
+
+The release index places DSS 15.0.2 before the 7 October 2026 cutoff and 15.1
+and 15.2 after it. The current DSS 15 pages cannot authenticate exact 15.0.2
+technical bytes. The DSS 14 branch and its release index likewise establish
+only their observed identities. Rights, price, native qualification and wider
+commercial coverage remain open. The proposed next experiment uses a small
+fixed manifest and public/generated inputs to test request preservation before
+considering an expensive bank study.
+\citep{exec23_dss_latest_releases,exec23_dss_dss14_releases}
+
+# Preserve longitudinal regimes and the requested decision population
+
+The selected `ltmle` source is a useful R reference for binary longitudinal
+treatment and censoring histories, treatment-specific means, and a working
+marginal structural model. Its interface supports a single regime or a pair;
+the working model can be saturated or a projection, so a sponsor-facing
+comparison must state the regime, history, outcome, and target population
+before interpreting a number. The source review also records defaults that
+matter for reuse: a default GLM, a cumulative probability floor of 0.01, and
+variance branches that can fall back to influence-curve variance when the
+additional method is unavailable. With a supplied identifier, those influence
+contributions are aggregated by household. These facts motivate a candidate
+native comparator and exact contract tests; they do not establish native
+adoption or bank qualification. \citep{exec23_ltmle_source}
+
+An exact public/generated construction makes the population issue visible. Let
+baseline risk \(H\) have probability \(1/3\), let the first action \(A_0\)
+affect later hardship \(L_1\), and let a binary default outcome satisfy
+\[
+ P(Y=1\mid H,A_0,L_1,A_1)=1/10+H/10+L_1/5-A_0/25-A_1/20.
+\]
+The law stays between 0.01 and 0.40 over all histories. Hardship probabilities
+for \((H,A_0)=(0,0),(0,1),(1,0),(1,1)\) are \(1/4,1/8,3/4,1/2\).
+The status-quo \((0,0)\), targeted \((H,L_1)\), and broad-contact \((1,1)\)
+regimes then give risks \(13/60\), \(17/100\), and \(7/75\).
+With USD 1,000 per default and USD 6 and USD 4 per contact at the two times,
+their net values relative to status quo are USD 0, USD \(130/3\), and USD
+\(340/3\). Suppose outcome observation is conditionally independent of default
+given history, with probabilities \(9/10\) for \(L_1=0\) and \(3/4\) for
+\(L_1=1\). Complete-case risks under status quo and targeted servicing then
+become \(69/335\) and \(139/850\), with biases \(-43/4020\) and \(-11/1700\); known-probability
+inverse-probability weighting recovers the stipulated population risks. These
+are exact witnesses for target, censoring, and missingness contracts, not
+fitted package results or measured bank returns. \citep{exec23_ltmle_exact}
+
+The same source review finds household influence contributions summed within a
+household and multiplied by the household-to-record count ratio; this does not silently
+turn a record-weighted target into an equally weighted household target. Paired
+contrasts preserve their covariance, while extreme probabilities, rank failures,
+nonconvergence, and unsupported variance requests require explicit warnings or
+refusal. A future public prototype should replay the exact law, adverse
+observation regimes, and covariance fixture, then compare a pinned native
+environment with the proposal's typed target and refusal ledger. Native engine
+rights, dependency closure, numerical calibration, and a live bank workflow
+remain open. \citep{exec23_ltmle_source,exec23_ltmle_exact}
+
+The paired reader has 1,251 pages and 948 audited records, including 223
+genuine scholarly PDFs. This increment closes one selected reuse review and
+adds exact public/generated evidence; it does not close the wider software
+coverage census, visual acceptance, independent review, bank validation, or
+final investment decision. \citep{sp23nt_reader,sp23nt_progress}
+
+# Keep discovery outputs faithful to the banking question
+
+The original NOTEARS source is retained as a separately pinned reference for a prospective public prototype. Thirteen inspected original files explain the declared version, dependency and CLI boundaries and why a source review is insufficient for native admission. A selected original Python worker is preferable to a new port until a measured platform or cost benefit justifies the additional maintenance. The package environment and transitive rights still need resolution.\citep{exec23_notears_source}
+
+Threshold conventions can change a downstream decision even on the same supplied matrix. The original removes weights strictly below the threshold, while the inspected gCastle binary output keeps weights strictly above it. For an assumed coefficient 3/10, an intervention of 100 units and cost USD 20, retaining the coefficient gives USD 10; rebuilding a coefficient model after removing the boundary edge gives USD -20. These are stipulated conversion examples, not observed bank returns or fitted package outputs.\citep{exec23_notears_source,exec20_gcastle_source,exec23_notears_reference}
+
+Small acyclicity residuals also require a separate graph check. An exact two-variable example retains a cycle at a chosen threshold while its exponential residual is below the numerical tolerance. Exponential and polynomial residuals are distinct quantities. In the nonlinear case, the returned nonnegative first-layer norm does not determine a signed effect: two stipulated functions with the same norm have net local derivatives USD 180 and USD -220 under explicit assumed values and costs. The adapter must retain model functions, units and identification restrictions for intervention questions.\citep{exec23_notears_reference}
+
+The next public prototype should freeze the environment and random generators, expose solver diagnostics, count incomplete and refused fits, and compare matched mechanisms and complete workflow cost. The review supplies a concrete reason to conduct that experiment before expensive bank validation. It does not establish graph calibration, causal identification, native adoption or bank benefit.\citep{exec23_notears_source,exec23_notears_reference}
+
+## Commercial execution services need a scientific result contract
+
+SAS, Domino and Posit provide useful client and scheduler boundaries for a causal-analysis product. We authenticated 23 selected source blobs against pre-cutoff commit trees and inspected explicit technical spans in 14 files. These are open client or SDK sources; they do not establish the full licensed products, server behavior or market completeness. A narrow wrapper is a plausible prototype route because it can preserve established dispatch and resource controls while the causal library retains request identity, assumptions and result validation. No integration is qualified by this review. \citep{exec23_workflow_sasctl,exec23_workflow_dominopy,exec23_workflow_connectapi,exec23_workflow_positgo}
+
+The distinctions affect recovery. Domino's restart interface can select original code; its newer local polling predicate uses a completion flag after checking Failed, whereas its legacy helper also requires Succeeded and an output commit. The actual supported server state space still needs inspection. Posit's R client distinguishes tasks, jobs and experimental scheduling, exposes bundle and exit metadata with older-server omissions, and checks the final task code after completion. Its Go SDK documents scheduler state reconciliation and tests with profile-specific statuses; documentation of those tests is not a passing trial. SAS's partial Workflow client explicitly marks itself experimental, converts naive prompt datetimes using host timezone with a fallback, and has a score-polling path that can finish without an explicit timeout result. These source-level findings justify typed adapter states, explicit clocks, observation deadlines and reconciliation before retries. \citep{exec23_workflow_dominopy,exec23_workflow_connectapi,exec23_workflow_positgo,exec23_workflow_sasctl}
+
+Two stipulated monetary witnesses explain why this matters. Applying coefficients 3/100 and 4/100 to USD 1,000 with a USD 20 cost yields USD 10 and USD 20: a changed code or assumption revision cannot be silently called the same replay. A separate example grants one USD 12 useful gain and charges USD 7 per attempted action; one attempt nets USD 5 and two net USD -2. These are exact authored examples, not measured vendor failures, estimated effects or bank returns. They motivate immutable request and attempt identities, output bindings and idempotent side effects. Public or synthetic prototype trials should compare the entire workflow, including failed attempts and recovery costs. \citep{exec23_workflow_client_reference}
+
+Client license texts are relevant to reuse but do not provide a commercial server entitlement, price or complete dependency-rights review. Exact historical Dataiku technical bytes, vendor API delegates, server versions and full survey coverage remain explicit obligations. These can progress separately from later native and bank qualification. The current-reader binding and proposal status are preserved independently. \citep{sp23wc_reader,sp23wc_progress}
+
+
+## Structured causal models strengthen alternatives, not universal guarantees
+
+Two additional genuine pre-cutoff papers narrow the research choices for dependent bank data. Weinstein and Blei's geometric causal models encode specified symmetries in causal mechanisms. Their identification and consistency arguments retain known graph and symmetry, mixing, locality, amenability and positivity conditions; the stated consistency result also restricts the relevant state spaces. Their array example explicitly acknowledges poor absolute uncertainty calibration, and their semisynthetic genomic comparison shows no uniformly best correction or symmetry choice. This is a scoped research alternative, not a solution for arbitrary persistent bank dependence or automated graph discovery. \citep{exec23_geometric_models}
+
+Aiad and coauthors describe a hierarchical pipeline from transformed graphs through pyAgrum identification to a fitted expression tree. That architecture could help expose the boundary between an identified formula and its actual numerical evaluation. The paper states that normalizing unstable multiplicative factors changes the evaluated functional. Its mathematics effect of 36.80 and normalized reading diagnostic of 21.63 concern different outcomes, so they cannot isolate normalization's effect. The selected graph is plausible rather than uniquely recovered; deeper hierarchies, uncertainty for stabilized functionals and evaluation across graph families remain open. The linked package has not been newly inspected or qualified by this review. \citep{exec23_hierarchical_pipeline}
+
+An exact banking illustration makes the target choice visible. Branches of 10 and 90 customers have stipulated per-customer effects of USD 20 and USD -4, with USD 2 cost. Equal branch weighting gives net USD 6; equal customer weighting gives USD -3.60. A separate nonconstant reweighting changes an illustrative contrast from USD 2 to USD 5.60. Neither example estimates bank returns. They require the product and any assisting agent to preserve intervention level, population weights and every numerical alteration. Independent finite group and covariance witnesses also qualify two apparent extracted proof slips without rejecting the papers' full theorems. \citep{exec23_structured_reference}
+
+The frontier census now contains 70 inspected and 43 unread originals of 113, with four crosscutting searches still open. The two papers add bounded identification and computation alternatives; neither establishes live-model superiority. The current documents retain earlier findings and separate source review, native prototype evidence and later bank acceptance. \citep{sp23sc_reader,sp23sc_progress}
+
+
+## Temporal reuse needs a typed scientific result
+
+Tigramite is now a method-specific proposal reference, with a conditional path to a selected Python worker. Fourteen original source blobs are authenticated at the cutoff-selected commit. Earlier installed-version operations remain separate evidence. The additional review executes no downloaded code and grants no new integration capability. \citep{exec23_tigramite_reuse_source,sp23tg_reader}
+
+Discovery statistics, graph endpoints and intervention responses cannot share an untyped result. In a stipulated linear population, partial correlation is 4/5 while the effect is USD 20 per intervention unit; with assumed cost USD 12, net value is USD 8. Intervention predictions of USD 100 and USD 120 require an explicit contrast. For a nonlinear square response, a hard zero-to-one intervention and an additive plus-one intervention instead give 1 and 3 under the declared reference population. These are exact authored examples, not measured package or bank outcomes. \citep{exec23_tigramite_reference}
+
+The effect class accepts specified DAG/ADMG variants, while latent temporal discovery can return a PAG. Resolving its ambiguous endpoints needs scientific justification. Graph summary frequencies also require their exact definition: tied modes can yield a conflict mark with reported frequency one when none of the input graphs contains that mark. The supplied-graph effect bootstrap does not include the preceding graph-discovery uncertainty. \citep{exec23_tigramite_reuse_source}
+
+Before adoption, native oracle cases must check final-block sampling support, tail missing-value indices, complete multi-panel sample provenance, tied endpoint summaries, invalid statistics, masks and intervention transforms. Selected static expressions motivate these cases without establishing an empirical failure rate. Whole-package adoption and a language port are deferred or rejected for the present proposal because their additional cost and correctness burden have not been justified. Rights review must address the actual distribution and dependencies; process isolation alone does not settle it. The next prototype should measure complete successful and failed workflows, then justify any expensive bank experiment. \citep{exec23_tigramite_reuse_source,sp23tg_progress}
+
+# Panel estimators must preserve the business question
+
+The current monograph integrates a detailed comparison of PyFixest and the original R synthdid package. Fifteen authenticated PyFixest source files and thirteen synthdid files support specific proposed conversion, numerical and inference contracts. The two packages remain reference candidates with conditional routes to Python and R workers; no new native integration or bank capability is claimed. The integrated reader preserves all 960 preceding audited citation identities and adds four records, while retaining 225 genuine scholarly PDFs. \citep{sp23panel_reader,exec23_pyfixest_reuse_source,exec23_synthdid_reuse_source}
+
+A fixed-effect coefficient can answer a different question from the average benefit of an intervention. In an exact constructed two-branch, three-period panel, all treated-cell effects are positive and average USD 4, yet the two-way fixed-effect projection is USD -3.50. With an assumed USD 2 cost per treated cell, the target net is USD 2 while misreading the projection gives USD -5.50. The example stipulates untreated outcomes and exposes the projection weights; it is not a fitted PyFixest result or evidence of an observed bank loss. In a second example, weighting cohort effects 10 and -2 by one-quarter and three-quarters gives 1 rather than the equal-cohort average 4. Full covariance gives variance 91/16; omitting cross-covariance gives 85/16. \citep{exec23_pyfixest_reference}
+
+The inspected Python interfaces require explicit period indexing, adoption dates, treatment coding, first-stage support and cohort weighting. Calendar codes are not elapsed periods: 202601 minus 202512 is 89, whereas the month difference is one. Some methods retain a different event origin or inference convention from what a generic event-study label might suggest. Native numerical backends, fixed-effect removals, rank checks, small-sample choices and unsupported post-estimation operations must be recorded for the selected method. \citep{exec23_pyfixest_reuse_source}
+
+The original synthdid package instead requires a complete balanced panel and simultaneous treatment adoption. It estimates a treated-block contrast, not arbitrary staggered intervention effects. A supplied-weight example gives USD 5.50 and an assumed USD 4 cost leaves USD 1.50. Incorrect control-weight normalization makes a common USD 100 post-period shock change the contrast by USD 25, although valid normalized weights cancel it. These are independent arithmetic oracles with supplied weights, not outputs from fitted native software. \citep{exec23_synthdid_reuse_source,exec23_synthdid_reference}
+
+Inference and recovery require equally explicit controls. Synthdid's single-treated bootstrap and jackknife refusals must remain missing uncertainty; a placebo alternative requires a separate scientific justification. The inspected resampling loop has no attempt cap, and stored fitting options omit two controls used by the original fit. A proposed worker must retain complete options and report attempted, rejected and accepted draws with a deadline. Source inspection identifies the questions for native replay; it does not establish a runtime failure, calibrated interval or performance advantage. \citep{exec23_synthdid_reuse_source}
+
+The next justified expenditure is a bounded public or synthetic prototype trial, with matched targets and complete preparation, fitting, inference, failure and maintenance costs. Direct unrestricted adoption is deferred, and a cross-language port needs a measured benefit before accepting duplicated numerical maintenance. Source licensing declarations and retained notice texts are documented, but complete deployment-artifact review remains separate. The updated coverage snapshot leaves 73 reuse decisions open and three inconclusive; these are research and proposal obligations, not an assertion that 39 implementations have been qualified. \citep{sp23panel_progress}
+
+# Instrument and threshold software needs explicit refusal rules
+
+The monograph now compares five concrete Julia and Rust IV/RD implementations using 32 authenticated files at pre-cutoff revisions. It preserves all 964 preceding citation identities and adds six audited records, retaining 225 genuine scholarly PDFs. This is a source-based proposal comparison; no new native implementation or complete language coverage is claimed. \citep{sp23otheriv_reader,exec23_otheriv_source_0,exec23_otheriv_source_1,exec23_otheriv_source_2,exec23_otheriv_source_3,exec23_otheriv_source_4}
+
+FixedEffectModels.jl provides a substantive conditional Julia fixed-effect/IV route, but a fitted object can survive nonconvergence and an unsuccessful first-stage diagnostic can remain missing. The original RegressionDiscontinuity.jl exposes distinct naive, curvature-bounded and noise-based methods, with an explicit experimental warning. The old InstrumentalVariables.jl has legacy runtime, dimension-guard, probability-display and mutable-residual concerns. These are specific reasons to constrain or reject a candidate, rather than transfer approval from its package name. \citep{exec23_otheriv_source_0,exec23_otheriv_source_1,exec23_otheriv_source_2}
+
+The distinct xiangao/RDRobust.jl repository exposes local-polynomial and bias-corrected inference machinery, including a fuzzy-ratio covariance gradient. Its metadata does not establish official affiliation or observed parity with the R package. The inspected Rust trading example instead divides reduced-form uncertainty by the first-stage estimate while omitting the denominator's variance and joint covariance. It also turns unavailable local density evidence into a zero statistic and a p-value of one. That implementation is rejected as the current scientific engine pending substantive repair. No trading or network operation was executed. \citep{exec23_otheriv_source_3,exec23_otheriv_source_4}
+
+An independent regular-case example shows why these differences matter. An outcome jump of USD 2 and treatment-receipt jump of 0.2 imply a USD 10 ratio. For the stipulated joint covariance, the full delta variance is 24 dollars squared; treating the denominator as fixed gives only 1. With an assumed USD 6 treatment cost the net is USD 4. These calculations do not establish identification or weak-instrument-valid inference, and they are not measured bank returns. Additional witnesses distinguish one-sided from two-sided probability conventions, show why repeated score points cannot identify a local slope, and identify a repeated-covariance-call mutation risk. \citep{exec23_otheriv_reference}
+
+The next trial must retain actual treatment receipt, threshold inclusivity, clock, support, covariance, rank, convergence and every failed diagnostic. It should compare matched public or synthetic requests under declared assumptions before costly bank experiments. Eight additional returned Julia leads, broader language coverage, numerical dependencies and theoretical originals remain explicit obligations. The coverage cell is therefore inconclusive, with the updated software census at 59 open and 40 inconclusive cells. Passing a source inspection does not qualify the implementation. \citep{sp23otheriv_progress}
+
+# Shared evidence and scientific validation before an expensive bank study
+
+Several agents repeating a servicing memorandum do not create independent evidence for a causal graph. The reviewed memory benchmark distinguishes authored input lineage, generated declarations, policy-dependent candidate streams, assertion adoption and simulated exposure. Its static public-verdict construction and fictional live scenarios offer useful prototype patterns. Source-type gating fails on specified false authoritative restatements; perfect copy detection still cannot prove an independent assertion true. Blind annotation, changing denominators, paraphrased-value misses and untested retraction remain part of the interpretation. The results concern tested mechanisms and components, not a general ranking of every memory product. \citep{exec23_epistemic_admission}
+
+Scientific-validation scores need a similarly bounded contract. The reviewed conformal paper contains a valid conditional idea: a fixed measurable transformation preserves exchangeability of complete examples. This does not create scientific truth, guarantee semantic graph properties, or validate an adaptively changed generation pipeline. Its conflicting performance tables, threshold-direction wording, incomplete score exposition, differing model roles and printed last-attempt loop need resolution before any certification claim. We retain progressive validation and bounded retries as prototype hypotheses, with original code, run manifests and proof dependencies still to inspect. \citep{exec23_scientific_conformal}
+
+Exact project examples show why these distinctions matter. Three independent witnesses, each correct with probability 0.8, give majority accuracy 0.896; three perfect copies remain at 0.8. Under stipulated benefit USD 10, error loss USD 100 and cost USD 1 per evaluated request, correct/wrong probabilities 0.60/0.05 give net USD 0, whereas 0.30/0.01 give net USD 1. These are editable assumptions, not bank results. Five independent 90%-valid outputs have probability 0.40951 of at least one invalid output; marginal validity is not simultaneous reliability. A bounded trace exposes the printed retry-loop gap without executing the authors' software. \citep{exec23_admission_conformal_reference}
+
+The proposed next experiment uses public or authored truth, frozen-candidate and closed-loop tracks, blind labels, separate training/calibration/testing, complete pipeline versioning and explicit abstention. It tests business-to-question translation, competing causal graphs, identification, evidence lineage and argument validation separately. A sentence-dependency graph cannot substitute for an intervention model. The two originals bring the census to 70 inspected and 43 unread of 113; four crosscutting searches and all qualification limits remain open. This section is paired to the exact updated working monograph and its current coverage snapshot. \citep{sp23admission_reader,sp23admission_progress}
+
+# Clarifying the proof boundary and the integration opportunity
+
+The original factuality papers sharpen the preceding validation discussion. Mohri and Hashimoto obtain a lower entailment-relative guarantee using sound back-off and a score that checks all subsequent thresholds; nesting is additional for the tight upper bound. Their finite-sample theorem restricts the error level to at least one over calibration size plus one. Their merger condition is semantic entailment equivalence, not statistical independence among claims. Marginal validity does not imply per-user, fixed-calibration or shifted-input validity. Rubin-Toles and colleagues similarly distinguish a lower guarantee using actual subset-level coherent-factuality labels from extra graph conditions for the tight upper bound. Graph-assisted silver labels are a cheaper shortcut whose reliability must be checked against direct gold subset labels. Neither theory makes a model's confidence score into external truth. \citep{exec23_mohri_factuality,exec23_coherent_factuality}
+
+The published StatsPAI paper describes a unified Python registry with method schemas, limitations, stability tiers, structured failures and shared result surfaces for mature estimators, including possible MCP use. It is a concrete comparator to our proposed integration layer. Before building another broad wrapper, inspect an adapter against the proposal's estimand, intervention, population, clock, uncertainty and refusal contracts. The paper reports cross-language parity and selected coverage studies, but also discloses narrower helper capabilities, optional-backend build costs, simulated replicas and a synthetic-control local-optimum discrepancy. These are published claims requiring exact code, data and harness review, not local native results. Its open-source package and commercial downstream product are distinct. \citep{exec23_statspai_paper}
+
+The next decision is a bounded adapter/reference evaluation, followed by direct adoption, an isolated worker, a selective port or rejection if the scientific contract is lost. Three additional genuine papers are integrated; only StatsPAI adds a census candidate, bringing the register to 70 inspected and 43 unread of 113, with four crosscutting searches still open. The two proof originals are dependencies and do not inflate that denominator. Exact current reader and progress bindings accompany this comparison. \citep{sp23proof_reader,sp23proof_progress}
+
+# Choosing a causal adapter with an explicit scientific contract
+
+The source-level StatsPAI comparison now distinguishes the paper's archived version 1.23.0 from cutoff source version 1.39.0. Eleven authenticated source files reveal useful registry, schema, structured-error and replay mechanisms. They also show why the proposed service needs a stricter consumer contract: the exported result schema requires only a method name, while the compact MCP output schema accepts any object. Independent checks accept a deliberately reversed interval, negative standard error and invalid probability; these are authored schema witnesses, not observed estimator outputs. The service must bind target population, intervention, units, horizon, assumptions and applicable uncertainty before accepting a result. \citep{exec23_statspai_contract,exec23_statspai_contract_reference}
+
+Operational guarantees also need exact scope. The caller distinguishes process execution from thread fallback, and the latter may remain active after a timeout. The configured output budget applies to structured content, which is also serialized in a text block; a 262,144-byte payload contributes at least 524,288 bytes in two copies before envelope, escaping and image costs. Risk truncation, nonfinite values, actual worker state and replay dependencies must survive the adapter. Underlying helpers and native behavior remain unqualified. \citep{exec23_statspai_contract,exec23_statspai_contract_reference}
+
+The preferred route is a conditional isolated adapter with a source-reference disposition until qualification. Direct blanket adoption is deferred; selective ports need a concrete scientific or deployment benefit. Registry certification labels do not establish bank validity. Stored parity fixtures must bind the estimator, input bytes, aggregation, statistic, convention, reference version and tolerance. In our stipulated two-cohort example, customer weighting yields effect USD 0 and net USD -1 after cost, while treated-observation weighting yields effect USD 2; substituting one for the other changes the decision target. These are exact illustrative calculations, not measured bank benefits. \citep{exec23_statspai_contract,exec23_statspai_contract_reference}
+
+The next steps are to inspect dependency notices and runtime helpers, select one locked estimator environment, compare exact inputs and full uncertainty against a qualified reference, exercise failure and restart cases, and compare integration cost with a direct mature-package wrapper. Native execution, independent acceptance and bank adoption are later gates. The current paired reader and canonical progress snapshot preserve the unresolved census and software obligations. \citep{sp23contract_reader,sp23contract_progress}
+
+# Qualifying completion, custody and replay
+
+Eight further authenticated StatsPAI helper files refine the adapter prerequisites. Process isolation is opt-in and excludes several session-bound calls. The supervisor's deadline starts after request writing; its direct-child kill, delayed exit and EOF branches need native lifecycle tests before an end-to-end completion guarantee. The default thread runner uses cooperative cancellation and may continue after returning a timeout. In a stipulated example, one benefit worth USD 10 and one USD 7 attempt gives net USD 3; a duplicated charged attempt delivering the same one benefit gives net USD -4. These inputs illustrate retry economics and are not measured costs. \citep{exec23_statspai_runtime,exec23_statspai_runtime_reference}
+
+The output budget explicitly permits unavoidable overflow when protected information cannot fit. Cache byte eviction stops when one item remains, so a single oversized entry is possible. Path checks, parsing and provenance hashing are separate operations, and metadata-based cache keys are not content identities. The proposed service should stage immutable input bytes, track actual worker ownership and decide how to handle an oversized artifact before dispatch. No race, memory incident or native failure is alleged by this static review. \citep{exec23_statspai_runtime,exec23_statspai_runtime_reference}
+
+A standalone replay bundle improves custody by checking an input hash and reconstructing transformations. Its generated comparison script nevertheless checks only selected point estimates and can print success with zero comparisons; collected standard-error and sample-size fields are not compared. The adapter must require a positive, complete comparison set covering uncertainty, membership, weighting and diagnostics as well as estimates. Native trials, transformation/fixture review and dependency/data rights remain separate gates. This source review strengthens the proposal without granting implementation or adoption. The exact current reader and progress snapshot accompany these conclusions. \citep{exec23_statspai_runtime,exec23_statspai_runtime_reference,sp23runtime_reader,sp23runtime_progress}
+
+# A method-specific DoubleML route
+
+Five authenticated Python DoubleML files at the 23 September 2026 revision clarify the proposed worker's scientific and licensing boundary. The interactive-regression route requires one binary treatment and distinguishes ATE and ATTE targets. External nuisance predictions need saved out-of-fold provenance; array shape does not establish honest training. Default covariates require an explicit information-clock allowlist. The panel container's first-adoption and static modes do not establish arbitrary longitudinal inference. The cutoff checkout and the previously observed installed version 0.11.4 remain different evidence objects. \citep{exec23_doubleml_reuse_source}
+
+An independently authored fixed-nuisance example produces four score contributions 6, -2, 4 and 0, with mean 2 and stated empirical iid variance of the mean 5/2. At a stipulated USD 10 per effect unit and cost USD 15, net value is USD 5. A separate residual contribution changes from 1000 to 100 when a propensity is clipped from 0.001 to 0.01. This arithmetic illustrates the score contract; it grants neither finite-sample coverage nor restored overlap. No upstream package code is executed. \citep{exec23_doubleml_reuse_reference}
+
+Retain the package as a method-specific reference and qualify an isolated IRM adapter only after inspecting its propensity, solver, split-aggregation and covariance delegates, binding a complete release and environment, reviewing dependency rights and replaying the selected registered protocol. The BSD notice does not clear every dependency or dataset. A new language port needs a measured maintenance or platform advantage. The previously recorded reuse decision remains inconclusive: this source follow-up does not supply the missing complete artifact, dependency lock and original license inventory. The paired reader and current coverage snapshot preserve that distinction. \citep{exec23_doubleml_reuse_source,sp23doubleml_reader,sp23doubleml_progress}
+
+# Sensitivity that can change an investment decision
+
+Two source-grounded reference decisions cover sensemakr 0.1.6 and EValue 4.1.4. Thirteen authenticated source and documentation blobs distinguish regression partial-R-squared sensitivity from risk-ratio thresholds and approximate effect conversions. Neither reference decision grants an implemented adapter. The inspected sensemakr fixest path explicitly uses iid covariance, so a clustered model cannot silently retain its original uncertainty through that path. Inclusive input guards, singular denominators, differing helper/wrapper interval degrees of freedom and benchmark capping remain native qualification cases. The extra estimate argument is accepted through ellipsis; it is not an argument-error finding. \citep{exec23_sensitivity_sensemakr}
+
+With stipulated regression coefficient 3, standard error 1, residual degrees of freedom 8 and partial R-squared restrictions 1/5 and 1/2, exact bias is 1, adjusted coefficient is 2 and adjusted variance is 5/7. Valuing one coefficient unit at USD 10 with cost USD 25 changes point-based net from USD 5 to USD -5. This authored example shows why sensitivity can reverse a decision; it is neither measured benefit nor calibrated uncertainty. \citep{exec23_sensitivity_reference}
+
+EValue's reciprocal risk ratios 9/5 and 5/9 give threshold 3, while an interval crossing the target gives threshold 1. The number is not a probability that the causal claim is true. Its nonrare odds-ratio conversion is approximate: for odds ratio 81/25 it gives 9/5, whereas a stipulated baseline risk 1/5 yields exact risk ratio 405/181. A proposed worker must preserve event coding, target, original interval provenance, rare-outcome flags and full conversion history. Complete dependency custody, applicable delivery rights, native boundary tests and scientific justification remain conditions for later adoption. \citep{exec23_sensitivity_evalue,exec23_sensitivity_reference}
+
+The current reuse register has 41 passing reference or other scoped dispositions, three inconclusive outcomes and 71 open decisions. The software matrix remains 3 passing, 40 inconclusive and 59 open cells; the frontier census remains 70 inspected and 43 unread originals. These counts describe proposal review obligations and confer no native or bank acceptance. \citep{sp23sensitivity_reader,sp23sensitivity_progress}
+
+# Clarify the business goal before exposing tools
+
+A request to improve a distressed-loan portfolio can mean changing contact
+frequency, offering payment holidays or explaining existing arrears. Even a
+valid causal estimator answers the wrong question when it receives the wrong
+intervention. GIST-CMTF supplies a concrete design comparator: infer a symbolic
+goal, assess ambiguity and expose a clarification action before dispatching
+downstream tools. Its state-transition graph represents declared tool
+preconditions and effects; it does not establish a borrower causal diagram,
+exchangeability or an identified treatment effect. A banking proposal should
+retain an explicit intervention, comparator, population, outcome, horizon,
+information clock and owner after clarification.
+\citep{exec23_gist_paper,exec23_gist_sources}
+
+The authentic ten-page original reports 120 controlled tasks, six methods and
+seven model backends. Independent aggregation of the released 5,040 final rows
+reproduces 815 successes for GIST-CMTF versus 673 for top-goal CMTF, each out of
+840. The corresponding wrong-goal counts are 21 and 163. The request-type
+breakdown qualifies that headline: explicit-goal success is lower than the
+semantic comparator and 16.8% of explicit requests trigger unnecessary
+clarification. These are reported benchmark results and reaggregation of saved
+outputs, with deterministic mocked tool effects. They are not new model calls
+or evidence of banking superiority.
+\citep{exec23_gist_paper,exec23_gist_sources,exec23_gist_reference}
+
+Eleven artifacts are authenticated against the repository revision dated
+30 June 2026. Their provenance does not yet support direct replay of the
+published experiment. The runner uses annotated request type and substitutes
+the intended goal after clarification; 53 of 560 nonexplicit GIST rows instead
+report no clarification. The runner expects a gold-path field absent from
+all 120 released tasks, and its output schema differs from the saved CSV. A
+different producer or transformation may explain these observations, but
+the generating revision and cleaning log remain unresolved. The paper
+acknowledges that real user dialogue, latency, monetary cost and satisfaction
+are unmeasured. None of these findings is an allegation of fabricated results.
+\citep{exec23_gist_paper,exec23_gist_sources,exec23_gist_reference}
+
+The proposed next experiment should compare a label-free goal classifier, a
+clarification policy, a lexical baseline and a named oracle on frozen held-out
+public or generated business requests. Actual clarification responses, wrong
+goals, abstentions, retries and provider failures belong in the full denominator.
+For an illustrative success value of USD 10 and token cost of USD 0.001,
+the released descriptive averages imply a net difference of
+388021/420000 dollars at clarification cost USD 2 and
+-163979/420000 dollars at cost USD 6. Those stipulated inputs expose an
+economic threshold; they do not measure bank ROI or a causal performance gain.
+\citep{exec23_gist_reference}
+
+The integrated reader now contains 988 audited citation records and 231
+genuine scholarly PDFs. The census retains 70 inspected and 43 unread originals
+out of 113, plus four crosscutting obligations. The reference review supplies
+no native integration approval, and source coverage, manuscript acceptance
+and rendered visual acceptance remain open.
+\citep{sp23gist_reader,sp23gist_progress}
+
+# Preserve the mediation target and original borrower unit
+
+A repayment holiday may affect liquidity directly and later repayments through
+contact engagement. The medflex0.6-11 source review supplies a concrete R
+reference for natural-effect models using imputed nested outcomes or
+mediator-probability weights. Ten authenticated source/documentation files
+show why a prospective adapter must preserve exposure and mediator roles,
+original borrower IDs, model attributes, the response/link scale and the
+working models. Expanded rows are not additional independent borrowers.
+\citep{exec23_medflex_sources}
+
+The inspected default bootstrap resamples original data, refits the working
+model, rebuilds predictions or weights, refits an optional exposure model and
+refits the natural-effect model. Its robust branch combines original-subject
+scores with nuisance-model scores and restricts supported model families.
+Freezing first-stage predictions or treating every expanded row independently
+would change that contract. Two source/documentation discrepancies require
+explicit fixtures: the expansion help text reverses the two return classes,
+and its row-count description uses the length of a data frame. Source-level
+warning suppression and global-environment recovery of stored data calls
+also require fresh-process and diagnostic checks. These observations are
+static findings, not measured package failures.
+\citep{exec23_medflex_sources}
+
+Independently authored examples distinguish target choice from estimation.
+A stipulated interaction model has total effect32/5, decomposable as
+14/5+18/5 or2+22/5 depending on the definitions. At USD10 per unit and total
+policy costUSD50, total net isUSD14; using the pure direct component gives
+USD-22 and answers a different question. A duplicated-row score example
+changes an illustrative variance from1/2 to1/4, while including nuisance
+covariance gives factor7 instead of1. None of these calculations measures
+bank ROI, package accuracy or empirical interval coverage.
+\citep{exec23_medflex_reference}
+
+Retain medflex as a source-qualified reference. A narrow isolated R worker is
+a prospective prototype route after full artifact/environment custody,
+dependency notices and native conformance. Full adoption and a Python/Java/C++
+port are premature without a demonstrated advantage and maintained inference
+contract. The new reference disposition brings the reuse register to42 pass,
+three inconclusive and70 open of115; a pass records the proposal decision,
+not an operating capability. The paired reader has990 audited citations and
+231 genuine scholarly PDFs. Census coverage remains70 inspected and43 unread
+originals of113. Wider source coverage, Q1/Q5, the mandatory manuscript repairs
+and visual/final acceptance remain open.
+\citep{sp23medflex_reader,sp23medflex_progress}
+
+# Separate checked derivations from supported premises
+
+An agent can execute a valid collection rule after misreading a borrower's
+record. CPUNeSy provides a useful design comparator for controlling which
+model proposals enter a symbolic state. Its authentic 37-page September 2026
+original separates source admission, restricted predicate writes, derivation
+checking and abstention. The source-soundness theorem assumes a sound source
+checker; the paper explicitly says that assumption has not been established
+for the experimental natural-language checkers. Its 2027 conference running
+header is not independently verified acceptance at the literature cutoff.
+\citep{exec23_controlled_writes_paper}
+
+The proposed banking interface should report source support and formal
+validity separately. Restricting writable source predicates can stop a model
+from inserting the desired conclusion directly, but a false allowed leaf can
+still imply that conclusion under a valid rule. An independent toy example
+makes that limitation explicit. Likewise, two agreeing model calls do not
+establish independence or semantic truth. With stipulated shared-error mass 1/5
+and independent slip probability 1/10 elsewhere, two-vote answered risk is 26/107
+and repeated voting retains an error floor of 1/5.
+\citep{exec23_controlled_writes_paper,exec23_controlled_writes_reference}
+
+The reported experiments distinguish execution, checking and fallback. The
+uncertified solver achieves 98.8% full-pool accuracy on L1-HARD versus 97.1%
+for restricted two-vote serving; checking is a selective-serving choice, not
+a universal accuracy improvement. With DeepSeek ContractNLI traces fixed,
+source rechecking removes 63 wrong answers and withholds 51 correct answers,
+adding 114 abstentions among 2,091 items. Fallback answers are explicitly
+uncertified. Historical adapter rows appearing in the main table are described
+in the appendix as unmatched summaries without exact split/model denominators;
+those rows cannot support a matched superiority ranking.
+\citep{exec23_controlled_writes_paper,exec23_controlled_writes_reference}
+
+For stated wrong-answer cost USD 10 and added checking cost USD 100, the printed
+changes imply loss savings USD 302 at abstention cost USD 2 and USD-154 at cost USD 6.
+These are stipulated examples, not measured bank value. A prospective public
+benchmark should freeze source spans, rule vocabulary, held-out labels and
+serving policies; inject both forbidden target writes and false permitted
+leaves; and retain full retry, abstention, fallback and certificate records.
+The original's archive custody, immutable model revisions, prospective
+calibration and physical-storage accounting remain incomplete here.
+\citep{exec23_controlled_writes_paper,exec23_controlled_writes_reference}
+
+The paired reader contains 992 audited citations and 232 genuine scholarly
+PDFs. This source review advances the original census to 70 inspected and 43
+unread of 113, with four crosscutting obligations still open. It grants no
+native integration, semantic-truth certificate or banking capability.
+\citep{sp23controlled_reader,sp23controlled_progress}
+
+# Public evidence before expensive bank experiments
+
+Six reviewed study designs give the prototype inexpensive routes forward. They
+are designs with local checks, not newly executed or prospectively registered
+final studies. Before final evaluation, each selected route must freeze its
+code and input identities, targets, splits or seeds, resource budget, acceptance
+rule and failure accounting. Optional dataset access cannot block an independent
+generated route. \citep{sp13_public}
+
+\begin{longtable}{@{}p{.22\linewidth}p{.36\linewidth}p{.34\linewidth}@{}}
+\toprule
+Question & Public or generated evidence & What it can establish \\
+\midrule
+\endfirsthead
+\toprule
+Question & Public or generated evidence & What it can establish \\
+\midrule
+\endhead
+Formulation and timing & Archived 401(k) eligibility/participation and UCI bank-marketing task briefs, with explicit pre-action fields. & Preservation of target, clock and alternatives. A predictive marketing table is not treatment-effect ground truth. \\
+Funding and panels & A bounded FDIC vintage with verified dictionary and unit map; an independent local macro/generated route. & Reproducible units and conditional/descriptive analyses. Extraction and vintage questions remain local prerequisites. \\
+Single-decision effects & A generated randomized law with arm means, interacted regression and cross-fitted augmented weighting. & Matched estimation and uncertainty behavior in the declared law; retain overlap and misspecification failures. \\
+Sequential servicing & Controlled histories, actions, observation loss and fixed versus trained policies. & Value-estimation and clock diagnostics under a reviewed law. The continuous design needs its own uncertainty argument. \\
+Graphs and linkage & Generated graph-equivalence and entity-corruption cases with evaluator-held truth. & Detection of invented identification and preservation of uncertainty; no inference of bank label quality. \\
+Agent workflow & Frozen public/generated briefs, templates, task-family splits and an ambiguity rubric. & Offline task and interface correctness. Live-model performance requires an actual matched held-out run. \\
+\bottomrule
+\end{longtable}
+
+The suggested first empirical slice pairs formulation/timing cases with the
+generated randomized-effect comparison. It is sufficiently narrow to compare
+complete workflows and has a known-truth route without paid data. Add graph and
+linkage cases as deliberate refusal/ambiguity tests. Servicing and dependent
+funding arguments can advance independently, but their unresolved precision
+problems must not be hidden by a successful simpler demonstration.
+
+For every offered task, record the scientific result, harmful confident errors,
+useful refusals, analyst corrections, time and resource consumption. Compare the
+same information, target and failure policy. Retain failed or unavailable
+requests in the denominator. A successful average can otherwise conceal an
+unsafe or scientifically misleading subgroup. No elapsed-time improvement is
+automatically a measured labor saving or a causal financial gain.
+\citep{sp13_economics}
+
+# Economics and the next experiment
+
+Let \(N\) be the number of attempted decision tasks in one year, \(D\) the
+incremental gross monetary utility of the proposed action relative to the
+chosen baseline, \(F\) fixed incremental cost, \(c\) variable incremental cost
+per attempted task, and \(R\) an additional risk cost not already counted in
+\(D\). A transparent planning account is
+\[
+ V=N\operatorname{E}[D]-F-Nc-R.
+\]
+The baseline must be a feasible alternative under the same information. A
+correct refusal may leave the baseline action unchanged while still costing
+review time. A misleading recommendation can have negative utility. Loss must
+not be counted in both \(D\) and \(R\), and unacceptable actions remain excluded
+by constraints irrespective of their average financial payoff.
+\citep{sp13_economics}
+
+## A reproducible illustration, with assumed inputs
+
+The following one-year illustration uses USD solely as a declared planning
+unit. Assume 10,000 attempted tasks, fixed incremental cost of USD 100,000,
+variable incremental cost of USD 6 per task and no separate \(R\). All volumes,
+prices, gains, probabilities and signal likelihoods below are assumptions;
+none is a measured bank benefit or vendor quote. The calculation excludes
+discounting because its horizon is one year. \citep{sp13_economics}
+
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Regime & Prior & Gross gain/task & Net value & Pr(positive signal) \\
+\midrule
+High & 0.4 & USD 40 & USD 240,000 & 0.8 \\
+Moderate & 0.4 & USD 20 & USD 40,000 & 0.5 \\
+Adverse & 0.2 & USD $-2$ & USD $-180,000$ & 0.1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Expected incremental value is USD 76,000 before further information. This
+number alone cannot justify a real investment because its inputs are assumed.
+Under the same assumptions, an experiment produces a positive signal with
+probability 0.54. Expected net value conditional on that signal is approximately
+USD 150,370, and conditional on a negative signal it is approximately minus
+USD 11,304. Choosing to build only after a positive signal gives expected value
+USD 81,200 before the experiment's own cost.
+
+The expected value of sample information is consequently USD 5,200. An
+experiment costing USD 8,000 loses USD 2,800 in expected information value;
+at USD 3,000 it gains USD 2,200, assuming identical signal informativeness.
+Perfect information has value USD 36,000 in this illustration. That is an
+upper bound on the information component of spending for this particular
+decision and prior, not a universal experiment budget. The prototype must help
+assess the assumed signal quality before these calculations can inform an
+expensive study. \citep{sp13_economics}
+
+Holding other assumptions fixed, break-even gross gain is USD 16 per attempted
+task. Halving volume raises it to USD 26; doubling volume reduces it to USD 11.
+An additional USD 4 of review cost per task raises the 10,000-task threshold to
+USD 20. These sensitivities are arithmetic consequences, not estimates of
+demand or analyst effort. Refusals and failed requests still incur applicable
+costs and remain among the attempted tasks. \citep{sp13_economics_sensitivity}
+
+## Costs to measure in the prototype
+
+The measured account should separate data acquisition and cleaning, labels and
+identity audits, model and tool calls, analyst formulation and checking,
+package setup, integration and maintenance, compute and storage, incident
+recovery and independent validation. Each cost needs its unit, quantity,
+date/version, price source and incremental share relative to the baseline.
+The current actual-price fields remain unfilled. Public examples can reveal
+setup burden and local resource use without establishing bank-scale service
+levels, customer outcomes or willingness to adopt. \citep{sp13_economics}
+
+A later bank experiment should state the decisions it distinguishes, the
+uncertain assumption that matters, the target population and horizon, expected
+signals, losses from wrong decisions, and the full cost of obtaining the
+information. It should compare cheaper public/generated alternatives first.
+If no feasible experiment has plausible positive net information value, narrow
+or defer the capability. A demand for authentic evidence becomes appropriate
+when that specific experiment is justified; it is not a prerequisite for
+writing the current proposal.
+
+# What remains before a complete proposal
+
+The software comparison still has 59 open and 40 inconclusive cells in its 102-cell coverage matrix. The reuse register has 70 open and three inconclusive decisions among 115 candidates. Current counts are bound to the canonical snapshot. \citep{sp23tg_progress} Current counts are bound to the canonical snapshot. \citep{sp23panel_progress} Current counts are bound to the canonical snapshot. \citep{sp23otheriv_progress} Current counts are bound to the canonical snapshot. \citep{sp23admission_progress} Current counts are bound to the canonical snapshot. \citep{sp23proof_progress} These counts describe unresolved review obligations, not numbers of defective products. Each closure needs an explicit original, supported scope, comparison and adopt/integrate/port/reject decision. No absence finding follows from an unread source. \citep{sp23nt_progress,sp23lt_progress,sp23dw_progress,sp23sm_progress,sp22wf_progress,sp22ft_progress,sp22si_progress,sp22ob_progress,sp22dk_progress,sp22iv_progress,sp22bs_progress,sp21rr_progress,sp21pr_progress,sp21gs_progress,sp21eo_progress,sp21tr_progress,sp21ae_progress,sp21gr_progress,sp21ck_progress,sp21cx_progress,sp20md_progress,sp20gf_progress,sp20hy_progress,sp20je_progress,sp20nc_progress,sp20gc_progress,sp20ea_progress,sp20vm_progress,sp20pye_progress,sp20fx_progress,sp20pa_progress,sp20rfx_progress}
+
+Twenty of 22 chapter reviews meet their current author criteria. L1 and L6 remain inconclusive because frontier and framework coverage is incomplete despite meeting minimum depth. The original-candidate census now contains 70 inspected and 43 unread originals out of 113; citation-chain leads retain their own denominator. Fourteen task reviews and all twelve integration requirements have scoped proposal outcomes, but those receipts do not establish a live model benchmark or cross-repository adoption. The three mandatory repairs remain open. The agreed depth contracts retain 100--150 substantive software pages, approximately 100 agent pages and a developed integration treatment; repeated material does not earn duplicate credit. \citep{sp23nt_progress,sp19ec_census,sp18ar_census,sp18f_census,sp13_scope}
+
+The current sponsor update reconciles the recommendation, selected new evidence and remaining work to this reader. Final proposal acceptance still requires complete coverage reconciliation and rendered visual review of the exact release. Source audits, exact arithmetic and all-page text bounds are narrower checks and cannot substitute for visual acceptance. Missing bank data, platform access or signed adoption remain later conditional needs; they do not stop independent proposal research. \citep{sp23nt_reader,sp23nt_progress}
+
+The evidence routes are also different. We know how to complete missing source
+comparisons, write and test selected adapters, run registered generated
+benchmarks and measure local workflow costs. Their success still requires
+execution and review. We do not presently have a general useful solution for
+arbitrary latent graphs, unrestricted persistent dependence, hidden-state
+optimal policies or arbitrary nuisance learners. The proposal can be complete
+with explicit bounded claims and negative findings in these areas; it cannot
+claim their scientific resolution. \citep{sp23nt_reader,
+sp13_persistence,sp13_servicing_successor}
+
+The present recommendation is therefore to test the narrow common service
+against existing composition, use that evidence to refine the investment
+scenario, and request a bank experiment only for a consequential question that
+the cheaper evidence cannot settle. Independent scientific acceptance,
+target-bank validation, production reliability and adoption are later decisions
+with their own evidence. They remain distinct from completing a credible
+proposal and a useful bounded prototype.
