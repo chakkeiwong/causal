@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery, Julia/Rust IV/RD integration and sequential exact-reader review.
-The [complete queue review](2026-10-23/program-refresh-otheriv-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-otheriv-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery and the integrated DoubleML source follow-up.
+The [complete queue review](2026-10-23/program-refresh-doubleml-followup-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-doubleml-followup-v1/remaining-operations.json)
 cover all 376 proposal obligations. The canonical state and controller are authoritative;
 the older numbered master programs are preserved historical contracts.
 
@@ -13,10 +13,10 @@ it is not an unattended research worker.
 
 ## Current integrated documents
 
-The current pair is the [1,275-page monograph](../../causal_proposal_other_iv_rd_reviewed_v3_2026-10-23.pdf)
-and [60-page sponsor](../../sponsor_proposal_other_iv_rd_reviewed_2026-10-23.pdf).
-There are 970 audited monograph citations, 225 genuine scholarly PDFs and 361 sponsor citations.
-All 964 predecessor citation identities/contexts and 292 compiled content inputs are preserved; two inherited source records receive explicit line-anchor corrections.
+The current pair is the [1,289-page monograph](../../causal_proposal_doubleml_followup_reviewed_2026-10-23.pdf)
+and [64-page sponsor](../../sponsor_proposal_doubleml_followup_reviewed_2026-10-23.pdf).
+There are 982 audited monograph citations, 230 genuine scholarly PDFs and 383 sponsor citations.
+All 980 predecessor citation records/contexts and 297 compiled content inputs are unchanged.
 The sponsor binds exact reader bytes. Q2-Q4 pass for this reader; Q1/Q5, mandatory repair rollups,
 fresh visual review and final proposal acceptance remain open.
 
@@ -45,7 +45,7 @@ one useful gain with one or two charged attempts gives USD 5 and -2. These are e
 The entire commercial cell remains open: detailed client evidence does not establish a licensed server,
 whole-market coverage, accepted rights/prices or native qualification.
 
-The frontier census remains 65 inspected and 48 unread originals of 113, plus four crosscutting searches.
+The frontier census remains 68 inspected and 45 unread originals of 113, plus four crosscutting searches.
 Fourteen LLM task and twelve integration reviews have scoped outcomes; these do not prove live-model superiority.
 
 Two genuine structured-causal-model papers are now integrated. Their known graph/symmetry restrictions,
@@ -80,15 +80,53 @@ blobs support scoped reference/conditional/reject decisions, not native executio
 Eight additional returned Julia leads are uninspected. Six source-line endpoints and an unsupported
 discovery-note lead are corrected through explicit overlays, preserving historical evidence.
 
-Two additional census PDFs have been acquired (epistemic admission and conformal scientific generation).
-Acquisition is not primary-review completion; they remain in the 48 unread until methods and limitations
-are inspected and a preserving census successor is recorded.
+Two genuine census originals on epistemic admission and scientific validation are now inspected and integrated.
+The memory review preserves authored lineage, policy-dependent streams, simulated exposure, blind grading and
+untested correction. The scientific-validation review separates conditional exchangeability from semantic truth,
+records conflicting tables and a printed retry-loop gap, and does not grant a blanket certificate.
+Exact examples give copied-majority accuracy0.8 versus independent0.896, stipulated netUSD0 versusUSD1,
+and five-query family error0.40951. Two metadata-only filename repairs preserve authentic bytes and claims.
+
+The underlying Mohri/Hashimoto and Rubin-Toles papers now qualify the preceding guarantee discussion:
+lower validity, tight upper calibration, semantic merger and statistical independence are separate;
+graph-assisted silver labels do not replace direct subset truth. StatsPAI is a concrete agent-facing
+integration comparator. Mature/auxiliary interface scope, simulated replicas, local-optimum differences,
+reported parity and optional build costs remain explicit. Eleven cutoff source files are now inspected; runtime helpers and the named third-party notice are now separately reviewed below; full dependency/data rights, environment and native parity remain follow-ups.
+Only StatsPAI changes the113-candidate census denominator; the two proof originals are dependencies.
+
+The source-contract addition distinguishes source1.39.0 from paper archive1.23.0 and preserves
+all eleven authenticated blobs. Data-only checks demonstrate that the generic schema accepts
+method-only and deliberately invalid-semantic payloads; no estimator emission is alleged.
+Thread fallback, process execution, risk truncation and full wire bytes remain distinct.
+Eight Python-reference entries qualify a stale two-entry comment. Cohort weighting gives
+customer effect0 versus observation effect2, with stipulated customer net-1. A conditional
+isolated adapter is proposed; native capability remains unqualified. The source-specific
+decision and five-gate qualification plan are recorded in statspai-contract-v1.
+
+Eight additional helper files now qualify the source contracts: process eligibility/defaults,
+thread cancellation, post-response/EOF waits, singleton cache oversize, metadata-keyed custody,
+and replay scripts that compare only selected point estimates and can report zero comparisons.
+Static AST/data checks and stipulated retry net3 versus-4 are recorded; no upstream code executes.
+The HonestDiD port notice is inspected without granting transitive rights clearance.
+Two metadata corrections and a PDF page-break token-check repair preserve prior evidence.
+The runtime qualification successor is in statspai-runtime-v1; native lifecycle, transformation
+and fixture replay remain explicit.
+
+
+
+The DoubleML follow-up authenticates five files at the cutoff revision and adds a method-specific
+score, covariate-clock and panel-container argument. Exact project-owned scores average2 with
+stated empirical iid variance5/2 and stipulated netUSD5; clipping changes1000 to100 but does
+not restore overlap. The historical reuse receipt remains inconclusive. A rejected restart was
+preserved and corrected: a nonpassing operation without prerequisites is not an unrecorded
+operation. Complete artifact, environment lock, dependency rights and selected delegates remain
+open. The complete register carries the corrected follow-up rather than requeueing the old receipt.
 
 ## Remaining gaps and execution routes
 
 1. Complete source coverage and individual reuse dispositions using genuine cutoff originals and explicit
    adoption/integration/port/reference/reject reasoning. Preserve source-specific negative or inaccessible findings.
-2. Finish the forty-eight unread census originals and four searches with inspected methods, assumptions, adverse
+2. Finish the forty-five unread census originals and four searches with inspected methods, assumptions, adverse
    results and limitations. Do not treat abstracts, package function counts or marketing as qualification.
 3. Complete the commercial temporal/API gaps: exact Dataiku cutoff bytes; SAS REST/service delegates;
    Domino supported terminal-state schema; Posit client/server and scheduler profiles. Keep rights/pricing separate.

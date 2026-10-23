@@ -1,0 +1,1 @@
+Rejected two unverified guessed locators in the unexecuted draft before any fetch. Use the exact Mohri identifier from the inspected bibliography and identity-only OpenAlex queries for the other originals. Acquisition is not technical review or cutoff confirmation. Restore collector manifest after the bounded fetch.

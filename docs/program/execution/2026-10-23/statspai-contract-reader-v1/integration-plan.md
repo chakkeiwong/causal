@@ -1,0 +1,1 @@
+Preserve all976 citations, their claims/contexts and all prior content inputs. Add two audited records for eleven pinned source files and project-owned data-only schema/arithmetic checks. Distinguish static code inspection from native execution. Compile and inspect all-page text, renew exact-reader Q2-Q4, pair sponsor and refresh continuation. Visual/final acceptance remain open.

@@ -1,0 +1,1 @@
+Preserve all973 citations/claims/contexts and294 content inputs; add three authentic originals and an adjacent lower-versus-upper guarantee qualification plus StatsPAI comparison. No fresh mathematical results or native outputs are claimed. Compile, audit source identities and all-page bounds, renew Q2-Q4, pair sponsor; coverage/visual/final acceptance remain open.
