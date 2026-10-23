@@ -1,10 +1,10 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai) after recovered publication and pinned DRDID/did2s target, uncertainty and reuse reviews; frozen predecessors retain their original work directories.
-The [complete queue review](2026-10-24/program-refresh-panel-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-panel-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai) after recovered publication and Python longitudinal target, failure and reuse reviews; frozen predecessors retain their original work directories.
+The [complete queue review](2026-10-24/program-refresh-longitudinal-python-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-longitudinal-python-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved previous program](2026-10-24/program-refresh-panel-reuse-v1/prior-current-program.md)
+The [preserved previous program](2026-10-24/program-refresh-longitudinal-python-v1/prior-current-program.md)
 retains earlier workflow, Polars, probabilistic-model, software, agent and integration findings.
 
 This is a research/product proposal supported by public/generated evidence before expensive bank experiments.
@@ -14,24 +14,35 @@ No unattended research worker runs; the active agent performs the work.
 
 ## Current integrated documents
 
-The [current monograph](../../causal_proposal_panel_reuse_v2_reviewed_2026-10-24.pdf) has 1,344 pages,
-1,023 audited citation records and 235 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_panel_reuse_reviewed_2026-10-24.pdf) has 80 pages and 460 citations.
-All 1020 predecessor records/contexts and
-315 compiled content inputs are preserved.
+The [current monograph](../../causal_proposal_longitudinal_python_reviewed_2026-10-24.pdf) has 1,348 pages,
+1,026 audited citation records and 235 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_longitudinal_python_reviewed_2026-10-24.pdf) has 80 pages and 465 citations.
+All 1023 predecessor records/contexts and
+316 compiled content inputs are preserved.
 Source traceability, exact arithmetic and all-page text bounds pass. Q2-Q4 pass for these exact bytes.
 Q1/Q5, mandatory coverage/depth and visual/final acceptance remain open.
 
-**236 recorded outcomes of 376; 116 ready;
-205 nonpassing obligations.** Inconclusive and reference-only outcomes are not native qualification.
+**239 recorded outcomes of 376; 113 ready;
+203 nonpassing obligations.** Inconclusive and reference-only outcomes are not native qualification.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 41 | 58 | 102 |
-| reuse | 54 | 3 | 58 | 115 |
+| software | 3 | 42 | 57 | 102 |
+| reuse | 56 | 3 | 56 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Latest completed review
+
+The Python longitudinal cell now has a bounded primary-source review of zEpid0.9.1 and pygformula1.2.1.
+Its coverage outcome is inconclusive; reference-only choices for both packages pass, with integration disallowed.
+Three audited records distinguish baseline-survival, repeated-action simulation, iterative regression,
+competing-event ordering, retained-population averages, typed policy hooks and failed bootstrap handling.
+Exact authored risks0.1376 versus0.19 imply margins-224 versus300USD under a stipulated loss/premium.
+A fixed two-stratum population averages0.415 while the lower-risk retained stratum averages0.19.
+No downstream model or financial assumption is silently changed, and no native output is claimed.
+Search drift is preserved: old13counted/10returned, new12/12,13observed union identities, and three
+originally unreturned identities remain unresolved. Full helper/dependency/native trials and wider inventory remain open.
+Current software3pass/42inconclusive/57open; reuse56pass/3inconclusive/56open.
 
 DRDID 1.3.0 and did2s 1.2.1 now close as conditional original-R-worker references.
 Nine immutable source blobs are authenticated; package metadata and direct GPL/MIT terms remain bound.
@@ -41,7 +52,7 @@ Exact authored examples distinguish ATT36 from ATE60USD, negative4 from positive
 and estimated-baseline variance1 from fixed-baseline variance1/2. Supplied-nuisance and RHS-shape
 witnesses are not fitted native outputs; the matrix witness has unverified native reachability.
 Native integration remains false; transitive rights, locked environments, runtime conformance and costs remain open.
-Reuse is now54 pass/3 inconclusive/58 open. Three audited records are added; scholarly PDFs remain235.
+At the panel review reuse was54 pass/3 inconclusive/58 open. Three audited records are added; scholarly PDFs remain235.
 The first preparation misstated the predecessor count before building. Its failed preparation is preserved;
 the v2 successor explicitly verifies all1020 prior records and315 compiled content inputs.
 
@@ -100,10 +111,10 @@ is exhausted; fresh visual acceptance is a local blocker only. Public source wor
 
 ## Remaining gaps and routes
 
-1. Resolve 58 open and 41 inconclusive software cells through cutoff primary evidence and explicit limits.
+1. Resolve 57 open and 42 inconclusive software cells through cutoff primary evidence and explicit limits.
    Longitudinal follow-ups are above; commercial follow-ups retain historical Dataiku bytes, SAS server
    contracts, Domino terminal/error schemas and Posit backend/profile contracts.
-2. Resolve 58 open and 3 inconclusive reuse decisions with exact adopt/integrate/port/reference/reject reasons,
+2. Resolve 56 open and 3 inconclusive reuse decisions with exact adopt/integrate/port/reference/reject reasons,
    dependencies, owners, costs and triggers. Do not reopen passed reference choices to invent native capability.
 3. Inspect 40 unread originals and four crosscutting census obligations; preserve inaccessible-source omissions.
 4. Register and execute public/generated native trials only when actual environments and preregistration exist.
@@ -115,7 +126,7 @@ independent institutional acceptance, platform reliability and real costs remain
 
 ## Exact continuation
 
-Next: SW.CELL.longitudinal_survival.Python. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Match treatment histories, time zero, censoring, competing events, positivity and bootstrap failures; banking example: repeated collections with default/prepayment.
+Next: SW.CELL.computation_workflow.commercial. Acquire immutable Dataiku cutoff bytes, SAS REST/server workflow contracts, Domino supported terminal/error schema and exact HTTP dependency policy, and Posit concrete backend/server profile. The workflow reader/sponsor and preserving successors are published; do not repeat their publication. Rights, prices and registered native trials remain conditional. Continue independent reuse and census obligations.
 
 Serialize canonical mutations, consume exits, keep tool outputs bounded, preserve failed attempts and successors,
 and commit/push completed units. Independent items do not block each other. There is no global blocker.
