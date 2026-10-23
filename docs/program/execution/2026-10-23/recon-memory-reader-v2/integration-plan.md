@@ -1,0 +1,1 @@
+Preserve1015 prior citations and content inputs. Add one genuine paper and authored counterexamples. Retain benchmark design with denominator, matched-evidence, dependence and total-cost limits. Compile and text-check; renew Q2-Q4 and pair sponsor. No native/visual/final acceptance.

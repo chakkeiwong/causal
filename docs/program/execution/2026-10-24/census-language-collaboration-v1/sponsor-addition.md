@@ -1,0 +1,6 @@
+## Specialist state and an auditable interface alternative
+
+LLAMIA's latest cutoff original, version 2 of 2 September 2026, proposes adding learned specialist embeddings to a language model. It offers a useful public chess/Go design, but inconsistent results, test counts, refresh rules and training descriptions prevent adopting its ranking or cost neutrality. The 8B training table implies 12% overhead against the narrative's approximately 6% at every scale. Human preferences require explicit all-judgment or non-tie denominators and crossed rater/position uncertainty. These are reconciliation requirements, not a fabrication allegation. \citep{exec24_collaboration_original,exec24_collaboration_reference}
+
+Our exact banking example distinguishes a lossy summary from text itself: a sufficient one-bit typed record and full state each permit USD 100 expected savings under a stipulated binary law, while a constant summary permits zero. This is not measured bank value. Compare typed records and latent interfaces under frozen public/generated tasks, matched resources and full costs. Preserve state versions, assumptions, uncertainty and refusals. Activation/injection access, licenses, artifact custody and native conformance remain conditional. \citep{exec24_collaboration_original,exec24_collaboration_reference}
+

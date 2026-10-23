@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Reconcile six R lineages using pinned text, never executing upstream code."""
+import argparse,hashlib,json
+from pathlib import Path
+import longitudinal_r_reference_20261023 as exact
+import run_program_checkpoint_v3 as controller
+from publish_latent_r_review_v2_20261013 import ref,verify_bindings,write
+run=controller.base;core=run.core;ROOT=core.ROOT;RAW=ROOT/'docs/literature/raw'
+BASE=ROOT/'docs/program/execution/2026-10-23/longitudinal-r-reconciliation-v1'
+OP='SW.CELL.longitudinal_survival.R';REVIEWER=dict(name='Codex author/coordinator',kind='author')
+read=lambda p:json.loads(p.read_text())
+LIMITS=['Proposal source comparison and exact authored witnesses only; no downloaded R code, dependencies or upstream tests execute.',
+ 'Six inherited lineages and ten returned metadata records do not establish exhaustive coverage; 141 counted records were not returned.',
+ 'Source declarations and cutoff-filtered CRAN mirror commits do not establish every distributed release, maintenance or support.',
+ 'Full dependency rights, installed compatibility, native triggers, empirical calibration and measured costs remain open.',
+ 'Public/generated proposal evidence is distinct from authentic bank validation, independent and visual/final acceptance.']
+
+def audit():
+ assert not (BASE/'source-audit.json').exists()
+ notes=read(BASE/'inspection-notes-v1.json')['records'];by={Path(r['path']).stem:r for r in notes}
+ extra={
+ 'exec23_longr_stremr_00':[(1,37,'Source0.4, R>=3.2.1, imports/compilation and GPL>=2 declaration; no transitive clearance.')],
+ 'exec23_longr_stremr_01':[(1,45,'Exported regression, monitoring, treatment and weighting interfaces; compilation dependency.')],
+ 'exec23_longr_stremr_04':[(180,215,'Storage object keys by subject and time; sorting is not identity or causal truth.'),(609,617,'Cross-validation assigns folds by unique subject identifiers; no arbitrary bank dependence qualification.')],
+ 'exec23_longr_stremr_05':[(1,17,'Shared utility captures warnings and errors; this alone does not prove which estimator uses it.')],
+ 'exec23_longr_survtmle_00':[(1,35,'Source1.1.1, R>=3.0.0, declared imports and MIT plus license-file metadata.')],
+ 'exec23_longr_survtmle_01':[(1,2,'Year and holder fields only; not a complete dependency rights review.')],
+ 'exec23_longr_survtmle_06':[(29,51,'One influence column per requested event/treatment; long contributions sum by numeric subject ID.')],
+ 'exec23_longr_survtmle_9':[(26,49,'Observed long frame expands by rank of distinct failure times and preserves subject blocks.'),(84,104,'Prediction frame uses integer1:t0 and assigns fixed treatment; irregular-clock parity untested.')],
+ 'exec23_longr_survtmle_10':[(43,61,'Treatment model handles single observed treatment and learner IDs.'),(92,105,'Propensity lower clipping and optional model return remain explicit; complete environment unqualified.')],
+ 'exec23_longr_survtmle_11':[(40,63,'Fluctuation forms selected-event clever covariates.'),(67,101,'BFGS has separate maxit50000; nonzero convergence warns and substitutes zero coefficients.'),(102,125,'Hazard predictions and variables update after coefficient choice; no observed native failure.')]
+ }
+ sel=read(BASE/'source-selection.json')['selected']
+ for i,name in [(9,'makeDataList.R'),(10,'treatment_estimate.R'),(11,'hazards_fluctuate.R')]:
+  tree=read(RAW/'exec23_longr_survtmle_tree.json');x=next(x for x in tree['tree'] if x['path']=='R/'+name)
+  sel.append(dict(id='exec23_longr_survtmle_'+str(i),candidate='survtmle',path=x['path'],commit='295de8b4be182bc6696afd2ef06f0f738d3a5eae',tree=tree['sha'],date='2019-04-16T14:53:03Z',blob=x['sha'],size=x['size']))
+ sources=[]
+ for name,version in [('stremr','0.4'),('survtmle','1.1.1')]:
+  tree=read(RAW/f'exec23_longr_{name}_tree.json');assert not tree['truncated'];entries={x['path']:x for x in tree['tree']}
+  records=[]
+  for x in [x for x in sel if x['candidate']==name]:
+   p=RAW/(x['id']+'.txt');r=read(p.with_suffix('.receipt.json'));data=p.read_bytes();lines=p.read_text().splitlines()
+   blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+   assert blob==x['blob']==entries[x['path']]['sha'] and core.sha(p)==r['sha256'] and r['status']=='saved'
+   assert '/'+x['commit']+'/' in r['url'] and x['date']<='2026-10-07T15:59:59Z'
+   spans=[(a['lines'][0],a['lines'][1],a['finding']) for a in by.get(x['id'],{}).get('inspected_anchors',[])]+extra.get(x['id'],[])
+   if x['id']=='exec23_longr_survtmle_04':spans += [(194,221,'Sequential numeric IDs and ordinary data.frame precede treatment modeling and long-data expansion; single selected output needs shape qualification.')]
+   anchors=[]
+   for lo,hi,finding in spans:
+    assert 1<=lo<=hi<=len(lines),(x['id'],hi,len(lines))
+    anchors.append(dict(line_start=lo,line_end=hi,anchor=f'newline-delimited lines {lo}-{hi}',inspected_text=chr(10).join(lines[lo-1:hi]),finding=finding))
+   assert anchors
+   records.append(dict(local_copy=ref(p,'Authenticated inspected source'),acquisition=ref(p.with_suffix('.receipt.json'),'Source URL/date/SHA256'),upstream_path=x['path'],git_blob_sha1=blob,inspected_anchors=anchors))
+  old=next(x for x in read(BASE/'inherited-candidate-evidence.json')['entries'] if x['id']=='v12:pinned-package:'+name)
+  verify_bindings(old)
+  sources.append(dict(integrated_citation_key='exec23_longr_'+name,kind='software_primary_sources',title=f'{name} {version}: pinned longitudinal and survival source contracts',author=name+' package contributors',year=2017 if name=='stremr' else 2019,source_identity=old['source_identity'],version_date=old['version_date'],local_copy=records[2 if name=='stremr' else 4]['local_copy'],records=records,cutoff_evidence=old['cutoff_evidence'],tree=ref(RAW/f'exec23_longr_{name}_tree.json','Selected blobs authenticated against pinned tree'),inspected_anchors=[dict(path=r['upstream_path'],anchors=r['inspected_anchors']) for r in records],supported_claims=[a['finding'] for r in records for a in r['inspected_anchors']],limitations=LIMITS))
+ sources.append(dict(integrated_citation_key='exec23_longr_reference',kind='project_derivation_and_exact_reference',title='Exact authored competing-event, dependence, residual and loop witnesses',author='Causal banking proposal project',year=2026,source_identity='tools/longitudinal_r_reference_20261023.py',version_date='23 October2026; exact supplied laws; not package execution',local_copy=ref(Path(exact.__file__),'calculate'),inspected_anchors=['calculate: competing_events, covariance, influence_centering, loop_controls, horizon'],supported_claims=['Supplied default risks3/20 and19/100 yield insurance margins-200 and200USD.','Shared-branch true variance2 differs from subject1 and row1/2 independence references.','Uncentered minus centered covariance at common denominator equals mean-score outer product divided by n.','Persistent-failure abstract loops allow cap+1 updates; no native trigger measured.'],limitations=LIMITS))
+ write(BASE/'source-audit.json',dict(sources=sources,cutoff='2026-10-07',authenticated_blobs=18,native_execution=False))
+ assert exact.calculate()==read(BASE/'exact-results.json')
+ previous=[('lmtp','2026-10-22','review.json','conversion-contract.json'),('ltmle','2026-10-23','review-v2.json','conversion-contract-v2.json'),('gformula','2026-10-20','review.json','conversion-contract.json'),('grf','2026-10-21','review.json','conversion-contract.json')]
+ evidence=[]
+ for name,day,r,c in previous:
+  b=ROOT/'docs/program/execution'/day/(name+'-reuse-v1')
+  for n in [r,c]:verify_bindings(read(b/n));evidence.append(ref(b/n,'Reinspected existing qualified boundary'))
+ write(BASE/'comparison-review.json',dict(status='scoped_comparison_not_exhaustive',evidence=evidence,findings=['grf binary independent-customer profile does not qualify survival.','lmtp policy histories/folds and ife/survival delegates remain distinct.','ltmle effective variance and warnings remain explicit.','gfoRmula competing events, simulation order and person bootstrap do not establish arbitrary dependence.','stremr weight-path/loop/monitoring contracts and survtmle baseline-event/shape/clock contracts require separate workers.']))
+ omissions=[('coverage_tail','Screen the remaining141 counted records; resolve duplicates and named concrete lead with cutoff original PDFs/source revisions.'),('survival_delegates','Complete lmtp survival/ife and grf survival primary review without borrowing binary-profile approval.'),('native_paths','Lock R and dependencies; preregister single-output, sentinel, event-subset, irregular-grid, cap and optimizer-warning cases.'),('sampling_and_design','Bind time zero, support, observation mechanism and branch/calendar law; derive or restrict uncertainty before coverage trials.'),('distribution_rights','Acquire applicable full license terms, freeze transitive dependencies and review actual distribution arrangement.'),('costs_recovery','Compare complete accepted-output costs, cancellation and restart on matched declared targets.'),('visual','Fresh image allowance and rendered review remain separate from source and text checks.')]
+ write(BASE/'omissions-register.json',dict(status='open',items=[dict(gap=g,next_action=a,global_blocker=False) for g,a in omissions],limitations=LIMITS))
+ write(BASE/'conversion-contract.json',dict(status='proposal_only',integration_allowed=False,preferred_route='Pinned original R workers after qualification',alternatives=['Port only after demonstrated need and semantic/numerical parity.','Independent finite-law oracle.','Other open/commercial worker on the same target and cost basis.'],inputs=['cohort/time-zero/history/availability','regime and reference intervention','competing events/censoring/horizon/units','IDs/dependence/folds/weights/truncation','pinned environment/RNG/resources'],outputs=['target and row masks','requested/effective methods','final score and full covariance','inner/outer convergence and warnings','bootstrap failures and denominators','complete request/artifact identity'],owners=['Scientific owner: target and sampling law','Adapter owner: pinned conversion and refusal','Distribution owner: dependencies and rights','Evaluation owner: preregistered public/generated trials'],costs=['conversion','fitting and failed fits','bootstrap and validation','cancellation/restart','version maintenance'],native_execution=False))
+ evidence=[ref(BASE/n,'Reviewed bounded comparison') for n in ['plan-review.json','source-audit.json','comparison-review.json','search-screening.json','omissions-register.json','conversion-contract.json','exact-results.json','development.tex','sponsor-addition.md']]+[ref(Path(__file__),'Audit/receipt logic'),ref(Path(exact.__file__),'Exact authored reference')]
+ write(BASE/'static-contract-check.json',dict(status='pass_for_selected_source_interpretations',evidence=evidence,rejected_overclaims=['No universal Qstratify failure from documentation alone.','No observed native failure from source-shape or sentinel analysis.','No row permutation defect established after sequential-ID trace.','No full survey, maintenance or rights clearance.'],native_execution=False))
+ write(BASE/'mathematical-review.json',dict(status='pass_for_authored_laws',evidence=evidence,checks=['Competing-event risks and monetary margins recompute exactly.','Enumerated branch signs give variance2; row/subject independence give1/2 and1.','Centered identity uses identical denominator without unbiasedness claim.','Loop marker is abstract control flow, never an estimated score.'],native_execution=False))
+ write(BASE/'copyedit-review.json',dict(status='pass',evidence=[ref(BASE/'development.tex','Connected banking argument')],checks=['Separate baseline and sequential actions, observed event and censoring targets.','Explain sampling units and supplied financial assumptions.','Keep process receipts outside narrative; retain precise scope and omissions.'],visual_acceptance=False))
+ review=dict(status='pass_for_bounded_comparison',reviewer=REVIEWER,evidence=evidence+[ref(BASE/n,'Final review') for n in ['static-contract-check.json','mathematical-review.json','copyedit-review.json']],findings=['Six lineages reconciled; eighteen authenticated files support new primary claims.','Ten metadata entries screened including probable duplicate;141 unreturned and named original-review leads remain open.','Scoped inconclusive coverage outcome; independent work remains eligible.'],limitations=LIMITS,native_execution=False)
+ verify_bindings(review);write(BASE/'review.json',review)
+ print(json.dumps(dict(authenticated_blobs=18,new_source_records=3,coverage_outcome='inconclusive')))
+
+def receipt():
+ state=core.read(ROOT,core.STATE);assert state['execution_runtime']['active']['operation']==OP
+ verify_bindings(read(BASE/'review.json'));graph,merged,_=run.combined(ROOT,state);node=run.ledger.operation(graph,OP)
+ evidence=[ref(BASE/n,'Bounded coverage evidence') for n in ['review.json','source-audit.json','comparison-review.json','search-screening.json','omissions-register.json','conversion-contract.json','mathematical-review.json','development.tex']]
+ scope='Six-lineage R longitudinal/survival comparison; bounded source review, not exhaustive coverage'
+ nxt='Screen the141 unreturned search records and concrete original; complete lmtp survival/ife and grf survival primary sources. Native rights/trials remain separate; continue independent ready operations.'
+ out=ROOT/node['outputs'][0];write(out,dict(operation=OP,status='inconclusive',scope=scope,candidates=read(BASE/'plan-review.json')['candidate_universe'],evidence=evidence,limitations=LIMITS,next_action=nxt,integration_allowed=False))
+ receipt=run.ledger.receipt_template(node);findings=[('inconclusive','Six inherited lineages and ten saved search entries reconciled, but141 unreturned records and named primary leads remain.'),('pass','Eighteen genuine pinned blobs and prior reviewed sources bind identity/date/hash/anchors; no metadata-only technical or new scholarly claims.'),('pass','Alternative routes, omissions, qualified failures and exact next actions are explicit; no unavailable-source waiver or global blocker.')]
+ receipt.update(outcome='inconclusive',execution='performed',scope=scope,reviewer=REVIEWER,outputs=[ref(out,'Scoped coverage disposition')],criteria=[dict(index=i,verdict=v,finding=f,evidence=evidence) for i,(v,f) in enumerate(findings)],limitations=LIMITS,capabilities=[],nonexecution_reason='',revisit_trigger=nxt)
+ run.validate_receipt(ROOT,merged,node,receipt,len(state['execution_program']['turns']));verify_bindings(receipt);write(BASE/'operation-receipt.json',receipt);print(json.dumps(dict(operation=OP,outcome='inconclusive')))
+
+if __name__=='__main__':
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['audit','receipt']);globals()[p.parse_args().command]()

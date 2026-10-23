@@ -1,0 +1,1 @@
+Preserve1013 prior citations and content inputs. Add one genuine paper and authored counterexamples. Reject general claimed guarantees while retaining diagnostic research. Compile and text-check; renew Q2-Q4 and pair sponsor. No native/visual/final acceptance.

@@ -1,0 +1,1 @@
+Preserve1017 prior citations and content inputs. Add one genuine paper and authored counterexamples. Retain the latent-interface hypothesis with typed alternatives, table and refresh contradictions, crossed uncertainty and full-cost limits. Compile and text-check; renew Q2-Q4 and pair sponsor. No native/visual/final acceptance.

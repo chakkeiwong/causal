@@ -1,0 +1,81 @@
+# Current executable proposal program
+
+Updated 24 October 2026 (Asia/Shanghai) after crash recovery, longitudinal R reconciliation and critical SUA review; source/release artifacts retain their23OctoberUTC work directories.
+The [complete queue review](2026-10-23/program-refresh-sua-critical-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-sua-critical-v1/remaining-operations.json)
+account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
+The [preserved previous program](2026-10-23/program-refresh-sua-critical-v1/prior-current-program.md)
+retains earlier workflow, Polars, probabilistic-model, software, agent and integration findings.
+
+This is a research/product proposal supported by public/generated evidence before expensive bank experiments.
+Proposal completion is distinct from implemented capability, independent acceptance, bank validation and adoption.
+Use python3 tools/run_program_checkpoint_v3.py status, next and check. Continue eligible branches across boundaries.
+No unattended research worker runs; the active agent performs the work.
+
+## Current integrated documents
+
+The [current monograph](../../causal_proposal_sua_critical_reviewed_2026-10-23.pdf) has 1,334 pages,
+1,015 audited citation records and 233 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_sua_critical_reviewed_2026-10-23.pdf) has 77 pages and 444 citations.
+All 1013 predecessor records/contexts and
+311 compiled content inputs are preserved.
+Source traceability, exact arithmetic and all-page text bounds pass. Q2-Q4 pass for these exact bytes.
+Q1/Q5, mandatory coverage/depth and visual/final acceptance remain open.
+
+**231 recorded outcomes of376; 121 ready;
+210 nonpassing obligations.** Inconclusive and reference-only outcomes are not native qualification.
+
+| Area | Pass | Inconclusive | Open | Total |
+|---|---:|---:|---:|---:|
+| software | 3 | 41 | 58 | 102 |
+| reuse | 49 | 3 | 63 | 115 |
+| chapters | 20 | 2 | 0 | 22 |
+
+## Latest completed review
+
+The genuine24-page Sensitivity Uncertainty Alignment original is inspected with adverse findings.
+Explicit admissible examples refute its stated generic risk bounds: a constant fair model would have
+risk1/2 bounded by1/2-log2, and a constant bounded-loss example contradicts the earlier bound.
+Expected perturbation sensitivity cannot replace a supremum upper bound; selected risk must retain
+its conditional denominator. Equal entropy and stability do not certify causal truth. Reported empirical
+tables lack the exact experiment identities needed for independent replay. The score remains a prospective
+diagnostic candidate. One paper and exact authored witnesses add two audited records; no native execution.
+
+The R longitudinal/survival cell reconciles grf, lmtp, ltmle, gfoRmula, stremr and survtmle.
+Eighteen authenticated primary blobs support stremr0.4 and survtmle1.1.1 source contracts.
+Baseline and repeated actions, competing-event and elimination targets, effective weights,
+inner/outer convergence, residual timing, single-column paths and dependence units remain separate.
+Authored examples give default risks3/20 versus19/100, stipulated insurance margins-200 versus200USD,
+and true branch variance2 versus subject1 and visit1/2 independence references. No upstream code executes.
+
+Coverage remains inconclusive: the saved search counted151 records and returned10. The141 unreturned
+records, continuous-time concrete lead, lmtp survival/ife and grf survival primary reviews remain explicit.
+Native trigger cases, complete rights, locked dependencies and matched costs are later qualification work.
+The source draft suffered escaped-text corruption before compilation; the failed draft and receipts are
+preserved. A reviewed v2 manuscript repairs the text. No corrupted PDF was published or accepted.
+
+Census now has71 inspected/42 unread originals plus four crosscutting obligations. Q1/Q5 and coverage
+rollups cannot pass while their required evidence remains unresolved. The inherited six-image allowance
+is exhausted; fresh visual acceptance is a local blocker only. Public source work remains eligible.
+
+## Remaining gaps and routes
+
+1. Resolve58 open and41 inconclusive software cells through cutoff primary evidence and explicit limits.
+   Longitudinal follow-ups are above; commercial follow-ups retain historical Dataiku bytes, SAS server
+   contracts, Domino terminal/error schemas and Posit backend/profile contracts.
+2. Resolve63 open and3 inconclusive reuse decisions with exact adopt/integrate/port/reference/reject reasons,
+   dependencies, owners, costs and triggers. Do not reopen passed reference choices to invent native capability.
+3. Inspect42 unread originals and four crosscutting census obligations; preserve inaccessible-source omissions.
+4. Register and execute public/generated native trials only when actual environments and preregistration exist.
+5. Complete mandatory manuscript coverage/depth, Q1/Q5 and fresh visual review. No blanket completion claim.
+
+Unrestricted latent identification, arbitrary persistence and hidden-state optimal-policy uncertainty have no
+promised universal repair. Justified restrictions or additional information are necessary. Authentic bank truth,
+independent institutional acceptance, platform reliability and real costs remain later external work.
+
+## Exact continuation
+
+Next: SW.CELL.computation_workflow.commercial. Finish the preserving workflow-delegate reader review, exact-byte Q2-Q4 renewal and paired sponsor publication. Then continue independent reuse/census work. Remaining commercial source tasks are immutable Dataiku cutoff bytes, SAS REST/server workflow contracts, Domino supported terminal/error schema and exact HTTP dependency policy, Posit concrete backend/server profile, and separate rights, prices and registered native trials.
+
+Serialize canonical mutations, consume exits, keep tool outputs bounded, preserve failed attempts and successors,
+and commit/push completed units. Independent items do not block each other. There is no global blocker.

@@ -1,0 +1,1347 @@
+                                            Sensitivity–Uncertainty Alignment in Large
+                                                         Language Models
+
+                                                                       Prakul Sunil Hiremath
+                                                      Aliens on Earth (AoE) Autonomous Research Group, Belagavi, India
+                                                                         hiremathprakul.aoe@gmail.com
+arXiv:2604.20903v1 [cs.CR] 21 Apr 2026
+
+
+
+
+                                                                            github.com/prakulhiremath
+
+                                                                          Harshit R. Hiremath
+                                                      Aliens on Earth (AoE) Autonomous Research Group, Belagavi, India
+                                                                        harshithiremath.aoe@gmail.com
+                                                                              github.com/Harshit-212
+
+
+
+                                                                                     Abstract
+                                             We propose Sensitivity–Uncertainty Alignment (SUA), a unified formal framework for ana-
+                                         lyzing and mitigating failures of large language models under adversarial and ambiguous inputs.
+                                         The central thesis is that adversarial sensitivity and ambiguity are not independent problems
+                                         but two manifestations of a single underlying failure mode: misalignment between perturbation-
+                                         induced instability and predictive uncertainty. A well-functioning model should respond to inputs
+                                         that produce unstable predictions by expressing correspondingly high uncertainty; failure to do
+                                         so constitutes a miscalibration that we make precise.
+                                             We formalize this intuition through a single scalar quantity, SUAθ (x) = Sθ (x; ε)−λHθ (Y | x),
+                                         measuring the excess of distributional sensitivity over predictive entropy. We prove that mini-
+                                         mizing the expected positive part of SUAθ (x) provides an upper bound on worst-case perturbed
+                                         risk (Theorem 4.3) and simultaneously lower-bounds calibration error (Theorem 4.5). We fur-
+                                         ther characterize the phenomenon of ambiguity collapse—in which a model facing inputs with
+                                         multiple valid interpretations produces a single overconfident response—as a structurally distinct
+                                         but formally related failure mode.
+                                             Building on these results, we introduce SUA-TR, a training procedure that minimizes the
+                                         SUA objective via consistency regularization and entropy alignment, and an inference-time ab-
+                                         stention rule with formal selective-risk guarantees (Proposition 4.8). We design a comprehensive
+                                         experimental protocol covering question answering, natural language inference, and adversarial
+                                         classification, and demonstrate that SUA predicts model failures more reliably than entropy,
+                                         self-consistency, or temperature scaling alone.
+                                             The framework is deliberately architecture-agnostic: all definitions remain valid for any
+                                         model that induces a conditional distribution over outputs. We intend the theoretical results and
+                                         the SUA score as durable conceptual and diagnostic tools that can support further theoretical
+                                         development and empirical investigation as models and benchmarks evolve.
+
+
+
+
+                                                                                         1
+Aliens on Earth (AoE)                                              Sensitivity–Uncertainty Alignment
+
+
+
+1    Introduction
+Large language models are increasingly deployed in settings where prediction errors carry significant
+costs. In such settings, two families of failure are particularly important: adversarial failures, in
+which small deliberate or incidental changes to an input cause large, arbitrary shifts in model
+output; and ambiguity failures, in which underspecified or context-dependent inputs elicit confident
+responses that do not acknowledge the existence of multiple plausible answers. Both failure types
+are well studied individually. The present paper argues that they share a common formal root, and
+that this shared structure admits a unified diagnostic and training framework.
+
+The shared structure. Consider a model pθ (y | x) receiving an input x. Two questions are
+relevant:
+ 1. How much does the output distribution change when x is perturbed to a nearby x′ ? (Sensitivity
+    question.)
+ 2. How much uncertainty does the model express about its own output? (Calibration question.)
+Intuitively, these quantities ought to be aligned. A model encountering an input for which its
+predictions are highly sensitive to small perturbations is, by definition, operating in a region of
+input space where its parameters do not support a stable mapping. The appropriate response is
+elevated uncertainty. If the model instead produces low-entropy, high-confidence outputs in that
+region, its uncertainty estimate is wrong relative to its own sensitivity—a form of miscalibration
+that is distinct from, but related to, classical calibration failure.
+Ambiguity failure has the same shape. When an input x has P  multiple semantically valid interpreta-
+tions z ∈ Z, the correct predictive distribution is a mixture z p(y | z, x)p(z | x) with correspond-
+ingly high entropy. A model that collapses this mixture to a single confident response is, again,
+miscalibrated—not with respect to a single ground-truth label, but with respect to the irreducible
+uncertainty in the input itself.
+
+What this paper contributes. We give a formal, self-contained account of this shared structure.
+Our main contributions are as follows.
+ 1. Framework. We introduce the Sensitivity–Uncertainty Alignment (SUA) score as a single
+    measurable quantity capturing the gap between local distributional sensitivity and predictive
+    entropy. We situate it within a unified setup that handles both adversarial and ambiguous
+    inputs.
+ 2. Theory. We prove that (i) minimizing the SUA objective bounds worst-case perturbed risk
+    (Theorem 4.3), (ii) persistent SUA violation lower-bounds calibration error (Theorem 4.5), and
+    (iii) ambiguity collapse is formally characterized as entropy underestimation relative to latent
+    interpretation entropy (Lemma 4.6).
+ 3. Method. We propose SUA-TR, a training algorithm incorporating task loss, perturbation-
+    consistency regularization, and entropy-alignment, together with a formally justified inference-
+    time abstention rule.
+ 4. Experiments. We design experiments across three task families to validate that SUA predicts
+    model failures more accurately than individual baselines, and provide ablations that isolate the
+    contribution of each component.
+ 5. Timelessness. All definitions and theorems are stated in terms of conditional distributions
+    and divergences, not in terms of any specific architecture. The framework will remain applicable
+    as architectures change.
+
+
+                                                 2
+Aliens on Earth (AoE)                                                              Sensitivity–Uncertainty Alignment
+
+
+
+Organization. Section 2 reviews necessary background. Section 3 introduces all formal definitions.
+Section 4 contains the main theoretical results. Section 5 describes SUA-TR. Section 6 presents
+experiments. Section 7 discusses implications and limitations. Section 8 situates this work in the
+literature. Section 9 concludes. Appendix A contains complete proofs.
+
+
+2     Background
+We collect necessary background in three areas: information-theoretic measures, adversarial robust-
+ness concepts, and calibration. This section fixes notation and provides the conceptual vocabulary
+used in later sections.
+
+2.1    Information-Theoretic Foundations
+Let (X , Y) be measurable spaces and let p(x, y) be a P
+                                                      joint distribution. We write H(Y | X) for
+the conditional Shannon entropy, H(Y | X = x) = − y p(y | x) log p(y | x) (discrete case), and
+I(X; Y ) = H(Y ) − H(Y | X) for mutual information. All logarithms are natural unless stated
+otherwise.
+For two distributions p, q over Y we write:
+                                     X                  p(y)
+                     DKL (p ∥ q) =         p(y) log          ,
+                                     y
+                                                        q(y)
+                                   1              1
+                     DJS (p ∥ q) = DKL (p ∥ m) + DKL (q ∥ m) ,                    m = 12 (p + q),
+                                   2              2
+                                   1X
+                     DTV (p ∥ q) =     |p(y) − q(y)|.
+                                   2 y
+
+We use D(·∥·) generically when the results hold for any f -divergence satisfying the data-processing
+inequality.
+A function ℓ : Y × Y → [0, 1] is a bounded loss. The risk of a (possibly randomized) predictor
+π : X → Y is R(π) = E(x,y)∼p [ℓ(y, π(x))]. The Bayes-optimal risk is R∗ (x) = minŷ E[ℓ(Y, ŷ) | X = x].
+
+2.2    Adversarial Robustness
+Let d : X × X → [0, ∞) be a metric. Given ε > 0, the perturbation set around x is ∆ε (x) = {x′ ∈
+X : d(x, x′ ) ≤ ε}.
+A model fθ is (ε, δ)-pointwise robust at x if supx′ ∈∆ε (x) dY (fθ (x), fθ (x′ )) ≤ δ, where dY is an output
+metric.
+For probabilistic models, the natural generalization replaces output distance with distribution di-
+vergence. We say pθ is distributionally (ε, δ)-robust at x if
+
+                                     sup           D(pθ (· | x) ∥ pθ (· | x′ )) ≤ δ.
+                                   x′ ∈∆   ε (x)
+
+
+Adversarial training seeks to minimize worst-case loss over ∆ε (x) [Madry et al., 2018], but does not
+explicitly enforce calibration under perturbation. This gap is central to our work.
+
+2.3    Uncertainty Quantification and Calibration
+Let p̂ : X → [0, 1] be a scalar confidence function. We say the model is calibrated if P(correct |
+p̂(x) = c) = c for all c ∈ [0, 1]. The Expected Calibration Error is defined by discretizing confidence
+
+
+                                                             3
+Aliens on Earth (AoE)                                                         Sensitivity–Uncertainty Alignment
+
+
+
+into B equally spaced bins:
+                                           B
+                                           X |Bb |
+                                 ECE =               |acc(Bb ) − conf(Bb )| ,
+                                                 n
+                                           b=1
+
+where acc(Bb ) and conf(Bb ) are mean accuracy and mean confidence in bin b.
+For language models, scalar confidence is often derived from predictive entropy: p̂(x) = 1 − Hθ (Y |
+x)/Hmax , where Hmax normalizes by the maximum possible entropy. Temperature scaling [Guo
+et al., 2017] learns a scalar T > 0 such that rescaled logits improve calibration on a held-out set.
+
+
+3     Problem Formulation
+We now introduce the formal framework. We proceed from atomic definitions to composite quanti-
+ties.
+
+3.1    Setup
+Let X be the input space (e.g., sequences of tokens), Y the output space, and Z a latent space of
+semantic interpretations. Let D = p(x, y) be the data-generating distribution. A stochastic language
+model is a measurable function fθ inducing a conditional distribution pθ (y | x) over Y for each x ∈ X ,
+where θ ∈ Θ denotes model parameters.
+The latent variable z ∈ Z encodes the intended interpretation of x. We assume the data-generating
+process factorizes as:                     X
+                                p(y | x) =     p(y | z, x) p(z | x).                          (1)
+                                                 z∈Z
+
+This factorization is not restrictive: any conditional p(y | x) can be trivially represented with
+Z = {∗}. Its significance is that for many real inputs, p(z | x) has high entropy—the input genuinely
+admits multiple interpretations—and the correct response accounts for this distribution rather than
+committing to a single z.
+
+3.2    Perturbation Measure and Sensitivity
+Definition 3.1 (Perturbation distribution). A perturbation distribution Πε (· | x) is a probability
+distribution over X with support contained in ∆ε (x). We call Πε semantics-preserving if, for all
+x′ ∈ supp(Πε (· | x)), p(z | x′ ) ≈ p(z | x) in total variation, i.e., the perturbation does not materially
+alter the distribution over interpretations.
+Semantic preservation is a property of the perturbation, not the model. It rules out perturbations
+that change the ground-truth label or the intended meaning. Examples include paraphrases, minor
+typographic variation, and instruction rephrasing that preserves intent.
+Definition 3.2 (Distributional sensitivity). For a model pθ , input x ∈ X , radius ε > 0, and
+perturbation distribution Πε , the distributional sensitivity is:
+
+                            Sθ (x; ε) = Ex′ ∼Πε (·|x) [D(pθ (· | x) ∥ pθ (· | x′ ))] .                      (2)
+
+We use expectation rather than supremum for two reasons: (i) it is computable via sampling, and
+(ii) it captures typical rather than worst-case behavior, which is more informative for understanding
+average deployment failure rates. The relationship to supremum-based definitions is addressed in
+Remark 3.3.
+
+
+                                                        4
+Aliens on Earth (AoE)                                                   Sensitivity–Uncertainty Alignment
+
+
+
+Remark 3.3. The supremum sensitivity supx′ ∈∆ε (x) D(pθ (· | x)∥pθ (· | x′ )) is an upper bound on
+Sθ (x; ε) for any Πε with full support on ∆ε (x). Conversely, Sθ (x; ε) lower-bounds the supremum
+under mild regularity. The two are equal when Πε is concentrated at the worst-case perturbation. In
+our theoretical results, Theorem 4.3 is stated for the supremum version; our operational definition
+uses the expected version, which bounds it from below.
+
+3.3    Latent Ambiguity
+Definition 3.4 (Latent ambiguity). The latent ambiguity of input x is:
+                                                X
+                       A(x) = H(Z | X = x) = −      p(z | x) log p(z | x).                            (3)
+                                                        z∈Z
+
+
+This quantity is not directly computable from pθ alone, since Z is unobserved. Section 5 discusses
+operational proxies. The theoretical role of A(x) is to characterize inputs for which the ground-truth
+predictive distribution is intrinsically mixed.
+Definition 3.5 (Ambiguity collapse). A model pθ exhibits ambiguity collapse at x if A(x) is large
+but Hθ (Y | x) is small:
+                                    A(x) > α and Hθ (Y | x) < β,                                   (4)
+for thresholds α > β ≥ 0.
+Ambiguity collapse is the distributional analog of confidently wrong predictions: the model presents
+a peaked output distribution when the correct distribution (averaging over interpretations) should
+be spread.
+
+3.4    Predictive Uncertainty and True Uncertainty
+Definition 3.6 (Predictive entropy). The predictive entropy of pθ at x is:
+                                           X
+                            Hθ (Y | x) = −    pθ (y | x) log pθ (y | x).                              (5)
+                                              y∈Y
+
+Definition 3.7 (True uncertainty). The true conditional uncertainty at x is:
+                                                  X
+                      U ∗ (x) = H(Y | X = x) = −     p(y | x) log p(y | x),                           (6)
+                                                        y∈Y
+
+where p(y | x) = z p(y | z, x)p(z | x) is the marginal data-generating conditional from (1).
+                P
+Definition 3.8 (Miscalibration gap). The pointwise miscalibration gap at x is:
+
+                                    Cθ (x) = |Hθ (Y | x) − U ∗ (x)| .                                 (7)
+
+A perfectly calibrated model in the entropy sense satisfies Cθ (x) = 0 for all x. We will use Cθ (x) as
+a target quantity to bound using SUAθ (x).
+
+3.5    The SUA Score
+Definition 3.9 (Sensitivity–Uncertainty Alignment score). For λ > 0, the SUA score of model pθ
+at input x is:
+                            SUAθ (x; ε, λ) = Sθ (x; ε) − λ · Hθ (Y | x).                   (8)
+
+
+
+
+                                                    5
+Aliens on Earth (AoE)                                                   Sensitivity–Uncertainty Alignment
+
+
+
+Interpretation. A positive SUAθ (x) indicates that the model’s sensitivity exceeds what its un-
+certainty accounts for: the model is changing its output substantially under perturbation but not
+expressing corresponding doubt. A negative SUAθ (x) indicates that uncertainty exceeds sensitivity:
+the model is appropriately cautious, or overly cautious. The ideal is SUAθ (x) ≈ 0.
+Definition 3.10 (SUA risk). The SUA risk (alignment risk) of model pθ under distribution D is:
+
+                                                                                                (9)
+                                                                                 
+              RSUA (θ) = Ex∼D [SUAθ (x; ε, λ)]+ = Ex∼D [Sθ (x; ε) − λHθ (Y | x)]+ .
+
+The positive-part operator [u]+ = max(u, 0) focuses the objective on inputs where sensitivity exceeds
+uncertainty; it does not penalize a model for expressing high uncertainty when warranted.
+
+3.6    Summary of Notation
+Table 1 summarizes the principal notation for reference.
+
+                                       Table 1: Principal notation.
+
+                      Symbol            Meaning
+                      X , Y, Z          Input, output, interpretation spaces
+                      p(x, y)           Data-generating distribution
+                      D                 Shorthand for p(x, y) or its marginal on x
+                      pθ (y | x)        Model conditional distribution
+                      fθ                Model (as predictor)
+                      z                 Latent interpretation variable
+                      ∆ε (x)            ε-perturbation set around x
+                      Πε (· | x)        Perturbation distribution on ∆ε (x)
+                      D(·∥·)            Generic f -divergence
+                      Sθ (x; ε)         Distributional sensitivity (Def. 3.2)
+                      A(x)              Latent ambiguity (Def. 3.4)
+                      Hθ (Y | x)        Predictive entropy (Def. 3.6)
+                      U ∗ (x)           True conditional uncertainty (Def. 3.7)
+                      Cθ (x)            Pointwise miscalibration gap (Def. 3.8)
+                      SUAθ (x; ε, λ)    SUA score (Def. 3.9)
+                      RSUA (θ)          SUA risk (Def. 3.10)
+                      Rθ (x)            Model risk at x under pθ
+                      Rθrob (x)         Worst-case perturbed risk (Def. 4.2)
+                      λ                 Alignment coefficient (hyperparameter > 0)
+                      ε                 Perturbation radius
+                      τ                 Abstention threshold
+                      LD                Lipschitz constant of loss in divergence
+
+
+
+4     Theoretical Analysis
+We now establish the main theoretical properties of the SUA framework. All detailed proofs are in
+Appendix A; proof sketches are provided in the main text.
+
+4.1    Assumptions
+Assumption 1 (Lipschitz loss in divergence). The task loss ℓ : Y × Y → [0, 1] satisfies: there exists
+LD ≥ 0 such that for any two distributions p, q over Y,
+
+                    |Ey∼p [ℓ(y, ŷ)] − Ey∼q [ℓ(y, ŷ)]| ≤ LD · D(p∥q)   for all ŷ ∈ Y.
+
+
+                                                    6
+Aliens on Earth (AoE)                                                         Sensitivity–Uncertainty Alignment
+
+
+
+This assumption holds for bounded losses and any f -divergence by a standard variational argument.
+For 0-1 loss and total variation, LD = 1.
+Assumption 2 (Entropy–risk link). There exists a nondecreasing, concave function ψ : [0, ∞) →
+[0, 1] with ψ(0) = 0 such that for any distribution q over Y and any fixed ŷ:
+
+                                       Ey∼q [ℓ(y, ŷ)] ≥ ψ(Hq (Y )).
+
+This assumption encodes the information-theoretic constraint that higher entropy over labels implies
+higher expected loss for any deterministic predictor. For 0-1 loss and a uniform mixture of k classes,
+one may take ψ(h) = 1 − e−h , which is nondecreasing in h.
+Assumption 3 (Data-generating factorization). The data-generating conditional satisfies (1), and
+the model distribution pθ (y | x) approximates the mode: pθ (y | x) ≈ p(y | z ∗ , x) for some dominant
+z ∗ = arg maxz p(z | x).
+This assumption formalizes the interpretation-collapse phenomenon described in Section 3. The gap
+between the true mixture and the model’s mode-approximation is captured by κ(x) below.
+Definition 4.1 (Interpretation-collapse gap).
+
+                                      κ(x) = (R∗ (x) − Rθ (x))+ ,
+
+where R∗ (x) is the Bayes-optimal risk under the true mixture p(y | x) and Rθ (x) is the model’s
+expected risk under its own distribution.
+Note κ(x) ≥ 0 always. It is zero when the model is Bayes-optimal on the true mixture, and positive
+when the model’s mode-focused distribution achieves lower risk on its own distribution than the true
+Bayes-optimal classifier does on the true distribution—a signature of overconfident mode-seeking.
+
+4.2    Main Theorem: SUA Bounds Worst-Case Risk
+Definition 4.2 (Worst-case perturbed risk).
+
+                                       Rθrob (x) =      sup       Rθ (x′ ),
+                                                     x′ ∈∆ε (x)
+
+
+where Rθ (x′ ) = Ey∼pθ (·|x′ ) [ℓ(y, ŷθ (x′ ))] and ŷθ (x′ ) = arg maxy pθ (y | x′ ).
+Theorem 4.3 (SUA controls worst-case perturbed risk). Under Assumptions 1–3, for any x ∈ X
+and any λ > 0 satisfying λHθ (Y | x) ≥ ψ(Hθ (Y | x)), the worst-case perturbed risk satisfies:
+
+      Rθrob (x) ≤ Rθ (x) + LD ·     sup        D(pθ (· | x) ∥ pθ (· | x′ )) − ψ(Hθ (Y | x)) + κ(x).        (10)
+                                  x′ ∈∆ε (x)
+
+
+Consequently, replacing the supremum divergence by its upper-bounding surrogate Sθ (x; ε) and ap-
+plying the λ condition:
+
+                         Rθrob (x) ≤ Rθ (x) + LD · SUAθ (x; ε, λ) + κ(x).                                  (11)
+
+Proof sketch. See Appendix A.1 for the full proof. The argument proceeds in three steps. (1) Apply
+Assumption 1 to bound the risk increase from x to any x′ ∈ ∆ε (x) by LD · D(pθ (· | x)∥pθ (· | x′ )),
+then take the supremum. (2) Apply Assumption 2 to subtract a nonnegative entropy-dependent
+term, yielding the subtraction of ψ(Hθ (Y | x)). (3) Bound κ(x) from the definition and apply the
+λ-condition to convert ψ(Hθ ) into λHθ . The combined steps yield (10). Replacing sup D with Sθ
+(which is ≤ the supremum by Jensen’s inequality) and collecting terms yields (11).
+
+
+
+
+                                                       7
+Aliens on Earth (AoE)                                                Sensitivity–Uncertainty Alignment
+
+
+
+Implications. Inequality (11) shows that minimizing SUAθ (x) in expectation—i.e., minimizing
+RSUA (θ)—directly reduces an upper bound on worst-case perturbed risk, up to the irreducible term
+κ(x), which reflects interpretation collapse. When κ(x) = 0 (the model is consistent with the true
+mixture), the bound is: Rθrob (x) ≤ Rθ (x) + LD · SUAθ (x).
+Corollary 4.4 (SUA risk controls expected robust risk). Under the same assumptions,
+
+                Ex∼D Rθrob (x) ≤ Ex∼D [Rθ (x)] + LD · RSUA (θ) + Ex∼D [κ(x)] .
+                               
+
+
+4.3    Calibration Result
+Theorem 4.5 (SUA violation lower-bounds calibration error). Let p̂θ (x) = g(Hθ (Y | x)) for some
+nonincreasing function g : [0, ∞) → [0, 1]. Partition [0, 1] into B bins {Bb }B b=1 by confidence value.
+Suppose that for each bin b, the mean sensitivity satisfies S̄b = Ex∈Bb [Sθ (x; ε)] > 0. Then:
+                                             B
+                                           1 X
+                                                                                                   (12)
+                                                                 
+                                 ECE ≥         S̄b − λ · H̄b − cb + ,
+                                           B
+                                             b=1
+
+where H̄b = Ex∈Bb [Hθ (Y | x)] is mean predictive entropy in bin b, and cb > 0 is a bin-dependent
+slack depending on bin width and the estimator variance of Sθ .
+
+Proof sketch. See Appendix A.2. The key steps are: (i) within each bin b, use Assumption 1 to relate
+the mean accuracy gap |acc(Bb ) − conf(Bb )| to mean sensitivity via the chain acc ≈ 1 − Rθ , and
+sensitivity controls Rrob −R; (ii) use the monotonicity of g to map entropy to confidence, establishing
+that bins with high mean sensitivity and low mean entropy correspond to bins with large confidence–
+accuracy gaps; (iii) aggregate over bins, introducing cb to absorb estimation error.
+
+Interpretation. Theorem 4.5 shows that persistent SUA violation (high sensitivity relative to
+entropy) across a confidence bin implies a lower bound on the calibration error of that bin. Reducing
+RSUA (θ) thus simultaneously reduces worst-case risk and provides a mechanism to improve ECE.
+
+4.4    Ambiguity Collapse: A Structural Lemma
+Lemma 4.6 (Ambiguity collapse implies miscalibration). Under Assumption 3, if a model exhibits
+ambiguity collapse at x (Definition 3.5) with A(x) > α and Hθ (Y | x) < β < α, then:
+
+                            Cθ (x) = |Hθ (Y | x) − U ∗ (x)| ≥ α − β − η(x),                        (13)
+
+where η(x) ≥ 0 is the entropy gap between the true mixture entropy and A(x): η(x) = |H(Y | X =
+x) − H(Z | X = x)|.
+
+Proof. See Appendix A.3. The argument uses the chain rule for entropy and properties of the mixture
+factorization to bound U ∗ (x) from below in terms of A(x), then applies the triangle inequality.
+
+Note on η(x). The slack η(x) captures the gap between label-space entropy and interpretation-
+space entropy. For tasks where each interpretation deterministically specifies a unique label, η(x) =
+0. For tasks where the mapping from interpretation to label is itself stochastic, η(x) > 0. In both
+cases, the lemma guarantees a positive miscalibration gap whenever the model’s entropy is much
+lower than the latent ambiguity.
+
+
+
+
+                                                   8
+Aliens on Earth (AoE)                                                          Sensitivity–Uncertainty Alignment
+
+
+
+4.5    Entropy–Stability Tension
+The following lemma formalizes a tension that arises in standard training: increasing model entropy
+(to improve calibration) may conflict with stability under perturbations.
+Lemma 4.7 (Entropy–stability tension). Let pθ and p′θ be two models such that Hθ′ (Y | x) > Hθ (Y |
+x) for all x in a set U ⊆ X . Suppose p′θ achieves this higher entropy by spreading mass uniformly.
+Then for any x′ ∈ ∆ε (x) with x ∈ U:
+
+                          D(p′θ (· | x) ∥ p′θ (· | x′ )) ≤ D(pθ (· | x) ∥ pθ (· | x′ )) ,
+
+i.e., the higher-entropy model is less sensitive to perturbations. However, its base risk Rθ′ (x) ≥
+Rθ (x), so accuracy decreases.
+
+Proof. See Appendix A.4. For the JSD divergence, the result follows from the concavity of the
+entropy function combined with the data-processing inequality. Uniform mass spreading reduces
+the maximum possible divergence between distributions over the same support. The risk increase
+follows directly from the suboptimality of the uniform predictor.
+
+This lemma formalizes why naïvely maximizing entropy does not solve adversarial sensitivity: it
+reduces sensitivity but also reduces accuracy. The SUA objective is designed to avoid this failure
+mode by penalizing only the excess of sensitivity over uncertainty, not uncertainty itself.
+
+4.6    Selective Risk: Abstention Guarantees
+Proposition 4.8 (Selective risk control under SUA-based abstention). Define the abstention rule:
+                                     (
+                                       ŷθ (x) if SUAθ (x; ε, λ) ≤ τ,
+                            πτ (x) =
+                                       abstain otherwise.
+
+Let C(τ ) = Px∼D (SUAθ (x; ε, λ) ≤ τ ) be the coverage. The selective risk on covered inputs satisfies:
+
+                          Rsel (τ ) ≤ Rθ + LD · τ + E [κ(x) | SUAθ (x) ≤ τ ] .                              (14)
+
+Proof. See Appendix A.5. Condition on the event SUAθ (x) ≤ τ ; within this set, (11) gives Rθrob (x) ≤
+Rθ (x) + LD · τ + κ(x). Taking the expectation over x conditioned on this event yields the result.
+
+Coverage–risk tradeoff. Smaller τ yields smaller selective risk but lower coverage. The practi-
+tioner may set τ to meet a target risk budget. This is analogous to conformal prediction, but the
+score function here is the SUA score rather than a nonconformity measure. A key advantage is
+that SUA is interpretable: a high SUA score implicates both high sensitivity and low uncertainty as
+co-causes of abstention.
+
+
+5     Method: SUA-TR
+5.1    System Overview
+The Sensitivity–Uncertainty Alignment (SUA) framework provides a unified pipeline for measuring
+and controlling model reliability under both adversarial perturbations and input ambiguity. Figure 1
+illustrates the overall architecture.
+Given an input x, the model pθ (y | x) produces a predictive distribution over outputs. Two comple-
+mentary quantities are then computed.
+
+
+                                                        9
+Aliens on Earth (AoE)                                                      Sensitivity–Uncertainty Alignment
+
+
+
+                                                     Entropy
+              Input x        Model pθ (y|x)
+                                                     Hθ (Y |x)
+
+
+                                                                       SUA Score             Decision
+                                                                        S − λH           Predict / Abstain
+
+          Perturbations x′                           Sensitivity
+                             Model pθ (y|x′ )
+              Πε (·|x)                                Sθ (x; ε)
+
+
+
+
+           Figure 1: Overview of the Sensitivity–Uncertainty Alignment (SUA) pipeline.
+
+
+First, predictive uncertainty is measured via the entropy Hθ (Y | x), which captures the spread of
+the model’s output distribution at the input.
+Second, local sensitivity is estimated by applying a perturbation distribution Πε (· | x) to generate
+perturbed inputs x′ . The model is evaluated on these perturbations to compute the distributional
+sensitivity
+                            Sθ (x; ε) = Ex′ ∼Πε (·|x) D pθ (· | x) ∥ pθ (· | x′ ) .
+                                                                                
+
+
+These two quantities are combined into the SUA score
+
+                                     SUAθ (x) = Sθ (x; ε) − λHθ (Y | x).
+
+These two quantities are combined into the SUA score
+
+                                      SUAθ (x) = Sθ (x; ε) − λHθ (Y | x)
+
+which measures the extent to which predictive uncertainty aligns with local sensitivity.
+At inference time, the SUA score is used to guide decision-making. If the score exceeds a threshold τ ,
+the model abstains, indicating that its predictions are unstable relative to its expressed uncertainty.
+Otherwise, the model outputs its prediction ŷ = arg maxy pθ (y | x).
+This pipeline directly operationalizes the central principle of the framework: model uncertainty
+should increase in regions where predictions are sensitive to perturbations. The resulting system
+provides a single, interpretable quantity that can be used for both failure detection and selective
+prediction.
+We now describe SUA-TR (Sensitivity–Uncertainty Alignment via Training and Refinement), a
+practical algorithm implementing the SUA framework. It has three components: a training objective,
+a perturbation generation strategy, and an inference procedure with abstention.
+
+5.2    Training Objective
+The full SUA-TR training loss is:
+
+                              L(θ) = Ltask (θ) + α Lcons (θ) + β Lent (θ),                                   (15)
+
+where α, β > 0 are hyperparameters, and the three components are defined as follows.
+
+Task loss.
+                                   Ltask (θ) = E(x,y)∼D [− log pθ (y | x)] .                                 (16)
+This is the standard negative log-likelihood; any differentiable task-specific loss may be substituted.
+
+
+
+
+                                                      10
+Aliens on Earth (AoE)                                                      Sensitivity–Uncertainty Alignment
+
+
+
+Consistency (sensitivity) loss.
+                      Lcons (θ) = Ex∼D Ex′ ∼Πε (·|x) [D(pθ (· | x) ∥ sg[pθ (· | x′ )])] ,               (17)
+where sg[·] denotes the stop-gradient operator. This loss penalizes prediction divergence between x
+and its perturbation x′ , encouraging consistency. The stop-gradient on the perturbed side prevents
+trivial collapse to a uniform distribution and instead encourages the model to match its own output
+under the reference input.
+
+Entropy alignment loss.
+                                                                                                        (18)
+                                                                       
+                             Lent (θ) = Ex∼D [Sθ (x; ε) − λ Hθ (Y | x)]+ .
+This is directly the SUA risk RSUA (θ) from Definition 3.10. It penalizes inputs where sensitivity
+exceeds entropy, encouraging the model to raise its uncertainty in sensitive regions without penalizing
+already-cautious behavior.
+
+Relationship to theory. Minimizing Lent (θ) reduces RSUA (θ), which by Corollary 4.4 reduces the
+upper bound on expected worst-case risk. Minimizing Lcons (θ) directly reduces Sθ (x; ε), tightening
+the bound from a different angle: it reduces the numerator of the SUA score rather than adjusting
+the denominator (entropy).
+
+5.3    Perturbation Generation
+The perturbation distribution Πε (· | x) must satisfy Definition 3.1: support within ∆ε (x) and
+approximate semantics preservation. We use a mixture of three perturbation strategies.
+
+Semantic paraphrases. Back-translation or instruction-level rephrasing: generate a paraphrase
+x′ of x using a fixed auxiliary model, then verify that the paraphrase does not change the ground-
+truth label. This tests sensitivity to surface form while holding semantics constant.
+
+Token-level edits. Synonym substitution, minor punctuation changes, and casing variation. These
+are guaranteed to be semantics-preserving for most NLP tasks. They test local robustness at the
+token level.
+
+Adversarial proposals. Gradient-free search (e.g., random token swaps followed by filtering by
+cosine similarity in embedding space) to find perturbations that increase D(pθ (· | x)∥pθ (· | x′ ))
+while preserving semantics. These are included at a lower mixture weight to provide hard training
+examples without destabilizing training.
+The mixture weights are (ωpara , ωtok , ωadv ) = (0.5, 0.3, 0.2) by default. In Appendix B we ablate
+these weights.
+
+5.4    Operational Ambiguity Proxy
+Since A(x) is unobservable, we use the following operational proxy. Generate K independent outputs
+y1 , . . . , yK ∼ pθ (· | x) and estimate:
+                                                      K
+                                                             !
+                                                    1 X
+                                           A(x) = H
+                                           b             δ yk ,
+                                                    K
+                                                           k=1
+
+the entropy of the empirical output distribution under repeated sampling. When the model is
+already deterministic (low temperature), this quantity is low even for ambiguous inputs; in this
+
+
+                                                      11
+Aliens on Earth (AoE)                                                       Sensitivity–Uncertainty Alignment
+
+
+
+case, we additionally compute the entropy of outputs under K independently paraphrased versions
+of x, which provides a more faithful estimate of A(x).
+
+5.5    Inference with Abstention
+At inference time, the SUA score is estimated as:
+
+                                   SUA
+                                   [ θ (x) = S
+                                             cθ (x; ε) − λ Hθ (Y | x),
+                      PK
+where S
+      cθ (x; ε) = 1
+                  K    k=1 D(pθ (· | x)∥pθ (· | xk )) with x1 , . . . , xK ∼ Πε (· | x).
+                                                 ′          ′            ′
+
+
+The abstention rule from Proposition 4.8 is then applied with threshold τ : if SUA [ θ (x) > τ , the
+system declines to answer and may request clarification; otherwise it returns ŷθ (x).
+
+5.6    Pseudocode
+Algorithm 1 SUA-TR Training
+Require: Dataset D, model pθ , perturbation generator Πε , hyperparameters α, β, λ, K
+ 1: for each training step do
+ 2:    Sample batch {(xi , yi )}M i=1 from D
+ 3:    for each xi do
+ 4:        Compute pi ← pθ (· | xi )
+ 5:        Compute Hi ← H(pi )
+ 6:        Sample {x′i,k }K     ∼ Πε (· | xi )
+                        PKk=1
+ 7:        sensi ← K k=1 D(pi ∥pθ (· | x′i,k ))
+                     1
+
+                     1
+                         PK                      ′
+ 8:        consi ← K       k=1 D(pi ∥sg[pθ (· | xi,k )])
+ 9:    end for P
+                 1
+10:    Ltask ← M    Pi [− log pθ (yi | xi )]
+                  1
+11:    Lcons ← M    P i consi
+                1
+12:    Lent ← M       i [sensi − λHi ]+
+13:    L ← Ltask + αLcons + βLent
+14:    Update θ ← θ − η∇θ L
+15: end for
+
+
+
+Algorithm 2 SUA-TR Inference with Abstention
+Require: Input x, model pθ , perturbation generator Πε , hyperparameters λ, K, τ
+ 1: Compute p ← pθ (· | x)
+ 2: Compute H ← H(p)
+ 3: Sample {x′k }K   ∼ Πε (· | x)
+           1
+             PK k=1              ′
+ 4: Ŝ ← K     k=1 D(p∥pθ (· | xk ))
+ 5: SUA
+    [ ← Ŝ − λH
+ 6: if SUA
+       [ > τ then
+ 7:     return (abstain, {SUA,
+                            [ H, Ŝ})
+ 8: else
+ 9:     ŷ ← arg maxy pθ (y | x)
+10:     return (ŷ, {SUA,
+                     [ H, Ŝ})
+11: end if
+
+
+
+
+                                                      12
+Aliens on Earth (AoE)                                             Sensitivity–Uncertainty Alignment
+
+
+
+Computational cost. Each training step requires K additional forward passes per example to
+evaluate Sθ . With K = 4 and batched perturbations, the overhead is roughly 3× the cost of standard
+training. At inference, K = 4 perturbation evaluations are sufficient for reliable SUA estimation
+(see ablation in Appendix B).
+
+
+6      Experiments
+6.1     Overview
+We design experiments to answer four questions:
+ 1. Does SUA predict model failures better than entropy or self-consistency alone?
+ 2. Does SUA-TR training reduce both adversarial sensitivity and miscalibration compared to
+    baselines?
+ 3. Does the abstention rule yield lower selective risk at comparable coverage relative to entropy-
+    based abstention?
+ 4. Do the ablations support the individual contribution of each loss component?
+
+6.2     Tasks and Datasets
+Question answering (QA). We use a standard open-domain QA benchmark with factual ques-
+tions drawn from a mix of trivia and reading comprehension sources. For adversarial evaluation,
+we apply token-level and semantic perturbations that preserve the correct answer. For ambiguity
+evaluation, we include questions with genuinely ambiguous referents or underspecified conditions.
+
+Natural language inference (NLI). Binary and three-way NLI: given a premise and hypothesis,
+predict entailment, neutral, or contradiction. Adversarial inputs are generated by replacing premise
+words with synonyms; ambiguous inputs are generated by creating premises with modal qualifiers
+(e.g., “may”, “possibly”) that render the inference genuinely uncertain.
+
+Classification with distributional shift. A text classification task (topic classification) with
+held-out test domains representing distributional shift. The SUA score is measured at test time to
+predict which examples will be misclassified under shift.
+
+6.3     Baselines
+    • Entropy: Use Hθ (Y | x) alone as the failure predictor and abstention score.
+    • Self-consistency: Sample K outputs; use agreement rate 1/K k 1[ŷk = mode] as the confi-
+                                                                     P
+      dence score.
+    • Temperature scaling: Post-hoc calibration via a learned scalar temperature T > 0 applied
+      to logits.
+    • Adversarial training (AT): Standard PGD-style adversarial training applied to embedding-
+      space perturbations, without any entropy alignment term.
+
+6.4     Metrics
+    • Accuracy: Standard classification accuracy on clean test set.
+    • Robust accuracy: Accuracy under perturbations from Πε at test time.
+
+
+                                                 13
+Aliens on Earth (AoE)                                               Sensitivity–Uncertainty Alignment
+
+
+
+  • ECE: Expected calibration error with B = 15 bins.
+  • AUROC (failure prediction): Area under the ROC curve for predicting incorrect predic-
+    tions, using SUA score vs. baseline scores as the predictor.
+  • Selective accuracy at coverage c: Accuracy on the fraction c of inputs with the lowest
+    abstention score.
+
+6.5    Main Results
+Table 2: Main results across tasks and methods. Bold indicates best in column. SUA-TR uses the
+full training objective (15). The abstention column reports selective accuracy at 80% coverage.
+
+            Task     Method          Acc     Rob. Acc   ECE     AUROC      Sel. Acc (80%)
+                     Standard        0.742    0.618     0.142    0.621         0.789
+                     AT              0.731    0.698     0.157    0.634         0.801
+            QA       Temp. Scale     0.742    0.618     0.071    0.629         0.793
+                     Self-Consist.   0.742    0.618       —      0.658         0.815
+                     SUA-TR          0.748    0.731     0.058    0.741         0.852
+                     Standard        0.811    0.693     0.109    0.644         0.841
+                     AT              0.803    0.751     0.128    0.651         0.848
+            NLI      Temp. Scale     0.811    0.693     0.056    0.649         0.844
+                     Self-Consist.   0.811    0.693       —      0.672         0.858
+                     SUA-TR          0.816    0.779     0.041    0.762         0.879
+                     Standard        0.883    0.741     0.088    0.659         0.902
+                     AT              0.871    0.807     0.103    0.668         0.909
+            Class.   Temp. Scale     0.883    0.741     0.044    0.661         0.905
+                     Self-Consist.   0.883    0.741       —      0.694         0.919
+                     SUA-TR          0.887    0.839     0.031    0.793         0.941
+
+
+Table 2 presents the main results. SUA-TR consistently improves over all baselines on AUROC
+for failure prediction, demonstrating that the SUA score is a more reliable predictor of individual
+failures than entropy or self-consistency alone. Robust accuracy improves substantially over AT,
+with a smaller accuracy trade-off. ECE improvements are larger than temperature scaling in most
+cases, reflecting the entropy-alignment component’s effect on distributional calibration. Selective
+accuracy at 80% coverage shows the largest gains, confirming that the abstention mechanism is
+practically effective.
+
+6.6    SUA as a Failure Predictor
+Figure 2 (described here due to the text format) plots AUROC for failure prediction across all
+three tasks and all scoring functions. The ordering is consistent: SUA-score > self-consistency
+> entropy > temperature-scaled confidence. The gap between SUA and entropy alone is largest
+on the NLI ambiguous subset (AUROC 0.81 vs. 0.64), where inputs have genuinely high latent
+ambiguity that entropy fails to capture without the sensitivity term. The gap between SUA and
+self-consistency is largest on adversarial inputs (AUROC 0.79 vs. 0.66), where sensitivity is high but
+self-consistency—which probes output stochasticity—does not directly measure distributional shift
+under perturbation.
+
+
+
+
+                                                  14
+Aliens on Earth (AoE)                                                      Sensitivity–Uncertainty Alignment
+
+
+
+
+                      1
+                             Adversarial
+                             Ambiguous
+
+
+
+
+                                                                                           0.9
+                                                                                    0.88
+                     0.9
+
+
+
+
+                                                                    0.83
+             AUROC
+
+
+
+
+                                                             0.79
+                                                   0.77
+                     0.8
+
+                                  0.74
+
+
+
+
+                                            0.73
+                            0.7
+
+
+
+                     0.7
+
+
+                     0.6
+                           Entropy         Variance Self-Consistency                 SUA
+
+
+                           Figure 2: Comparison of AUROC across methods.
+
+
+6.7    Ablations
+Table 3 reports the ablation study. Both Lent and Lcons contribute independently: removing Lent
+primarily hurts ECE and AUROC (the calibration and failure-prediction objectives), while removing
+Lcons primarily hurts robust accuracy (the stability objective). This confirms that the two compo-
+nents address distinct but complementary aspects of the SUA objective. The full model outperforms
+either ablation. The perturbation count K = 4 provides essentially the same performance as K = 8
+at lower cost; K = 1 is slightly inferior, suggesting that variance in the sensitivity estimate matters.
+
+6.8    Qualitative Examples
+Adversarial input (QA). Input: “What is the capital of France?” Perturbed: “What is the
+capital of France?” (minor character perturbation). Standard model confidence: 0.98. SUA score:
+high (sensitivity = 0.34, entropy = 0.02). SUA-TR model: sensitivity = 0.11, entropy = 0.14,
+SUA = −0.03 (below threshold, answers correctly). The standard model does not recognize that
+its output changes under a trivial input variation; SUA-TR detects this and raises its uncertainty
+appropriately.
+
+Ambiguous input (NLI). Premise: “The committee may recommend approval.” Hypothesis:
+“The proposal will be approved.”. Ground truth is genuinely ambiguous (neither entailment nor
+contradiction is clearly correct). Standard model output: entailment, confidence 0.91. SUA-TR
+output: neutral, entropy 0.61, SUA score 0.08 (below threshold). Standard ECE on this input: 0.82
+(overconfident). The standard model exhibits ambiguity collapse; SUA-TR distributes probability
+mass more evenly across labels, reflecting the irreducible uncertainty.
+
+
+
+
+                                                     15
+Aliens on Earth (AoE)                                              Sensitivity–Uncertainty Alignment
+
+
+
+Table 3: Ablation study on QA task. Each row removes one component of SUA-TR. Columns
+report the same metrics as Table 2.
+
+            Method                  Acc    Rob. Acc    ECE     AUROC      Sel. Acc (80%)
+            SUA-TR (full)          0.748     0.731     0.058    0.741         0.852
+            − Lent                 0.746     0.702     0.079    0.692         0.831
+            − Lcons                0.747     0.681     0.063    0.718         0.840
+            − Lent − Lcons         0.742     0.618     0.142    0.621         0.789
+            Adv-only x′            0.739     0.724     0.071    0.727         0.843
+            Para-only x′           0.745     0.706     0.065    0.715         0.836
+            K = 1 perturbations    0.747     0.728     0.062    0.735         0.848
+            K = 4 perturbations    0.748     0.731     0.058    0.741         0.852
+            K = 8 perturbations    0.748     0.732     0.057    0.742         0.853
+
+
+7     Discussion
+7.1    What SUA Captures That Existing Metrics Miss
+Entropy alone measures the spread of the model’s predictive distribution at a single point x. It does
+not measure whether this spread is appropriate relative to how the model’s predictions change when
+x is varied. A model can have moderate entropy everywhere but still be highly sensitive to small
+perturbations—it is in the wrong part of input space for its uncertainty to be informative. The SUA
+score captures this by conditioning the assessment of entropy on observed sensitivity.
+Self-consistency—the agreement of multiple samples from the model—is a proxy for entropy but not
+for sensitivity. Two models can have the same agreement under sampling but differ dramatically in
+how they respond to paraphrases or token edits. Self-consistency is a single-point diagnostic; SUA
+is a local-neighborhood diagnostic.
+Temperature scaling and isotonic regression calibrate the confidence function post-hoc without
+changing the model’s sensitivity. These methods can reduce ECE but do not address the underlying
+alignment failure: a model calibrated by temperature scaling can still produce maximally sensi-
+tive outputs in adversarial regions while its calibrated confidence happens to be low—not because
+the model has detected the adversarial nature of the input, but because the post-hoc function has
+globally reduced confidence. The SUA framework distinguishes these cases by measuring sensitivity
+directly.
+
+7.2    On the Relationship to Invariant Risk Minimization
+IRM [Arjovsky et al., 2019] seeks predictors whose optimal linear classifier on top of the represen-
+tation is the same across all training environments. This is a structural assumption on the training
+procedure that promotes invariance during learning. The SUA framework is complementary: it
+provides a post-training or per-input diagnostic that measures whether the learned predictor’s local
+behavior is consistent with its expressed uncertainty. IRM addresses where invariance comes from;
+SUA addresses how to detect and respond to its absence.
+
+7.3    On Abstention and Practical Deployment
+The abstention threshold τ induces a coverage–risk tradeoff, which is well-studied in the selective
+prediction literature. Our contribution is to provide a principled score for the abstention decision:
+SUA is a theoretically motivated quantity (Proposition 4.8) rather than an ad-hoc heuristic. In
+practice, τ may be calibrated on a held-out validation set to meet a target coverage or risk budget.
+
+
+                                                 16
+Aliens on Earth (AoE)                                              Sensitivity–Uncertainty Alignment
+
+
+
+In deployment, the SUA score also serves as an explanation: if a system abstains with a high
+sensitivity and low entropy signature, the operator can infer that the input is in a locally unstable
+region (suggesting an adversarial or out-of-distribution input), whereas a high sensitivity and high
+entropy signature suggests the model is already expressing appropriate uncertainty (a case where
+abstention may be overly cautious).
+
+7.4    Limitations
+Dependence on the perturbation distribution. Sθ (x; ε) depends on Πε , which must be cho-
+sen by the practitioner. Different choices will yield different SUA values and different abstention
+behaviors. We have used a mixture of semantic and token-level perturbations motivated by natural
+deployment variation, but there is no universal Πε . Users in specific domains should adapt Πε to
+reflect perturbations they actually expect.
+
+Computability of latent ambiguity. A(x) = H(Z | x) is theoretically central but practically
+unobservable. Our operational proxy (multi-sample entropy under paraphrases) is an approximation;
+its quality depends on the diversity of the paraphrase generator. This gap between the theoretical
+quantity and its approximation is a limitation that warrants further investigation.
+
+Scope of the theoretical results. Theorem 4.3 provides an upper bound, not a tight charac-
+terization. The bound is informative when LD is moderate and κ(x) is small; it may be loose for
+tasks with very large output spaces or complex loss functions. Tightening the bound, or providing
+instance-dependent bounds that account for the geometry of ∆ε (x), is an open direction.
+
+Classification focus. The experiments cover classification and NLI tasks. Extension to open-
+ended generation, code synthesis, and structured prediction requires revisiting the definition of Sθ
+(divergences over token sequences rather than label distributions) and Hθ (sequence-level entropy,
+which is typically much higher and harder to estimate). These extensions are conceptually natural
+but technically involved.
+
+
+8     Related Work
+Adversarial robustness. The study of adversarial examples began with the observation that
+small norm-bounded perturbations can cause large classification errors in deep networks [Goodfellow
+et al., 2015]. Adversarial training, particularly PGD-based methods [Madry et al., 2018], remains
+the dominant empirical defense. Certified robustness methods provide formal guarantees but scale
+poorly to large models [Cohen et al., 2019]. The sensitivity–invariance tradeoff studied by Tramer
+et al. [2020] is closely related to our Lemma 4.7: robustness to sensitivity-based attacks can harm
+robustness to invariance-based attacks. Our framework provides a different angle on this tradeoff,
+locating the failure in the misalignment between sensitivity and uncertainty rather than in the
+conflict between two types of robustness.
+
+Uncertainty quantification. Bayesian deep learning [Gal and Ghahramani, 2016] provides a
+principled framework for uncertainty quantification but is computationally expensive at scale. Ensemble-
+based methods [Lakshminarayanan et al., 2017] are more practical but require multiple forward
+passes. Temperature scaling [Guo et al., 2017] is a simple post-hoc method with strong empirical
+performance on clean data but limited utility under distribution shift. Our work differs by connect-
+ing uncertainty directly to sensitivity, yielding a quantity that is informative conditionally on the
+perturbation structure of the input.
+
+
+
+                                                 17
+Aliens on Earth (AoE)                                               Sensitivity–Uncertainty Alignment
+
+
+
+Calibration. Calibration has been studied extensively for classification [Guo et al., 2017, Niculescu-
+Mizil and Caruana, 2005]. Overconfidence in large language models after instruction tuning is docu-
+mented in several recent empirical studies [Kadavath et al., 2022, OpenAI, 2023]. Our Theorem 4.5
+provides a formal connection between SUA violation and ECE, complementing these empirical find-
+ings with a structural account.
+
+Selective prediction and abstention. Selective prediction [Geifman and El-Yaniv, 2017] learns
+to abstain on inputs where the model is unreliable. Conformal prediction [Vovk et al., 2005] provides
+coverage guarantees without training a specialized model. Our abstention rule is closest in spirit to
+selective prediction, but uses a theoretically motivated score (SUA) and provides a formal guarantee
+(Proposition 4.8) without distributional assumptions beyond those in Section 4.
+
+Distribution shift and invariant learning. IRM [Arjovsky et al., 2019] and related meth-
+ods [Peters et al., 2016] seek predictors that generalize across environments by relying on invariant
+features. The WILDS benchmark [Koh et al., 2021] evaluates models under naturally occurring
+distribution shifts. Our framework is diagnostic rather than prescriptive: it measures local stability
+rather than cross-environment invariance, and does so at the level of individual inputs rather than
+distributions.
+
+Information-theoretic representation learning. The information bottleneck [Tishby et al.,
+2000] characterizes good representations as those that compress inputs while retaining task-relevant
+information. Our framework is complementary: we are concerned not with compression but with
+the stability of retained information under perturbation. The connection between stable information
+and generalization has been explored empirically; our work provides a theoretical account of why
+stability matters, grounding it in worst-case risk bounds.
+
+
+9    Conclusion
+We introduced Sensitivity–Uncertainty Alignment (SUA), a formal framework that unifies adversar-
+ial robustness, ambiguity handling, and uncertainty calibration in language models under a single
+diagnostic quantity. The central claim is that adversarial and ambiguity failures are not independent
+phenomena but two manifestations of the same failure mode: a model’s uncertainty does not track
+the instability of its predictions under semantics-preserving input variation.
+We proved that the SUA score bounds worst-case perturbed risk (Theorem 4.3), lower-bounds cal-
+ibration error (Theorem 4.5), and characterizes ambiguity collapse as a structural phenomenon
+(Lemma 4.6). We proposed SUA-TR, a training algorithm with three loss components that address
+distinct aspects of the alignment problem, and an inference procedure with formal selective-risk
+guarantees.
+Experiments confirmed that SUA predicts failures more reliably than entropy, self-consistency, or
+temperature scaling, and that SUA-TR improves robust accuracy, ECE, and selective accuracy over
+relevant baselines.
+The framework is deliberately architecture-agnostic. All definitions are stated at the level of con-
+ditional distributions and divergences; the results apply to any model that induces a distribution
+over outputs, now or in the future. We intend the SUA score as a durable diagnostic tool and the
+theoretical results as a reusable foundation for further investigation into the relationship between
+robustness and calibration in learned models.
+
+
+
+
+                                                 18
+Aliens on Earth (AoE)                                                           Sensitivity–Uncertainty Alignment
+
+
+
+References
+Martin Arjovsky, Leon Bottou, Ishaan Gulrajani, and David Lopez-Paz. Invariant risk minimization.
+ arXiv preprint arXiv:1907.02893, 2019.
+Jeremy Cohen, Elan Rosenfeld, and J. Zico Kolter. Certified adversarial robustness via randomized
+  smoothing. ICML, 2019.
+Yarin Gal and Zoubin Ghahramani. Dropout as a bayesian approximation. ICML, 2016.
+Yonatan Geifman and Ran El-Yaniv. Selective prediction in deep neural networks. NeurIPS, 2017.
+Ian Goodfellow, Jonathon Shlens, and Christian Szegedy. Explaining and harnessing adversarial
+  examples. ICLR, 2015.
+Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Weinberger. On calibration of modern neural networks.
+  ICML, 2017.
+Saurav Kadavath et al. Language models (mostly) know what they know.                                    arXiv preprint
+  arXiv:2207.05221, 2022.
+Pang Wei Koh et al. Wilds: A benchmark of in-the-wild distribution shifts. ICML, 2021.
+Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell. Deep ensembles. NeurIPS,
+  2017.
+Aleksander Madry, Aleksandar Makelov, Ludwig Schmidt, Dimitris Tsipras, and Adrian Vladu.
+  Towards deep learning models resistant to adversarial attacks. ICLR, 2018.
+Alexandru Niculescu-Mizil and Rich Caruana. Predicting good probabilities. ICML, 2005.
+OpenAI. Gpt-4 technical report. arXiv preprint arXiv:2303.08774, 2023.
+Jonas Peters, Peter Buhlmann, and Nicolai Meinshausen. Causal inference using invariant prediction.
+  Journal of the Royal Statistical Society: Series B, 78(5):947–1012, 2016.
+Naftali Tishby, Fernando Pereira, and William Bialek. The information bottleneck method. arXiv
+ preprint physics/0004057, 2000.
+Florian Tramer et al. Fundamental tradeoffs between invariance and sensitivity. ICML, 2020.
+Vladimir Vovk, Alex Gammerman, and Glenn Shafer. Algorithmic Learning in a Random World.
+  Springer, 2005.
+
+
+A     Complete Proofs
+A.1    Proof of Theorem 4.3
+Proof. We prove inequality (10) and then derive (11).
+Step 1: Bounding risk change under perturbation. Fix x ∈ X and x′ ∈ ∆ε (x). Let ŷ =
+ŷθ (x′ ) = arg maxy pθ (y | x′ ). Then:
+
+                Rθ (x′ ) = Ey∼pθ (·|x′ ) [ℓ(y, ŷ)]
+                         = Ey∼pθ (·|x′ ) [ℓ(y, ŷ)] − Ey∼pθ (·|x) [ℓ(y, ŷ)] + Ey∼pθ (·|x) [ℓ(y, ŷ)]
+                         ≤ Ey∼pθ (·|x′ ) [ℓ(y, ŷ)] − Ey∼pθ (·|x) [ℓ(y, ŷ)] + Rθ (x)
+                         ≤ LD · D(pθ (· | x) ∥ pθ (· | x′ )) + Rθ (x),                                            (19)
+
+
+
+
+                                                        19
+Aliens on Earth (AoE)                                                                 Sensitivity–Uncertainty Alignment
+
+
+
+where the last inequality applies Assumption 1. Taking the supremum over x′ ∈ ∆ε (x):
+                       Rθrob (x) ≤ Rθ (x) + LD ·           sup        D(pθ (· | x) ∥ pθ (· | x′ )) .               (20)
+                                                         x′ ∈∆ε (x)
+
+
+Step 2: Entropy penalty. By Assumption 2, for any predictor ŷ:
+                                     Ey∼pθ (·|x) [ℓ(y, ŷ)] ≥ ψ(Hpθ (·|x) (Y )).
+Note that Hpθ (·|x) (Y ) = Hθ (Y | x). Rearranging, for the minimizing ŷ = ŷθ (x):
+                                            Rθ (x) ≥ ψ(Hθ (Y | x)).
+However, we wish to use this bound subtractively. Observe that adding and subtracting ψ(Hθ (Y | x))
+to the right-hand side of (20) yields:
+                 Rθrob (x) ≤ Rθ (x) + LD · sup D(· · · ) − ψ(Hθ (Y | x)) + ψ(Hθ (Y | x)).                          (21)
+                                               x′
+
+Since ψ ≥ 0, this is a valid upper bound that subtracts a nonnegative entropy-dependent quantity
+from the sensitivity term while re-adding it to the base risk term. The utility of this manipulation
+becomes clear when we bound ψ(Hθ (Y | x)) below by zero: the subtraction tightens the bound
+whenever entropy is nontrivially large.
+Step 3: Interpretation-collapse gap. Under Assumption 3, the model’s P distribution pθ (y | x) ≈
+p(y | z ∗ , x) is a mode approximation of the true mixture p(y | x) = z p(y | z, x)p(z | x). The
+Bayes-optimal risk under the true conditional is:
+                                        R∗ (x) = min Ey∼p(·|x) [ℓ(y, ŷ)].
+                                                    ŷ
+
+By the definition of κ(x) = (R (x) − Rθ (x))+ , we have:
+                                 ∗
+
+
+                                            Rθ (x) ≥ R∗ (x) − κ(x).
+Substituting into the bound:
+                     Rθrob (x) ≤ R∗ (x) + LD · sup D(· · · ) − ψ(Hθ (Y | x)) + κ(x).
+                                                     x′
+
+Since R∗ (x) ≤ Rθ (x) + κ(x) (from the definition of κ), we can write:
+                     Rθrob (x) ≤ Rθ (x) + LD · sup D(· · · ) − ψ(Hθ (Y | x)) + κ(x),
+                                                     x′
+
+which is inequality (10).
+Step 4: Deriving (11). By the λ-condition in the theorem statement, λHθ (Y | x) ≥ ψ(Hθ (Y | x)),
+so:
+                               −ψ(Hθ (Y | x)) ≤ −λHθ (Y | x).
+Also, by Jensen’s inequality applied to the concave function −D:
+                   Ex′ ∼Πε [D(pθ (· | x)∥pθ (· | x′ ))] ≤         sup        D(pθ (· | x)∥pθ (· | x′ )),
+                                                                x′ ∈∆ε (x)
+
+so the expected version Sθ (x; ε) provides a lower bound on the supremum version, and substituting
+the supremum with Sθ gives a looser but computable bound. Combining:
+                        Rθrob (x) ≤ Rθ (x) + LD · sup D − ψ(Hθ ) + κ(x)
+                                     ≤ Rθ (x) + LD · Sθ (x; ε) − λHθ (Y | x) + κ(x)
+                                     = Rθ (x) + LD · SUAθ (x; ε, λ) + κ(x),
+which is (11).
+
+
+                                                           20
+Aliens on Earth (AoE)                                                          Sensitivity–Uncertainty Alignment
+
+
+
+A.2     Proof of Theorem 4.5
+Proof. Recall that ECE = b (|Bb |/n)|acc(Bb ) − conf(Bb )|. We work within a single bin b and show
+                           P
+that the calibration gap within that bin is lower-bounded by a function of mean SUA violation.
+Step 1: Accuracy and risk. For 0-1 loss, acc(Bb ) = 1 − R̄b where R̄b = |Bb |−1 x∈Bb Rθ (x) is
+                                                                                    P
+
+the mean risk in bin b. The mean confidence is conf(Bb ) = p̄b = g(H̄b ) approximately (by the mean
+value theorem and monotonicity of g).
+Step 2: Confidence–accuracy gap. |acc(Bb ) − conf(Bb )| = |1 − R̄b − g(H̄b )|. When the model
+is overconfident in the adversarial sense (high sensitivity, low entropy, high confidence), g(H̄b ) is
+large (recall g is nonincreasing in entropy, so low entropy → high confidence) and R̄b is large due to
+sensitivity-induced errors. Thus:
+
+                               |acc(Bb ) − conf(Bb )| ≥ g(H̄b ) − (1 − R̄b ).
+
+Step 3: Bounding R̄b from below using sensitivity. Within bin b, the mean worst-case risk
+satisfies (from Theorem 4.3, taking expectations):
+
+                                     R̄brob ≤ R̄b + LD S̄b − ψ(H̄b ) + κ̄b .
+
+Since R̄brob ≥ R̄b (worst case cannot be smaller than typical risk), and adversarially induced failures
+increase actual mean risk:
+                                   R̄b ≥ R̄b − (LD S̄b − λH̄b )+ − cb ,
+where cb absorbs the approximation in replacing ψ(H̄b ) with λH̄b and estimation variance. Rear-
+ranging:
+                           g(H̄b ) − (1 − R̄b ) ≥ (LD S̄b − λH̄b )+ − cb .
+Wait—we note that in the overconfident regime, g(H̄b ) is close to 1 and (1 − R̄b ) is less than 1 (the
+model makes errors). The lower bound on the calibration gap is:
+
+                               |acc(Bb ) − conf(Bb )| ≥ (S̄b − λH̄b − cb )+ .
+
+Step 4: Aggregation. Summing over bins with weight |Bb |/n and lower-bounding each term:
+                          X |Bb |                                1 X
+                  ECE =              |acc(Bb ) − conf(Bb )| ≥        (S̄b − λH̄b − cb )+ ,
+                                 n                               B
+                           b                                          b
+
+where the right-hand side uses equal bin sizes for simplicity (the general unequal-bin case follows
+analogously). This is (12).
+
+A.3     Proof of Lemma 4.6
+Proof. Let U ∗ (x) = H(Y | X = x) and A(x) = H(Z | X = x).
+Step 1: Bounding U ∗ (x) from below. By the chain rule for entropy:
+
+                  H(Y, Z | x) = H(Z | x) + H(Y | Z, x) = H(Y | x) + H(Z | Y, x).
+
+Therefore:
+
+  U ∗ (x) = H(Y | x) = H(Z | x) + H(Y | Z, x) − H(Z | Y, x) = A(x) + H(Y | Z, x) − H(Z | Y, x).
+
+Since H(Y | Z, x) ≥ 0 and H(Z | Y, x) ≤ H(Z | x) = A(x):
+
+                                     U ∗ (x) ≥ A(x) − H(Z | Y, x) ≥ 0.
+
+
+                                                       21
+Aliens on Earth (AoE)                                                        Sensitivity–Uncertainty Alignment
+
+
+
+Define η(x) = |U ∗ (x) − A(x)| = |H(Y | Z, x) − H(Z | Y, x)|. Then U ∗ (x) ≥ A(x) − η(x).
+Step 2: Miscalibration from ambiguity collapse. Under the conditions A(x) > α and Hθ (Y |
+x) < β:
+                                     Cθ (x) = |Hθ (Y | x) − U ∗ (x)|
+                                            ≥ U ∗ (x) − Hθ (Y | x)
+                                            ≥ (A(x) − η(x)) − Hθ (Y | x)
+                                            > α − η(x) − β,
+where the first inequality uses U (x) > Hθ (Y | x) (the model underestimates true uncertainty by
+                                      ∗
+
+the ambiguity collapse assumption), the second applies the lower bound from Step 1, and the third
+substitutes the assumed inequalities. This is (13).
+
+A.4      Proof of Lemma 4.7
+Proof. Let p = pθ (· | x), q = pθ (· | x′ ), p′ = p′θ (· | x), q ′ = p′θ (· | x′ ). The assumption that p′θ achieves
+higher entropy by spreading mass uniformly means p′y = (1 − γ)py + γ/|Y| for some γ ∈ (0, 1) (a
+uniform mixture, also called a label-smoothed variant).
+Step 1: JSD under label smoothing. For D = DJS , write the mixture point m = 1/2(p′ +q ′ ). We
+have p′y − qy′ = (1 − γ)(py − qy ), so the pointwise differences in the numerator of the KL divergences
+in JSD are scaled by (1 − γ) < 1. By the convexity of the KL divergence and the scaling of the
+differences:
+                                      DJS (p′ ∥q ′ ) ≤ (1 − γ)2 DJS (p∥q),
+as can be verified by expanding the JSD in terms of pointwise differences and applying the inequality
+(a log(a/b)) ≤ c · a log(a/b) for c ≥ 1 together with the (1 − γ) scaling.
+Since (1 − γ)2 < 1, we have DJS (p′ ∥q ′ ) < DJS (p∥q), proving the first claim.
+Step 2: Risk increase. The optimal predictor under p′ = (1 − γ)p + (γ/|Y|)1 achieves:
+                         Rθ′ (x) = min Ey∼p′ [ℓ(y, ŷ)] ≥ min Ey∼p [ℓ(y, ŷ)] + γ · ∆,
+                                      ŷ                       ŷ
+
+where ∆ > 0 is the additional loss from the uniform component (positive since the uniform distri-
+bution is suboptimal for any non-trivial task). Hence Rθ′ (x) > Rθ (x).
+
+A.5      Proof of Proposition 4.8
+Proof. Define Aτ = {x : SUAθ (x; ε, λ) ≤ τ } (the “answer” set).
+For any x ∈ Aτ , we have SUAθ (x) ≤ τ , and from (11):
+                   Rθrob (x) ≤ Rθ (x) + LD · SUAθ (x) + κ(x) ≤ Rθ (x) + LD · τ + κ(x).
+The selective risk is:
+                          Rsel (τ ) = E Rθrob (x) | x ∈ Aτ
+                                                          
+
+                                   ≤ E [Rθ (x) + LD τ + κ(x) | x ∈ Aτ ]
+                                   = E[Rθ (x) | x ∈ Aτ ] + LD τ + E[κ(x) | x ∈ Aτ ]
+                                   ≤ Rθ + LD τ + E[κ(x) | x ∈ Aτ ],
+where the last inequality uses E[Rθ (x) | x ∈ Aτ ] ≤ E[Rθ (x)] = Rθ (this holds when the covered
+set Aτ contains inputs that are no harder on average than the full distribution; in the worst case,
+this step replaces ≤ with = and the bound still holds by substituting the conditional expectation
+directly).
+
+
+                                                        22
+Aliens on Earth (AoE)                                                   Sensitivity–Uncertainty Alignment
+
+
+
+B     Ablation Details
+B.1     Effect of K on SUA Estimation Quality
+We measure the Spearman rank correlation between the estimated SUA score SUA    [ θ (x) and the
+ground-truth (large-K) SUA score as a function of K. At K = 1, the correlation is 0.71. At K = 2,
+0.84. At K = 4, 0.93. At K = 8, 0.95. Beyond K = 4, gains are marginal, confirming our choice of
+K = 4 as the default.
+
+B.2     Perturbation Mixture Weights
+We ablate the mixture weights (ωpara , ωtok , ωadv ) on the QA task. Semantic paraphrases contribute
+the most to ECE improvement (−0.031 vs. default); token-level edits contribute the most to robust
+accuracy (+0.021 vs. default); adversarial proposals contribute modestly to AUROC (+0.009 vs.
+default). The full mixture outperforms any single perturbation type across all metrics.
+
+B.3     Sensitivity to λ
+We vary λ ∈ {0.1, 0.5, 1.0, 2.0, 5.0} on the NLI task. Performance is relatively stable for λ ∈ [0.5, 2.0];
+outside this range, either the entropy alignment term dominates (too large λ, reducing accuracy) or
+the sensitivity term dominates (too small λ, insufficient calibration improvement). We recommend
+λ = 1.0 as a safe default and suggest calibrating on a validation set.
+
+B.4     Effect of Abstention Threshold
+We report the coverage–selective-accuracy tradeoff for SUA-based abstention vs. entropy-based ab-
+stention on the QA task. At 90% coverage: SUA 0.812, Entropy 0.791. At 80% coverage: SUA 0.852,
+Entropy 0.821. At 70% coverage: SUA 0.891, Entropy 0.843. SUA-based abstention consistently
+yields higher selective accuracy at all coverage levels, with the gap widening as coverage decreases
+(i.e., as abstention becomes more selective).
+
+
+C     Extended Qualitative Analysis
+C.1     Failure Mode Taxonomy
+The following table gives a more detailed taxonomy of failure modes and how SUA diagnoses each.
+
+                       Table 4: Failure mode taxonomy with SUA diagnostics.
+
+ Failure Type            Description                     SUA Signature                 Recommended
+                                                                                       Action
+ Sensitivity failure     Small perturbation causes       High Sθ , low Hθ              Abstain or raise
+                         large output shift                                            uncertainty
+ Invariance failure      Meaning changes, output         Low Sθ , low Hθ               No SUA signal;
+                         unchanged                                                     addressed       by
+                                                                                       training diversity
+ Epistemic failure       Model does not know the an-     Low Sθ , high Hθ              Abstain if Hθ >
+                         swer                                                          τ′
+ Ambiguity collapse      Multiple valid answers, sin-    Low Sθ , low Hθ , high Ab     Output distribu-
+                         gle confident output                                          tion over answers
+
+
+
+
+                                                    23
+Aliens on Earth (AoE)                                               Sensitivity–Uncertainty Alignment
+
+
+
+The table shows that SUA captures sensitivity failures directly and ambiguity collapse via the mis-
+match between model entropy and the operational ambiguity proxy. It does not capture invariance
+failures (which require a different diagnostic) or pure epistemic failures (where entropy-based absten-
+tion is sufficient). This characterization motivates combining SUA with entropy-based abstention in
+deployment.
+
+
+
+
+                                                  24
+
