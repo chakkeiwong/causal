@@ -1,0 +1,1 @@
+Resolve only seed:061 using explicit same_project_alias evidence and the already reviewed canonical pinned engine. Preserve its complete limitations, alternatives and refusal of executable admission. Do not count a second implementation, new native run, new scientific result or extra survey depth. No family-level inheritance is permitted for other wrappers or names.
