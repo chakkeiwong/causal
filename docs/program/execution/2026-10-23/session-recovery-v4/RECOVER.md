@@ -1,0 +1,5 @@
+# Durable recovery
+
+SCOPE-RL reference-only disposition and preserving reader/sponsor are complete. Current pair: 1,303-page monograph, 69-page sponsor, 994/405 audited citation records and 232 genuine scholarly PDFs. Q2-Q4 and both integrity controllers pass. Program: 224 recorded / 376, 128 ready, 216 nonpassing. Reuse: 43 pass / 3 inconclusive / 69 open. Census unchanged at 70 inspected / 43 unread plus four crosscutting obligations. Visual/final acceptance and Q1/Q5 remain open; six-image allowance is exhausted.
+
+Continue OBP source unit: eleven pinned blobs authenticate, exact contextual-bandit reference and connected manuscript are written. Build source audit and reference disposition, record inherited_obp, integrate preserving publication successors and refresh the queue. Inspect actual caller paths; the apparent estimated-propensity flag omission is resolved because the chosen array is forwarded as the base propensity. The one-sided Student helper must not inherit SCOPE-RL's symmetric-interval critique. No downloaded code executes. Collector manifest restored. No unattended worker runs.
