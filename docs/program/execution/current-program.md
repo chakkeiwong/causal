@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-pandera-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-pandera-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-pydynpd-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-pydynpd-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-pandera-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-pydynpd-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,48 +12,51 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_pandera_reviewed_2026-10-24.pdf) has 1,392 pages,
-1,068 audited citation records and 239 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_pandera_reviewed_2026-10-24.pdf) has 91 pages and 532 citations.
-All 1,066 predecessor records, citation contexts and 328 compiled content inputs survive.
+The [monograph](../../causal_proposal_pydynpd_reviewed_2026-10-24.pdf) has 1,396 pages,
+1,071 audited citation records and 240 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_pydynpd_reviewed_2026-10-24.pdf) has 91 pages and 539 citations.
+All 1,068 predecessor records, citation contexts and 329 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**248 recorded outcomes of 376; 105 ready; 200 nonpassing obligations.**
+**249 recorded outcomes of 376; 104 ready; 199 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 47 | 52 | 102 |
-| reuse | 59 | 3 | 53 | 115 |
+| reuse | 60 | 3 | 52 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-Pandera now has 25 authenticated original blobs and two audited citation records.
-The reference-only reuse disposition passes; it grants no native integration.
-The argument distinguishes disabled, skipped, sampled, warning-only and full checks,
-then follows transformations, index identity, population selection, availability clocks,
-engine dispatch and the existing CLI. All predecessor sources and contexts survive.
+The pydynpd reference decision now binds 16 authenticated original source blobs,
+a genuine Wu2023 paper and exact authored witnesses. Three records extend the
+monograph; the sponsor also adopts two already-inspected inherited theory records.
+The choice passes as a proposal reference disposition and grants no native integration.
 
-Exact authored witnesses show a sample missing two violations with probability 89/110,
-selection creating an observational contrast of one despite a zero causal effect,
-and identical observed data permitting causal effects one and zero. Label removal,
-identifier conversion and information clocks have separate contract examples.
-A stipulated USD 48 workflow costs USD 4 per attempt, USD 6 per process success and
-USD 16 per accepted artifact. These are not native benchmarks or quoted prices.
+The argument follows causal moments through calendar and row identity, instrument
+construction, weighting/rank, covariance, diagnostic steps, model search and termination.
+Version declarations disagree; the source commit remains authoritative. Ordering,
+compressed calendar steps, skipped search failures and an uncapped inspected iteration
+path are preserved source concerns, not observed package failures.
 
-The conditional original Python worker preserves effective configuration, mandatory
-checks, transformations and returned artifacts. Proposed CLI/MCP use needs trusted
-schemas, semantic/refusal oracles, complete costs and reviewed rights/environment.
-Narwhals/distributed/serializer delegates and native qualification remain open.
-The public/generated route precedes expensive bank trials. Earlier R-policy,
-Julia/Rust survival, LLM and integration arguments remain intact.
+Exact witnesses show a solved invalid moment returning two for a structural coefficient
+of one, rank deficiency identifying only a sum, and a common shock retaining variance
+one across100accounts. Stipulated screening can yield a survivor probability0.8784;
+stable USD10 responses imply USD50/200 at persistence0.8/0.95. Complete costs distinguish
+USD5perattempt,USD12.50persurvivor andUSD50peraccepted artifact. No measured bank value.
+
+Conditional original-worker/targeted-repair and typed CLI/MCP contracts require public
+or generated semantic,negative-control and failure fixtures before expensive bank trials.
+The stale census continuation describing completed survival work has a preserved successor
+note; the36unread originals and4crosscutting obligations remain open. Pandera, R-policy,
+Julia/Rust survival and prior LLM/integration content remains intact.
 
 ## Remaining gaps and routes
 
 1. Software:52open and47inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
-2. Reuse:53open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
+2. Reuse:52open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
 3. Frontier census:36unread originals and four crosscutting obligations. Candidate217 original access/date remains local; candidate27 metadata supplies no original.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister justified task/version splits, semantic/refusal/fault oracles and full costs before broader native or bank claims.
@@ -65,7 +68,7 @@ acceptance and actual economic value remain later external work, not global prop
 
 ## Exact continuation
 
-Next:LL.CENSUS. Continue36unread originals and fourcrosscutting obligations; acquire accessible cutoff-eligible originals using fixed public collector, preserve secondary-source limits. Independent SW.CELL.longitudinal_survival.other_relevant now has6cutoff-pinned repositories and37authenticated source blobs for review.
+Next:SW.CELL.policies_offpolicy.Python. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Separate fixed-policy evaluation, policy selection and unknown optimum; require logger, support and hidden-state scope; banking example: dynamic servicing.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
