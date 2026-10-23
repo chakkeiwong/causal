@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery and commercial-client integration.
-The [complete queue review](2026-10-23/program-refresh-workflow-clients-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-workflow-clients-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery, structured-model integration and continuation repair.
+The [complete queue review](2026-10-23/program-refresh-structured-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-structured-v1/remaining-operations.json)
 cover all 376 proposal obligations. The canonical state and controller are authoritative;
 the older numbered master programs are preserved historical contracts.
 
@@ -13,10 +13,10 @@ it is not an unattended research worker.
 
 ## Current integrated documents
 
-The current pair is the [1,259-page monograph](../../causal_proposal_workflow_clients_reviewed_2026-10-23.pdf)
-and [55-page sponsor](../../sponsor_proposal_workflow_clients_reviewed_2026-10-23.pdf).
-There are 955 audited monograph citations, 223 genuine scholarly PDFs and 338 sponsor citations.
-All 950 predecessor citation identities/contexts and 288 compiled content inputs are preserved.
+The current pair is the [1,262-page monograph](../../causal_proposal_structured_causal_reviewed_v3_2026-10-23.pdf)
+and [57-page sponsor](../../sponsor_proposal_structured_causal_reviewed_2026-10-23.pdf).
+There are 958 audited monograph citations, 225 genuine scholarly PDFs and 343 sponsor citations.
+All 955 predecessor citation identities/contexts and 289 compiled content inputs are preserved.
 The sponsor binds exact reader bytes. Q2-Q4 pass for this reader; Q1/Q5, mandatory repair rollups,
 fresh visual review and final proposal acceptance remain open.
 
@@ -45,14 +45,23 @@ one useful gain with one or two charged attempts gives USD 5 and -2. These are e
 The entire commercial cell remains open: detailed client evidence does not establish a licensed server,
 whole-market coverage, accepted rights/prices or native qualification.
 
-The frontier census remains 63 inspected and 50 unread originals of 113, plus four crosscutting searches.
+The frontier census remains 65 inspected and 48 unread originals of 113, plus four crosscutting searches.
 Fourteen LLM task and twelve integration reviews have scoped outcomes; these do not prove live-model superiority.
+
+Two genuine structured-causal-model papers are now integrated. Their known graph/symmetry restrictions,
+finite-interference and consistency conditions, poor absolute calibration in an array example, changed
+stabilized functionals and distinct intervention-weighting targets remain explicit. Exact authored branch-
+versus-customer net values are USD 6 and -3.60. The review grants no native capability or general repair.
+
+Fourteen old documentary next-actions still requested already delivered builds or recordings. Their reviewed
+successor actions now point to actual omissions and qualifications, preserving every prior outcome and note.
+The controller already rejects restarting recorded operations; this repair prevents misleading recovery guidance.
 
 ## Remaining gaps and execution routes
 
 1. Complete source coverage and individual reuse dispositions using genuine cutoff originals and explicit
    adoption/integration/port/reference/reject reasoning. Preserve source-specific negative or inaccessible findings.
-2. Finish the fifty unread census originals and four searches with inspected methods, assumptions, adverse
+2. Finish the forty-eight unread census originals and four searches with inspected methods, assumptions, adverse
    results and limitations. Do not treat abstracts, package function counts or marketing as qualification.
 3. Complete the commercial temporal/API gaps: exact Dataiku cutoff bytes; SAS REST/service delegates;
    Domino supported terminal-state schema; Posit client/server and scheduler profiles. Keep rights/pricing separate.
@@ -69,7 +78,7 @@ bank economics are later external work, separate from completing this proposal.
 
 ## Exact continuation
 
-Next: LL.CENSUS. Inspect the 50 unread originals and four crosscutting searches in the authenticated census register. Acquire genuine originals, verify cutoff versions, inspect technical and adverse-result anchors, then retain, justify exclusion or record a real access failure. Preserve existing access failures and citation-chain limits. The contextual-causality and multimodal-conflict integrations are delivered in both current PDFs; do not repeat them. Independent commercial, reuse and IV/RD work remains eligible.
+Next: SW.CELL.iv_rd_design.other_relevant. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
 
 Source-specific follow-ups, actual prerequisites and independent alternatives are preserved in the complete
 remaining register. No phase boundary or one unavailable source is a global blocker. Resume the pending
