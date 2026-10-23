@@ -1,0 +1,2836 @@
+                                         Noname manuscript No.
+                                         (will be inserted by the editor)
+
+
+
+
+                                         ChronoLLM: Customizing Language Models for
+                                         Physics-Based Simulation Code Generation
+
+                                         Jingquan Wang · Andrew Negrut ·
+                                         Harry Zhang · Khailanii Slaton · Shu
+                                         Wang · Radu Serban · Jinlong Wu ·
+                                         Dan Negrut
+
+
+                                         Received: date / Accepted: date
+arXiv:2508.13975v1 [cs.AI] 19 Aug 2025
+
+
+
+
+                                         Abstract This contribution is concerned with the following issue: can pre-
+                                         trained large language models (LLMs) be refined and customized to the point
+                                         where they become virtual assistants helping experts with the effective use
+                                         of a simulation tool? In this case study, the “simulation tool” considered is
+                                         PyChrono, an open source multi-physics dynamics engine for multibody sys-
+                                         Jingquan Wang
+                                         Department of Mechanical Engineering, University of Wisconsin-Madison, 1513 University
+                                         Avenue, 53706, Madison, USA
+                                         E-mail: jwang2373@wisc.edu
+                                         Andrew Negrut
+                                         Department of Computer Science, Rice University, 6100 Main Street, 77005, Houston, TX,
+                                         USA
+                                         E-mail: agn5@rice.edu
+                                         Khailanii Slaton
+                                         Department of Mechanical Engineering, University of Wisconsin-Madison, 1513 University
+                                         Avenue, 53706, Madison, USA
+                                         E-mail: kslaton@wisc.edu
+                                         Shu Wang
+                                         Department of Mechanical Engineering, University of Wisconsin-Madison, 1513 University
+                                         Avenue, 53706, Madison, USA
+                                         E-mail: swang597@wisc.edu
+                                         Radu Serban
+                                         Department of Mechanical Engineering, University of Wisconsin-Madison, 1513 University
+                                         Avenue, 53706, Madison, USA
+                                         E-mail: serban@wisc.edu
+                                         Jinlong Wu
+                                         Department of Mechanical Engineering, University of Wisconsin-Madison, 1513 University
+                                         Avenue, 53706, Madison, USA
+                                         E-mail: jinlong.wu@wisc.edu
+                                         Dan Negrut
+                                         Department of Mechanical Engineering, University of Wisconsin-Madison, 1513 University
+                                         Avenue, 53706, Madison, USA
+                                         E-mail: negrut@wisc.edu
+2                                                            Jingquan Wang et al.
+
+
+tems. We present a framework for refining and customizing both open- and
+closed-source LLMs to harness the power of AI in generating scripts that per-
+form PyChrono virtual experiments. We refine and customize several classes
+of LLMs through a process that leads to a quantifiable improvement in the
+quality of the generated PyChrono simulation scripts. These scripts can range
+from simple single-pendulum simulations to complex virtual experiments in-
+volving full vehicles on deformable terrain. While the generated scripts are
+rarely perfect, they often serve as strong starting points for the user to mod-
+ify and improve on. Additionally, the LLM can answer specific API questions
+about the simulator, or recommend modeling approaches. The framework dis-
+cussed is general and can be applied to lower the entry barrier for simulation
+tools associated with other application domains.
+Keywords Large Language Model · multi-physics simulation · Project
+Chrono · PyChrono · virtual experiments
+Mathematics Subject Classification (2020) MSC code1 · MSC code2 ·
+more
+
+
+1 Introduction
+
+This contribution describes the process of refining and customizing a large
+language model (LLM) to improve its ability to generate PyChrono models
+[1]. Refining pertains to using fine-tuning, prompt engineering, and prompt
+learning, among other techniques. Customizing pertains to changing the LLM
+to be particularly good at generating PyChrono models. Overall, this effort
+is justified by the ultimate goal of having the LLM assist a Chrono [2] user
+in generating a digital twin of a mechanical system of interest, e.g., a three
+link robot arm, a rover possessing a collection of sensors, or a four-bar linkage
+mechanism.
+    Since the word “model” is used in two contexts, their semantics are differen-
+tiated as follows. The PyChrono model that ChronoLLM produces represents
+a digital twin of a mechanical system. Carrying out a virtual experiment with
+this digital twin requires a PyChrono script, which includes the model and
+also specifies how the model is exercised in a virtual experiment that presum-
+ably mirrors a physical experiment. PyChrono is used to run the script that
+outputs the time evolution of the digital twin. Ideally, the time evolution of
+the digital twin should be close to that of its physical counterpart to result
+in a small sim-to-real gap. Conversely, the AI model that we seek to refine
+and customize is an LLM, which has billions to trillions of weights that the
+techniques discussed herein may or may not change.
+    The choice of focusing on LLMs that produce PyChrono digital twins is mo-
+tivated by the fact that the authors are involved in various aspects of augment-
+ing the Project Chrono simulation infrastructure. However, the framework to
+produce ChronoLLM can be adopted and adapted to work in conjunction with
+any other open or closed-source simulators from other domains.
+Title Suppressed Due to Excessive Length                                        3
+
+
+1.1 Brief Overview of Project Chrono
+
+Project Chrono [2] is an open-source, physics-based simulation framework that
+supports the modeling, simulation, and analysis of mechatronic systems. It is
+designed for high-fidelity simulations, and released under a permissive BSD3
+license that allows unfettered use, modification, and redistribution. PyChrono
+is the Python wrapper for Project Chrono, providing a user-friendly interface
+to the core functionalities of Project Chrono. It allows users to leverage the
+power of Project Chrono using Python, making it accessible to a broader range
+of users who prefer scripting in Python over C++. At the time of publishing,
+PyChrono has been installed more than 140000 times [3].
+    Project Chrono encompasses a wide range of features, and PyChrono in-
+herits a subset of these capabilities:
+1. Chrono::Engine: Provides core functionality for multibody dynamics and
+   nonlinear finite element analysis, with robust treatment of friction and con-
+   tact using both the penalty method and the Lagrange-multiplier method.
+2. Chrono::FSI: Enables the simulation of fluid-structure interaction prob-
+   lems.
+3. Chrono::Vehicle: Includes a comprehensive library of wheeled and tracked
+   vehicles, facilitating high-fidelity vehicle dynamics simulations, engine mod-
+   eling, terrain-tire interaction, and deformable terrain simulations. It focuses
+   on off-road and unstructured scenarios involving deformable terrains and
+   movable obstacles.
+4. Chrono::ROS: A bridge that enables Chrono to interact with the autonomy
+   stack or sensor infrastructure of robots using ROS2.
+5. Chrono::Sensor: Provides sensor modeling and simulation.
+6. Chrono::DEM: Enables the simulation of discrete element method prob-
+   lems, with a focus on granular materials.
+7. Chrono::CRM: supports terramechanics simulations enabling one to model
+   the interaction between a deformable terrain and a robot, vehicle, or rover.
+8. Chrono::Parsers: A tool to import external models and to interact with
+   other languages, e.g., URDF.
+    Chrono has been utilized in conjunction several NASA project, e.g., the
+VIPER mission, the RASSOR excavator, the Moon Ranger rover, the Moon
+Racer astronaut vehicle, and the IM-4 lunar lander. It has been adopted by the
+Department of Defense High-Performance Computing Modernization Program
+(HPCMP) for the simulation of wheeled and tracked vehicles in the CREATE-
+GV project [4]. Additionally, Chrono has been tested in NATO benchmarking
+exercises for off-road vehicle mobility analysis [5]. Other notable users include
+the Jet Propulsion Lab, U.S. Army, National Renewable Energy Lab (NREL),
+National Higher French Institute of Aeronautics and Space, European Space
+Agency, Japan Aerospace Exploration Agency (JAXA), to name a few. Ap-
+plications of Chrono span extraterrestrial exploration [6–9], machine learn-
+ing in robotics [10], image processing [11, 12], autonomous vehicles [13–18],
+tracked-vehicle design [19], fluid-solid interaction [20], bridge suspension [21],
+4                                                            Jingquan Wang et al.
+
+
+hardware-in-the-loop simulations [22], wind turbine dynamics [23, 24], hydro-
+dynamics [25] and oil industry applications [26].
+    As of Jun 2025, Project Chrono has been developed for more than 25
+years and iterated to its 9.0.0 version. It has over 750 forum members [27], the
+project has been starred with more than 2400 times, and forked more than 400
+times on GitHub [28], resulting in numerous derivative projects. The Chrono
+GitHub repository is ranked amongst the first 0.014% of the repositories on
+GitHub (rank 22,774 out of 158,541,903 public GitHub repositories worldwide.
+    Chrono is developed jointly at the University of Wisconsin–Madison (USA)
+and the University of Parma (Italy). Because it is (i) an academic open-source
+code at the forefront of research in digital twin technology, (ii) developed
+primarily within university settings, and (iii) freely available — creating a
+sophisticated graphical user interface and comprehensive documentation has
+not been a top priority owing to lack of resources. As a result, Chrono can
+be challenging to learn and adopt. Despite having more than 3500 webpages
+detailing the simulator’s use and features, the Chrono documentation in several
+areas remains sparse. Improving the user experience is a long-term goal of
+the Chrono development team. This contribution reports on our efforts to
+leverage LLMs to assist users in setting up PyChrono virtual experiments
+more effectively.
+
+
+1.2 A Brief Overview of LLMs and Domain-Specific LLMs
+
+Recent advancements in artificial intelligence (AI) have led to breakthroughs
+in natural language processing. As highlighted in studies that investigate how
+LLM performance scales with model size [29, 30], as their size increases, LLMs
+exhibit emergent abilities that were not evident at smaller scales. These emer-
+gent abilities include enhanced comprehension, reasoning, and language gener-
+ation [31, 32], paving the way for LLMs to extend their utility beyond simple
+language tasks to more complex applications across various domains.
+    In science and engineering, LLMs are transforming how experts approach
+problem-solving and design. Advanced closed-source LLMs, such as the GPT
+family [33, 34] by OpenAI, the Gemini family [35] by Google, and the Claude
+family [36] by Anthropic, have been demonstrating steady progress in handling
+complex tasks like code generation. The usage of these closed-source LLMs is
+typically fee-based, and is done via websites and/or API calls. While these
+LLMs, trained on trillions of tokens from publicly available data, perform
+exceptionally well on general tasks, they have limitations when deployed in
+domain-specific applications, e.g., the task of generating a model that can be
+run in Chrono. This is caused by two main reasons: due to their large size, fre-
+quent retraining to incorporate recent developments is impractical; and, lack
+of exposure to up-to-date information can lead to inaccurate responses, par-
+ticularly in domain-specific information processing where LLMs may not fully
+understand new terminology. To counteract this and build an LLM that can
+help with domain-specific problems, it is recommended to customize the LLM
+Title Suppressed Due to Excessive Length                                       5
+
+          Prompt Engineering                  Prompt Learning         Fine-Tuning
+
+           – Few-shot learning [37]                                   – Adapters [43]
+                                              – Prompt tuning [40]    – LoRA [44]
+ Tech      – Chain-of-thought     reasoning                           – RLHF [45]
+                                              – P-tuning [41]         – Supervised    fine-
+             [38]                             – Prefix tuning [42]
+           – Scratchpad reasoning [39]                                  tuning [46]
+
+
+           – Lowest investment                – Lower investment
+  Pros                                                                – Best performance
+           – Least expertise                  – Better performance
+           – Retains old skills               – Retains old skills
+
+                                                                      – Medium      invest-
+           – Worst performance                – Slow down inference     ment
+ Cons      – Slow down inference              – Limited addition of   – Longer training
+           – Limited addition of skills         skills                – More expertise
+                                                                      – Forgetting      old
+                                                                        skills
+
+
+Table 1: Comparison of Methodologies to customized LLMs from pretrained
+LLMs
+
+
+using specialized knowledge, enabling it to adapt and accurately comprehend
+new (unseen) information.
+   From a high vantage point, there are four ways to produce a domain-specific
+LLM.
+1. Training from Scratch: This approach involves collecting extensive domain-
+   specific data and training a new LLM tailored to address specific prob-
+   lems. For instance, in the field of high-performance computing, models
+   such as OMPGPT-0.78B [47] and MonoCoder-0.89B [48] have claimed su-
+   perior performance compared to GPT-3.5 in parallelizing C++ code us-
+   ing OpenMP by training on numerous examples of OpenMP programs.
+   The primary advantage of this method is the potential for achieving the
+   highest performance when (a) sufficient data, (b) computational resources,
+   and (c) expertise are available. However, the process is often daunting,
+   including the high cost of data collection, model training, and hardware
+   procurement. Training even a small-scale 7-8B LLM like LLaMA3-8B [49]
+   can cost millions of dollars [50]. If the domain-specific LLM is too small,
+   its performance on specific tasks will be highly constrained.
+2. Prompt engineering, including in-context learning (few-shot prompting
+   with domain-specific examples): this involves structuring model inputs to
+   guide reasoning. Techniques such as chain-of-thought (CoT) prompting
+   [38] and ScratchPad [39] encourage LLMs to generate intermediate rea-
+   soning steps explicitly, improving problem-solving and reasoning abilities
+   in complex tasks. In the multibody dynamics field, researchers have used
+   this approach in conjunction with GPT-4 to generate models for the Exu-
+   dyn library [51, 52]. Other notable examples include MyCrunchGPT [53]
+   for generating Python codes for physics-informed neural networks (PINN)
+   [54], and GeoGPT [55] for generating Matlab code in geotechnical engi-
+6                                                            Jingquan Wang et al.
+
+
+   neering. The advantages of this approach are that (a) minimal expertise
+   and computational resources are required, (b) there is virtually no compu-
+   tation spent on altering the model parameters, and (c) GPT-4 is a versatile
+   model to start with. Some of the limitations include potential security and
+   privacy issues due to the need to upload information to the LLM server,
+   limited customization capabilities, and high inference cost and latency.
+3. Prompt Learning: these are approaches that extend traditional prompt en-
+   gineering by incorporating trainable parameters to optimize prompt rep-
+   resentations, improving model adaptability. Methods such as prefix-tuning
+   [42], P-tuning [41], and prompt tuning [40] adjust learned prompt embed-
+   dings (trainable prompt representations in a neural network, stored as nu-
+   merical vectors instead of human-readable text) to better steer the model’s
+   behavior while keeping the core model parameters frozen. For example,
+   prompt learning has been used to customize LLMs for clinical diagnosis
+   [56]. The pros of this approach are its low training cost and the fact that
+   the LLM parameters remain unchanged, often yielding better results than
+   simple prompt engineering. The cons include the limited ability to improve
+   performance without altering all model parameters and a slight inference
+   slowdown.
+4. Fine-Tuning and Parameter-Efficient Fine-Tuning: Looking beyond closed-
+   source LLMs, the availability of open-source LLMs with accessible model
+   weights, such as those in the LLaMA [49, 57–59], Mistral [60], Gemma
+   [61, 62], and Phi [63] families, opens fine-tuning opportunities. Fine-tuning
+   involves starting from pretrained LLM weights and continuing training
+   (changing the model weights) using domain-specific data. As demonstrated
+   by various studies, fine-tuning works really well for customizing LLMs
+   for domain problems. For example, OceanGPT [64] is trained based on
+   LLaMA3-8B for ocean-related problems, and Hippocrates [65] fine-tuned
+   Mistral-7B and LLaMA2-7B, showing superior performance compared to
+   larger models up to 70B. AnomalyGPT [66] fine-tuned large vision-language
+   models for anomaly detection in manufacturing processes. C4QGPT, sup-
+   porting query generation for quantum dynamics [67], is fine-tuned based on
+   BERT [68], and MPIrigen [69] fine-tuned MonoCoder to parallelize C++
+   code using MPI. The advantages of fine-tuning include achieving the best
+   results based on pretrained LLMs, the ability to incorporate extensive data,
+   and not slowing down inference. However, fine-tuning requires non-trivial
+   amounts of data, necessitates expertise, and may lead to forgetting old skills
+   or even catastrophic forgetting. In [70], the authors showed that parameter-
+   efficient fine-tuning (PEFT) with open-source 7-8B LLMs can outperform
+   GPT-4 on domain-specific tasks by an average of 10 points. Several studies
+   showed that the performance improvements obtained by fine-tuning exceed
+   those gained through prompt engineering [71, 72].
+
+   The advantages and disadvantages of different customization methods with
+a pretrained LLM in are summarized in Table 1. The domain-specific LLMs
+mentioned above are summarized in Table 2.
+Title Suppressed Due to Excessive Length                                       7
+
+            LLMs                 Size      Base Model   Method          Domain
+      OPENMPGPT[47]              0.78B        N/A        TS               HPC
+        MonoCoder[48]            0.89B        N/A        TS               HPC
+      MyCrunchGPT[53]            N/A         GPT-4       PE               PINN
+          Exudyn [52]            N/A         GPT-4       PE       Multibody Dynamics
+         GeoGPT[55]              N/A         GPT-4       PE      Geotechnical Engineering
+ Clinical Prompt learning[56]    N/A          N/A        PL            Health Care
+         C4QGPT[67]             2x0.11B      Bert[68]    FT        Quantum Dynamics
+       MPIRIGEN[69]              0.89B      MonoCoder    FT               HPC
+        OceanGPT[64]               8B      LLaMA3-8B     FT        Ocean Engineering
+       Hippocrates[65]             7B      LLaMA2-7B     FT            Health Care
+
+Table 2: Overview of LLMs for domain-specific problems. Abbreviations:
+Trained from Scratch – TS; Prompt Engineering – PE; Prompt Learning –
+PL; Fine-tuning – FT; High Performance Computing – HPC
+
+
+1.3 PyChrono Challenges and current LLMs
+
+The goal of this effort is to develop a domain-specific LLM that increases user
+productivity by generating candidate PyChrono models in response to prompts
+describing the mechatronic system of interest. To that end, it is instructive to
+understand the issues the users struggle with. We conducted an analysis of
+the discussions in the Project Chrono user forum [27], which currently has
+more than 750 members. Up to May 2024, there have been 2576 multi-round
+conversations in the forum. Figure 1 shows a word cloud representing the most
+frequently mentioned words. Using Latent Dirichlet Allocation (LDA) [73] to
+analyze the subject lines of these conversations, we identified three primary
+topics:
+1. Case-by-Case Simulation Setup Challenges: The most common topic, ac-
+   counting for 38% of the discussions, pertains to specific challenges encoun-
+   tered when setting up simulations with PyChrono. When users set up Py-
+   Chrono models, they engage in discussions about identifying correct model
+   parameter choices, handling unexpected simulation behaviors and crashes,
+   and enhancing simulation performance. The LDA analysis suggests that
+   common challenges involve collision detection, configuring the dynamics of
+   physical interactions, and prescribing accurate motion to system bodies.
+2. API Usage Problems: Representing about 37% of the forum discussions,
+   this category reflects the difficulties users face with the extensive array of
+   API elements provided by PyChrono. The size of the code and the complex-
+   ity inherent in a multi-physics simulator has led to a number of 18320 API
+   related assets (including functions, variables, typedefs, enumerations) as
+   per the latest version of Project Chrono [74]. This extensive API poses us-
+   ability challenges, particularly for newcomers or those engaged in complex
+   simulation tasks. Users often report difficulties in identifying the right API
+   calls or employing them effectively within their projects. Additionally, the
+   LDA findings suggest that these issues are compounded when addressing
+   bugs, especially in simulations involving terrain and vehicles. Commonly
+8                                                           Jingquan Wang et al.
+
+
+
+
+              Fig. 1: The word cloud of Project Chrono Forum
+
+
+   reported API-related challenges include difficulties with tire models, vehi-
+   cle modeling, collision detection, and boundary conditions. Compounding
+   the problem is the fact that the API has changed repeatedly over time,
+   increasing the likelihood that LLMs lack exposure to the most recent up-
+   dates.
+3. Module Installation and Compilation Issues: Making up approximately
+   20% of the conversations, this topic addresses the issues related to the
+   installation and compilation of various PyChrono modules. Incorrect in-
+   stallation procedures and compatibility issues frequently pose obstacles for
+   users, limiting their ability to effectively utilize PyChrono. The LDA anal-
+   ysis draws attention to the fact that these discussions frequently center
+   on specific modules, notably those involving the PyChrono sensor module
+   and CUDA dependencies. Users often run into issues arising from cross-
+   operating system compatibility, e.g., Windows vs. Linux vs. MacOS.
+
+
+The limitations of current LLMs for Chrono-related problems Despite recent
+technological advances, modern LLMs, when used “out of the box,” strug-
+gle to effectively address Chrono-related questions, often adding complexity
+rather than providing practical solutions. While some LLMs exhibit a basic
+understanding of PyChrono, see Table 3 for context, their capabilities remain
+inadequate for generating reliable simulation code or handling complex tasks.
+Specifically, out of the box, LLMs have only a basic understanding of the
+Chrono API. This is largely due to the frequent changes in the API (see, for
+Title Suppressed Due to Excessive Length                                       9
+
+
+example, Table 4), which disrupt the pretraining process. Beyond this, the
+models are not supervised fine-tuned for Project Chrono, resulting in limited
+adaptation to the specific requirements of Chrono-related tasks. As a result,
+LLMs often fail to reflect recent API updates and may hallucinate method
+names or misuse interfaces for visualization, solver configuration, or collision
+handling.
+   Addressing the limitations pointed out above requires more than prompt
+engineering or prompt learning techniques. Considering the complexity of Py-
+Chrono and the need for accurate, domain-specific outputs, we opted to fine-
+tune existing LLMs, particularly focusing on their adaptation to the unique
+aspects of the Chrono tasks. As demonstrated in this work, fine-tuning yields
+measurable performance gains over approaches based solely on prompt engi-
+neering or prompt learning.
+
+
+
+2 Methodology
+
+2.1 Problem Statement
+
+The ChronoLLM pipeline is shown in Fig 2. The training of PyChrono knowl-
+edge and coding ability consists of two main stages: continued pretraining and
+instruction fine-tuning. For the reinforcement from human feedback (RLHF)
+component, it is important to note that we do not employ online RLHF ap-
+proaches such as PPO [75] or GRPO [76], which are typically aimed at im-
+proving coding ability. Instead, we adopt offline RL methods, in particular
+SimPO [77], as they are better suited for robust Q&A tasks, such as providing
+PyChrono installation guidance. From a high-vantage point, we start with a
+pretrained “base model” and then improve it. The starting LLM can be one
+of many available pretrained models, regardless of whether it is open-source
+or closed-source. If the model is open-source and of reasonable size, we can
+train locally. Otherwise, the training process will require a financial invest-
+ment since (a) the model is trained in the cloud using hardware assets that
+require pay-as-you-go fees, and/or (b) there are costs associated with API calls
+for a non-open source model. While the figure presents the model under the
+generic label “ChronoLLM,” its proper designation depends on the underlying
+pretrained model – for instance, ChronoLLaMA3-70B, ChronoChatGPT-4, or
+ChronoGemma2-27B.
+
+
+            Table 3: Baseline Chrono Knowledge in Various LLMs
+
+ Model             GPT-4      GPT-         LLaMA3-   Phi3-     Mistral-    CodeGemma-
+                              3.5          8B        mini      7B          7B
+ Chrono Intro      ✓          ✓            ✓         ✓         ✓           ✓
+ Chrono API        ✓          ✓            ×         ✓         ✓           ✓
+10                                                           Jingquan Wang et al.
+
+ Old API                                             New API
+                                               Basic Usage
+ chrono.ChVectorD(...)                               chrono.ChVector3d(...)
+ chrono.ChQuaternionD(...)                           chrono.ChQuaterniond(...)
+ chrono.ChCoordsysD(...)                             chrono.ChCoordsysd(...)
+ sys.Set G acc(...)                                  sys.SetGravitationalAcceleration(...)
+ box1.SetPos dt(...)                                 box1.SetPosDt(...)
+                                      Collision and Contact System
+ chrono.ChCollisionSystemBullet(...)                 sys.SetCollisionSystemType(...)
+ ground.SetBodyFixed(...)                            ground.SetFixed(...)
+ ground.SetCollide(...)                              ground.EnableCollision(...)
+ sys.GetNcontacts(...)                               sys.GetNumContacts(...)
+ chrono.ChMaterialSurfaceNSC(...)                    chrono.ChContactMaterialNSC(...)
+ chrono.ChMaterialSurfaceSMC(...)                    chrono.ChContactMaterialSMC(...)
+ chrono.CastToChMaterialCompositeNSC(...)            chrono.CastToChContactMaterialCompositeNSC(...)
+                                              Solver Settings
+ sys.SetSolverMaxIterations(...)                     sys.GetSolver().AsIterative().SetMaxIterations(...)
+ sys.SetSolverForceTolerance(...)                    sys.GetSolver().AsIterative().SetTolerance(...)
+                                               Visualization
+ chrono.ChFrameD(...)                                chrono.ChFramed(...)
+ pend 2.SetFrame COG to REF(...)                     pend 2.SetFrameCOMToRef(...)
+ pend 2.SetFrame REF to abs(chrono.ChFrameD(...))    pend 2.SetFrameRefToAbs(chrono.ChFramed(...))
+ chrono.ChCylinderShape(...)                         chrono.ChVisualShapeCylinder(...)
+ ground.AddVisualShape(...)                          ground.AddVisualShape(..., chrono.ChFramed(...))
+ veh.ChIrrGuiDriver(...)                             veh.ChInteractiveDriverIRR(...)
+
+     Table 4: Part of the API changes from old to new versions in PyChrono
+
+
+
+
+Fig. 2: The whole pipeline of ChronoLLM to customize open-source LLMs for
+PyChrono tasks.
+
+
+
+2.2 Selection of Base Models
+
+LLMs can be broadly categorized into two architectural types: dense models,
+where all parameters are activated during inference, and sparse models, such
+as Mixture of Experts (MoE), where only a subset of parameters is used per
+input. Representative MoE models include the Mixtral family [78] by Mistral
+AI and DeepSeek-MoE [76], while examples of dense models include LLaMA3-
+Title Suppressed Due to Excessive Length                                      11
+
+
+70B, GPT-4o, and Gemma2-27B. Although there is speculation that GPT-4
+employs an MoE architecture, its exact design has not been publicly disclosed.
+    Since MoE models activate only a subset of their parameters (experts) for
+each input, this reduces computational costs during inference, and allows for
+better scaling, i.e., assembling larger models, without a proportional increase
+in computational requirements. While MoE models often offer faster inference
+at comparable sizes, they tend to lag behind dense models in accuracy. More-
+over, training and managing MoE models can be complex. Dense models, in
+contrast, are easier to train and provide more robust, uniform performance,
+albeit at a higher computational cost during inference.
+    The consistent accuracy, reliability, and robust performance of dense mod-
+els make them the ideal choice for fine-tuning on PyChrono-related tasks. The
+simplicity of training dense models and their superior generalization across
+tasks further support their selection over MoE-based alternatives. Consider-
+ing these trade-offs, we selected dense models. The chosen dense models were
+evaluated based on their performance in widely recognized benchmarks, such
+as the HumanEval benchmark for coding tasks [79] and the MMLU benchmark
+for general reasoning tasks [80]. Specifically, in this contribution we adopt the
+following dense LLMs:
+ – GPT-4o and its lightweight variant GPT-4o mini, for their good coding
+   performance and general good knowledge about Project Chrono,
+ – LLama3.1-8B, LLaMA3.3-70B and Llama-4-Scout-17B-16E, which
+   are open-sourced models from 8B to 109B that offer good performance on
+   diverse tasks,
+The decision to exclude certain dense models, such as CodeLLaMA [59] and
+StarCoder [81], is based on their limitations in our context. While CodeLLaMA
+is specialized for coding tasks, it is built on the older LLaMA2 architecture
+and underperforms relative to LLaMA3-70B on the HumanEval benchmark
+[82]. Similarly, StarCoder models, despite their multi-language coding special-
+ization, do not align with our use case, as Chrono users do not require a tool
+exclusively focused on code generation.
+
+
+2.3 Continual Pretraining
+
+The pretraining stage of LLMs is predominantly unsupervised, allowing mod-
+els to process vast datasets and learn underlying patterns, structures, and
+knowledge. During this stage, the model acquires foundational knowledge that
+underpins its capabilities across a wide range of tasks. Pretraining typically
+involves either causal language modeling (CLM) or masked language model-
+ing (MLM), depending on the architecture. In CLM, the model is trained to
+predict the next token in a sequence based on preceding tokens. In MLM, a
+subset of tokens in the input is randomly masked, and the model learns to
+predict the missing tokens based on surrounding context.
+    In our approach, we continue pretraining the model using the standard
+CLM approach. Given an input token sequence x = (x0 , x1 , x2 , . . .), the model
+12                                                              Jingquan Wang et al.
+
+
+is trained to predict each token xi in an autoregressive manner. The objective
+is to minimize the negative log-likelihood, defined as:
+                               "                                             #
+                                  X
+          LCLM (Θ) = Ex∼DPT −          log p(xi | x0 , x1 , . . . , xi−1 ; Θ) . (1)
+                                     i
+
+Here, Θ represents the model parameters, DPT is the pretraining dataset, xi
+is the token to be predicted, x0 , x1 , . . . , xi−1 form the context, and p(xi |
+x0 , x1 , . . . , xi−1 ; Θ) is the probability of getting token xi given the context
+x0 , x1 , . . . , xi−1 under a model parameterized by Θ.
+     The LLMs acquire knowledge during pretraining, but certain emergent
+abilities – advanced comprehension, reasoning, and language generation – be-
+come apparent only when the pretraining loss falls below a critical threshold
+[83]. These emergent abilities enhance the model’s capacity to follow instruc-
+tions during fine-tuning. To ensure that the model gains specialized knowledge
+relevant to Chrono, we employ continual pretraining on Chrono-related ma-
+terials, specifically focusing on the PyChrono API documentation, example
+scripts, and user queries.
+     Continual pretraining involves further training a pretrained model on new,
+domain-specific data. This approach presents challenges, particularly the risk
+of catastrophic forgetting [84], where the model loses previously acquired
+knowledge while adapting to account for new data. To mitigate this risk, sev-
+eral strategies can be employed [85]:
+ – Warm-up Strategies: As recommended in [86], gradually increase the
+   learning rate as one picks up and continues the pretraining, a step that
+   helps the model adapt to new data without overwhelmingly lose prior
+   knowledge.
+ – Regularization Techniques: Methods like elastic weight consolidation
+   (EWC) penalize changes to critical weights, preserving previously learned
+   information [87].
+ – Replay Methods: Mixing new data with previously seen data during
+   training reinforces older knowledge while integrating new information [88].
+We deemed regularization techniques as too sophisticated and cumbersome –
+it is not clear how this technique can be employed for closed-source LLMs. In
+the end, for our application, only the warm-up strategy is feasible because,
+for most open-source LLMs, only the model weights are available, while the
+original training data is not. By employing the warm-up strategy, we can
+continue pretraining LLMs to provide them with specialized Chrono-related
+knowledge while ensuring the retention of their general capabilities. This ap-
+proach ensures the model becomes more proficient in domain-specific tasks
+without compromising its broad utility.
+
+2.3.1 Continual Pretraining Dataset
+
+We undertook a curation process to create a comprehensive pretraining dataset,
+which eventually included:
+Title Suppressed Due to Excessive Length                                       13
+
+
+1. PyChrono Code Examples: this called for cleaning and extracting rep-
+   resentative code samples from various PyChrono projects using scripts.
+   Preferably, the dataset covers a wide range of use cases captured in diverse
+   and high-quality learning material. A “high quality” example is one that
+   has good comments and follows a set of good practices associated with the
+   task of generating a PyChrono simulation scenario via a Python file.
+2. PyChrono Documentation: Include foundational documents, such as
+   installation guides, introductory materials, and basic tutorials. The chal-
+   lenge is to have a consistent set of documents that reference the most recent
+   API and simulation-setup good practices. The Chrono body of documen-
+   tation spans more than 3500 webpages.
+3. PyChrono Q&A: Compile questions and answers from PyChrono user
+   forums and support channels. This data exposes the model to common
+   issues, troubleshooting methods, and practical solutions. In this regard,
+   the current collection is relatively limited.
+4. Chrono Solvers: Although not immediately essential, materials related
+   to Chrono solvers – such as solver documentation, setting numerical inte-
+   gration parameters, pros and cons of variou frictional contact models, etc.
+   – can be included to enhance the LLM’s understanding of simulation and
+   solver techniques. These materials are valuable for improving the LLM’s
+   ability to handle complex simulation tasks. The current collection is rela-
+   tively limited.
+
+
+By integrating these components, the dataset ensures the model receives a
+comprehensive and in-depth education in PyChrono. Table 5 provides exam-
+ples from each category, formatted in JSON [89] for compatibility with existing
+LLM training pipelines.
+
+
+
+ Category                        Sample
+ PyChrono Code Examples           { "text": "import pychrono as chrono import pychrono.fea as fea
+                                 import pychrono.pardisomkl as mkl..." }
+ PyChrono Documentation           { "text": "Overview of vehicle modeling and simulation The
+                                 Chrono::Vehicle module provides templates for various..." }
+ PyChrono Q&A                     { "text": "Is Chrono free? The entire Chrono software
+                                 infrastructure is open source and released under a BSD-3 license.
+                                 ..." }
+ Chrono Solvers                   { "text": "// PROJECT CHRONO - http://projectchrono.org // Chrono
+                                 solvers based on Eigen iterative linear solvers..." }
+
+Table 5: Examples of JSON-formatted samples for continual pretraining in
+different categories.
+14                                                                Jingquan Wang et al.
+
+
+2.4 In-Context Learning
+
+In addition to refining and customizing LLMs through continued pretraining
+and fine-tuning – the two approaches emphasized in this contribution – we
+also consider in-context learning as a comparative baseline in our evaluation.
+In-context learning is a non-parametric strategy wherein a pretrained LLM
+is prompted with carefully selected examples and documentation, without al-
+tering its internal weights. While this method does not support persistent
+adaptation, it is appealing due to its low cost, ease of use, and ability to
+leverage powerful commercial LLMs out-of-the-box. In our case, the LLM is
+provided with PyChrono-specific prompts, including API documentation and
+code examples, to assess its ability to generate functional simulation scripts
+without explicit retraining. This strategy serves as a lightweight alternative
+to the more computationally intensive fine-tuning approach discussed in the
+following section.
+
+
+3 Fine-Tuning Methodology
+
+Unlike pretraining, which focuses on learning general patterns from large
+datasets, fine-tuning adjusts a pretrained model’s parameters to optimize its
+performance for a specific task or domain, typically requiring less data. Fine-
+tuning is often the most critical step in adapting LLMs for domain-specific
+applications. While Chain-of-Thought (CoT) reasoning and its structured vari-
+ants [90] are prompting techniques rather than fine-tuning methods, they have
+been shown to enhance LLM generation abilities. To leverage this, fine-tuning
+can incorporate CoT-style reasoning, a process known as CoT-enhanced fine-
+tuning, where models are explicitly trained on reasoning-based demonstra-
+tions. This approach refines the model’s ability to generate structured reason-
+ing steps and improves task execution capabilities by aligning model outputs
+with desired responses.
+
+
+3.1 Supervised Fine-Tuning (SFT)
+
+Supervised Fine-Tuning (SFT) entails modifying the entire set of model pa-
+rameters to improve task-specific performance. Although it often yields strong
+results, it is computationally intensive. The objective of SFT is to minimize
+the loss calculated on the output portion of the training sequence:
+                                                                               
+                                   X
+      LSFT (Θ) = Ex∼DSFT −               log p(xi | x0 , x1 , . . . , xi−1 ; Θ) , (2)
+                                  i∈{output}
+
+
+where Θ denotes the model parameters, DSFT represents the fine-tuning dataset,
+and x = (x0 , x1 , . . .) refers to the tokenized input sequence.
+Title Suppressed Due to Excessive Length                                      15
+
+
+3.2 Parameter-Efficient Fine-Tuning (PEFT)
+
+Since SFT updates all model parameters, the computational cost can be pro-
+hibitive, particularly for large-scale LLMs. Furthermore, domain-specific data
+is often limited compared to the vast general-purpose datasets used in pre-
+training, making full fine-tuning impractical in many cases. Parameter-efficient
+fine-tuning (PEFT) offers a more resource-efficient alternative by modifying
+only a subset of parameters while preserving most of the pretrained model’s
+knowledge. PEFT methods either update a subset of the model’s parameters
+or introduce lightweight external modules to enhance efficiency [91]. These
+techniques have been widely adopted in LLM applications and include:
+ – Adapters: Trainable modules inserted into the model’s architecture [43,
+   92].
+ – Soft Prompts: Task-specific embeddings added to the input sequence [93].
+ – Selective Updates: Methods like BitFit [94], which update only specific
+   parameters, such as bias terms, while freezing the rest of the model.
+Among PEFT techniques, Low-Rank Adaptation (LoRa) [44] stands out as a
+particularly effective method.
+
+3.2.1 LoRa and Its Variants
+
+LoRa employs low-rank decomposition to parameterize weight updates. For a
+pretrained weight matrix W0 ∈ Rd×k , the weight update is defined as:
+
+                             W0 + ∆W = W0 + BA ,                             (3)
+
+where B ∈ Rd×r and A ∈ Rr×k , and r ≪ min(d, k). During training, W0
+remains frozen, and only A and B are trainable. The modified forward pass
+for an input vector x is
+
+                        h = W0 x + ∆W x = W0 x + BAx .                       (4)
+
+LoRa is ideal for tasks requiring subtle adaptations to the attention mecha-
+nism. Variants such as LoRA+ [95], QLoRA [96], and GaLoRa [97] extend its
+capabilities through differential learning rates, quantization, and global atten-
+tion adjustments, respectively.
+
+3.2.2 Advantages of PEFT Methods
+
+The benefits associated with PEFT techniques are:
+ – Storage Efficiency: Adds only a small number of parameters, reducing
+   storage requirements.
+ – Memory Efficiency: Requires less memory, enabling training on resource-
+   constrained devices.
+ – Computational Efficiency: Low-rank updates reduce overhead, allowing
+   faster training and inference.
+16                                                         Jingquan Wang et al.
+
+
+3.3 Dataset Preparation for Fine-Tuning
+
+The fine-tuning dataset was assembled to capture high-quality examples of
+PyChrono simulations that reflect best practices in model setup and usage.
+Data Collection and Generation. Data is sourced from a combination of
+automated and manual methods:
+ – Descriptive Text: Generated using LLMs like GPT-4 to provide detailed
+   overviews and explanations. Additional data can be harvested using web
+   crawlers to extract relevant documentation and forum discussions.
+ – Executable Code Samples: Collected from official PyChrono documentation
+   and reliable open-source repositories.
+Dataset Components. The dataset is structured into four JSON files:
+– pychrono sft sim.json: Instructions and corresponding code outputs for
+  simulation tasks, which is collected using Fig 17
+– pychrono sft COT.json: Chain-of-Thought examples with step-by-step rea-
+  soning.
+– pychrono sft NL2API.json: Maps natural language instructions to API calls.
+– pychrono sft API2NL.json: Maps API calls to descriptive natural language
+  explanations.
+
+Structure and Format. The dataset is structured in JSON format for com-
+patibility with machine learning pipelines. Each entry contains three fields:
+instruction, input, and output. These fields encapsulate the task description,
+optional input context, and the expected response. Below are examples from
+four dataset categories:
+1. Simulation Generation: pychrono sft robot sim.json. This dataset fo-
+cuses on generating Python code for PyChrono simulations, covering physics
+settings, model initialization, and visualization.
+    [
+      {
+         "instruction": "Simulate the Curiosity rover traversing rigid terrain using PyChrono.",
+         "input": "Rover model: Curiosity, Terrain: Rigid",
+         "output": "import pychrono as chrono\nimport pychrono.robot as robot\n..."
+      }
+    ]
+
+2. Chain-of-Thought: pychrono sft COT.json. This dataset includes step-by-
+step reasoning to enhance the model’s ability to logically approach tasks.
+    [
+      {
+        "instruction": "Explain the steps to build a basic Curiosity rover model in PyChrono.",
+        "input": "",
+        "output": "1. Import necessary libraries...\n2. Create a simulation system...\n..."
+      }
+    ]
+Title Suppressed Due to Excessive Length                                     17
+
+
+3. Natural Language to API (NL2API) Mapping: pychrono sft NL2API.json.
+This dataset translates natural language instructions into PyChrono API calls.
+   [
+       {
+           "instruction": "Generate PyChrono code for a body with material properties and texture.",
+           "input": "",
+           "output": "ground_mat = chrono.ChContactMaterialNSC()\n..."
+       }
+   ]
+
+4. API to Natural Language Mapping (API2NL) Mapping: pychrono sft API2NL.json.
+This dataset maps API calls to descriptive explanations, aiding comprehen-
+sion.
+   [
+       {
+           "instruction": "Explain the following API: ground_mat = chrono.ChContactMaterialNSC()\n...",
+           "input": "",
+           "output": "Create a ground body with specified dimensions and material properties."
+       }
+   ]
+Key Features. The key attributes of this approach for assembling a fine-
+tuning dataset are as follows:
+ – Compatibility: JSON format ensures integration with standard pipelines.
+ – Diversity: Covers various PyChrono tasks, e.g., model generation, reason-
+   ing, and API2NL/NL2API conversations.
+ – Scalability: Can be expanded with new tasks or categories, or by adding
+   more content in the four categories described above.
+     The process of generating the fine-tuning dataset is summarized in Fig. 3.
+It begins with the ingestion of PyChrono simulation Scripts and Google group
+conversations. The PyChrono Simulation scripts are moved into a markdown
+file and subsequently enhanced by expert users who provide sharp comments
+and clean up the file’s content. This is typically time-consuming and expen-
+sive. The resulting data undergoes various transformations such as Chain-
+of-Thought (CoT) breakdown, natural language to API (NL2API) conversion,
+API to natural language (API2NL) translation, bug fixing, and other enhance-
+ments. Google Group conversations are filtered through keyword extraction,
+privacy checks, and logic validation. Both data streams undergo deduplica-
+tion and are checked for quality using Lazy User Setting and Self-Evolution
+mechanisms. Finally, the resulting dataset undergoes a final check before form-
+ing the SFT data, leveraging human experts, algorithm-based processes, and
+LLM-based techniques. The process diagram uses color coding to indicate the
+source of each component: blue signifies contributions from human experts,
+green indicates content generated by an LLM, and red denotes outputs from
+traditional (non-LLM) algorithms.
+18                                                          Jingquan Wang et al.
+
+
+
+
+Fig. 3: A comprehensive pipeline for synthesizing the Supervised Fine-Tuning
+(SFT) dataset.
+
+
+4 Experiments
+
+This section compares how several ChronoLLM models, generated based off
+various third party LLMs, perform in our testing. As a disclaimer, the behavior
+of a third party LLM in relation to PyChrono tasks is not a direct manifesta-
+tion of the overall performance of the LLM. If ChronoLLM drawing on LLM A
+is better than the ChronoLLM drawing on LLM B, this does not imply that A
+is better than B. It only says that given the data used and our tuning process,
+the A-based ChronoLLM appears in our testing to be superior to the B-based
+Chrono LLM. The observation that the A-based ChronoLLM outperforms the
+B-based ChronoLLM is ultimately subjective, as the final evaluation relies on
+a separate “judge” LLM, which is disucssed in a companion paper [98].
+
+
+4.1 Metrics for Evaluating Digital Twin Generation
+
+Evaluating the performance of LLMs is non-trivial, particularly in conjunction
+with code generation tasks [99, 100]. The evaluation metrics used to assess the
+quality of an LLM can be categorized into three main types: similarity-based
+methods, execution-based methods, and LLM-as-judge approaches.
+    Similarity-Based Methods. These metrics assess the generated output,
+produced by the LLM in response to a user’s prompt, by comparing it to
+reference code. A commonly used metric is BLEU (Bilingual Evaluation
+Understudy) [101, 102], which measures the n-gram overlap between the
+generated and reference texts. CodeBLEU extends BLEU by incorporating
+syntactic and semantic features specific to source code, thereby providing a
+more nuanced evaluation of programming tasks. Additionally, the ROUGE
+(Recall-Oriented Understudy for Gisting Evaluation) family [103] fo-
+cuses on recall-based measures to evaluate the quality of summaries by assess-
+Title Suppressed Due to Excessive Length                                     19
+
+
+ing the overlap of essential components between the generated and reference
+texts or summaries.
+    Execution-Based Methods. These metrics evaluate the functional cor-
+rectness of the generated code by executing it against predefined tests. The
+metric pass@k [79, 104, 105] represents the probability that at least one out
+of k generated samples passes all unit tests, thereby indicating functional ac-
+curacy. Another important metric is compile@k, which checks whether the
+generated software code compiles successfully, thereby ensuring syntactic cor-
+rectness. These execution-based methods provide a direct measure of whether
+the generated code performs as intended.
+    LLM-as-a-Judge Approach. Beyond traditional metrics, the LLM-as-
+a-judge [106] paradigm leverages another LLM to evaluate the quality of the
+generated code. In a companion paper [98], we introduced the J-LLM (“J”
+from “Judge”), which utilizes PyChrono reference code and API documen-
+tation to assess ChronoLLM’s performance. In our experience, J-LLM offers
+a more reliable evaluation metric compared to similarity-based methods like
+CodeBLEU and ROUGE-LSum . Furthermore, it exhibits a stronger correlation
+with pass@k than with compile@k, suggesting its effectiveness in evaluating
+both the functional and semantic quality of the generated code. These results,
+reported in [98], are obtained in the context of SimBench, which provides a
+dataset and processes to evaluate the LLM’s performance in generating Py-
+Chrono digital twins.
+    In the numerical evaluation section below, all the aforementioned metrics
+are employed to assess the performance of the LLM in generating simulation
+scripts. This captures both the syntactic and functional aspects of the gener-
+ated code.
+
+
+
+
+4.2 Solutions Compared
+
+We pursue two distinct approaches to produce ChronoLLMs. The first ap-
+proach utilizes in-context learning, which leverages well-written API documen-
+tation and PyChrono-specific examples to enhance the model’s understand-
+ing and generation capabilities without altering its underlying parameters –
+see subsection 2.4. The second approach involves fine-tuning a ChronoLLM
+model with PyChrono-specific data, allowing the model to adapt its weights.
+The selected LLMs that anchor ChronoLLMs vary in scale and include both
+open-source and commercial options allowing for a comprehensive evalua-
+tion. Specifically, we apply in-context learning to models from the GPT and
+LLaMA families. In addition, we fine-tune GPT-4o-mini, LLaMA3.1-8B, and
+LLaMA3.3-70B. This effort facilitates a robust comparison across different
+LLM architectures and customization methods.
+20                                                           Jingquan Wang et al.
+
+
+4.3 Results for In-Context Learning Efforts
+
+In-context learning (ICL) is one of several tools in the “prompt engineering”
+toolkit. It is a prompt-based method where an LLM leverages provided ex-
+amples, and is guided to utilize relevant API documentation and contextual
+instructions at inference time, without any adjustment to its pretrained pa-
+rameters. In this exercise, we provided ChronoLLM with structured, detailed
+examples of PyChrono API use, e.g., library imports, contact and collision set-
+tings, visualization configurations, body initialization, joints definitions, and
+simulation loops. The detailed documentation includes explicit Python code
+snippets and descriptions of each method’s usage, with the goal of enhancing
+the model’s ability to accurately utilize the PyChrono library. The documen-
+tation provided for ICL contains:
+ – Library Imports: Essential modules required for simulation setup, e.g.,
+   numpy, scipy.
+ – Contact and Collision Settings: Detailed explanations and examples
+   of initializing systems with Non-Smooth Contact (NSC) or Smooth Con-
+   tact (SMC) mechanics, configuring contact materials, and defining collision
+   models.
+ – Visualization Settings: Instructions for setting up Irrlicht visualization,
+   including window properties, camera positioning, lighting, and visual shape
+   definitions. Information about how to query, at run time, the simulator
+   about state information and numerical solution metrics (amount of time
+   per time step, number of iterations per time step, etc.)
+ – Body Initialization and Properties: Examples of creating rigid bod-
+   ies with specified geometries, mass, inertia, collision settings, and fixed or
+   dynamic states.
+ – Joints (also called links, in Chrono terminology): Examples demon-
+   strating the setup and initialization of various joints (revolute, prismatic,
+   spherical, universal, motor joints) crucial for multibody dynamics. The ex-
+   amples include the definition of the joint type, the joint frame, the joint
+   axes, and the joint limits.
+ – Simulation Loop: Structured guidelines for executing the simulation steps
+   and integrating visualization routines.
+
+Evaluation metrics. Table 6, down its last three columns, reports three com-
+plementary metrics that together reveal how much each large-language model
+(LLM) benefits from different forms of context. Score Document quantifies
+accuracy when the model sees only the natural-language documentation asso-
+ciated with each task, providing a measure of the model’s capacity to reason
+from prose alone. Score Reference measures accuracy when the model is given
+the authoritative reference code but no accompanying documentation, thereby
+isolating its ability to read and reason about code in the absence of explanatory
+text. Score Reference Document evaluates performance when both sources of
+information are present and thus represents the upper bound under full con-
+text.
+Title Suppressed Due to Excessive Length                                     21
+
+
+    In Table 6, rows highlighted in light red correspond to ICL variants; their
+performance can be compared directly with the base versions to assess ICL’s
+effectiveness.
+
+
+Table 6: Comparison of LLMs with and without in-context learning. Rows
+shaded in light red are in-context learning (ICL) variants.
+
+   Test Model                   J-LLM Doc   J-LLM Ref     J-LLM Ref+Doc
+   llama-3.1-405b-instruct          38.03      33.09            39.04
+   pe llama-3.1-405b-instruct       41.83      34.97            40.87
+   deepseek-r1-32b                  34.00      33.30            39.09
+   pe deepseek-r1-32b               46.31      35.19            40.24
+   llama-3.3-70b-instruct           41.86      33.73            41.08
+   pe llama-3.3-70b-instruct        48.55      35.38            40.13
+   llama-3.1-70b-instruct           39.71      33.42            39.59
+   pe llama-3.1-70b-instruct        43.69      34.87            39.90
+   llama-3.1-8b-instruct            34.85      31.43            37.75
+   pe llama-3.1-8b-instruct         37.23      33.19            39.06
+   llama4 scout                     37.85      33.77            40.82
+   pe llama4 scout                  48.25      34.07            39.01
+   llama4 maverick                  43.57      33.07            41.20
+   pe llama4 maverick               43.54      31.74            38.64
+   deepseek-r1-8b                   26.68      26.27            34.03
+   pe deepseek-r1-8b                34.66      30.62            36.91
+
+
+
+
+4.4 Results for Fine-Tuning Efforts
+
+4.4.1 Pre-trained vs. ICL vs. SFT comparison
+
+GPT-4o, GPT-4o-mini, and Llama3.1-70B were employed in a three-way com-
+parison: pre-trained (shown as “Pre” in Table 7) vs. in-context learning (shown
+as “ICL”) vs. fine-tuning (shown as “SFT”). For each of these models, the ICL
+variant showed modest improvements in generating contextually correct Py-
+Chrono scripts. While the gains were modest, so was the effort of creating the
+prompts. In general, in-context learning is recommended only in cases where
+the training data and/or computational resources are limited. Evaluation re-
+sults for ICL demonstrate noticeable performance variations among different
+LLM architectures.
+    Finally, the results for the SFT models show a significant improvement in
+performance over both the pre-trained and ICL models.
+22                                                                         Jingquan Wang et al.
+
+Table 7: LLMs across variants (Pretrain / ICL / SFT) and metric families.
+LLM-as-Judge numbers are filled from the provided table; other metrics left
+blank (—).
+
+               Model                 Similarity-based                  LLM-as-Judge
+LLM                    Variant   ROUGE-LSUM CodeBLEU       J-LLM Ref+Doc   J-LLM Ref   J-LLM Doc
+                       Pre           0.72           0.61       41.80         34.46       43.22
+GPT-4o-mini            ICL           0.76           0.61       41.22         34.92       47.09
+                       SFT           0.96           0.92       68.03         66.94       38.03
+                       Pre           0.73           0.60       41.08         33.73       41.86
+llama-3.3-70b          ICL           0.74           0.60       40.13         35.38       48.55
+                       SFT           0.82           0.69       43.10         37.29       38.68
+                       Pre           0.66           0.57       37.75         31.43       34.85
+llama-3.1-8b           ICL           0.72           0.60       39.06         33.19       37.23
+                       SFT           0.74           0.63       38.78         33.09       34.56
+
+
+
+
+4.4.2 LoRA results
+
+While full-size SFT can lead to sizable improvements, it is often resource-
+intensive. This quickly becomes prohibitive for large models that go beyond
+70B parameters. In contrast, LoRA offers a more efficient alternative by fine-
+tuning only a small subset of parameters, significantly reducing the required
+VRAM, e.g. full-size SFT for the 70B Llama model usually needs more than
+a single node of eight H100 80GB GPUs, while the LoRA version can reduce
+the GPU requirements to around four H100 80GB GPUs. This makes LoRA
+appealing for scenarios with limited GPU resources. In this section, we report
+the LoRA performance for two Llama3 models at 8B and 70B, and note that
+LoRA achieves comparable results to the full-size SFT. The LoRA fine-tuning
+was performed using the same data as the full-size SFT, but different hyperpa-
+rameters were used to train the LoRA models. Table 8 summarizes the results
+when comparing LoRA against the pre-trained and SFT models.
+
+
+Table 8: LLMs across variants (Pretrain / LoRA / SFT) and metric families.
+LLM-as-Judge numbers are filled from the provided table; other metrics left
+blank (—).
+
+               Model                 Similarity-based                  LLM-as-Judge
+LLM                    Variant   ROUGE-LSUM CodeBLEU       J-LLM Ref+Doc   J-LLM Ref   J-LLM Doc
+                       Pre           0.73           0.60       41.08         33.73       41.86
+llama-3.3-70b          LoRA          0.77           0.64       40.38         31.64       31.62
+                       SFT           0.82           0.69       43.10         37.29       38.68
+                       Pre           0.66           0.57       37.75         31.43       34.85
+llama-3.1-8b           LoRA          0.76           0.64       39.07         32.77       34.92
+                       SFT           0.74           0.63       38.78         33.09       34.56
+
+
+
+
+    The caveat with LoRA is that, compared to SFT, the latter is generally
+more robust and easier to train, often requiring fewer epochs and being more
+tolerant to hyperparameter choices. In contrast, LoRA requires more trial and
+error to achieve comparable performance.
+Title Suppressed Due to Excessive Length                                     23
+
+
+4.4.3 Cost of SFT for a small model
+
+For fine-tuning, we close with an example that pertains the fine-tuning of GPT-
+4.1-mini via OpenAI’s API. Once the time-consuming step of data preparation
+was complete, the entire process took around 20 minutes and came at a cost
+of roughly $3 USD. Upon completion of the fine-tuning process, we evalu-
+ated the performance of the fine-tuned model using CodeBLEU, which cap-
+tures code-specific similarity through n-gram overlap, syntax structure, and
+dataflow consistency, and ROUGE, which measures textual overlap at the
+unigram, bigram, and sequence levels. These metrics provide both structural
+and semantic assessments of the generated code’s alignment with reference
+implementations. The fine-tuned version outperformed the pretrained version
+across all five recorded metrics, see Figure 4. In the figure, rouge1 and rouge2
+measure the overlap of unigrams and bigrams, respectively, capturing basic
+content and phrase-level fluency. rougeL evaluates the longest common subse-
+quence between generated and reference summaries, reflecting sentence-level
+structure. We also report rougeLsum as an aggregate score that combines the
+individual ROUGE metrics to provide an overall measure of summarization
+quality. The results suggest that fine-tuning a closed-source LLM can lead to
+quantitative improvements in ChronoLLM performance. The process was both
+quick and inexpensive owing to the small size of the LLM and the fact that
+the fine-tuning was conducted in the cloud, via the OpenAI’s API.
+
+
+
+
+Fig. 4: Comparison of CodeBLEU and ROUGE scores for the fine-tuned and
+pretrained versions of GPT-4.1-mini.
+
+
+
+5 Two Case Studies
+
+In this section, we present two examples to demonstrate the capabilities of
+ChronoLLM—one is a simple double arm system (or double pendulum), the
+other one is a truck. Each example is accompanied by an input prompt, the
+corresponding generated PyChrono scripts, and frames that we obtained upon
+executing the PyChrono scripts, i.e., running the simulations. Note that these
+24                                                             Jingquan Wang et al.
+
+
+types of models might be considered “in-distribution” for ChronoLLM, as
+they are generated using data that was qualitatively similar to the one used
+to train ChronoLLM. We argue that this is not a significant issue. Ultimately,
+ChronoLLM is meant to assist the users in generating PyChrono scripts –
+the users are not interested if their request is in-distribution or not. Ideally,
+ChronoLLM would be trained on an amount of data that would make any re-
+quest in-distribution. This is not possible, and we argue that it is not necessary.
+Even providing a good starting point for the users is a gain.
+
+
+5.1 First Case Study: Double Pendulum Simulation
+
+We start with an easy request to generate a double pendulum – asking the
+pretrained LLM to generate the pyChrono script without giving any specific
+setting of the two bodies, e.g. initial position, length, or mass. This will test
+whether the pretrained model can generate a most basic model. The entire
+ChronoLLM response is shown in Figure 5.
+
+Prompt:
+     You are a PyChrono expert. Please give me a simulation script for the
+     double pendulum in PyChrono.
+   Even though the model’s output appears plausible at a first glance, a careful
+inspection reveals numerous conceptual and API errors that would prevent
+execution. Even if those were fixed, the PyChrono script would produce non-
+physical motion. Some of the issues noted are as follows:
+1. API family mixing and hallucinations. The code blends legacy and
+   modern Chrono APIs (e.g., ChVectorD vs. ChVector3d) and calls non-
+   existent methods such as system.GetGround() and SetWvel par().
+2. Incorrect joint initialization. ChLinkLockRevolute.Initialize requires
+   a full frame (position + orientation); supplying raw vectors is semantically
+   wrong and brittle across versions.
+3. World modeling errors. No explicit fixed ground body is created and
+   gravity is left implicit, making anchor references ill-defined and results
+   non-reproducible.
+4. Frame/axis specification mistakes. The revolute axis is inconsistent
+   with planar motion (should be Z for XY-plane dynamics), and anchor
+   orientations are omitted, leaving joint axes underdetermined.
+5. Coordinate/units ambiguity. Axis conventions are undocumented and
+   unit scaling is unclear, producing questionable force/time scales.
+   The same prompt used with ChronoLLM (fine-tuned off ChatGPT4o-mini)
+generates the PyChrono script shown in Figs. 6 and 7, which can be executed
+without any error. A snapshot of the simulation is shown in Figure 8.
+Title Suppressed Due to Excessive Length                                                                                                   25
+'                                                                                                                                               $
+ C r e a t i n g a d o u b l e pendulum s i m u l a t i o n u s i n g PyChrono i n v o l v e s s e t t i n g up t h e
+          e n v i r o n m e n t , d e f i n i n g t h e pendulum components , and s p e c i f y i n g t h e i r
+           i n t e r a c t i o n s . Below i s a s c r i p t t h a t i l l u s t r a t e s how t o s i m u l a t e a d o u b l e
+          pendulum u s i n g PyChrono .
+
+ Make s u r e you h a v e PyChrono                 installed .         If   you haven ’ t        installed       it   yet ,    you c a n do
+        so via pip :
+
+ ‘ ‘ ‘ bash
+ pip i n s t a l l     pychrono
+ ‘‘‘
+
+ Here ’ s    a   simple        script     to    simulate      a   double        pendulum :
+
+ ‘ ‘ ‘ python
+ import pychrono               as   chrono
+
+ # Create        the   Chrono        system
+
+ s y s t e m = c h r o n o . ChSystemNSC ( )
+
+ # D e f i n e p a r a m e t e r s f o r t h e pendulum
+ length1 = 1.0           # L e n g t h o f t h e f i r s t arm
+ length2 = 1.0           # L e n g t h o f t h e s e c o n d arm
+ mass1 = 1 . 0           # Mass o f t h e f i r s t bob
+ mass2 = 1 . 0           # Mass o f t h e s e c o n d bob
+
+ # C r e a t e t h e f i r s t pendulum body ( bob )
+ bob1 = c h r o n o . ChBodyAuxRef ( )
+ bob1 . S e t M a s s ( mass1 )
+ bob1 . S e t I n e r t i a X X ( c h r o n o . ChVectorD ( 0 . 1 , 0 . 1 , 0 . 1 ) )        # Set     some     inertia
+ bob1 . S e t P o s ( c h r o n o . ChVectorD ( l e n g t h 1 , l e n g t h 1 , 0 ) )
+ s y s t e m . Add ( bob1 )
+
+ # C r e a t e t h e s e c o n d pendulum body ( bob )
+ bob2 = c h r o n o . ChBodyAuxRef ( )
+ bob2 . S e t M a s s ( mass2 )
+ bob2 . S e t I n e r t i a X X ( c h r o n o . ChVectorD ( 0 . 1 , 0 . 1 , 0 . 1 ) )  # S e t some i n e r t i a
+ bob2 . S e t P o s ( c h r o n o . ChVectorD ( l e n g t h 1 + l e n g t h 2 , l e n g t h 1 + l e n g t h 2 , 0 ) )
+ s y s t e m . Add ( bob2 )
+
+ # Create the f i r s t j o i n t ( r e v o l u t e ) f o r the                 first     pendulum
+ j o i n t 1 = chrono . ChLinkLockRevolute ( )
+ j o i n t 1 . I n i t i a l i z e ( bob1 , s y s t e m . GetGround ( ) ,       c h r o n o . ChVectorD ( 0 ,   0,    0) ,    chrono .
+           ChVectorD ( 0 , 1 , 0 ) )
+ s y s t e m . Add ( j o i n t 1 )
+
+ # C r e a t e t h e s e c o n d j o i n t ( r e v o l u t e ) f o r t h e s e c o n d pendulum
+ j o i n t 2 = chrono . ChLinkLockRevolute ( )
+ j o i n t 2 . I n i t i a l i z e ( bob1 , bob2 , c h r o n o . ChVectorD ( l e n g t h 1 , l e n g t h 1 ,      0) ,   chrono .
+           ChVectorD ( 0 , 1 , 0 ) )
+ s y s t e m . Add ( j o i n t 2 )
+
+ # I n i t i a l conditions
+ bob1 . S e t W v e l p a r ( c h r o n o . ChVectorD ( 0 ,       0,    0) )     # Initial         angular      velocity       for   bob1
+ bob2 . S e t W v e l p a r ( c h r o n o . ChVectorD ( 0 ,       0,    0) )     # Initial         angular      velocity       for   bob2
+
+ # S e t up t h e s i m u l a t i o n         parameters
+ s t e p s i z e = 0.01
+ end time = 10.0
+
+ # F i l l history arrays                to    visualize      later
+ positions1 = [ ]
+ positions2 = [ ]
+
+ # Simulation loop
+ w h i l e s y s t e m . GetChTime ( ) < e n d t i m e :
+         s y s t e m . DoStepDynamics ( s t e p s i z e )
+
+       # Record t h e p o s i t i o n s o f t h e bobs
+       p o s i t i o n s 1 . append ( bob1 . GetPos ( ) )
+       p o s i t i o n s 2 . append ( bob2 . GetPos ( ) )
+
+ # Visualization ( optional )
+ import m a t p l o t l i b . pyplot as           plt
+ i m p o r t numpy a s np
+
+ # E x t r a c t x and y p o s i t i o n s
+ x1 = [ p o s . x f o r p o s i n p o s i t i o n s 1 ]
+ y1 = [ p o s . y f o r p o s i n p o s i t i o n s 1 ]
+ x2 = [ p o s . x f o r p o s i n p o s i t i o n s 2 ]
+ y2 = [ p o s . y f o r p o s i n p o s i t i o n s 2 ]
+
+ # P l o t the t r a j e c t o r y o f the bobs
+ plt . figure ()
+ p l t . p l o t ( x1 , y1 , l a b e l = ’Bob 1 T r a j e c t o r y ’ ,        c o l o r =’ blue ’ )
+ p l t . p l o t ( x2 , y2 , l a b e l = ’Bob 2 T r a j e c t o r y ’ ,        c o l o r =’ red ’ )
+ p l t . t i t l e ( ’ D o u b l e Pendulum Motion ’ )
+ p l t . x l a b e l ( ’X P o s i t i o n (m) ’ )
+ p l t . y l a b e l ( ’Y P o s i t i o n (m) ’ )
+ plt . legend ()
+ p l t . a x i s ( ’ equal ’ )
+ plt . grid ()
+ p l t . show ( )
+ ‘‘‘
+
+ ### E x p l a n a t i o n :
+
+ 1.   ∗∗ System I n i t i a l i z a t i o n ∗ ∗ : The s c r i p t i n i t i a l i z e s t h e PyChrono s y s t e m .
+ 2.   ∗∗ Pendulum P a r a m e t e r s ∗ ∗ : You d e f i n e t h e l e n g t h s and m a s s e s o f t h e pendulums .
+ 3.   ∗∗ B o d i e s C r e a t i o n ∗ ∗ : Two b o b s ( b o d i e s ) a r e c r e a t e d w i t h mass and i n e r t i a .
+ 4.   ∗∗ J o i n t s ∗ ∗ : Two r e v o l u t e j o i n t s a l l o w t h e b o b s t o s w i n g .
+ 5.   ∗∗ I n i t i a l V e l o c i t i e s ∗ ∗ : You c a n s e t t h e i n i t i a l a n g u l a r v e l o c i t i e s i f n e e d e d .
+ 6.   ∗∗ S i m u l a t i o n Loop ∗ ∗ : The main l o o p w h e r e t h e s y s t e m i s a d v a n c e d t h r o u g h t i m e ,
+         collecting positions for visualization .
+ 7.   ∗∗ V i s u a l i z a t i o n ∗ ∗ : A f t e r t h e s i m u l a t i o n , t h e p o s i t i o n s a r e p l o t t e d u s i n g ‘
+         matplotlib ‘ .
+
+ This    s c r i p t should         g i v e you a b a s i c s e t u p f o r s i m u l a t i n g a d o u b l e pendulum .             You
+         can c u s t o m i z e      t h e m a s s e s , l e n g t h s , and i n i t i a l c o n d i t i o n s a s n e e d e d .
+
+&                                                                                                                                               %
+Fig. 5: The generated response of Pretrained GPT4o-mini for the PyChrono
+double pendulum simulation.
+26                                                                                                             Jingquan Wang et al.
+'                                                                                                                                                     $
+ C e r t a i n l y ! Here ’ s a s i m p l e s c r i p t t o        s i m u l a t e a d o u b l e pendulum u s i n g PyChrono .
+          Save t h i s code i n a f i l e with a                   ‘ . py ‘ e x t e n s i o n and r u n i t u s i n g Python .
+
+  ‘ ‘ ‘ python
+ import pychrono . c o r e as chrono
+ import pychrono . i r r l i c h t as c h r o n o i r r
+ i m p o r t math
+
+ # I n i t i a l i z e t h e Chrono s i m u l a t i o n        system
+ s y s = c h r o n o . ChSystemNSC ( )
+
+ # S e t t h e g r a v i t a t i o n a l a c c e l e r a t i o n f o r t h e s y s t e m ( i n m/ s ˆ 2 )
+ s y s . S e t G r a v i t a t i o n a l A c c e l e r a t i o n ( c h r o n o . ChVector3d ( 0 , − 9 . 8 1 , 0 ) )   # g = 9 . 8 1 m/ s ˆ2
+
+ # C r e a t e t h e g r o u n d body and add i t t o t h e s i m u l a t i o n
+ g r o u n d = c h r o n o . ChBody ( )
+ s y s . Add ( g r o u n d )
+ g r o u n d . S e t F i x e d ( True )  # The g r o u n d i s f i x e d and d o e s n o t move
+ ground . E n a b l e C o l l i s i o n ( F a l s e ) # Disable c o l l i s i o n detection for                       the    ground
+
+ # Add a v i s u a l i z a t i o n c y l i n d e r t o t h e g r o u n d
+ c y l 1 = chrono . ChVisualShapeCylinder ( 0 . 2 , 0 . 4 )                          # Cylinder with r a d i u s 0 . 2                  and
+           height 0.4
+ g r o u n d . A d d V i s u a l S h a p e ( c y l 1 , c h r o n o . ChFramed ( c h r o n o . ChVector3d ( 0 , 0 , +1) ) )
+
+ # C r e a t e t h e f i r s t pendulum body and add i t t o t h e s i m u l a t i o n
+ p e n d 1 = c h r o n o . ChBody ( )
+ s y s . AddBody ( p e n d 1 )
+ pend 1 . SetFixed ( F a l s e )              # The pendulum c a n move
+ pend 1 . E n a b l e C o l l i s i o n ( F a l s e )   # Disable c o l l i s i o n d e t e c t i o n f o r the              pendulum
+ pend 1 . SetMass ( 1 )             # S e t t h e mass o f t h e pendulum ( i n kg )
+ p e n d 1 . S e t I n e r t i a X X ( c h r o n o . ChVector3d ( 0 . 2 , 1 , 1 ) ) # Set the i n e r t i a                  tensor      ( in    kg
+           mˆ 2 )
+
+ # Add a v i s u a l i z a t i o n c y l i n d e r t o t h e f i r s t pendulum
+ c y l 1 = chrono . ChVisualShapeCylinder ( 0 . 2 , 2)                         # C y l i n d e r w i t h r a d i u s 0 . 2 and
+         height 2
+ p e n d 1 . A d d V i s u a l S h a p e ( c y l 1 , c h r o n o . ChFramed ( c h r o n o . VNULL, c h r o n o . QuatFromAngleY (
+         c h r o n o . CH PI 2 ) ) )
+
+ # Set     t h e i n i t i a l p o s i t i o n o f t h e f i r s t pendulum             ( center       of    mass )    in    the    absolute
+         frame
+ # The pendulum i s i n i t i a l l y h o r i z o n t a l , p o i n t i n g             towards        the    positive X direction
+ p e n d 1 . S e t P o s ( c h r o n o . ChVector3d ( 1 , 0 , 1 ) )
+
+ # C r e a t e a r e v o l u t e h i n g e t o a l l o w t h e f i r s t pendulum t o s w i n g
+ h i n g e 1 = chrono . ChLinkLockRevolute ( )
+ h i n g e 1 . I n i t i a l i z e ( ground , p e n d 1 , c h r o n o . ChFramed ( c h r o n o . ChVector3d ( 0 ,                  0,   1) ,
+          chrono . ChQuaterniond ( 1 , 0 , 0 , 0 ) ) )
+ s y s . AddLink ( h i n g e 1 )
+
+ # C r e a t e t h e s e c o n d pendulum body and add i t t o t h e s i m u l a t i o n
+ p e n d 2 = c h r o n o . ChBody ( )
+ s y s . AddBody ( p e n d 2 )
+ pend 2 . SetFixed ( F a l s e )              # The pendulum c a n move
+ pend 2 . E n a b l e C o l l i s i o n ( F a l s e )   # Disable c o l l i s i o n d e t e c t i o n f o r the              pendulum
+ pend 2 . SetMass ( 1 )             # S e t t h e mass o f t h e pendulum ( i n kg )
+ p e n d 2 . S e t I n e r t i a X X ( c h r o n o . ChVector3d ( 0 . 2 , 1 , 1 ) ) # Set the i n e r t i a                  tensor      ( in    kg
+           mˆ 2 )
+
+ # Add a v i s u a l i z a t i o n c y l i n d e r t o t h e s e c o n d pendulum
+ c y l 2 = chrono . ChVisualShapeCylinder ( 0 . 2 , 2)                         # C y l i n d e r w i t h r a d i u s 0 . 2 and
+         height 2
+ p e n d 2 . A d d V i s u a l S h a p e ( c y l 2 , c h r o n o . ChFramed ( c h r o n o . VNULL, c h r o n o . QuatFromAngleY (
+         c h r o n o . CH PI 2 ) ) )
+
+ # Set     t h e i n i t i a l p o s i t i o n o f t h e s e c o n d pendulum ( c e n t e r o f mass ) i n t h e a b s o l u t e
+          frame
+ # The s e c o n d pendulum i s i n i t i a l l y h o r i z o n t a l , p o i n t i n g t o w a r d s t h e p o s i t i v e X
+         direction
+ p e n d 2 . S e t P o s ( c h r o n o . ChVector3d ( 3 , 0 , 1 ) )
+
+ # C r e a t e a r e v o l u t e h i n g e t o a l l o w t h e s e c o n d pendulum t o s w i n g
+ h i n g e 2 = chrono . ChLinkLockRevolute ( )
+ h i n g e 2 . I n i t i a l i z e ( p e n d 1 , p e n d 2 , c h r o n o . ChFramed ( c h r o n o . ChVector3d ( 2 ,               0,   1) ,
+          chrono . ChQuaterniond ( 1 , 0 , 0 , 0 ) ) )
+ s y s . AddLink ( h i n g e 2 )
+
+ # Create the I r r l i c h t v i s u a l i z a t i o n system
+ vis = chronoirr . ChVisualSystemIrrlicht ()
+ v i s . AttachSystem ( s y s )              # A t t a c h t h e Chrono s y s t e m t o t h e v i s u a l i z a t i o n
+ v i s . SetWindowSize ( 1 0 2 4 , 76 8)                 # S e t t h e window s i z e f o r t h e v i s u a l i z a t i o n
+ v i s . S e t W i n d o w T i t l e ( ’ D o u b l e Pendulum S i m u l a t i o n ’ )       # S e t t h e window t i t l e
+ vis . I n i t i a l i z e ()       # I n i t i a l i z e the v i s u a l i z a t i o n system
+ v i s . AddLogo ( c h r o n o . G e t C h r o n o D a t a F i l e ( ’ l o g o p y c h r o n o a l p h a . png ’ ) ) # Add a l o g o            to
+          the v i s u a l i z a t i o n
+ v i s . AddSkyBox ( )            # Add a s k y b o x f o r b e t t e r v i s u a l a p p e a r a n c e
+ v i s . AddCamera ( c h r o n o . ChVector3d ( 0 , 3 , 6 ) )                  # Add a camera t o t h e v i s u a l i z a t i o n
+ v i s . AddTypicalLights ( )                  # Add t y p i c a l l i g h t s f o r b e t t e r v i s u a l i z a t i o n
+
+ # Simulation loop
+ l o g i n f o = True        # Flag to c o n t r o l l o g g i n g
+ w h i l e v i s . Run ( ) :
+         v i s . BeginScene ( )   # Begin the s c e n e f o r                   rendering
+         v i s . Render ( )   # Render t h e s c e n e
+         v i s . EndScene ( )   # End t h e s c e n e
+         s y s . DoStepDynamics ( 1 e −2)   # Advance t h e                     simulation         by a      time     step    of    0.001
+                  seconds
+
+        # Log i n f o r m a t i o n a f t e r 1 s e c o n d o f s i m u l a t i o n t i m e
+        i f l o g i n f o and s y s . GetChTime ( ) > 1 :
+              p o s 1 = p e n d 1 . GetPos ( )        # Get t h e p o s i t i o n o f t h e f i r s t pendulum
+              p o s 2 = p e n d 2 . GetPos ( )        # Get t h e p o s i t i o n o f t h e s e c o n d pendulum
+              p r i n t ( ” t = ” , s y s . GetChTime ( ) )
+              p r i n t ( ” Pendulum 1 : ” , p o s 1 . x , ”        ” , pos 1 . y)
+              p r i n t ( ” Pendulum 2 : ” , p o s 2 . x , ”        ” , pos 2 . y)
+              l i n v e l 1 = p e n d 1 . GetPosDt ( )         # Get t h e l i n e a r v e l o c i t y o f t h e f i r s t
+                        pendulum
+              l i n v e l 2 = p e n d 2 . GetPosDt ( )         # Get t h e l i n e a r v e l o c i t y o f t h e s e c o n d
+                        pendulum
+              p r i n t ( ” Pendulum 1 v e l o c i t y : ” , l i n v e l 1 . x , ”          ” , lin vel 1 . y)
+              p r i n t ( ” Pendulum 2 v e l o c i t y : ” , l i n v e l 2 . x , ”          ” , lin vel 2 . y)
+              l o g i n f o = False        # Disable further logging
+
+  ‘‘‘
+
+&                                                                                                                                                     %
+Fig. 6: The generated response of finetuned GPT4o-mini for the PyChrono
+double pendulum simulation.(Part 1 of 2).
+Title Suppressed Due to Excessive Length                                                                                               27
+'                                                                                                                                            $
+ ### E x p l a n a t i o n :
+ 1 . ∗∗ System S e t u p ∗ ∗ : The s i m u l a t i o n s t a r t s by i n i t i a l i z i n g t h e Chrono s y s t e m w i t h
+        t h e ‘ ChSystemNSC ( ) ‘ c l a s s , w h i c h h a n d l e s t h e p h y s i c s c a l c u l a t i o n s . G r a v i t y i s
+          s e t t o 9 . 8 1 m/ s ˆ2 t o s i m u l a t e r e a l −w o r l d c o n d i t i o n s .
+
+ 2.   ∗∗ Ground C r e a t i o n ∗ ∗ : A f i x e d g r o u n d body i s added t o t h e s y s t e m , w h i c h a c t s a s
+         t h e s t a t i o n a r y p o i n t f o r t h e pendulums . A v i s u a l i z a t i o n e l e m e n t ( c y l i n d e r ) i s
+           added t o r e p r e s e n t t h e g r o u n d .
+
+ 3.   ∗∗ F i r s t Pendulum ∗ ∗ : A pendulum body i s c r e a t e d , w h i c h i s n o t f i x e d ,                    allowing       it
+          t o s w i n g . I t i s i n i t i a l i z e d h o r i z o n t a l l y w i t h a mass o f 1 kg and              inertia
+         p r o p e r t i e s . A v i s u a l i z a t i o n e l e m e n t i s added t o i t .
+
+ 4.   ∗∗ H i n g e S e t u p ∗ ∗ : A r e v o l u t e h i n g e i s c r e a t e d t o a l l o w t h e    first    pendulum       to
+         s w i n g . I t c o n n e c t s t h e f i r s t pendulum t o t h e g r o u n d .
+
+ 5.   ∗∗ S e c o n d Pendulum ∗ ∗ : A s e c o n d pendulum i s c r e a t e d s i m i l a r l y t o t h e f i r s t , w i t h
+        a mass o f 1 kg and i n e r t i a p r o p e r t i e s . I t i s a l s o v i s u a l i z e d w i t h a c y l i n d e r .
+
+ 6.   ∗∗ H i n g e Between Pendulums ∗ ∗ : A r e v o l u t e h i n g e i s c r e a t e d               between the f i r s t         and
+         s e c o n d pendulum , a l l o w i n g t h e s e c o n d pendulum t o s w i n g               from t h e f i r s t .
+
+ 7.   ∗∗ V i s u a l i z a t i o n S e t u p ∗ ∗ : An I r r l i c h t   v i s u a l i z a t i o n system i s attached to
+         p r o v i d e r e a l −t i m e r e n d e r i n g o f t h e     s i m u l a t i o n . A camera and l i g h t i n g s e t u p
+        enhance the v i s u a l r e p r e s e n t a t i o n .
+
+ 8.   ∗∗ S i m u l a t i o n Loop ∗ ∗ : The s i m u l a t i o n r u n s i n a l o o p w h e r e t h e s y s t e m i s u p d a t e d
+         e v e r y 0 . 0 1 s e c o n d s . The r e n d e r i n g i s done i n e a c h s t e p t o d i s p l a y t h e c u r r e n t
+           s t a t e o f t h e pendulums . L o g g i n g i s p e r f o r m e d a f t e r 1 s e c o n d t o o u t p u t t h e
+         p o s i t i o n and v e l o c i t y o f b o t h pendulums .
+
+ This    e x p l a n a t i o n b r e a k s down t h e k e y s t e p s       in   setting     up and     running      a   double
+         pendulum s i m u l a t i o n i n PyChrono .
+
+&                                                                                                                                            %
+Fig. 7: The generated response of finetuned GPT4o-mini for the PyChrono
+double pendulum simulation.(Part 2 of 2).
+
+
+
+
+      Fig. 8: Visualization of the double pendulum simulation in PyChrono.
+28                                                            Jingquan Wang et al.
+
+
+5.2 Second Case Study: MAN 10T Truck
+
+The Maschinenfabrik Augsburg-Nürnberg (MAN) 10T truck is a high-mobility,
+all-wheel-drive military truck used for transporting material in off-road condi-
+tions. The example demonstrates the capabilities of ChronoLLM in generating
+complex simulations involving systems with multiple bodies, constraints, tires,
+powertrain, and more. The input prompt for this example is as follows:
+
+Prompt:
+     Create a PyChrono simulation showcasing the dynamics of a MAN 10t
+     truck driving on a rigid terrain. The system includes a vehicle model
+     with configurable visualization and collision settings, a TMEASY tire
+     model, and real-time driver controls for steering, throttle, and braking.
+     Visualize the simulation using the Irrlicht visualization system with a
+     chase camera, directional lighting, a skybox, and customizable terrain
+     textures and logos.
+    The PyChrono script generated by ChronoLLM using finetuned GPT4o-
+mini is shown in Figure 9. The generated code is a complete simulation setup
+using the PyChrono library, which includes the creation of a physical sys-
+tem, the addition of a truck model, and the implementation of a visualization
+system. A snapshot of the simulation is shown in Figure 10. Subsequent mod-
+ifications to the script might be needed to get a particular truck model, but
+this script provides a good starting point to that end.
+    Beyond the first prompt request, it is often the case that the user would
+like to modify the generated script to get a particular truck model, a different
+terrain, a different perspective in visualization, etc. This is the second step of
+this experiment—the model is extended with through another prompt request,
+which reads as shown below. The script generated is shown in Fig. 11. A
+snapshot of the simulation is shown in Figure 12. Note that MAN 10t has 10
+wheels, while MAN 5t has four wheels.
+     Make the following changes please: Initial vehicle location changed from
+     (0, 0, 0.5) to (-20, 0, 1.5). Vehicle type changed from veh.MAN 10t
+     to veh.MAN 5t. Terrain changed from a flat rigid terrain to a ter-
+     rain of rigid hills with a height map. Terrain texture changed from
+     "tile4.jpg" to "grass.jpg".
+    One might want to extend the model with a third round of modifications,
+e.g., adding sensor to the simulation to simulate the real user experience to
+interact with LLM. The prompt request is shown below. The script generated
+is shown in Fig. 14. A snapshot of the simulation is shown in Figure 15.
+     Imported pychrono.sensor and numpy modules. Added sensor manager
+     and lidar sensor. Created and added random boxes to the simulation.
+     Terrain texture changed from ”tile4.jpg” to ”grass.jpg”. Updated sensor
+     manager within the simulation loop.
+Title Suppressed Due to Excessive Length                                                                                                    29
+'                                                                                                                                                $
+ import pychrono . c o r e as chrono
+ import pychrono . i r r l i c h t as i r r
+ i m p o r t p y c h r o n o . v e h i c l e a s veh
+ i m p o r t math
+
+ c h r o n o . S e t C h r o n o D a t a P a t h ( c h r o n o . GetChronoDataPath ( ) )
+ veh . S e t D a t a P a t h ( c h r o n o . GetChronoDataPath ( ) + ’ v e h i c l e / ’ )
+
+ # I n i t i a l v e h i c l e l o c a t i o n and o r i e n t a t i o n
+ i n i t L o c = c h r o n o . ChVector3d ( 0 , 0 , 0 . 5 )
+ i n i t R o t = chrono . ChQuaterniond ( 1 , 0 , 0 , 0 )
+ # V i s u a l i z a t i o n t y p e f o r v e h i c l e p a r t s ( PRIMITIVES , MESH,                       o r NONE)
+ v i s t y p e = veh . V i s u a l i z a t i o n T y p e P R I M I T I V E S
+ v i s t y p e m e s h = veh . V i s u a l i z a t i o n T y p e M E S H
+ # C o l l i s i o n t y p e f o r c h a s s i s ( PRIMITIVES , MESH, o r NONE)
+ c h a s s i s c o l l i s i o n t y p e = veh . C o l l i s i o n T y p e N O N E
+ # Type o f t i r e model ( RIGID , TMEASY)
+ t i r e m o d e l = veh . TireModelType TMEASY
+ # Rigid t e r r a i n
+ # t e r r a i n m o d e l = veh . R i g i d T e r r a i n .BOX
+ terrainHeight = 0                       # terrain height
+ terrainLength = 100.0                   # s i z e in X direction
+ terrainWidth = 100.0                    # s i z e in Y direction
+ # Poon c h a s s i s t r a c k e d by t h e camera
+ t r a c k P o i n t = c h r o n o . ChVector3d ( − 3 . 0 , 0 . 0 , 1 . 1 )
+ # C o n t a c t method
+ c o n t a c t m e t h o d = c h r o n o . ChContactMethod NSC
+ contact vis = False
+ # Simulation step s i z e s
+ s t e p s i z e = 1 e −3
+ tire step size = step size
+ # Time i n t e r v a l b e t w e e n two r e n d e r f r a m e s
+ r e n d e r s t e p s i z e = 1 . 0 / 50           # FPS = 50
+
+ # C r e a t e t h e MAN v e h i c l e , s e t p a r a m e t e r s , and i n i t i a l i z e
+ v e h i c l e = veh . MAN 10t ( )
+ v e h i c l e . SetContactMethod ( contact method )
+ vehicle . SetChassisCollisionType ( c h a s s i s c o l l i s i o n t y p e )
+ vehicle . SetChassisFixed ( False )
+ v e h i c l e . S e t I n i t P o s i t i o n ( c h r o n o . ChCoordsysd ( i n i t L o c , i n i t R o t ) )
+ v e h i c l e . SetTireType ( t i r e m o d e l )
+ vehicle . SetTireStepSize ( t i r e s t e p s i z e )
+ vehicle . I n i t i a l i z e ()
+ vehicle . SetChassisVisualizationType ( vis type mesh )
+ vehicle . SetSuspensionVisualizationType ( vis type )
+ vehicle . SetSteeringVisualizationType ( vis type )
+ v e h i c l e . SetWheelVisualizationType ( vis type mesh )
+ vehicle . SetTireVisualizationType ( vis type mesh )
+ v e h i c l e . GetSystem ( ) . S e t C o l l i s i o n S y s t e m T y p e ( c h r o n o . C h C o l l i s i o n S y s t e m . Type BULLET )
+ # Create the t e r r a i n
+ patch mat = chrono . ChContactMaterialNSC ( )
+ patch mat . S e t F r i c t i o n ( 0 . 9 )
+ patch mat . S e t R e s t i t u t i o n ( 0 . 0 1 )
+ t e r r a i n = veh . R i g i d T e r r a i n ( v e h i c l e . GetSystem ( ) )
+ p a t c h = t e r r a i n . AddPatch ( p a t c h m a t ,
+         c h r o n o . ChCoordsysd ( c h r o n o . ChVector3d ( 0 , 0 , 0 ) , c h r o n o . QUNIT) ,
+         terrainLength , terrainWidth )
+ p a t c h . S e t T e x t u r e ( veh . G e t D a t a F i l e ( ” t e r r a i n / t e x t u r e s / t i l e 4 . j p g ” ) , 2 0 0 , 2 0 0 )
+ p a t c h . S e t C o l o r ( c h r o n o . ChColor ( 0 . 8 , 0 . 8 , 0 . 5 ) )
+ terrain . I n i t i a l i z e ()
+ # Create the v e h i c l e I r r l i c h t i n t e r f a c e
+ v i s = veh . C h W h e e l e d V e h i c l e V i s u a l S y s t e m I r r l i c h t ( )
+ v i s . S e t W i n d o w T i t l e ( ’MAN 10 t Demo ’ )
+ v i s . SetWindowSize ( 1 2 8 0 , 1 0 24 )
+ v i s . SetChaseCamera ( t r a c k P o i n t , 1 5 . 0 , 0 . 5 )
+ vis . I n i t i a l i z e ()
+ v i s . AddLogo ( c h r o n o . G e t C h r o n o D a t a F i l e ( ’ l o g o p y c h r o n o a l p h a . png ’ ) )
+ vis . AddLightDirectional ()
+ v i s . AddSkyBox ( )
+ v i s . AttachVehicle ( v e h i c l e . GetVehicle () )
+ # Create the d r i v e r system
+ d r i v e r = veh . C h I n t e r a c t i v e D r i v e r I R R ( v i s )
+ # S e t t h e t i m e r e s p o n s e f o r s t e e r i n g and t h r o t t l e k e y b o a r d i n p u t s .
+ steering time = 1.0                       # t i m e t o go f r o m 0 t o +1 ( o r f r o m 0 t o −1)
+ throttle time = 1.0                       # t i m e t o go f r o m 0 t o +1
+ braking time = 0.3                        # t i m e t o go f r o m 0 t o +1
+ driver . SetSteeringDelta ( render step size / steering time )
+ driver . SetThrottleDelta ( render step size / throttle time )
+ driver . SetBrakingDelta ( r e n d e r s t e p s i z e / braking time )
+ driver . I n i t i a l i z e ()
+
+ # o u t p u t v e h i c l e mass
+ p r i n t ( ”VEHICLE MASS : ” ,                    v e h i c l e . G e t V e h i c l e ( ) . GetMass ( ) )
+ # Number o f s i m u l a t i o n s t e p s b e t w e e n m i s c e l l a n e o u s e v e n t s
+ r e n d e r s t e p s = math . c e i l ( r e n d e r s t e p s i z e / s t e p s i z e )
+ # I n i t i a l i z e s i m u l a t i o n frame counter s
+ r e a l t i m e t i m e r = chrono . ChRealtimeStepTimer ( )
+ step number = 0
+ render frame = 0
+ w h i l e v i s . Run ( ) :
+         t i m e = v e h i c l e . GetSystem ( ) . GetChTime ( )
+         # Render s c e n e and o u t p u t POV−Ray d a t a
+          i f ( s t e p n u m b e r % r e n d e r s t e p s == 0 ) :
+                  v i s . BeginScene ( )
+                  v i s . Render ( )
+                  v i s . EndScene ( )
+                  r e n d e r f r a m e += 1
+         # Get d r i v e r i n p u t s
+          d r i v e r i n p u t s = d r i v e r . GetInputs ( )
+         # Update m o d u l e s ( p r o c e s s i n p u t s f r o m o t h e r m o d u l e s )
+         d r i v e r . Synchronize ( time )
+          t e r r a i n . Synchronize ( time )
+          v e h i c l e . S y n c h r o n i z e ( time , d r i v e r i n p u t s , t e r r a i n )
+          v i s . S y n c h r o n i z e ( time , d r i v e r i n p u t s )
+
+        # Advance s i m u l a t i o n f o r o n e              timestep        for     all    modules
+        d r i v e r . Advance ( s t e p s i z e )
+        t e r r a i n . Advance ( s t e p s i z e )
+        v e h i c l e . Advance ( s t e p s i z e )
+        v i s . Advance ( s t e p s i z e )
+        # I n c r e m e n t f r a m e number
+        s t e p n u m b e r += 1
+
+        # Spin i n p l a c e f o r r e a l time to                    catch      up
+        r e a l t i m e t i m e r . Spin ( s t e p s i z e )
+
+&                                                                                                                                                %
+Fig. 9: The generated code of finetuned GPT4o-mini for the PyChrono MAN
+truck simulation.
+30                                                      Jingquan Wang et al.
+
+
+
+
+     Fig. 10: Visualization of the MAN truck simulation in PyChrono.
+Title Suppressed Due to Excessive Length                                                                                                    31
+'                                                                                                                                                 $
+ import pychrono . c o r e as chrono
+ import pychrono . i r r l i c h t as i r r
+ i m p o r t p y c h r o n o . v e h i c l e a s veh
+ i m p o r t math
+
+ c h r o n o . S e t C h r o n o D a t a P a t h ( c h r o n o . GetChronoDataPath ( ) )
+ veh . S e t D a t a P a t h ( c h r o n o . GetChronoDataPath ( ) + ’ v e h i c l e / ’ )
+
+ # I n i t i a l v e h i c l e l o c a t i o n and o r i e n t a t i o n
+ i n i t L o c = c h r o n o . ChVector3d ( −20 , 0 , 1 . 5 )
+ i n i t R o t = chrono . ChQuaterniond ( 1 , 0 , 0 , 0 )
+ # V i s u a l i z a t i o n t y p e f o r v e h i c l e p a r t s ( PRIMITIVES , MESH,                       o r NONE)
+ v i s t y p e = veh . V i s u a l i z a t i o n T y p e P R I M I T I V E S
+ v i s t y p e m e s h = veh . V i s u a l i z a t i o n T y p e M E S H
+ # C o l l i s i o n t y p e f o r c h a s s i s ( PRIMITIVES , MESH, o r NONE)
+ c h a s s i s c o l l i s i o n t y p e = veh . C o l l i s i o n T y p e N O N E
+ # Type o f t i r e model ( RIGID , TMEASY)
+ t i r e m o d e l = veh . TireModelType TMEASY
+ # Rigid t e r r a i n
+ # t e r r a i n m o d e l = veh . R i g i d T e r r a i n .BOX
+ terrainHeight = 0                       # terrain height
+ terrainLength = 100.0                   # s i z e in X direction
+ terrainWidth = 100.0                    # s i z e in Y direction
+ # Poon c h a s s i s t r a c k e d by t h e camera
+ t r a c k P o i n t = c h r o n o . ChVector3d ( − 3 . 0 , 0 . 0 , 1 . 1 )
+ # C o n t a c t method
+ c o n t a c t m e t h o d = c h r o n o . ChContactMethod NSC
+ contact vis = False
+ # Simulation step s i z e s
+ s t e p s i z e = 1 e −3
+ tire step size = step size
+ # Time i n t e r v a l b e t w e e n two r e n d e r f r a m e s
+ r e n d e r s t e p s i z e = 1 . 0 / 50           # FPS = 50
+
+ # C r e a t e t h e MAN 5 t v e h i c l e , s e t p a r a m e t e r s , and i n i t i a l i z e
+ v e h i c l e = veh . MAN 5t ( )
+ v e h i c l e . SetContactMethod ( contact method )
+ vehicle . SetChassisCollisionType ( c h a s s i s c o l l i s i o n t y p e )
+ vehicle . SetChassisFixed ( False )
+ v e h i c l e . S e t I n i t P o s i t i o n ( c h r o n o . ChCoordsysd ( i n i t L o c , i n i t R o t ) )
+ v e h i c l e . SetTireType ( t i r e m o d e l )
+ vehicle . SetTireStepSize ( t i r e s t e p s i z e )
+ vehicle . I n i t i a l i z e ()
+ vehicle . SetChassisVisualizationType ( vis type mesh )
+ vehicle . SetSuspensionVisualizationType ( vis type )
+ vehicle . SetSteeringVisualizationType ( vis type )
+ v e h i c l e . SetWheelVisualizationType ( vis type mesh )
+ vehicle . SetTireVisualizationType ( vis type mesh )
+ v e h i c l e . GetSystem ( ) . S e t C o l l i s i o n S y s t e m T y p e ( c h r o n o . C h C o l l i s i o n S y s t e m . Type BULLET )
+
+ # C r e a t e t h e t e r r a i n o f r i g i d h i l l s w i t h a h e i g h t map
+ patch mat = chrono . ChContactMaterialNSC ( )
+ patch mat . S e t F r i c t i o n ( 0 . 9 )
+ patch mat . S e t R e s t i t u t i o n ( 0 . 0 1 )
+ t e r r a i n = veh . R i g i d T e r r a i n ( v e h i c l e . GetSystem ( ) )
+ p a t c h = t e r r a i n . AddPatch ( p a t c h m a t , c h r o n o . ChCoordsysd ( c h r o n o . ChVector3d ( 0 , 0 , 0 ) ,
+             c h r o n o . QUNIT) , veh . G e t D a t a F i l e ( ” t e r r a i n / h e i g h t m a p s /bump64 . bmp ” ) , 6 4 . 0 , 6 4 . 0 ,
+             0.0 , 3.0)
+ p a t c h . S e t T e x t u r e ( veh . G e t D a t a F i l e ( ” t e r r a i n / t e x t u r e s / g r a s s . j p g ” ) , 6 , 6 )
+ p a t c h . S e t C o l o r ( c h r o n o . ChColor ( 0 . 8 , 0 . 8 , 0 . 5 ) )
+ terrain . I n i t i a l i z e ()
+
+ # Create the v e h i c l e I r r l i c h t i n t e r f a c e
+ v i s = veh . C h W h e e l e d V e h i c l e V i s u a l S y s t e m I r r l i c h t ( )
+ v i s . S e t W i n d o w T i t l e ( ’MAN 5 t Demo ’ )
+ v i s . SetWindowSize ( 1 2 8 0 , 1 0 24 )
+ v i s . SetChaseCamera ( t r a c k P o i n t , 1 5 . 0 , 0 . 5 )
+ vis . I n i t i a l i z e ()
+ v i s . AddLogo ( c h r o n o . G e t C h r o n o D a t a F i l e ( ’ l o g o p y c h r o n o a l p h a . png ’ ) )
+ vis . AddLightDirectional ()
+ v i s . AddSkyBox ( )
+ v i s . AttachVehicle ( v e h i c l e . GetVehicle () )
+
+ # Create the d r i v e r system
+ d r i v e r = veh . C h I n t e r a c t i v e D r i v e r I R R ( v i s )
+ # S e t t h e t i m e r e s p o n s e f o r s t e e r i n g and t h r o t t l e k e y b o a r d i n p u t s .
+ steering time = 1.0                # t i m e t o go f r o m 0 t o +1 ( o r f r o m 0 t o −1)
+ throttle time = 1.0                # t i m e t o go f r o m 0 t o +1
+ braking time = 0.3                 # t i m e t o go f r o m 0 t o +1
+ driver . SetSteeringDelta ( render step size / steering time )
+ driver . SetThrottleDelta ( render step size / throttle time )
+ driver . SetBrakingDelta ( r e n d e r s t e p s i z e / braking time )
+ driver . I n i t i a l i z e ()
+
+ # o u t p u t v e h i c l e mass
+ p r i n t ( ”VEHICLE MASS : ” ,                    v e h i c l e . G e t V e h i c l e ( ) . GetMass ( ) )
+ # Number o f s i m u l a t i o n s t e p s b e t w e e n m i s c e l l a n e o u s e v e n t s
+ r e n d e r s t e p s = math . c e i l ( r e n d e r s t e p s i z e / s t e p s i z e )
+ # I n i t i a l i z e s i m u l a t i o n frame counter s
+ r e a l t i m e t i m e r = chrono . ChRealtimeStepTimer ( )
+ step number = 0
+ render frame = 0
+ w h i l e v i s . Run ( ) :
+         t i m e = v e h i c l e . GetSystem ( ) . GetChTime ( )
+         # Render s c e n e and o u t p u t POV−Ray d a t a
+          i f ( s t e p n u m b e r % r e n d e r s t e p s == 0 ) :
+                  v i s . BeginScene ( )
+                  v i s . Render ( )
+                  v i s . EndScene ( )
+                  r e n d e r f r a m e += 1
+         # Get d r i v e r i n p u t s
+          d r i v e r i n p u t s = d r i v e r . GetInputs ( )
+         # Update m o d u l e s ( p r o c e s s i n p u t s f r o m o t h e r m o d u l e s )
+         d r i v e r . Synchronize ( time )
+          t e r r a i n . Synchronize ( time )
+          v e h i c l e . S y n c h r o n i z e ( time , d r i v e r i n p u t s , t e r r a i n )
+          v i s . S y n c h r o n i z e ( time , d r i v e r i n p u t s )
+         # Advance s i m u l a t i o n f o r o n e t i m e s t e p f o r a l l m o d u l e s
+         d r i v e r . Advance ( s t e p s i z e )
+          t e r r a i n . Advance ( s t e p s i z e )
+          v e h i c l e . Advance ( s t e p s i z e )
+          v i s . Advance ( s t e p s i z e )
+         # I n c r e m e n t f r a m e number
+         s t e p n u m b e r += 1
+         # S p i n i n p l a c e f o r r e a l t i m e t o c a t c h up
+         r e a l t i m e t i m e r . Spin ( s t e p s i z e )
+
+&                                                                                                                                                 %
+Fig. 11: The generated code of finetuned GPT4o-mini for the second round
+modifications of the PyChrono MAN 5t truck simulation.
+32                                               Jingquan Wang et al.
+
+
+
+
+     Fig. 12: Snapshot of the MAN 5t truck simulation.
+Title Suppressed Due to Excessive Length                                                                                                                33
+'                                                                                                                                                                $
+ import pychrono . c o r e as chrono
+ import pychrono . i r r l i c h t as i r r
+ i m p o r t p y c h r o n o . v e h i c l e a s veh
+ import pychrono . s e n s o r as s e n s
+ i m p o r t numpy a s np
+ i m p o r t math
+
+ c h r o n o . S e t C h r o n o D a t a P a t h ( c h r o n o . GetChronoDataPath ( ) )
+ veh . S e t D a t a P a t h ( c h r o n o . GetChronoDataPath ( ) + ’ v e h i c l e / ’ )
+
+ # I n i t i a l v e h i c l e l o c a t i o n and o r i e n t a t i o n
+ i n i t L o c = c h r o n o . ChVector3d ( 0 , 0 , 0 . 5 )
+ i n i t R o t = chrono . ChQuaterniond ( 1 , 0 , 0 , 0 )
+
+ # V i s u a l i z a t i o n t y p e f o r v e h i c l e p a r t s ( PRIMITIVES , MESH,                         o r NONE)
+ v i s t y p e = veh . V i s u a l i z a t i o n T y p e M E S H
+ # C o l l i s i o n t y p e f o r c h a s s i s ( PRIMITIVES , MESH, o r NONE)
+ c h a s s i s c o l l i s i o n t y p e = veh . C o l l i s i o n T y p e N O N E
+ # Type o f t i r e model ( RIGID , TMEASY)
+ t i r e m o d e l = veh . TireModelType TMEASY
+
+ # Rigid t e r r a i n
+ # t e r r a i n m o d e l = veh . R i g i d T e r r a i n .BOX
+ terrainHeight = 0            # terrain height
+ terrainLength = 100.0              # s i z e in X direction
+ terrainWidth = 100.0             # s i z e in Y direction
+
+ # Poon c h a s s i s t r a c k e d by t h e camera
+ t r a c k P o i n t = c h r o n o . ChVector3d ( − 3 . 0 ,             0.0 ,     1.1)
+
+ # C o n t a c t method
+ c o n t a c t m e t h o d = c h r o n o . ChContactMethod NSC
+ contact vis = False
+ # Simulation step s i z e s
+ s t e p s i z e = 1 e −3
+ tire step size = step size
+ # Time i n t e r v a l b e t w e e n two r e n d e r f r a m e s
+ r e n d e r s t e p s i z e = 1 . 0 / 50      # FPS = 50
+
+ # C r e a t e t h e MAN v e h i c l e , s e t p a r a m e t e r s , and i n i t i a l i z e
+ v e h i c l e = veh . MAN 10t ( )
+ v e h i c l e . SetContactMethod ( contact method )
+ vehicle . SetChassisCollisionType ( c h a s s i s c o l l i s i o n t y p e )
+ vehicle . SetChassisFixed ( False )
+ v e h i c l e . S e t I n i t P o s i t i o n ( c h r o n o . ChCoordsysd ( i n i t L o c , i n i t R o t ) )
+ v e h i c l e . SetTireType ( t i r e m o d e l )
+ vehicle . SetTireStepSize ( t i r e s t e p s i z e )
+ vehicle . I n i t i a l i z e ()
+ vehicle . SetChassisVisualizationType ( vis type )
+ vehicle . SetSuspensionVisualizationType ( vis type )
+ vehicle . SetSteeringVisualizationType ( vis type )
+ v e h i c l e . SetWheelVisualizationType ( vis type )
+ vehicle . SetTireVisualizationType ( vis type )
+
+ v e h i c l e . GetSystem ( ) . S e t C o l l i s i o n S y s t e m T y p e ( c h r o n o . C h C o l l i s i o n S y s t e m . Type BULLET )
+
+ # randomly c r e a t e 5 boxes i n t h e v e h i c l e ’ s s i m u l a t i o n a r e a
+ f o r i in range (5) :
+       s i d e = np . random . u n i f o r m ( 0 . 5 , 1 . 5 )
+       box = c h r o n o . ChBodyEasyBox ( s i d e , s i d e , s i d e , 1 0 0 0 , True , F a l s e )
+       box . S e t P o s ( c h r o n o . ChVector3d ( np . random . u n i f o r m ( −5 , 1 5 ) , np . random . u n i f o r m ( 2 ,
+                5) , s i d e / 2) )
+       box . S e t F i x e d ( True )
+       box . G e t V i s u a l S h a p e ( 0 ) . S e t T e x t u r e ( c h r o n o . G e t C h r o n o D a t a F i l e ( ” t e x t u r e s / b l u e . png ” )
+                )
+       v e h i c l e . GetSystem ( ) . Add ( box )
+
+ # Create the t e r r a i n
+ patch mat = chrono . ChContactMaterialNSC ( )
+ patch mat . S e t F r i c t i o n ( 0 . 9 )
+ patch mat . S e t R e s t i t u t i o n ( 0 . 0 1 )
+ t e r r a i n = veh . R i g i d T e r r a i n ( v e h i c l e . GetSystem ( ) )
+ p a t c h = t e r r a i n . AddPatch ( p a t c h m a t , c h r o n o . ChCoordsysd ( c h r o n o . ChVector3d ( 0 ,                               0,   0) ,
+             c h r o n o . QUNIT) , t e r r a i n L e n g t h , t e r r a i n W i d t h )
+ p a t c h . S e t T e x t u r e ( veh . G e t D a t a F i l e ( ” t e r r a i n / t e x t u r e s / g r a s s . j p g ” ) , 2 0 0 , 2 0 0 )
+ p a t c h . S e t C o l o r ( c h r o n o . ChColor ( 0 . 8 , 0 . 8 , 0 . 5 ) )
+ terrain . I n i t i a l i z e ()
+
+ # Create         the     vehicle         Irrlicht         interface
+
+ v i s = veh . C h W h e e l e d V e h i c l e V i s u a l S y s t e m I r r l i c h t ( )
+ v i s . S e t W i n d o w T i t l e ( ’MAN 10 t Demo ’ )
+ v i s . SetWindowSize ( 1 2 8 0 , 1 0 24 )
+ v i s . SetChaseCamera ( t r a c k P o i n t , 1 5 . 0 , 0 . 5 )
+ vis . I n i t i a l i z e ()
+ v i s . AddLogo ( c h r o n o . G e t C h r o n o D a t a F i l e ( ’ l o g o p y c h r o n o a l p h a . png ’ ) )
+ vis . AddLightDirectional ()
+ v i s . AddSkyBox ( )
+ v i s . AttachVehicle ( v e h i c l e . GetVehicle () )
+
+ # c r e a t e a s e n s o r manager
+ manager = s e n s . ChSensorManager ( v e h i c l e . GetSystem ( ) )
+ # create a lidar sensor
+ # C r e a t e t h e l i d a r s e n s o r and a t t a c h i t t o t h e r o v e r
+ o f f s e t p o s e = c h r o n o . ChFramed (
+         c h r o n o . ChVector3d ( 2 . 0 , 0 , 1 ) , c h r o n o . QuatFromAngleAxis ( 0 ,                             c h r o n o . ChVector3d ( 0 ,
+                     1 , 0) )
+ )
+ # l i d a r r e l a t e d parameters
+ # Update r a t e i n Hz
+ update rate = 5.0
+ # Number o f h o r i z o n t a l and v e r t i c a l s a m p l e s
+ h o r i z o n t a l s a m p l e s = 800
+ v e r t i c a l s a m p l e s = 300
+ # H o r i z o n t a l and v e r t i c a l f i e l d o f v i e w ( r a d i a n s )
+ h o r i z o n t a l f o v = 2 ∗ c h r o n o . CH PI     # 360 d e g r e e s
+ m a x v e r t a n g l e = c h r o n o . CH PI / 12
+ m i n v e r t a n g l e = −c h r o n o . CH PI / 6
+ # Lag t i m e
+ lag = 0
+
+&                                                                                                                                                                %
+Fig. 13: The generated code of finetuned for the third round modifications of
+the PyChrono MAN truck simulation.(Part 1 of 2)
+34                                                                                                            Jingquan Wang et al.
+'                                                                                                                                         $
+ # C o l l e c t i o n window f o r t h e l i d a r
+ collection time = 1. / update rate                                  # t y p i c a l l y 1/ u p d a t e r a t e
+ # R a d i u s o f s a m p l e s t o u s e , 1−>1 s a m p l e , 2−>9 s a m p l e s , 3−>25 s a m p l e s . . .
+ sample radius = 2
+ # 3mm r a d i u s ( a s c i t e d by v e l o d y n e )
+ divergence angle = 0.003
+ # L i d a r r e t u r n mode
+ r e t u r n m o d e = s e n s . LidarReturnMode STRONGEST RETURN
+ l i d a r = sens . ChLidarSensor (
+          v e h i c l e . G e t C h a s s i s ( ) . GetBody ( ) ,     # Body l i d a r i s a t t a c h e d t o
+          update rate ,             # S c a n n i n g r a t e i n Hz
+          offset pose ,             # O f f s e t pose
+          horizontal samples ,                     # Number o f h o r i z o n t a l s a m p l e s
+          vertical samples ,                   # Number o f v e r t i c a l c h a n n e l s
+          horizontal fov ,                 # H o r i z o n t a l f i e l d o f view
+          max vert angle ,                 # Maximum v e r t i c a l f i e l d o f v i e w
+          min vert angle ,                 # Minimum v e r t i c a l f i e l d o f v i e w
+          100.0 ,        # Maximum l i d a r r a n g e
+          s e n s . LidarBeamShape RECTANGULAR ,                         # Shape o f t h e l i d a r beam
+          sample radius ,               # Sample r a d i u s
+          divergence angle ,                   # Divergence angle
+          divergence angle ,                   # D i v e r g e n c e a n g l e ( a g a i n , t y p i c a l l y same v a l u e )
+          return mode             # R e t u r n mode f o r t h e l i d a r
+ )
+ l i d a r . SetName ( ” L i d a r S e n s o r ” )
+ l i d a r . SetLag ( l a g )
+ l i d a r . SetCollectionWindow ( c o l l e c t i o n t i m e )
+ l i d a r . PushFilter ( sens . ChFilterDIAccess () )
+ l i d a r . P u s h F i l t e r ( s e n s . ChFilterPCfromDepth ( ) )
+ l i d a r . PushFilter ( sens . ChFilterVisualizePointCloud (640 , 480 , 1 . 0 , ” Lidar                                         Point
+            Cloud ” ) )
+ manager . AddSensor ( l i d a r )
+
+ # Create the d r i v e r system
+ d r i v e r = veh . C h I n t e r a c t i v e D r i v e r I R R ( v i s )
+
+ # S e t t h e t i m e r e s p o n s e f o r s t e e r i n g and t h r o t t l e k e y b o a r d i n p u t s .
+ steering time = 1.0              # t i m e t o go f r o m 0 t o +1 ( o r f r o m 0 t o −1)
+ throttle time = 1.0              # t i m e t o go f r o m 0 t o +1
+ braking time = 0.3             # t i m e t o go f r o m 0 t o +1
+ driver . SetSteeringDelta ( render step size / steering time )
+ driver . SetThrottleDelta ( render step size / throttle time )
+ driver . SetBrakingDelta ( r e n d e r s t e p s i z e / braking time )
+
+ driver . I n i t i a l i z e ()
+
+ # o u t p u t v e h i c l e mass
+ p r i n t ( ”VEHICLE MASS : ” , v e h i c l e . G e t V e h i c l e ( ) . GetMass ( ) )
+ # Number o f s i m u l a t i o n s t e p s b e t w e e n m i s c e l l a n e o u s e v e n t s
+ r e n d e r s t e p s = math . c e i l ( r e n d e r s t e p s i z e / s t e p s i z e )
+
+ # I n i t i a l i z e s i m u l a t i o n frame counter
+ r e a l t i m e t i m e r = chrono . ChRealtimeStepTimer ( )
+ step number = 0
+ render frame = 0
+
+ w h i l e v i s . Run ( ) :
+         t i m e = v e h i c l e . GetSystem ( ) . GetChTime ( )
+        # Render s c e n e and o u t p u t POV−Ray d a t a
+         i f ( s t e p n u m b e r % r e n d e r s t e p s == 0 ) :
+                 v i s . BeginScene ( )
+                 v i s . Render ( )
+                 v i s . EndScene ( )
+                 r e n d e r f r a m e += 1
+        # Get d r i v e r i n p u t s
+         d r i v e r i n p u t s = d r i v e r . GetInputs ( )
+
+        # Update m o d u l e s ( p r o c e s s i n p u t s f r o m o t h e r m o d u l e s )
+        d r i v e r . Synchronize ( time )
+        t e r r a i n . Synchronize ( time )
+        v e h i c l e . S y n c h r o n i z e ( time , d r i v e r i n p u t s , t e r r a i n )
+        v i s . S y n c h r o n i z e ( time , d r i v e r i n p u t s )
+
+        # u p d a t e s e n s o r manager
+        manager . Update ( )
+        # Advance s i m u l a t i o n f o r o n e            timestep        for   all    modules
+        d r i v e r . Advance ( s t e p s i z e )
+        t e r r a i n . Advance ( s t e p s i z e )
+        v e h i c l e . Advance ( s t e p s i z e )
+        v i s . Advance ( s t e p s i z e )
+
+        # I n c r e m e n t f r a m e number
+        s t e p n u m b e r += 1
+        # Spin i n p l a c e f o r r e a l time to                   catch   up
+        r e a l t i m e t i m e r . Spin ( s t e p s i z e )
+
+&                                                                                                                                         %
+Fig. 14: The generated code of finetuned GPT4o-mini for the third round
+modifications of the PyChrono MAN truck simulation.(Part 2 of 2)
+Title Suppressed Due to Excessive Length                                                  35
+
+
+
+
+(a) visualization of the Man truck simulation   (b) visualization of the generated Lidar view
+with third round modifications                  for the MAN truck
+
+Fig. 15: Visualization of the third prompt: a snapshot of the vehicle, and
+a rendering of what the LiDAR model in the vehicle picks up during the
+simulation.
+36                                                          Jingquan Wang et al.
+
+
+6 Limitations
+
+The ChronoLLM-produced PyChrono simulation scripts are rarely perfect,
+but are often a very useful starting point for further “polishing” by the user.
+Getting a fast start is helpful, since the initial steps towards generating a
+simulation script are often the most intimidating and time-consuming. While
+ChronoLLM provides a productivity boost, it has several limitations:
+– Harmful and unpredictable content: Although ChronoLLM can reject un-
+  ethical queries, these models may still generate harmful content that is
+  misaligned with human preferences and values. This issue may arise from
+  biases in the training data or the models’ inability to discern appropriate
+  outputs in certain contexts. Our fine-tuning process might exacerbate this
+  issue.
+– Insufficient domain data (in this case, multi-body dynamics related): To
+  produce a PyChrono script from natural language, an LLM needs more
+  than just general natural language processing capabilities. It requires foun-
+  dational knowledge in mechanical engineering, including geometry, kine-
+  matics, statics, and dynamics. Training an LLM solely on the Chrono
+  documentation and examples is brittle. There is substantial room for im-
+  provement of ChronoLLM by collecting training data that enhance’s the
+  LLM’s understanding of the underlying mechanical problem being consid-
+  ered, which requires a deeper domain-specific understanding (in our case
+  multi-body dynamics).
+– Lack of robustness: The trained models may exhibit brittleness in some
+  situations, producing inconsistent or nonsensical outputs when faced with
+  adversarial inputs or rare language phenomena. In other words, it is easy
+  to trick ChronoLLM into generating incorrect code.
+– Scalability and efficiency: Although we applied LoRA and quantization to
+  make the model more accessible to a broader community, when combined
+  with the original LLaMA, the models’ large size and complexity can lead to
+  difficulties in deployment, especially for users with limited computational
+  resources. This issue may hinder the accessibility and widespread adoption
+  of ChronoLLM or similar domain-specific LLMs.
+
+
+7 Conclusion and Future Work
+
+This contribution outlined the process of training a pretrained large language
+model to produce ChronoLLM, a model capable of generating PyChrono sim-
+ulation scripts that set up digital twins of mechanical systems. These scripts
+can be subsequently run in the Chrono simulator through its Python API.
+Our testing showed that fine-tuned models, such as gpt-40-mini-f9-t0.1, out-
+performed the pretrained LLM and in-context learning approaches, achieving
+higher scores in metrics like BLEU, CodeBLEU, and pass@k. These results
+demonstrate the effectiveness of fine-tuning in enhancing functional and se-
+mantic accuracy.
+Title Suppressed Due to Excessive Length                                     37
+
+
+    To ensure fair evaluation, we introduced the “Hacked SimBench” baseline,
+which highlighted the fine-tuned models’ superiority under identical training
+data conditions. Additionally, the use of diverse test environments validated
+the models’ ability to generalize across various PyChrono tasks. The overall
+conclusion is that ChronoLLM is an effective domain-specific tool for digital
+twin generation. While there is plenty of room for improvement, ChronoLLM
+is already capable of generating scripts for a range of virtual experiments.
+Although PyChrono scripts are rarely perfect, ChronoLLM can provide a pro-
+ductivity boost in the use of Chrono.
+    The following are directions for future ChronoLLM improvements:
+1. Unlearning: As it quickly became apparent that the base LLMs picked for
+   fine-tunning had factored in stale and therefore wrong PyChrono informa-
+   tion, we tried to overwrite it with contemporary information associated
+   with the latest version of Project Chrono. However, it’s still possible for
+   the old wrong information to resurface in ChronoLLM inference tasks. A
+   possible way to fix this is called “unlearning” [107], which seeks to cause
+   LLMs to forget the wrong, improper information. This approach remains
+   to be tested.
+2. Multi-Modal LLMs: Recognizing the growing importance of digital twins
+   in modern engineering, we plan to also develop multi-modal LLMs capable
+   of processing images and videos to construct precise digital twins. For in-
+   stance, providing a series of images of the mechanical system of interest is
+   bound to help the reasoning process, since it helps clarify the “mechanical”
+   part of the problem.
+3. Enhanced Tool Interaction: We aim to advance the integration capabilities
+   of LLMs, enabling them to interact seamlessly with compilers and lever-
+   age external numerical computing resources. This initiative will focus on
+   developing interfaces that allow LLMs to dynamically interact with a va-
+   riety of software tools, enhancing their utility and efficiency in real-world
+   applications. This enhanced interaction promises to streamline the devel-
+   opment process, reduce error rates, and accelerate the transition from code
+   generation to deployment.
+4. Multi-Level Agent LLMs: Building on the success of multi-agent systems
+   in robotics, we plan to design multi-level agent LLMs specifically tailored
+   for the construction of simulation code. These systems will employ hier-
+   archical decision-making structures, where agents at different levels man-
+   age specific aspects of the simulation framework, from low-level numerical
+   computations to high-level scenario planning. This approach will facilitate
+   more complex, adaptive, and robust simulation environments, mirroring
+   the collaborative dynamics found in intelligent autonomous systems.
+   From a high vantage point, the LLM customization process is involved,
+and presently comes short of the ultimate goal of having ChronoLLM gen-
+erate, without any mistake, an entire digital twin. Despite its shortcomings,
+ChronoLLM can provide a significant help in producing a PyChrono model.
+Looking forward, this group is committed, in a parallel effort, to maintaining a
+38                                                            Jingquan Wang et al.
+
+
+benchmark that documents the progress of ChronoLLM over time. Ultimately,
+the progress of ChronoLLM is a proxy for the progress of two aspects involved
+in its development: the progress of the open- and closed-source LLMs that
+anchor ChronoLLM; and the progress of the refining and customization tech-
+niques discussed herein, which critically rely on the quantity and quality of
+the training data.
+
+
+Supplementary information
+
+All open-source post-trained models discussed in this contribution are avail-
+able on Hugging Face upon request. The APIs of the post-trained GPT models
+discussed in this paper are available upon request. In addition, all generated
+LLM trajectories and the evaluation infrastructure that can reproduce the re-
+sults of the paper have been open-sourced in the SimBench GitHub repository.
+
+
+Acknowledgments
+
+Partial support for the work reported herein comes from National Science
+Foundation project CMMI2153855.
+
+
+Declarations
+
+All codes, data, and models used in this study will be open-sourced on GitHub.
+The link will be provided in the final version of the paper.
+
+
+References
+
+     1. S. Benatti, A. Young, A. Elmquist, J. Taves, R. Serban, D. Mangoni,
+        A. Tasora, and D. Negrut, “PyChrono and Gym-Chrono: A deep rein-
+        forcement learning framework leveraging multibody dynamics to control
+        autonomous vehicles and robots,” in Advances in Nonlinear Dynamics.
+        Cham: Springer, 2022, pp. 573–584.
+     2. A. Tasora, R. Serban, H. Mazhar, A. Pazouki, D. Melanz, J. Fleischmann,
+        M. Taylor, H. Sugiyama, and D. Negrut, “Chrono: An open source multi-
+        physics dynamics engine,” in High Performance Computing in Science
+        and Engineering, T. Kozubek, R. Blaheta, J. Šı́stek, M. Rozložnı́k, and
+        M. Čermák, Eds. Cham: Springer International Publishing, 2016, pp.
+        19–491.
+     3. Project Chrono Team, “PyChrono: A Python wrapper for the Chrono
+        multi-physics library,” https://anaconda.org/conda-forge/pychrono,
+        2025.
+Title Suppressed Due to Excessive Length                                    39
+
+
+  4. T. Skorupa, S. P. Boyle, J. Mange, D. Kedziorek, C. Lucas, C. Goodin,
+     J. D. Priddy, K. Walker, M. Puhr, and M. S. Mazzola, “The high per-
+     formance computing modernization program (HPCMP) computational
+     research and engineering acquisition tools and environments – ground
+     vehicles (CREATE-GV) program, software, and applications,” in NDIA
+     Ground Vehicle Systems Engineering and Technology Symposium, 2017.
+  5. O. Balling, M. McCullough, H. Hodges, R. Pulley, and P. Jayakumar,
+     “Tracked and wheeled vehicle benchmark – a demonstration of simula-
+     tion maturity for next generation NATO Reference Mobility Model,” in
+     Ground Vehicle Systems Engineering and Technology Symposium, Novi,
+     MI, 2018.
+  6. M. Toso, E. Pennestrı̀, and V. Rossi, “ESA multibody simulator for space-
+     crafts’ ascent and landing in a microgravity environment,” CEAS Space
+     Journal, vol. 7, no. 3, pp. 335–346, 2015.
+  7. F. Ferrari, A. Tasora, P. Masarati, and M. Lavagna, “N-body gravita-
+     tional and contact dynamics for asteroid aggregation,” Multibody System
+     Dynamics, vol. 39, no. 1-2, pp. 3–20, 2017.
+  8. S. Narayanan, D. Barnhart, R. Rogers, D. Ruffatto, E. Schaler,
+     N. Van Crey, G. Dean, A. Bhanji, S. Bernstein, A. Singh, O. Almeida,
+     S. Sampathkumar, E. Maness, and R. Rughani, “REACCH-reactive
+     electro-adhesive capture cloth mechanism to enable safe grapple of
+     cooperative/non-cooperative space debris,” in AIAA Scitech 2020 Fo-
+     rum, 2020, p. 2134.
+  9. M. Li, L. Zhu, Y. Yan, Z. Zhao, and A. Song, “Computational design of
+     planet regolith sampler based on bayesian optimization,” Computers &
+     Graphics, vol. 116, pp. 464–473, 2023.
+ 10. D. Cook and A. Vardy, “Towards real-time robot simulation on uneven
+     terrain using neural networks,” in 2017 International Joint Conference
+     on Neural Networks (IJCNN). IEEE, 2017, pp. 1688–1695.
+ 11. J. McCormac, A. Handa, S. Leutenegger, and A. J. Davison, “Scenenet
+     RGB-D: Can 5m synthetic images beat generic imagenet pre-training on
+     indoor segmentation,” in Proceedings of the IEEE Conference on Com-
+     puter Vision and Pattern Recognition, 2017, pp. 2678–2687.
+ 12. W. Xu, Y. Li, and C. Lu, “Generating instance segmentation annotation
+     by geometry-guided GAN,” arXiv preprint arXiv:1801.08839, 2018.
+ 13. J. Mange, S. Pace, A. Hundich, and P. Sawka, “Distributed simula-
+     tion of the effects of autonomous behavior on battery consumption in
+     ground vehicles,” in Computational Science and Computational Intel-
+     ligence (CSCI), 2016 International Conference on. IEEE, 2016, pp.
+     633–636.
+ 14. C. Goodin, J. T. Carrillo, D. P. McInnis, C. L. Cummins, P. J. Durst,
+     B. Q. Gates, and B. S. Newell, “Unmanned ground vehicle simulation
+     with the virtual autonomous navigation environment,” in Military Tech-
+     nologies (ICMT), 2017 International Conference on. IEEE, 2017, pp.
+     160–165.
+40                                                          Jingquan Wang et al.
+
+
+ 15. N. Haraus, R. Serban, and J. Fleischmann, “Performance analysis of con-
+     stant speed local obstacle avoidance controller using an mpc algorithm
+     on granular terrain,” in Ground Vehicle Systems Engineering and Tech-
+     nology Symposium, 2017.
+ 16. C. Shen, S. Yu, B. I. Epureanu, and T. Ersal, “An efficient global trajec-
+     tory planner for highly dynamical nonholonomic autonomous vehicles on
+     3d terrains,” IEEE Transactions on Robotics, 2023.
+ 17. A. Szabo, D. K. Doba, S. Aradi, and P. Kiss, “Model development for off-
+     road traction control: A linear parameter-varying approach,” Agriculture,
+     vol. 14, no. 3, p. 499, 2024.
+ 18. G. Liang, Z. Xin, Q. Ding, S. Liu, and L. Ren, “Numerical study on the
+     swimming and energy self-sufficiency of multi-joint robotic fish,” Journal
+     of Marine Science and Engineering, vol. 12, no. 5, p. 701, 2024.
+ 19. M. Jonák, D. Hloušek, and K. Řehák, “Experimental verification of the
+     power required for the movement of the tracked vehicle,” Vibroengineer-
+     ing PROCEDIA, vol. 18, pp. 123–127, 2018.
+ 20. M. Brito, R. Canelas, R. Ferreira, O. Garcı́a Feal, J. Domı́nguez, A. Cre-
+     spo, and M. Neves, “Coupling between DualSPHysics and Chrono-
+     Engine: towards large scale HPC multiphysics simulations,” in 11th in-
+     ternational SPHERIC workshop – Munich Germany, June 14-16, 2016,
+     2016.
+ 21. B. Wang, Q. Li, T. Liu, and W. Peng, “Analysis of cable under dynamic
+     contact and large deformation,” KSCE Journal of Civil Engineering, pp.
+     1–10, 2019.
+ 22. M. Liermann, C. Feller, F. Lindinger, and D. Runge, “Immersive 3D
+     vehicle simulation for hardware-in-the-loop testing of mobile hydraulic
+     controls,” in Fluid Power Systems Technology, vol. 59339. American
+     Society of Mechanical Engineers, 2019, p. V001T01A052.
+ 23. S. Perez-Becker, J. Saverin, D. Marten, J. Alber, G. Pechlivanoglou, and
+     C. Paschereit, “Investigations on the fatigue load reduction potential of
+     advanced control strategies for multi-MW wind turbines using a free vor-
+     tex wake model,” in ASME Turbo Expo 2018: Turbomachinery Technical
+     Conference and Exposition. American Society of Mechanical Engineers,
+     2018, pp. V009T48A008–V009T48A008.
+ 24. D. Marten, M. Lennie, G. Pechlivanoglou, C. O. Paschereit, A. Bianchini,
+     G. Ferrara, and L. Ferrari, “Benchmark of a novel aero-elastic simulation
+     code for small scale VAWT analysis,” Journal of Engineering for Gas
+     Turbines and Power, vol. 141, no. 4, p. 041014, 2019.
+ 25. D. Ogden, Z. Quinton, T. de Lataillade, and M. Pallud, “HydroChrono:
+     An open-source hydrodynamics package for Project Chrono,” in
+     Proceedings of the European Wave and Tidal Energy Conference, vol. 15,
+     9 2023. [Online]. Available: https://www.osti.gov/biblio/2005593
+ 26. E. Z. Losoya, E. Gildin, S. F. Noynaert, Z. Medina-Zetina, T. Crain,
+     S. Stewart, and J. Hicks, “An open-source enabled drilling simulation
+     consortium for academic and commercial applications,” in SPE Latin
+     American and Caribbean Petroleum Engineering Conference. Society of
+Title Suppressed Due to Excessive Length                                    41
+
+
+     Petroleum Engineers, 2020.
+ 27. Project Chrono, “Chrono user forum,” https://groups.google.com/
+     forum/#!forum/projectchrono, 2023, accessed: 2023-09-11.
+ 28. Project Chrono Team, “Chrono: An open source framework for the
+     physics-based simulation of dynamic systems,” https://github.com/
+     projectchrono/chrono, 2020, accessed: 2022-01-10.
+ 29. J. Kaplan, S. McCandlish, T. Henighan, T. B. Brown, B. Chess, R. Child,
+     S. Gray, A. Radford, J. Wu, and D. Amodei, “Scaling laws for neural
+     language models,” arXiv preprint arXiv:2001.08361, 2020.
+ 30. J. Hoffmann, S. Borgeaud, A. Mensch, E. Buchatskaya, T. Cai, E. Ruther-
+     ford, D. de Las Casas, L. A. Hendricks, J. Welbl, A. Clark, T. Hen-
+     nigan, E. Noland, K. Millican, G. van den Driessche, B. Damoc,
+     A. Guy, S. Osindero, K. Simonyan, E. Elsen, J. W. Rae, O. Vinyals,
+     and L. Sifre, “Training compute-optimal large language models,” arXiv
+     preprint arXiv:2203.15556, 2022.
+ 31. J. Wei, Y. Tay, R. Bommasani, C. Raffel, B. Zoph, S. Borgeaud, D. Yo-
+     gatama, M. Bosma, D. Zhou, D. Metzler et al., “Emergent abilities of
+     large language models,” arXiv preprint arXiv:2206.07682, 2022.
+ 32. R. Schaeffer, B. Miranda, and S. Koyejo, “Are emergent abilities of large
+     language models a mirage?” Advances in Neural Information Processing
+     Systems, vol. 36, 2024.
+ 33. OpenAI, J. Achiam, S. Adler, S. Agarwal, L. Ahmad, I. Akkaya, F. L.
+     Aleman, D. Almeida, J. Altenschmidt, S. Altman, S. Anadkat, R. Avila,
+     I. Babuschkin, S. Balaji, V. Balcom, P. Baltescu, H. Bao, M. Bavarian,
+     J. Belgum, I. Bello, J. Berdine, G. Bernadett-Shapiro, C. Berner, L. Bog-
+     donoff, O. Boiko, M. Boyd, A.-L. Brakman, G. Brockman, T. Brooks,
+     M. Brundage, K. Button, T. Cai, R. Campbell, A. Cann, B. Carey,
+     C. Carlson, R. Carmichael, B. Chan, C. Chang, F. Chantzis, D. Chen,
+     S. Chen, R. Chen, J. Chen, M. Chen, B. Chess, C. Cho, C. Chu, H. W.
+     Chung, D. Cummings, J. Currier, Y. Dai, C. Decareaux, T. Degry,
+     N. Deutsch, D. Deville, A. Dhar, D. Dohan, S. Dowling, S. Dunning,
+     A. Ecoffet, A. Eleti, T. Eloundou, D. Farhi, L. Fedus, N. Felix, S. P.
+     Fishman, J. Forte, I. Fulford, L. Gao, E. Georges, C. Gibson, V. Goel,
+     T. Gogineni, G. Goh, R. Gontijo-Lopes, J. Gordon, M. Grafstein, S. Gray,
+     R. Greene, J. Gross, S. S. Gu, Y. Guo, C. Hallacy, J. Han, J. Har-
+     ris, Y. He, M. Heaton, J. Heidecke, C. Hesse, A. Hickey, W. Hickey,
+     P. Hoeschele, B. Houghton, K. Hsu, S. Hu, X. Hu, J. Huizinga, S. Jain,
+     S. Jain, J. Jang, A. Jiang, R. Jiang, H. Jin, D. Jin, S. Jomoto, B. Jonn,
+     H. Jun, T. Kaftan, Lukasz Kaiser, A. Kamali, I. Kanitscheider, N. S.
+     Keskar, T. Khan, L. Kilpatrick, J. W. Kim, C. Kim, Y. Kim, J. H. Kirch-
+     ner, J. Kiros, M. Knight, D. Kokotajlo, Lukasz Kondraciuk, A. Kondrich,
+     A. Konstantinidis, K. Kosic, G. Krueger, V. Kuo, M. Lampe, I. Lan,
+     T. Lee, J. Leike, J. Leung, D. Levy, C. M. Li, R. Lim, M. Lin, S. Lin,
+     M. Litwin, T. Lopez, R. Lowe, P. Lue, A. Makanju, K. Malfacini, S. Man-
+     ning, T. Markov, Y. Markovski, B. Martin, K. Mayer, A. Mayne, B. Mc-
+     Grew, S. M. McKinney, C. McLeavey, P. McMillan, J. McNeil, D. Medina,
+42                                                           Jingquan Wang et al.
+
+
+     A. Mehta, J. Menick, L. Metz, A. Mishchenko, P. Mishkin, V. Monaco,
+     E. Morikawa, D. Mossing, T. Mu, M. Murati, O. Murk, D. Mély, A. Nair,
+     R. Nakano, R. Nayak, A. Neelakantan, R. Ngo, H. Noh, L. Ouyang,
+     C. O’Keefe, J. Pachocki, A. Paino, J. Palermo, A. Pantuliano, G. Paras-
+     candolo, J. Parish, E. Parparita, A. Passos, M. Pavlov, A. Peng, A. Perel-
+     man, F. de Avila Belbute Peres, M. Petrov, H. P. de Oliveira Pinto,
+     Michael, Pokorny, M. Pokrass, V. H. Pong, T. Powell, A. Power, B. Power,
+     E. Proehl, R. Puri, A. Radford, J. Rae, A. Ramesh, C. Raymond, F. Real,
+     K. Rimbach, C. Ross, B. Rotsted, H. Roussez, N. Ryder, M. Saltarelli,
+     T. Sanders, S. Santurkar, G. Sastry, H. Schmidt, D. Schnurr, J. Schulman,
+     D. Selsam, K. Sheppard, T. Sherbakov, J. Shieh, S. Shoker, P. Shyam,
+     S. Sidor, E. Sigler, M. Simens, J. Sitkin, K. Slama, I. Sohl, B. Sokolowsky,
+     Y. Song, N. Staudacher, F. P. Such, N. Summers, I. Sutskever, J. Tang,
+     N. Tezak, M. B. Thompson, P. Tillet, A. Tootoonchian, E. Tseng, P. Tug-
+     gle, N. Turley, J. Tworek, J. F. C. Uribe, A. Vallone, A. Vijayvergiya,
+     C. Voss, C. Wainwright, J. J. Wang, A. Wang, B. Wang, J. Ward, J. Wei,
+     C. Weinmann, A. Welihinda, P. Welinder, J. Weng, L. Weng, M. Wi-
+     ethoff, D. Willner, C. Winter, S. Wolrich, H. Wong, L. Workman, S. Wu,
+     J. Wu, M. Wu, K. Xiao, T. Xu, S. Yoo, K. Yu, Q. Yuan, W. Zaremba,
+     R. Zellers, C. Zhang, M. Zhang, S. Zhao, T. Zheng, J. Zhuang, W. Zhuk,
+     and B. Zoph, “Gpt-4 technical report,” 2024.
+ 34. T. Brown, B. Mann, N. Ryder, M. Subbiah, J. D. Kaplan, P. Dhariwal,
+     A. Neelakantan, P. Shyam, G. Sastry, A. Askell, S. Agarwal,
+     A. Herbert-Voss, G. Krueger, T. Henighan, R. Child, A. Ramesh,
+     D. Ziegler, J. Wu, C. Winter, C. Hesse, M. Chen, E. Sigler,
+     M. Litwin, S. Gray, B. Chess, J. Clark, C. Berner, S. McCandlish,
+     A. Radford, I. Sutskever, and D. Amodei, “Language models are
+     few-shot learners,” in Advances in Neural Information Processing
+     Systems, H. Larochelle, M. Ranzato, R. Hadsell, M. Balcan, and
+     H. Lin, Eds., vol. 33. Curran Associates, Inc., 2020, pp. 1877–1901.
+     [Online]. Available: https://proceedings.neurips.cc/paper files/paper/
+     2020/file/1457c0d6bfcb4967418bfb8ac142f64a-Paper.pdf
+ 35. G. Team, R. Anil, S. Borgeaud, Y. Wu, J.-B. Alayrac, J. Yu, R. Soricut,
+     J. Schalkwyk, A. M. Dai, A. Hauth et al., “Gemini: a family of highly
+     capable multimodal models,” arXiv preprint arXiv:2312.11805, 2023.
+ 36. Anthropic, “Model card and evaluations for claude mod-
+     els,” 2023. [Online]. Available: https://www-cdn.anthropic.com/
+     bd2a28d2535bfb0494cc8e2a3bf135d2e7523226/Model-Card-Claude-2.
+     pdf
+ 37. Y. Wang, Q. Yao, J. T. Kwok, and L. M. Ni, “Generalizing from a few ex-
+     amples: A survey on few-shot learning,” ACM computing surveys (csur),
+     vol. 53, no. 3, pp. 1–34, 2020.
+ 38. J. Wei, X. Wang, D. Schuurmans, M. Bosma, F. Xia, E. Chi, Q. V. Le,
+     D. Zhou et al., “Chain-of-thought prompting elicits reasoning in large
+     language models,” Advances in neural information processing systems,
+     vol. 35, pp. 24 824–24 837, 2022.
+Title Suppressed Due to Excessive Length                                    43
+
+
+ 39. M. Nye, A. J. Andreassen, G. Gur-Ari, H. Michalewski, J. Austin,
+     D. Bieber, D. Dohan, A. Lewkowycz, M. Bosma, D. Luan et al., “Show
+     your work: Scratchpads for intermediate computation with language
+     models,” arXiv preprint arXiv:2112.00114, 2021.
+ 40. Y. Gu, X. Han, Z. Liu, and M. Huang, “Ppt: Pre-trained prompt tuning
+     for few-shot learning,” arXiv preprint arXiv:2109.04332, 2021.
+ 41. X. Liu, K. Ji, Y. Fu, W. L. Tam, Z. Du, Z. Yang, and J. Tang, “P-tuning
+     v2: Prompt tuning can be comparable to fine-tuning universally across
+     scales and tasks,” arXiv preprint arXiv:2110.07602, 2021.
+ 42. X. L. Li and P. Liang, “Prefix-tuning: Optimizing continuous prompts
+     for generation,” arXiv preprint arXiv:2101.00190, 2021.
+ 43. Z. Hu, L. Wang, Y. Lan, W. Xu, E.-P. Lim, L. Bing, X. Xu, S. Poria,
+     and R. K.-W. Lee, “Llm-adapters: An adapter family for parameter-
+     efficient fine-tuning of large language models,” in The 2023 Conference
+     on Empirical Methods in Natural Language Processing, 2023.
+ 44. E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang,
+     and W. Chen, “LoRA: Low-rank adaptation of large language models,”
+     in International Conference on Learning Representations, 2022. [Online].
+     Available: https://openreview.net/forum?id=nZeVKeeFYf9
+ 45. Y. Bai, A. Jones, K. Ndousse, A. Askell, A. Chen, N. DasSarma, D. Drain,
+     S. Fort, D. Ganguli, T. Henighan et al., “Training a helpful and harm-
+     less assistant with reinforcement learning from human feedback,” arXiv
+     preprint arXiv:2204.05862, 2022.
+ 46. J. Dodge, G. Ilharco, R. Schwartz, A. Farhadi, H. Hajishirzi, and
+     N. Smith, “Fine-tuning pretrained language models: Weight initializa-
+     tions, data orders, and early stopping,” arXiv preprint arXiv:2002.06305,
+     2020.
+ 47. L. Chen, A. Bhattacharjee, N. Ahmed, N. Hasabnis, G. Oren, V. Vo, and
+     A. Jannesari, “Ompgpt: A generative pre-trained transformer model for
+     openmp,” arXiv preprint arXiv:2401.16445, 2024.
+ 48. T. Kadosh, N. Hasabnis, V. A. Vo, N. Schneider, N. Krien, M. Capota,
+     A. Wasay, N. Ahmed, T. Willke, G. Tamir et al., “Domain-specific code
+     language models: Unraveling the potential for hpc codes and tasks,”
+     arXiv preprint arXiv:2312.13322, 2023.
+ 49. AI@Meta, “Llama 3 model card,” 2024. [Online]. Available: https:
+     //github.com/meta-llama/llama3/blob/main/MODEL CARD.md
+ 50. PYMNTS, “AI Cheat Sheet: Large Language Foundation Model Train-
+     ing Costs,” https://www.pymnts.com/artificial-intelligence-2/2025/
+     ai-cheat-sheet-large-language-foundation-model-training-costs/, 2025,
+     accessed: July 2, 2025.
+ 51. J. Gerstmayr, “Exudyn–a c++-based python package for flexible multi-
+     body systems,” Multibody System Dynamics, pp. 1–29, 2023.
+ 52. J. Gerstmayr, P. Manzl, and M. Pieber, “Multibody models generated
+     from natural language,” Multibody System Dynamics, pp. 1–23, 2024.
+ 53. V. Kumar, L. Gleyzer, A. Kahana, K. Shukla, and G. E. Karniadakis,
+     “Mycrunchgpt: A llm assisted framework for scientific machine learning,”
+44                                                          Jingquan Wang et al.
+
+
+     Journal of Machine Learning for Modeling and Computing, vol. 4, no. 4,
+     2023.
+ 54. M. Raissi, P. Perdikaris, and G. Karniadakis, “Physics-informed neural
+     networks: A deep learning framework for solving forward and inverse
+     problems involving nonlinear partial differential equations,” Journal of
+     Computational Physics, vol. 378, pp. 686–707, 2019. [Online]. Available:
+     https://www.sciencedirect.com/science/article/pii/S0021999118307125
+ 55. D. Kim, T. Kim, Y. Kim, Y.-H. Byun, and T. S. Yun, “A chatgpt-
+     matlab framework for numerical modeling in geotechnical engineering
+     applications,” Computers and Geotechnics, vol. 169, p. 106237, 2024.
+     [Online]. Available: https://www.sciencedirect.com/science/article/pii/
+     S0266352X24001733
+ 56. N. Taylor, Y. Zhang, D. W. Joyce, Z. Gao, A. Kormilitzin, and A. Nevado-
+     Holgado, “Clinical prompt learning with frozen language models,” IEEE
+     Transactions on Neural Networks and Learning Systems, 2023.
+ 57. H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux,
+     T. Lacroix, B. Rozière, N. Goyal, E. Hambro, F. Azhar, A. Rodriguez,
+     A. Joulin, E. Grave, and G. Lample, “Llama: Open and efficient founda-
+     tion language models,” 2023.
+ 58. H. Touvron, L. Martin, K. Stone, P. Albert, A. Almahairi, Y. Babaei,
+     N. Bashlykov, S. Batra, P. Bhargava, S. Bhosale, D. Bikel, L. Blecher,
+     C. C. Ferrer, M. Chen, G. Cucurull, D. Esiobu, J. Fernandes, J. Fu,
+     W. Fu, B. Fuller, C. Gao, V. Goswami, N. Goyal, A. Hartshorn, S. Hos-
+     seini, R. Hou, H. Inan, M. Kardas, V. Kerkez, M. Khabsa, I. Kloumann,
+     A. Korenev, P. S. Koura, M.-A. Lachaux, T. Lavril, J. Lee, D. Liskovich,
+     Y. Lu, Y. Mao, X. Martinet, T. Mihaylov, P. Mishra, I. Molybog,
+     Y. Nie, A. Poulton, J. Reizenstein, R. Rungta, K. Saladi, A. Schelten,
+     R. Silva, E. M. Smith, R. Subramanian, X. E. Tan, B. Tang, R. Taylor,
+     A. Williams, J. X. Kuan, P. Xu, Z. Yan, I. Zarov, Y. Zhang, A. Fan,
+     M. Kambadur, S. Narang, A. Rodriguez, R. Stojnic, S. Edunov, and
+     T. Scialom, “Llama 2: Open foundation and fine-tuned chat models,”
+     2023.
+ 59. B. Roziere, J. Gehring, F. Gloeckle, S. Sootla, I. Gat, X. E. Tan, Y. Adi,
+     J. Liu, T. Remez, J. Rapin et al., “Code llama: Open foundation models
+     for code,” arXiv preprint arXiv:2308.12950, 2023.
+ 60. A. Q. Jiang, A. Sablayrolles, A. Mensch, C. Bamford, D. S. Chap-
+     lot, D. de las Casas, F. Bressand, G. Lengyel, G. Lample, L. Saulnier,
+     L. R. Lavaud, M.-A. Lachaux, P. Stock, T. L. Scao, T. Lavril, T. Wang,
+     T. Lacroix, and W. E. Sayed, “Mistral 7b,” 2023.
+ 61. G. Team, T. Mesnard, C. Hardin, R. Dadashi, S. Bhupatiraju, S. Pathak,
+     L. Sifre, M. Rivière, M. S. Kale, J. Love et al., “Gemma: Open
+     models based on gemini research and technology,” arXiv preprint
+     arXiv:2403.08295, 2024.
+ 62. A. J. Hartman, A. Hu, C. Choquette-Choo, H. Zhao, J. Fine, J. Hui,
+     J. Shen, J. Kelley, J. Howland, K. Bansal, L. Vilnis, M. Wirth,
+     N. Nguyen, P. Michel, P. Choy, P. Joshi, R. Kumar, S. Hashmi,
+Title Suppressed Due to Excessive Length                                   45
+
+
+     S. Agrawal, S. Zuo, T. Warkentin, and Z. e. a. Gong, “Codegemma:
+     Open code models based on gemma,” 2024. [Online]. Available:
+     https://goo.gle/codegemma
+ 63. M. Abdin, S. A. Jacobs, A. A. Awan, J. Aneja, A. Awadallah,
+     H. Awadalla, N. Bach, A. Bahree, A. Bakhtiari, J. Bao, H. Behl, A. Ben-
+     haim, M. Bilenko, J. Bjorck, S. Bubeck, Q. Cai, M. Cai, C. C. T. Mendes,
+     W. Chen, V. Chaudhary, D. Chen, D. Chen, Y.-C. Chen, Y.-L. Chen,
+     P. Chopra, X. Dai, A. D. Giorno, G. de Rosa, M. Dixon, R. Eldan,
+     V. Fragoso, D. Iter, M. Gao, M. Gao, J. Gao, A. Garg, A. Goswami,
+     S. Gunasekar, E. Haider, J. Hao, R. J. Hewett, J. Huynh, M. Java-
+     heripi, X. Jin, P. Kauffmann, N. Karampatziakis, D. Kim, M. Khademi,
+     L. Kurilenko, J. R. Lee, Y. T. Lee, Y. Li, Y. Li, C. Liang, L. Liden,
+     C. Liu, M. Liu, W. Liu, E. Lin, Z. Lin, C. Luo, P. Madan, M. Maz-
+     zola, A. Mitra, H. Modi, A. Nguyen, B. Norick, B. Patra, D. Perez-
+     Becker, T. Portet, R. Pryzant, H. Qin, M. Radmilac, C. Rosset, S. Roy,
+     O. Ruwase, O. Saarikivi, A. Saied, A. Salim, M. Santacroce, S. Shah,
+     N. Shang, H. Sharma, S. Shukla, X. Song, M. Tanaka, A. Tupini,
+     X. Wang, L. Wang, C. Wang, Y. Wang, R. Ward, G. Wang, P. Witte,
+     H. Wu, M. Wyatt, B. Xiao, C. Xu, J. Xu, W. Xu, S. Yadav, F. Yang,
+     J. Yang, Z. Yang, Y. Yang, D. Yu, L. Yuan, C. Zhang, C. Zhang, J. Zhang,
+     L. L. Zhang, Y. Zhang, Y. Zhang, Y. Zhang, and X. Zhou, “Phi-3 tech-
+     nical report: A highly capable language model locally on your phone,”
+     2024.
+ 64. Z. Bi, N. Zhang, Y. Xue, Y. Ou, D. Ji, G. Zheng, and H. Chen,
+     “Oceangpt: A large language model for ocean science tasks,” arXiv
+     preprint arXiv:2310.02031, 2023.
+ 65. E. C. Acikgoz, O. B. İnce, R. Bench, A. A. Boz, İlker Kesen, A. Erdem,
+     and E. Erdem, “Hippocrates: An open-source framework for advancing
+     large language models in healthcare,” 2024.
+ 66. Z. Gu, B. Zhu, G. Zhu, Y. Chen, M. Tang, and J. Wang, “Anoma-
+     lygpt: Detecting industrial anomalies using large vision-language mod-
+     els,” arXiv preprint arXiv:2308.15366, 2023.
+ 67. Y. Aragonés-Soria and M. Oriol, “C4q: A chatbot for quantum,” arXiv
+     preprint arXiv:2402.01738, 2024.
+ 68. J. Devlin, M. Chang, K. Lee, and K. Toutanova, “BERT: pre-training
+     of deep bidirectional transformers for language understanding,” CoRR,
+     vol. abs/1810.04805, 2018. [Online]. Available: http://arxiv.org/abs/
+     1810.04805
+ 69. N. Schneider, N. Hasabnis, V. A. Vo, T. Kadosh, N. Krien, M. Capotă,
+     G. Tamir, T. Willke, N. Ahmed, Y. Pinter, T. Mattson, and G. Oren,
+     “Mpirigen: Mpi code generation through domain-specific language mod-
+     els,” 2024.
+ 70. J. Zhao, T. Wang, W. Abid, G. Angus, A. Garg, J. Kinnison, A. Sher-
+     stinsky, P. Molino, T. Addair, and D. Rishi, “Lora land: 310 fine-tuned
+     llms that rival gpt-4, a technical report,” 2024.
+46                                                         Jingquan Wang et al.
+
+
+ 71. H. Liu, D. Tam, M. Muqeeth, J. Mohta, T. Huang, M. Bansal, and C. A.
+     Raffel, “Few-shot parameter-efficient fine-tuning is better and cheaper
+     than in-context learning,” Advances in Neural Information Processing
+     Systems, vol. 35, pp. 1950–1965, 2022.
+ 72. M. Mosbach, T. Pimentel, S. Ravfogel, D. Klakow, and Y. Elazar, “Few-
+     shot fine-tuning vs. in-context learning: A fair comparison and evalua-
+     tion,” arXiv preprint arXiv:2305.16938, 2023.
+ 73. C. Sievert and K. Shirley, “Ldavis: A method for visualizing and inter-
+     preting topics,” in Proceedings of the workshop on interactive language
+     learning, visualization, and interfaces, 2014, pp. 63–70.
+ 74. Project Chrono, “Chrono documentation and API reference,” http://api.
+     projectchrono.org/, accessed: 2021-11-24.
+ 75. L. Ouyang, J. Wu, X. Jiang, D. Almeida, C. L. Wainwright,
+     P. Mishkin, C. Zhang, S. Agarwal, K. Slama, A. Ray, J. Schulman,
+     J. Hilton, F. Kelton, L. Miller, M. Simens, A. Askell, P. Welinder,
+     P. Christiano, J. Leike, and R. Lowe, “Training language models to
+     follow instructions with human feedback,” 2022. [Online]. Available:
+     https://arxiv.org/abs/2203.02155
+ 76. D. Dai, C. Deng, C. Zhao, R. Xu, H. Gao, D. Chen, J. Li, W. Zeng, X. Yu,
+     Y. Wu, Z. Xie, Y. Li, P. Huang, F. Luo, C. Ruan, Z. Sui, and W. Liang,
+     “DeepSeekMoE: Towards ultimate expert specialization in mixture-of-
+     experts language models,” 2024.
+ 77. Y. Meng, M. Xia, and D. Chen, “Simpo: Simple preference optimization
+     with a reference-free reward,” arXiv preprint arXiv:2405.14734, 2024.
+ 78. A. Q. Jiang, A. Sablayrolles, A. Roux, A. Mensch, B. Savary, C. Bamford,
+     D. S. Chaplot, D. d. l. Casas, E. B. Hanna, F. Bressand et al., “Mixtral
+     of experts,” arXiv preprint arXiv:2401.04088, 2024.
+ 79. M. Chen, J. Tworek, H. Jun, Q. Yuan, H. P. d. O. Pinto, J. Kaplan, H. Ed-
+     wards, Y. Burda, N. Joseph, G. Brockman et al., “Evaluating large lan-
+     guage models trained on code,” arXiv preprint arXiv:2107.03374, 2021.
+ 80. D. Hendrycks, C. Burns, S. Basart, A. Zou, M. Mazeika, D. Song, and
+     J. Steinhardt, “Measuring massive multitask language understanding,”
+     arXiv preprint arXiv:2009.03300, 2020.
+ 81. R. Li, L. B. Allal, Y. Zi, N. Muennighoff, D. Kocetkov, C. Mou,
+     M. Marone, C. Akiki, J. Li, J. Chim et al., “Starcoder: may the source
+     be with you!” arXiv preprint arXiv:2305.06161, 2023.
+ 82. M. Chen, J. Tworek, H. Jun, Q. Yuan, H. P. de Oliveira Pinto, J. Ka-
+     plan, H. Edwards, Y. Burda, N. Joseph, G. Brockman, A. Ray, R. Puri,
+     G. Krueger, M. Petrov, H. Khlaaf, G. Sastry, P. Mishkin, B. Chan,
+     S. Gray, N. Ryder, M. Pavlov, A. Power, L. Kaiser, M. Bavarian, C. Win-
+     ter, P. Tillet, F. P. Such, D. Cummings, M. Plappert, F. Chantzis,
+     E. Barnes, A. Herbert-Voss, W. H. Guss, A. Nichol, A. Paino, N. Tezak,
+     J. Tang, I. Babuschkin, S. Balaji, S. Jain, W. Saunders, C. Hesse, A. N.
+     Carr, J. Leike, J. Achiam, V. Misra, E. Morikawa, A. Radford, M. Knight,
+     M. Brundage, M. Murati, K. Mayer, P. Welinder, B. McGrew, D. Amodei,
+     S. McCandlish, I. Sutskever, and W. Zaremba, “Evaluating large lan-
+Title Suppressed Due to Excessive Length                                    47
+
+
+     guage models trained on code,” 2021.
+ 83. Z. Du, A. Zeng, Y. Dong, and J. Tang, “Understanding emergent abil-
+     ities of language models from the loss perspective,” arXiv preprint
+     arXiv:2403.15796, 2024.
+ 84. R. M. French, “Catastrophic forgetting in connectionist networks,”
+     Trends in cognitive sciences, vol. 3, no. 4, pp. 128–135, 1999.
+ 85. T. Wu, M. Caccia, Z. Li, Y. F. Li, G. Qi, and G. Haffari, “Pretrained
+     language model in continual learning: A comparative study,” in Inter-
+     national Conference on Learning Representations 2022. OpenReview,
+     2022.
+ 86. K. Gupta, B. Thérien, A. Ibrahim, M. L. Richter, Q. Anthony,
+     E. Belilovsky, I. Rish, and T. Lesort, “Continual pre-training of large
+     language models: How to (re) warm your model?” arXiv preprint
+     arXiv:2308.04014, 2023.
+ 87. J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Desjardins,
+     A. A. Rusu, K. Milan, J. Quan, T. Ramalho, A. Grabska-Barwinska et al.,
+     “Overcoming catastrophic forgetting in neural networks,” Proceedings of
+     the national academy of sciences, vol. 114, no. 13, pp. 3521–3526, 2017.
+ 88. D. Lopez-Paz and M. Ranzato, “Gradient episodic memory for continual
+     learning,” Advances in neural information processing systems, vol. 30,
+     2017.
+ 89. ECMA, “The JSON data interchange format,” ECMA International,
+     Tech. Rep. ECMA-404, 2013.
+ 90. J. Li, G. Li, Y. Li, and Z. Jin, “Structured chain-of-thought prompting
+     for code generation,” arXiv preprint arXiv:2305.06599, 2023.
+ 91. J. He, C. Zhou, X. Ma, T. Berg-Kirkpatrick, and G. Neubig, “Towards
+     a unified view of parameter-efficient transfer learning,” arXiv preprint
+     arXiv:2110.04366, 2021.
+ 92. R. Zhang, J. Han, C. Liu, A. Zhou, P. Lu, Y. Qiao, H. Li, and P. Gao,
+     “Llama-adapter: Efficient fine-tuning of large language models with zero-
+     initialized attention,” in The Twelfth International Conference on Learn-
+     ing Representations, 2023.
+ 93. B. Lester, R. Al-Rfou, and N. Constant, “The power of scale for
+     parameter-efficient prompt tuning,” arXiv preprint arXiv:2104.08691,
+     2021.
+ 94. E. B. Zaken, Y. Goldberg, and S. Ravfogel, “Bitfit: Simple parameter-
+     efficient fine-tuning for transformer-based masked language-models,” in
+     Proceedings of the 60th Annual Meeting of the Association for Computa-
+     tional Linguistics (Volume 2: Short Papers), 2022, pp. 1–9.
+ 95. S. Hayou, N. Ghosh, and B. Yu, “Lora+: Efficient low rank adaptation
+     of large models,” arXiv preprint arXiv:2402.12354, 2024.
+ 96. T. Dettmers, A. Pagnoni, A. Holtzman, and L. Zettlemoyer, “Qlora: Ef-
+     ficient finetuning of quantized llms,” Advances in Neural Information
+     Processing Systems, vol. 36, 2024.
+ 97. J. Zhao, Z. Zhang, B. Chen, Z. Wang, A. Anandkumar, and Y. Tian,
+     “Galore: Memory-efficient llm training by gradient low-rank projection,”
+48                                                        Jingquan Wang et al.
+
+
+     2024.
+ 98. J. Wang, H. Zhang, H. M. Unjhawala, P. Negrut, S. Wang, K. Slaton,
+     R. Serban, J. Wu, and D. Negrut, “SimBench: A Rule-Based Multi-Turn
+     Interaction Benchmark for Evaluating an LLM’s Ability to Generate
+     Digital Twins,” ArXiv, vol. abs/2408.11987, 2024. [Online]. Available:
+     https://api.semanticscholar.org/CorpusID:271924484
+ 99. Y. Chang, X. Wang, J. Wang, Y. Wu, L. Yang, K. Zhu, H. Chen, X. Yi,
+     C. Wang, Y. Wang et al., “A survey on evaluation of large language mod-
+     els,” ACM Transactions on Intelligent Systems and Technology, vol. 15,
+     no. 3, pp. 1–45, 2024.
+100. J. Liu, C. S. Xia, Y. Wang, and L. Zhang, “Is your code generated by
+     chatgpt really correct? rigorous evaluation of large language models for
+     code generation,” Advances in Neural Information Processing Systems,
+     vol. 36, 2024.
+101. K. Papineni, S. Roukos, T. Ward, and W.-J. Zhu, “Bleu: a method for
+     automatic evaluation of machine translation,” in Proceedings of the 40th
+     annual meeting of the Association for Computational Linguistics, 2002,
+     pp. 311–318.
+102. M. Evtikhiev, E. Bogomolov, Y. Sokolov, and T. Bryksin, “Out
+     of the bleu: How should we assess quality of the code generation
+     models?” Journal of Systems and Software, vol. 203, p. 111741, 2023.
+     [Online]. Available: https://www.sciencedirect.com/science/article/pii/
+     S016412122300136X
+103. K. Ganesan, “Rouge 2.0: Updated and improved measures for evaluation
+     of summarization tasks,” arXiv preprint arXiv:1803.01937, 2018.
+104. F. F. Xu, U. Alon, G. Neubig, and V. J. Hellendoorn, “A systematic eval-
+     uation of large language models of code,” in Proceedings of the 6th ACM
+     SIGPLAN International Symposium on Machine Programming, 2022, pp.
+     1–10.
+105. J. Liu, C. S. Xia, Y. Wang, and L. Zhang, “Is your code generated by
+     chatgpt really correct? rigorous evaluation of large language models for
+     code generation,” Advances in Neural Information Processing Systems,
+     vol. 36, 2024.
+106. L. Zheng, W.-L. Chiang, Y. Sheng, S. Zhuang, Z. Wu, Y. Zhuang,
+     Z. Lin, Z. Li, D. Li, E. P. Xing, H. Zhang, J. E. Gonzalez, and
+     I. Stoica, “Judging llm-as-a-judge with mt-bench and chatbot arena,”
+     2023. [Online]. Available: https://arxiv.org/abs/2306.05685
+107. Y. Yao, X. Xu, and Y. Liu, “Large language model unlearning,” 2024.
+     [Online]. Available: https://arxiv.org/abs/2310.10683
+
+
+
+Appendix A      Prompts and Data Synthesis Pipeline
+Title Suppressed Due to Excessive Length                                                                                              49
+'                                                                                                                                             $
+  You a r e a PyChrono e x p e r t t a s k e d w i t h e v a l u a t i n g a s i m u l a t i o n s c r i p t by c o m p a r i n g
+          i t a g a i n s t a r e f e r e n c e s c r i p t g e n e r a t e d by e x p e r t s . Your e v a l u a t i o n s h o u l d
+        c o n s i d e r b o t h t h e a c c u r a c y o f t h e s c r i p t compared t o t h e r e f e r e n c e and
+       a d h e r e n c e t o b e s t p r a c t i c e s a s o u t l i n e d i n t h e PyChrono API d o c u m e n t a t i o n .
+
+  H e r e i s t h e PyChrono c o d e you n e e d               to      evaluate :
+  [ The S t a r t o f A s s i s t a n t ’ s Answer ]
+  { code }
+  [ The End o f A s s i s t a n t ’ s Answer ]
+
+  H e r e i s t h e e x p e r t −g e n e r a t e d r e f e r e n c e    code :
+  [ The S t a r t o f R e f e r e n c e Answer ]
+  {reference code}
+  [ The End o f R e f e r e n c e Answer ]
+
+  Use t h e f o l l o w i n g e v a l u a t i o n c r i t e r i a and g u i d e l i n e s f o r p o i n t d e d u c t i o n :
+   1 . ∗∗ C o m p l e t e n e s s ( 4 0 p o i n t s t o t a l ) ∗∗
+    − Compare t h e p r o v i d e d c o d e t o t h e r e f e r e n c e s c r i p t . Deduct ∗ ∗ 1 5 p o i n t s ∗∗ f o r
+           e a c h m i s s i n g e s s e n t i a l component ( e . g . , s y s t e m i n i t i a l i z a t i o n , body
+           creation , v i s u a l i z a t i o n ) that i s present in the r e f e r e n c e s c r i p t .
+    − Deduct ∗ ∗ 1 0 p o i n t s ∗∗ i f a component i s p r e s e n t b u t l a c k s i m p o r t a n t d e t a i l s o r
+              i s i n c o r r e c t l y c o n f i g u r e d compared t o t h e r e f e r e n c e .
+    − Deduct ∗ ∗ 5 p o i n t s ∗∗ f o r m i n o r o m i s s i o n s o r s l i g h t d e v i a t i o n s f r o m t h e
+           reference script .
+   2 . ∗∗ C o r r e c t n e s s ( 3 0 p o i n t s t o t a l ) ∗∗
+    − Compare t h e c o d e t o t h e r e f e r e n c e s c r i p t . Deduct ∗ ∗ 1 5 p o i n t s ∗∗ f o r e a c h
+           i n c o r r e c t u s e o f a PyChrono API c a l l t h a t c o u l d l e a d t o a c h a n g e i n
+           simulation behavior .
+    − Deduct ∗ ∗ 1 0 p o i n t s ∗∗ f o r l o g i c a l e r r o r s i n t h e c o d e , s u c h a s i n c o r r e c t j o i n t
+           i n i t i a l i z a t i o n o r wrong s e t t i n g o f body p r o p e r t i e s , e s p e c i a l l y i f t h e
+           r e f e r e n c e s c r i p t does i t c o r r e c t l y .
+    − Deduct ∗ ∗ 5 p o i n t s ∗∗ f o r m i n o r i n a c c u r a c i e s o r u n n e c e s s a r y API c a l l s t h a t
+           d e v i a t e from t h e r e f e r e n c e s c r i p t .
+   3 . ∗∗ Code Q u a l i t y ( 1 0 p o i n t s t o t a l ) ∗∗
+    − E v a l u a t e t h e r e a d a b i l i t y , s t r u c t u r e , and d o c u m e n t a t i o n o f t h e c o d e a g a i n s t
+           t h e r e f e r e n c e s c r i p t . Deduct ∗ ∗ 5 t o 10 p o i n t s ∗∗ f o r p o o r r e a d a b i l i t y ,
+           s t r u c t u r e , o r l a c k o f m e a n i n g f u l v a r i a b l e names and f o r m a t t i n g .
+    − Deduct ∗ ∗ 5 p o i n t s ∗∗ f o r i n s u f f i c i e n t comments o r f a i l u r e t o f o l l o w
+           documentation best p r a c t i c e s , e s p e c i a l l y i f the r e f e r e n c e s c r i p t p r o v i d e s
+           b e t t e r documentation .
+   4 . ∗∗ E f f i c i e n c y ( 1 0 p o i n t s t o t a l ) ∗∗
+    − E v a l u a t e t h e e f f i c i e n c y o f t h e c o d e compared t o t h e r e f e r e n c e s c r i p t . Deduct
+           ∗ ∗ 5 p o i n t s ∗∗ f o r e a c h i n s t a n c e o f u n n e c e s s a r y c a l c u l a t i o n s , r e d u n d a n t c o d e
+           , o r i n e f f i c i e n t u s e o f APIs t h a t i s o p t i m i z e d i n t h e r e f e r e n c e s c r i p t .
+    − Deduct ∗ ∗ 3 p o i n t s ∗∗ f o r m i s s i n g o b v i o u s o p t i m i z a t i o n o p p o r t u n i t i e s t h a t t h e
+           r e f e r e n c e s c r i p t implements .
+   5 . ∗∗ E r r o r H a n d l i n g and R o b u s t n e s s ( 5 p o i n t s t o t a l ) ∗∗
+    − A s s e s s t h e e r r o r h a n d l i n g and r o b u s t n e s s o f t h e c o d e . Deduct ∗ ∗ 5 p o i n t s ∗∗ f o r
+              l a c k o f b a s i c e r r o r h a n d l i n g o r f a i l u r e t o a c c o u n t f o r common i s s u e s t h a t
+             the r e f e r e n c e s c r i p t handles .
+    − Deduct ∗ ∗ 3 p o i n t s ∗∗ f o r i n a d e q u a t e h a n d l i n g o f e d g e c a s e s compared t o t h e
+           reference script .
+   6 . ∗∗ Use o f V i s u a l i z a t i o n T o o l s ( 5 p o i n t s t o t a l ) ∗∗
+    − Compare t h e u s e o f v i s u a l i z a t i o n t o o l s i n t h e p r o v i d e d c o d e t o t h e r e f e r e n c e
+           s c r i p t . Deduct ∗ ∗ 3 t o 5 p o i n t s ∗∗ f o r i n c o r r e c t o r i n a d e q u a t e v i s u a l i z a t i o n
+              setup as per the r e f e r e n c e s c r i p t .
+    − Deduct ∗ ∗ 2 p o i n t s ∗∗ f o r m i n o r v i s u a l i z a t i o n i s s u e s , s u c h a s s u b o p t i m a l
+           l i g h t i n g o r i n c o m p l e t e s e t u p o f v i s u a l e l e m e n t s , compared t o t h e r e f e r e n c e
+           .
+
+  Avoid     p o s i t i o n b i a s e s and e n s u r e t h a t t h e o r d e r i n w h i c h t h e r e s p o n s e s a r e
+          p r e s e n t e d d o e s n o t i n f l u e n c e y o u r d e c i s i o n . Do n o t a l l o w t h e l e n g t h o f t h e
+          r e s p o n s e s t o i n f l u e n c e y o u r e v a l u a t i o n . Do n o t f a v o r c e r t a i n names o f t h e
+          a s s i s t a n t s . Be a s o b j e c t i v e a s p o s s i b l e .
+
+  After     p r o v i d i n g your    explanation , output the f i n a l s c o r e using                     the   format       ’[[x]] ’
+            where x i s t h e         s c o r e a s s i g n e d to the a s s i s t a n t ’ s answer .
+
+  Reference        the    PyChrono API d o c u m e n t a t i o n          provided    here :    {api documentation link}
+
+  Provide       the    evaluated        score      and a     brief       explanation      of   the    deductions        below :
+
+&                                                                                                                                             %
+Fig. 16: Instructions for using J-LLM with expert written API documentation
+and ground truth code.
+50                                                                                                              Jingquan Wang et al.
+'                                                                                                                                                   $
+ Your     t a s k i s t o g e n e r a t e h i g h −q u a l i t y , c o n t e x t −r i c h      q u e s t i o n −and−a n s w e r   pairs
+          b a s e d on t h e p r o v i d e d PyChrono c o d e .
+
+ I m a g i n e you a r e a ∗∗ n o r m a l PyChrono u s e r ∗∗ e n c o u n t e r i n g c o d e f r o m a n o t h e r l a n g u a g e
+            model . To r e s o l v e y o u r i s s u e , you must p r o v i d e v e r y c o n c r e t e c o n t e x t when
+           a s k i n g f o r h e l p f r o m a n o t h e r LLM .
+
+ Requirements :
+ − G e n e r a t e { n u m p a i r s } Q&A p a i r s t h a t a r e c l e a r , s p e c i f i c , and f o c u s e d on k e y
+        p o i n t s from t h e c o n t e x t .
+ − Each q u e s t i o n must be u n d e r s t a n d a b l e w i t h o u t p r i o r k n o w l e d g e , i n c l u d i n g
+        n e c e s s a r y background d e t a i l s from t h e c o n t e x t .
+ − Avoid v a g u e r e f e r e n c e s l i k e ” i n t h i s s i m u l a t i o n ” o r ” i n t h e c o d e ” , p r o v i d e f u l l
+        context in the question .
+
+ Instructions :
+ 1 . ∗∗ Q u e s t i o n G e n e r a t i o n ∗ ∗ : W r i t e a c o n c i s e , c l e a r q u e s t i o n t i e d t o a s p e c i f i c
+        a s p e c t o f t h e c o d e , e n s u r i n g enough c o n t e x t i s g i v e n w i t h o u t r e v e a l i n g t h e
+        a n s w e r . I m a g i n e you ’ r e e x p l a i n i n g t h e p r o b l e m a s a t y p i c a l PyChrono u s e r ,
+        n e e d i n g t o c o n v e y t h e f u l l p r o b l e m t o g e t h e l p f r o m a n o t h e r LLM .
+ 2 . ∗∗ Answer G e n e r a t i o n ∗ ∗ : P r o v i d e a p r e c i s e a n s w e r b a s e d o n l y on t h e p r o v i d e d
+        c o n t e x t . I n c l u d e e x p l a n a t i o n s , c o r r e c t i o n s ( i f a p p l i c a b l e ) , and d e t a i l e d
+        r e a s o n i n g where n e c e s s a r y .
+
+ Output Format :
+ G e n e r a t e t h e o u t p u t i n JSON f o r m a t a s f o l l o w s :
+ {{
+                ” i n s t r u c t i o n ” : ”< c l e a r , c o n t e x t −r i c h q u e s t i o n   from t h e p e r s p e c t i v e   of     a ∗
+                          n o r m a l PyChrono u s e r ∗ , w i t h f u l l p r o b l e m            c o n t e x t >” ,
+                ” input ” : ”” ,
+                ” o u t p u t ” : ”< d e t a i l e d a n s w e r w i t h e x p l a n a t i o n s    and   code    corrections          ( if
+                          n e e d e d )>”
+ }}
+
+ Example :
+ {{
+               ” i n s t r u c t i o n ” : ”How c a n you s e t t h e c o l l i s i o n s y s t e m t y p e i n PyChrono t o
+                         use the B u l l e t physics engine ?” ,
+               ” input ” : ”” ,
+               ” o u t p u t ” : ”To s e t t h e c o l l i s i o n s y s t e m t y p e i n PyChrono t o B u l l e t , u s e ‘
+                         GetSystem ( ) ‘ t o a c c e s s t h e s y s t e m and ‘ S e t C o l l i s i o n S y s t e m T y p e ( ) ‘ t o
+                         s e t i t : ‘ v e h i c l e . GetSystem ( ) . S e t C o l l i s i o n S y s t e m T y p e ( c h r o n o .
+                         C h C o l l i s i o n S y s t e m . Type BULLET ) ‘ . ”
+ }}
+
+ E n s u r e a l l q u e s t i o n s a r e ∗∗ s p e c i f i c ∗∗ and ∗∗ c o n t e x t u a l l y r i c h ∗ ∗ , w i t h         ∗∗ no v a g u e
+           r e f e r e n c e s ∗∗ l i k e ” i n t h e c o d e ” . P r o v i d e c l e a r , d e t a i l e d a n s w e r s     that f u l l y
+           e x p l a i n t h e i s s u e and s o l u t i o n .
+
+ Context :
+ { markdown content }
+
+&                                                                                                                                                   %
+                      Fig. 17: Instructions for using LLM to sanitize data.
+Title Suppressed Due to Excessive Length                                                                                            51
+'                                                                                                                                           $
+ You ’ r e an e x p e r t i n t h e PyChrono s i m u l a t o r . Your t a s k i s t o g e n e r a t e q u e s t i o n −and−
+           answer p a i r s f o r the g i v e n c o n t e x t u s i n g the format below .
+ When g e n e r a t i n g t h e q u e s t i o n , i m a g i n e you a r e a u s e r o f t h e PyChrono s i m u l a t i o n
+           b u t do n o t h a v e a c c e s s t o t h e g i v e n c o n t e x t . So DO NOT u s e p h r a s e s l i k e ’ i n
+           t h e s c r i p t ’ o r ’ i n t h e s i m u l a t i o n ’ w i t h o u t g i v e n any c o n t e x t ! ! !
+ I n s t e a d , a s k a b o u t t h e p r o b l e m w i t h c l e a r and d e t a i l e d c o n t e x t d i r e c t l y !
+ For g e n e r a t i n g t h e a n s w e r , b a s e i t on t h e g i v e n t e x t and be a s d e t a i l e d a s
+            possible .
+
+ Requirements :
+ − C r e a t e { n u m p a i r s } q u e s t i o n −and−a n s w e r p a i r s .
+ − Avoid p h r a s e s l i k e ’ i n t h e s c r i p t ’ o r ’ i n t h e s i m u l a t i o n ’ w i t h o u t g i v e n any
+         c o n t e x t , be s p e c i f i c !
+ − The q u e s t i o n s s h o u l d be d i v e r s e , r e f l e c t i n g d i f f e r e n t ways u s e r s m i g h t p h r a s e
+        them .
+ − I n c l u d e b e s t p r a c t i c e s o r common m i s t a k e s i n t h e e x p l a n a t i o n s w h e r e a p p r o p r i a t e .
+
+ Format :
+ {{
+              ” i n s t r u c t i o n ” : ”< d i v e r s e q u e s t i o n , may i n c l u d e c o d e >” ,
+              ” i n p u t ” : ”< u s e i n p u t o n l y when n e c e s s a r y >” ,
+              ” o u t p u t ” : ”< d e t a i l e d e x p l a n a t i o n , may i n c l u d e c o d e >”
+ }}
+
+ Markdown C o n t e n t :
+ { markdown content }
+
+&                                                                                                                                           %
+                    Fig. 18: Instructions for using LLM to sanitize data.
+52                                                                                                                Jingquan Wang et al.
+'                                                                                                                                                           $
+ Your    t a s k i s t o g e n e r a t e q u e s t i o n −and−a n s w e r p a i r s          for     a g i v e n PyChrono markdown
+         f i l e , f o c u s i n g on ∗∗ d e b u g g i n g t a s k s ∗ ∗ . F o l l o w       the     d e t a i l e d i n s t r u c t i o n s below
+           for creating these pairs .
+
+ Requirements :
+ − G e n e r a t e { n u m p a i r s } p a i r s o f q u e s t i o n s r e l a t e d t o ∗∗ i n c o r r e c t c o d e ∗∗ and
+        p r o v i d e d e t a i l e d a n s w e r s t h a t d e s c r i b e t h e i s s u e s and how t o f i x them .
+ − Each q u e s t i o n s h o u l d f o c u s on d e b u g g i n g o r f i x i n g e r r o r s i n t h e g i v e n PyChrono
+        code .
+ − The i n c o r r e c t c o d e must a p p e a r i n t h e ∗∗ i n s t r u c t i o n ∗∗ s e c t i o n , f r a m e d a s i f a
+        n o r m a l ∗∗ PyChrono u s e r ∗∗ i s a s k i n g f o r h e l p w i t h a bug o r i s s u e .
+ − The a n s w e r must d e s c r i b e what t h e e r r o r i s and p r o v i d e t h e c o r r e c t e d v e r s i o n o f
+        t h e code , a l o n g with a n a t u r a l l a n g u a g e e x p l a n a t i o n .
+
+ Rules     for    Bug Code        Generation :
+
+ 1.   ∗∗ API M i s u s e ∗ ∗ : Common m i s t a k e s i n v o l v e c a l l i n g methods i n t h e wrong o r d e r                                  or
+         u s i n g an API i n a c o n t e x t w h e r e i t ’ s n o t v a l i d .
+               − ∗∗ Example E r r o r ∗ ∗ : C a l l i n g ‘ s y s t e m . S e t S t e p ( 0 . 0 1 ) ‘ b e f o r e t h e s y s t e m                  is
+                     initialized .
+
+ 2.   ∗∗ M i s s p e l l e d API Names ∗ ∗ : S i m p l e t y p o s o r i n c o r r e c t c a p i t a l i z a t i o n t h a t l e a d t o
+          errors .
+             − ∗∗ Example E r r o r ∗ ∗ : Typing ‘ ChSystemNSC ‘ a s ‘ ChSystemNCS ‘ ; u s i n g ’ c h r o n o .
+                         ChVector3d ’ a s ’ c h r o n o . ChVector3D ’ ; u s i n g ’ c h r o n o . ChFramed ( . . . ) ’ a s ’
+                         c h r o n o . ChFrame ( . . . ) ’ .
+
+ 3.   ∗∗ Wrong P a r a m e t e r Types ∗ ∗ : P a s s i n g v a l u e s t h a t a r e n o t v a l i d                   for          specific
+         function parameters .
+            − ∗∗ Example E r r o r ∗ ∗ : P a s s i n g a s t r i n g ( ‘ ” 1 . 0 ” ‘ ) i n s t e a d                   of       a    float    ( ‘1.0 ‘)
+                    t o ‘ SetMass ( ) ‘ .
+
+ 4.   ∗∗ I n c o r r e c t I n i t i a l i z a t i o n ∗ ∗ : L e a v i n g o u t n e c e s s a r y s t e p s l i k e s e t t i n g           the     mass
+           o r i n e r t i a o f an o b j e c t , l e a d i n g t o r u n t i m e i s s u e s .
+              − ∗∗ Example E r r o r ∗ ∗ : F a i l i n g t o s e t t h e p o s i t i o n o f a ‘ ChBody ( ) ‘ .
+
+ 5.   ∗∗ L o g i c E r r o r s ∗ ∗ : E r r o r s t h a t don ’ t c r a s h t h e c o d e b u t             lead       to    unrealistic
+         simulation behavior .
+              − ∗∗ Example E r r o r ∗ ∗ : S e t t i n g a l l j o i n t s a s f i x e d ,                 making          the       system
+                      immovable .
+
+ 6.   ∗∗ Wrong Data Types o r V a l u e s ∗ ∗ : U s i n g n o n s e n s i c a l v a l u e s t h a t                        make t h e
+         simulation physically incorrect .
+            − ∗∗ Example E r r o r ∗ ∗ : S e t t i n g mass t o a n e g a t i v e number .
+
+ 7.   ∗∗ U n r e a s o n a b l e Time S t e p ∗ ∗ : S e t t i n g a t i m e s t e p           so    large     that         it       causes
+         i n s t a b i l i t y in simulations .
+              − ∗∗ Example E r r o r ∗ ∗ : ‘ s y s t e m . S e t S t e p ( 1 . 0 ) ‘          instead        of   a    reasonable             value
+                         like ‘0.01 ‘.
+
+ Instructions :
+ 1 . I m a g i n e you a r e a ∗∗ n o r m a l PyChrono u s e r ∗∗ who h a s e n c o u n t e r e d a bug o r e r r o r
+        i n t h e c o d e and i s s e e k i n g h e l p ∗∗ w i t h o u t knowing t h e e x a c t i s s u e ∗ ∗ .
+ Again , t h e u s e r s h o u l d n o t know t h e e x a c t e r r o r b u t s h o u l d p r o v i d e t h e c o d e
+        s n i p p e t t h a t i s c a u s i n g t h e problem , f r a m e d a s a q u e s t i o n ! ! !
+
+ 2.   The i n c o r r e c t c o d e s h o u l d a p p e a r i n t h e ∗∗ i n s t r u c t i o n ∗∗ s e c t i o n o f t h e o u t p u t ,
+         and t h e ∗∗ i n p u t ∗∗ s e c t i o n s h o u l d r e m a i n empty .
+ 3.   P r o v i d e a d e t a i l e d n a t u r a l l a n g u a g e e x p l a n a t i o n o f what t h e e r r o r i s , why i t
+         o c c u r s , and how t o f i x i t , i n c l u d i n g t h e c o r r e c t e d v e r s i o n o f t h e c o d e .
+ 4.   G e n e r a t e a d i v e r s e s e t o f q u e s t i o n s f o c u s i n g on d i f f e r e n t t y p e s o f e r r o r s and
+         i s s u e s i n t h e PyChrono c o d e .
+ 5.   The c o d e p r o v i d e d i n t h e markdown f i l e i s ∗ ∗ ∗ a b s o l u t e l y c o r r e c t ∗ ∗ ∗ , and i t
+         s h o u l d be u s e d a s t h e b a s i s f o r g e n e r a t i n g t h e Q&A p a i r s .
+
+ Output Format :
+ Generate the output                i n JSON f o r m a t        as    follows :
+
+ {{
+              ” i n s t r u c t i o n ” : ”< i n c o r r e c t c o d e ,   framed       as   a     user    q u e s t i o n >” ,
+              ” input ” : ”” ,
+              ” o u t p u t ” : ”< d e t a i l e d e x p l a n a t i o n   of    the    error      and     the    corrected             c o d e >”
+ }}
+ Example :
+ {{
+              ” i n s t r u c t i o n ” : ” T h i s c o d e i s n ’ t w o r k i n g c o r r e c t l y , and I can ’ t f i g u r e o u t
+                        why : ‘ ‘ ‘ p y t h o n \n# C r e a t e Chrono s y s t e m \ n s y s t e m = c h r o n o . ChSystemNCS ( )
+                        \ n s y s t e m . S e t C o l l i s i o n S y s t e m T y p e ( c h r o n o . C h C o l l i s i o n S y s t e m . Type BULLET )
+                        \ n s y s t e m . S e t G r a v i t a t i o n a l A c c e l e r a t i o n ( c h r o n o . ChVector3d ( 0 , 0 , − 9 . 8 1 ) )
+                        \n ‘ ‘ ‘ ” ,
+              ” input ” : ”” ,
+              ” o u t p u t ” : ” The e r r o r h e r e i s a t y p o i n t h e s y s t e m i n i t i a l i z a t i o n f u n c t i o n .
+                          The c o r r e c t f u n c t i o n i s ‘ ChSystemNSC ( ) ‘ ( Non−Smooth C o n t a c t s ) , n o t ‘
+                        ChSystemNCS ( ) ‘ . Here ’ s t h e c o r r e c t e d c o d e : \ n\n ‘ ‘ ‘ p y t h o n \ n s y s t e m =
+                        c h r o n o . ChSystemNSC ( ) \ n s y s t e m . S e t C o l l i s i o n S y s t e m T y p e ( c h r o n o .
+                        C h C o l l i s i o n S y s t e m . Type BULLET ) \ n s y s t e m . S e t G r a v i t a t i o n a l A c c e l e r a t i o n (
+                        c h r o n o . ChVector3d ( 0 , 0 , − 9 . 8 1 ) ) \n ‘ ‘ ‘ \ nThe c o r r e c t e d c o d e now
+                        i n i t i a l i z e s t h e s y s t e m p r o p e r l y f o r non−smooth c o n t a c t s . ”
+ }}
+ PyChrono S c r i p t Markdown                file     Content :
+ { markdown content }
+
+&                                                                                                                                                           %
+                 Fig. 19: Instructions for using LLM to sanitize SFT data.
+

@@ -1,0 +1,7 @@
+## Domain-specific code assistance needs scientific acceptance
+
+ChronoLLM studies language-model customization for physics-simulation scripts. Its inspected 2025 preprint supplies version-aware training and expert-curation ideas, with reported improvements that vary by metric. A combined reference/documentation judge score can improve while a documentation-only score falls. Similarity, judged quality, execution and causal validity require separate evidence. The authors acknowledge in-distribution examples and scripts that still need expert polishing. \citep{exec24_chronollm_original,exec24_chronollm_reference}
+
+An authored two-world banking example has identical observed action/revenue data but intervention effects of USD 10 and zero. Both programs can execute correctly. With a stipulated USD 5 intervention cost, their net values are USD 5 and minus USD 5. Code execution therefore cannot settle the structural assumption. Public/generated prototypes can test semantic preservation and justified refusal before expensive bank experiments. \citep{exec24_chronollm_reference}
+
+The paper's roughly USD 3 fine-tuning example excludes prior data preparation and is a historical report, not a current quote. Our separate stipulated USD 33 full-cost example gives USD 5.50 per compilable script but USD 16.50 per accepted causal output. Conditional reuse requires exact artifacts and rights, held-out task/version families, explicit expert repairs, failure-complete denominators and matched cost comparisons. \citep{exec24_chronollm_original,exec24_chronollm_reference}
