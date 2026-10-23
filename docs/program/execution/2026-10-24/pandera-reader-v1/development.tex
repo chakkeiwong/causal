@@ -1,0 +1,218 @@
+\section{Pandera: validation evidence, population changes, and the causal contract}
+\label{sec:exec24-pandera}
+
+A validation result is useful only when the bank knows what was actually checked.
+Consider the monthly servicing table used to choose between an ordinary reminder
+and a payment holiday. The table contains an episode key, decision time,
+information-availability times, treatment, currency and subsequent repayment.
+A dataframe validator can detect declared violations of this representation.
+It cannot decide whether assignment was confounded, whether the analyst chose
+the right population, or whether a seemingly historical variable was available
+to the decision maker. Those questions motivate a narrower and more useful
+role for Pandera: a candidate implementation of explicit observation contracts,
+with its configuration and transformations included in the evidence.
+
+The inspected source is the 7 October 2026 commit of the inherited
+unionai-oss/pandera repository. Its project metadata points to the
+pandera-dev/pandera identity, declares Python at least 3.10 and obtains the
+version dynamically through setuptools-scm. The root license is MIT; the
+selected pandas, Polars and CLI extras have their own dependency declarations.
+The earlier PyPI observation of version 0.34.1 is retained as a separate
+observation, not an assertion that a built wheel and this source tree are
+identical. Dependency resolution, transitive rights and operational support
+remain properties of a future concrete environment. The findings below come
+from primary source inspection and project-authored examples, without running
+the package or its tests.\citep{exec24_pandera_source}
+
+\subsection{A Boolean result conceals several different services}
+Let $D$ denote the immutable input table, $S$ the declared schema, $e$ the
+selected dataframe engine and $c$ the effective configuration. A useful
+validation record is closer to
+\begin{equation}
+ (h(D),h(S),e,c,\mathcal C_{\rm run},\mathcal C_{\rm skipped},
+   W,F,h(D'),\mathcal T)
+\end{equation}
+than to a single pass flag. Here $h$ is a content digest, $W$ records warnings,
+$F$ failures, $D'$ the returned table and $\mathcal T$ the transformations
+between input and output. A digest binds bytes; it does not certify their
+scientific truth. This is a proposed product record, not a claim that Pandera
+already emits every field.
+
+In the inspected pandas entrypoint, disabling validation returns the supplied
+object immediately. The scope decorator returns a passing check result when
+configuration excludes that check's scope. The native pandas backend also
+turns a failed check configured with \texttt{raise\_warning} into a warning
+and a passing result. These are explicit modes with legitimate uses, but
+absence of an exception does not distinguish them from completed mandatory
+checks. A proposed causal worker must record the effective configuration and
+reject disabled validation, skipped mandatory checks or warning-only mandatory
+failures as evidence of full contract acceptance.\citep{exec24_pandera_source}
+
+Lazy error collection and lazy dataframe evaluation are different concepts.
+The inspected error handler aggregates errors when its \texttt{lazy} argument
+is true; otherwise it raises on collection. For the inspected native Polars
+path, an unspecified validation depth defaults to schema-only on a LazyFrame
+and to schema-and-data on a DataFrame. An explicit context or global depth
+can override those defaults. The native Polars backend rejects declared
+user-defined parsers, while the pandas backend runs its parsers. An optional
+Narwhals flag changes backend registration. Consequently, a pandas review
+cannot be silently transferred to Polars, a distributed engine or the
+Narwhals implementation. The backend class, eager/lazy input and effective
+depth belong in the request and result.\citep{exec24_pandera_source}
+
+\subsection{Sampling checks is not a census of the data}
+The native pandas container applies parsers before its data-check subsample.
+Its container metadata checks and sampled data checks follow different paths.
+For head, tail or random sampling, the inspected helper concatenates the
+selected objects and removes duplicate index labels. Whole-table claims
+therefore require more than a successful sampled check.
+\citep{exec24_pandera_source}
+
+With $N$ records, $K$ violating records and a uniform sample of $n$ distinct
+records without replacement, the probability of missing all violations is
+\begin{equation}
+ \Pr(\text{no sampled violation})=
+ \frac{\binom{N-K}{n}}{\binom{N}{n}},\qquad n\leq N-K.
+\end{equation}
+For $N=100$, $K=2$ and $n=10$, the exact probability is $89/110$, approximately
+80.9 percent. This calculation assumes unique observation identities and the
+specified sampling law. It is not a confidence statement for an arbitrary
+head sample, clustered records or the package's complete execution.
+\citep{exec24_pandera_reference}
+
+Index labels introduce a separate issue. In an abstract table with
+$(\text{index},\text{amount})$ rows $(7,10)$, $(7,-1)$ and $(9,20)$,
+keeping the first two rows and then the first occurrence of each index leaves
+only $(7,10)$. A negative-amount rule would no longer see the second record.
+Conversely, deleting every row with failure label seven removes both records,
+including the positive one. These are independently reproduced label
+operations, motivated by the inspected subsampling and row-removal code;
+they are not observed native package failures. The causal contract should
+require unique immutable row identifiers and separately validate the banking
+episode key. A dataframe index is not automatically either identity.
+\citep{exec24_pandera_source,exec24_pandera_reference}
+
+\subsection{Cleaning can change the question being answered}
+The inspected pandas path supports adding missing columns, filling defaults,
+coercing types and filtering columns outside the schema. With row removal
+enabled, lazy error collection is required; eligible failures are removed by
+their index labels, while the inspected string-valued schema-failure branch
+still raises. These transformations must be explicit scientific decisions.
+For example, integer conversion maps both textual account identifiers
+\texttt{0012} and \texttt{12} to twelve. Filling a missing exposure field with
+zero asserts something different from recording that its value is unknown.
+Filtering an undeclared availability-time column can remove evidence needed
+to reject future information.\citep{exec24_pandera_source,exec24_pandera_reference}
+
+The statistical effect of row selection can be large even when every
+retained field has a permitted type and range. Let treatment $A$ and an
+unobserved risk bit $U$ be independent fair binary variables, with potential
+repayment $Y(a)=U$ for both actions. The causal effect is zero. Suppose a
+quality or eligibility rule retains a record only when $A=U$, perhaps through
+a proxy whose relation to treatment has not been examined. Exactly half the
+population remains, and
+\begin{equation}
+ \mathbb E[Y\mid A=1,R=1]-\mathbb E[Y\mid A=0,R=1]=1,
+ \qquad R=\mathbf1\{A=U\}.
+\end{equation}
+The retained observational contrast is one despite the zero causal effect.
+The problem is the selection rule, not a claimed validator defect. A product
+must bind the selection indicator and the intended target population, preserve
+excluded records with reason codes, and require a justified missingness or
+selection argument before using the reduced table.\citep{exec24_pandera_reference}
+
+Null handling also requires a declared policy. The inspected native pandas
+column-check path may remove null values before invoking a custom check when
+\texttt{ignore\_na} is true. Dataframe postprocessing depends on the return
+shape: the inspected Series-output branch permits all-null rows, whereas the
+table-output branch combines results with a cellwise null mask. The general
+method description is not sufficient to infer identical behavior for every
+check shape. Nullability constraints, the custom-check result and the missingness
+mechanism are distinct. Empty or excluded input is not positive evidence of
+an observed value satisfying the substantive condition.
+\citep{exec24_pandera_source}
+
+\subsection{Chronology and identification need their own evidence}
+For a baseline feature $X_j$, distinguish event time $t_j^{\rm event}$,
+availability time $t_j^{\rm avail}$ and the action time $t_A$. The useful
+condition is generally $t_j^{\rm avail}\leq t_A$, with any permitted latency
+and revision convention explicitly stated. An event on day one, an action on
+day two and a record first available on day three satisfy event chronology
+but violate availability chronology. A generated fixture should expose that
+case before any expensive bank trial. A passing check still depends on the
+truth of the supplied timestamps.\citep{exec24_pandera_reference}
+
+Even a complete, correct representation cannot identify every causal effect.
+Let $U$ be a fair binary variable. The structural worlds
+\begin{equation}
+ \mathcal M_1:\ A=U,\ Y=A,
+ \qquad
+ \mathcal M_2:\ A=U,\ Y=U
+\end{equation}
+produce the same observational pairs $(0,0)$ and $(1,1)$ with equal probability.
+Their average intervention contrasts are one and zero respectively. Every
+deterministic check of the same observed table has the same answer in both
+worlds. Thus a schema-valid table cannot resolve the causal ambiguity.
+The appropriate product response retains the competing models or refuses the
+unidentified query until justified assumptions or new information are supplied.
+\citep{exec24_pandera_reference}
+
+\subsection{Original worker, existing CLI, and proposed MCP service}
+The preferred prototype candidate is a narrow original Python worker for one
+frozen dataframe profile. Its request identifies authorized input and schema
+artifacts, their hashes, engine and dependency versions, mandatory checks,
+availability rules and allowed transformations. Its response distinguishes
+execution failure, disabled or partial checking, contract rejection, transformed
+output, and a separate scientific disposition. It returns the exact validated
+artifact or its immutable binding; the caller must not assume that the original
+input is the returned transformed table.
+
+The inspected CLI already loads YAML or JSON schemas, selects their declared
+API, loads data and calls validation with lazy error collection. It rejects
+selected backend mismatches and catches validation exceptions with exit code
+one. Its call does not assign the returned validated object, and the success
+report follows a non-raising call. Therefore it is a useful comparator for
+validation reporting, but source inspection does not establish an artifact
+export contract, serialization of every custom check, or scientific acceptance.
+Its YAML loader uses safe loading; the delegated schema deserializers and
+report-generation internals remain separately unqualified. We have not run
+the CLI.\citep{exec24_pandera_source}
+
+A proposed MCP tool should invoke that bounded worker using artifact identifiers
+and a preapproved schema, not accept arbitrary agent-authored Python checks as
+automatically trusted code. An LLM may draft candidate currency, key and clock
+rules and explain failures. The method owner must review their meaning against
+positive, negative and deliberately ambiguous public or generated fixtures.
+The service should retain the schema proposal, review, actual configuration,
+failure evidence and all output identities. This is an integration design,
+not a claim of an implemented MCP server or a proved protection boundary.
+
+Direct adoption is conditional on those contracts. A wholesale port into R,
+Java or C++ is presently unattractive because dtype, null, index, parser and
+backend semantics would all need independent replication and maintenance.
+An existing bank validator remains a reasonable alternative if it satisfies the
+same observation contract. Small project-owned checks can provide transparent
+prototype oracles, but should not pretend to replace general dataframe engines.
+Reference-only reuse preserves these design lessons while implementation and
+qualification remain open. The direct license does not remove the cost of
+environment maintenance or schema ownership.\citep{exec24_pandera_source}
+
+Qualification should compare original-worker and existing-validator paths on
+the same immutable fixtures: duplicated row labels and episode keys, missing
+currency, future availability, identifier coercion, warning-only failures,
+disabled or reduced-depth checks, transformed output, and engine-specific
+parser rejection. Register expected acceptance or refusal before execution.
+Record every attempt and correct refusal, not just successful process exits.
+In a stipulated twelve-attempt workflow costing USD 48, eight process successes
+cost USD 6 each; if only three yield scientifically accepted artifacts, the cost
+is USD 16 per accepted artifact. Four correct refusals are reported separately.
+These are accounting examples, not measured prices or package benchmarks.
+\citep{exec24_pandera_reference}
+
+The method owner specifies the causal target and admissible transformations;
+the data owner supplies trustworthy keys and clocks; the adapter owner freezes
+the execution profile and failure contract; the rights and evaluation owners
+resolve dependencies and preregister the public qualification study. Revisit
+implementation after those contracts, environment and semantic oracles are
+reviewed. The present decision retains Pandera as a qualified source reference,
+without granting native integration, cross-engine equivalence or causal acceptance.

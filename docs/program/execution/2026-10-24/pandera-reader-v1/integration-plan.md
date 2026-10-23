@@ -1,0 +1,1 @@
+Preserve all1066 prior source records, citation contexts and content inputs. Add two source/finite-law records, no new paper. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
