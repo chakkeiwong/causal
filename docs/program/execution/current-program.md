@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery, Tigramite reuse integration and sponsor-count repair.
-The [complete queue review](2026-10-23/program-refresh-tigramite-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-tigramite-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery, panel reuse integration and sequential publication recovery.
+The [complete queue review](2026-10-23/program-refresh-panel-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-panel-v1/remaining-operations.json)
 cover all 376 proposal obligations. The canonical state and controller are authoritative;
 the older numbered master programs are preserved historical contracts.
 
@@ -13,21 +13,21 @@ it is not an unattended research worker.
 
 ## Current integrated documents
 
-The current pair is the [1,265-page monograph](../../causal_proposal_tigramite_reviewed_2026-10-23.pdf)
-and [58-page sponsor](../../sponsor_proposal_tigramite_reviewed_2026-10-23.pdf).
-There are 960 audited monograph citations, 225 genuine scholarly PDFs and 347 sponsor citations.
-All 958 predecessor citation identities/contexts and 290 compiled content inputs are preserved.
+The current pair is the [1,270-page monograph](../../causal_proposal_panel_reviewed_2026-10-23.pdf)
+and [59-page sponsor](../../sponsor_proposal_panel_reviewed_2026-10-23.pdf).
+There are 964 audited monograph citations, 225 genuine scholarly PDFs and 353 sponsor citations.
+All 960 predecessor citation identities/contexts and 291 compiled content inputs are preserved.
 The sponsor binds exact reader bytes. Q2-Q4 pass for this reader; Q1/Q5, mandatory repair rollups,
 fresh visual review and final proposal acceptance remain open.
 
-There are **217 recorded outcomes of 376**,
-**135 ready operations** and **222 nonpassing obligations**.
+There are **219 recorded outcomes of 376**,
+**133 ready operations** and **220 nonpassing obligations**.
 Recorded outcomes include inconclusive results; they are not all completed or qualified capabilities.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 39 | 60 | 102 |
-| reuse | 37 | 3 | 75 | 115 |
+| reuse | 39 | 3 | 73 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Completed work recovered and continued
@@ -63,6 +63,14 @@ Exact authored examples separate correlation 4/5 from a 20-dollar effect and 8-d
 hard and additive interventions give 1 and 3 under the stated population.
 Modal-summary ties, final-block support, tail missingness and multi-panel provenance require native oracle replay.
 No integration capability is granted, and prior installed-version results retain their own scope.
+
+The completed panel batch authenticates fifteen PyFixest and thirteen synthdid source files.
+It distinguishes projection coefficients from causal effects, declared adoption from observed
+event clocks, cohort weighting and full covariance, and simultaneous-adoption block targets.
+Exact independent examples give TWFE -7/2 versus target 4, aggregate variance 91/16,
+and supplied-weight SDID 11/2 with stipulated net 3/2. Saved resampling options,
+normalization, retry limits and single-treated inference require native replay.
+Both source-based reuse decisions are recorded as reference-only.
 
 ## Remaining gaps and execution routes
 

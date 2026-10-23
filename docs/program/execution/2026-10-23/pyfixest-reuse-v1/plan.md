@@ -1,0 +1,5 @@
+# PyFixest proposal reuse review
+
+Bind the cutoff-selected original commit and canonical tree, existing license/build/IV evidence, and selected fixed-effect and difference-in-differences delegates. Resolve PyFixest as a separate implementation from R fixest. Inspect estimand, treatment timing, aggregation, finite-sample/cluster uncertainty, weights, solver, missingness and failure semantics. Use exact independent panel examples and genuine local existing sources; do not execute downloaded code. Review direct adoption, selected worker, port and reference alternatives with owners, costs and reopening criteria. A reference decision cannot grant native integration. Preserve prior content and integrate material new findings in the reader and sponsor; continue independent work afterward.
+
+Plan review: follow the source delegates needed to substantiate each selected claim; preserve undocumented/unsupported cases explicitly. Formula syntax and successful demeaning do not establish identification. Avoid duplicate survey depth, unsupported parity with R fixest, and conflating old IV inspection with a new executed trial.

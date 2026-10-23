@@ -1,0 +1,1 @@
+Preserve all prior compiled content, source identities and citation contexts. Insert Panel contract discussion after the R fixest comparison. Add four source identities; compile and check every page text bound, exact arithmetic and preserved contexts. Renew Q2-Q4 for exact reader, pair sponsor, and retain Q1/Q5 and visual acceptance open. No duplicate survey depth credit.
