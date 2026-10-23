@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery and the integrated DoubleML source follow-up.
-The [complete queue review](2026-10-23/program-refresh-doubleml-followup-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-doubleml-followup-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery, repaired GIST census audit and the medflex reuse decision.
+The [complete queue review](2026-10-23/program-refresh-medflex-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-medflex-reuse-v1/remaining-operations.json)
 cover all 376 proposal obligations. The canonical state and controller are authoritative;
 the older numbered master programs are preserved historical contracts.
 
@@ -13,21 +13,21 @@ it is not an unattended research worker.
 
 ## Current integrated documents
 
-The current pair is the [1,289-page monograph](../../causal_proposal_doubleml_followup_reviewed_2026-10-23.pdf)
-and [64-page sponsor](../../sponsor_proposal_doubleml_followup_reviewed_2026-10-23.pdf).
-There are 982 audited monograph citations, 230 genuine scholarly PDFs and 383 sponsor citations.
-All 980 predecessor citation records/contexts and 297 compiled content inputs are unchanged.
+The current pair is the [1,297-page monograph](../../causal_proposal_medflex_reuse_reviewed_2026-10-23.pdf)
+and [66-page sponsor](../../sponsor_proposal_medflex_reuse_reviewed_2026-10-23.pdf).
+There are 990 audited monograph citations, 231 genuine scholarly PDFs and 397 sponsor citations.
+All 988 immediate-predecessor citation records/contexts and 300 compiled content inputs are unchanged.
 The sponsor binds exact reader bytes. Q2-Q4 pass for this reader; Q1/Q5, mandatory repair rollups,
 fresh visual review and final proposal acceptance remain open.
 
-There are **220 recorded outcomes of 376**,
-**132 ready operations** and **220 nonpassing obligations**.
+There are **223 recorded outcomes of 376**,
+**129 ready operations** and **217 nonpassing obligations**.
 Recorded outcomes include inconclusive results; they are not all completed or qualified capabilities.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 40 | 59 | 102 |
-| reuse | 39 | 3 | 73 | 115 |
+| reuse | 42 | 3 | 70 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Completed work recovered and continued
@@ -45,7 +45,7 @@ one useful gain with one or two charged attempts gives USD 5 and -2. These are e
 The entire commercial cell remains open: detailed client evidence does not establish a licensed server,
 whole-market coverage, accepted rights/prices or native qualification.
 
-The frontier census remains 68 inspected and 45 unread originals of 113, plus four crosscutting searches.
+The frontier census remains 69 inspected and 44 unread originals of 113, plus four crosscutting searches.
 Fourteen LLM task and twelve integration reviews have scoped outcomes; these do not prove live-model superiority.
 
 Two genuine structured-causal-model papers are now integrated. Their known graph/symmetry restrictions,
@@ -122,11 +122,36 @@ preserved and corrected: a nonpassing operation without prerequisites is not an 
 operation. Complete artifact, environment lock, dependency rights and selected delegates remain
 open. The complete register carries the corrected follow-up rather than requeueing the old receipt.
 
+Two new R reuse decisions are recorded as reference-only: sensemakr and EValue. Thirteen
+authenticated source/documentation blobs distinguish partial-R-squared regression sensitivity,
+forced iid covariance, helper/wrapper interval degrees of freedom and risk-ratio conversions.
+Exact authored coefficient3 to2 and net5 to-5, threshold3 and conversion9/5 versus405/181
+examples preserve the stated assumptions. Native behavior, full dependency custody and actual
+delivery rights remain unqualified. A preliminary unused-argument hypothesis was rejected
+because the helper accepts ellipsis; the corrected source audit preserves that review failure.
+
+The GIST-CMTF addition inspects one authentic ten-page original and eleven cutoff artifacts.
+Independent data-only checks reproduce the5,040 final-row aggregates, while the request-type
+clarification rule, absent gold_path field and different CSV schemas leave producer/replay provenance
+open. Actual user clarification, raw retry denominators and measured costs are absent. The design
+can inform business-goal validation, not causal-diagram truth or effect identification. The corrected
+census retains69 inspected originals and44 unread plus four crosscutting obligations. This partial
+unit does not close LL.CENSUS. Failed metadata preparations remain preserved with explicit corrections.
+
+The medflex reference decision authenticates ten cutoff source/documentation blobs. Full bootstrap
+refitting, original-subject score aggregation and off-diagonal nuisance derivatives are retained.
+Documentation reverses expansion classes; actual constructors, variable order and constant-row
+replication need explicit fixtures. Final GLM warning suppression and global-environment call recovery
+are native qualification prerequisites. Independent nested-contrast examples total32/5, with target-
+dependent components and net14 versus-22 under stated prices; duplicated-score variance1/2 versus1/4
+and joint nuisance factor7 versus1 are illustrative, not package outputs. The disposition is reference
+only; complete runtime/rights, native parity and general mediation identification remain open.
+
 ## Remaining gaps and execution routes
 
 1. Complete source coverage and individual reuse dispositions using genuine cutoff originals and explicit
    adoption/integration/port/reference/reject reasoning. Preserve source-specific negative or inaccessible findings.
-2. Finish the forty-five unread census originals and four searches with inspected methods, assumptions, adverse
+2. Finish the forty-four unread census originals and four searches with inspected methods, assumptions, adverse
    results and limitations. Do not treat abstracts, package function counts or marketing as qualification.
 3. Complete the commercial temporal/API gaps: exact Dataiku cutoff bytes; SAS REST/service delegates;
    Domino supported terminal-state schema; Posit client/server and scheduler profiles. Keep rights/pricing separate.

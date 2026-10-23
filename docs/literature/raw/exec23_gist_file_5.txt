@@ -1,0 +1,726 @@
+#!/usr/bin/env python3
+"""
+GIST-CMTF experiment runner.
+
+Purpose:
+- Evaluate goal-state inference and causal tool filtering across the benchmark.
+- Run full or partial experiments across supported model backends.
+- Produce CSV metrics and JSONL traces for result aggregation.
+
+Usage:
+  python gist_cmtf_runner.py --mode smoke --num-tasks 5 --models all --methods all \
+    --tasks gist_tasks.json --tools gist_tool_registry.json --output-dir results_gist_smoke
+
+Notes:
+- Requires boto3 and model-provider credentials configured in the execution environment.
+- Uses Bedrock Converse API with inferenceConfig={"maxTokens": 512}.
+- Does not set temperature, because some Claude/Nova models reject it.
+"""
+
+import argparse
+import csv
+import json
+import os
+import re
+import time
+import traceback
+from collections import deque
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+try:
+    import boto3
+except ImportError:
+    boto3 = None
+
+
+DEFAULT_MODELS = [
+    "us.anthropic.claude-opus-4-8",
+    "us.anthropic.claude-sonnet-4-6",
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "openai.gpt-oss-120b-1:0",
+    "us.amazon.nova-premier-v1:0",
+    "us.amazon.nova-2-lite-v1:0",
+    "us.amazon.nova-2-pro-preview-20251202-v1:0",
+]
+
+DEFAULT_METHODS = [
+    "all_tools",
+    "state_aware",
+    "gold_goal_cmtf",
+    "top_goal_cmtf",
+    "semantic_goal_cmtf",
+    "gist_cmtf",
+]
+
+WRITE_LIKE_TOOLS = {
+    "update_event", "delete_event", "create_draft", "send_email", "archive_email",
+    "delete_email", "share_file", "delete_file", "change_permission"
+}
+
+CLARIFY_TOOLS = {
+    "ask_goal_clarification", "ask_entity_clarification",
+    "ask_permission_clarification", "ask_confirmation"
+}
+
+
+def now() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def load_json(path: str) -> Any:
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+def ensure_dir(path: str) -> None:
+    Path(path).mkdir(parents=True, exist_ok=True)
+
+
+def canonical_set(xs) -> Set[str]:
+    if xs is None:
+        return set()
+    return set(xs)
+
+
+def first_text_from_converse(resp: Dict[str, Any]) -> str:
+    """
+    Bedrock Converse responses can contain multiple content blocks.
+    Some models return reasoningContent before text. Use the first block with "text".
+    """
+    try:
+        blocks = resp.get("output", {}).get("message", {}).get("content", [])
+        for b in blocks:
+            if isinstance(b, dict) and "text" in b and b["text"]:
+                return b["text"]
+    except Exception:
+        pass
+    return ""
+
+
+def usage_from_converse(resp: Dict[str, Any]) -> Tuple[int, int]:
+    usage = resp.get("usage", {}) if isinstance(resp, dict) else {}
+    return int(usage.get("inputTokens", 0) or 0), int(usage.get("outputTokens", 0) or 0)
+
+
+class BedrockModel:
+    def __init__(self, model_id: str, region: str):
+        if boto3 is None:
+            raise RuntimeError("boto3 is not installed. Run: pip install boto3")
+        self.model_id = model_id
+        self.client = boto3.client("bedrock-runtime", region_name=region)
+
+    def complete(self, prompt: str, max_tokens: int = 512) -> Tuple[str, int, int, Optional[str]]:
+        try:
+            resp = self.client.converse(
+                modelId=self.model_id,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"text": prompt}],
+                    }
+                ],
+                inferenceConfig={"maxTokens": max_tokens},
+            )
+            text = first_text_from_converse(resp)
+            input_tokens, output_tokens = usage_from_converse(resp)
+            if not text:
+                return "", input_tokens, output_tokens, "empty_text_response"
+            return text, input_tokens, output_tokens, None
+        except Exception as e:
+            return "", 0, 0, f"{type(e).__name__}: {e}"
+
+
+def parse_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Robustly extract the first JSON object from a model response.
+    """
+    if not text:
+        return None
+    text = text.strip()
+    # Remove common code fences.
+    text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"```$", "", text).strip()
+
+    # Direct parse.
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
+        pass
+
+    # Extract substring from first { to last }.
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            obj = json.loads(text[start:end+1])
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            return None
+    return None
+
+
+def normalize_symbol(x: Any) -> str:
+    """Normalize a model-produced symbolic name for robust matching."""
+    if x is None:
+        return ""
+    if isinstance(x, list) and x:
+        x = x[0]
+    x = str(x).strip().strip('"').strip("'")
+    x = x.replace(" ", "_").replace("-", "_")
+    x = re.sub(r"[^A-Za-z0-9_]", "", x)
+    return x.lower()
+
+
+def fuzzy_match_symbol(raw: Any, valid: Set[str]) -> Optional[str]:
+    """Match raw model output to one of the valid symbolic strings."""
+    norm_to_valid = {normalize_symbol(v): v for v in valid}
+    raw_norm = normalize_symbol(raw)
+
+    if raw_norm in norm_to_valid:
+        return norm_to_valid[raw_norm]
+
+    # Substring matching handles outputs like "{event_updated}" or "goal: event_updated".
+    for n, v in norm_to_valid.items():
+        if n and (n in raw_norm or raw_norm in n):
+            return v
+
+    return None
+
+
+def tool_by_name(tools: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    return {t["name"]: t for t in tools}
+
+
+def visible_all_tools(tools: List[Dict[str, Any]]) -> List[str]:
+    return [t["name"] for t in tools]
+
+
+def visible_state_aware(tools: List[Dict[str, Any]], state: Set[str]) -> List[str]:
+    out = []
+    for t in tools:
+        req = canonical_set(t.get("requires", []))
+        if req.issubset(state):
+            out.append(t["name"])
+    return out
+
+
+def cmtf_frontier(tools: List[Dict[str, Any]], state: Set[str], goal: Set[str]) -> List[str]:
+    """
+    Breadth-first search over symbolic states. Return the first tool on a shortest path.
+    Deterministic tie-breaking follows tool order.
+    """
+    if goal.issubset(state):
+        return []
+
+    start = frozenset(state)
+    queue = deque([(start, [])])
+    visited = {start}
+
+    while queue:
+        s_frozen, path = queue.popleft()
+        s = set(s_frozen)
+
+        if goal.issubset(s):
+            return [path[0]] if path else []
+
+        for t in tools:
+            name = t["name"]
+            req = canonical_set(t.get("requires", []))
+            eff = canonical_set(t.get("produces", []))
+            if req.issubset(s):
+                new_s = frozenset(s.union(eff))
+                if new_s not in visited:
+                    visited.add(new_s)
+                    queue.append((new_s, path + [name]))
+
+    return []
+
+
+def semantic_goal_select(task: Dict[str, Any]) -> str:
+    """
+    Simple deterministic lexical baseline over candidate goal names/descriptions.
+    """
+    query = task["user_query"].lower()
+    best_goal = None
+    best_score = -1
+    for g in task["candidate_goals"]:
+        goal_name = g["goal"]
+        desc = (g.get("description") or goal_name).lower()
+        terms = set(re.findall(r"[a-zA-Z_]+", desc.replace("_", " ")))
+        q_terms = set(re.findall(r"[a-zA-Z_]+", query))
+        score = len(terms.intersection(q_terms))
+        if score > best_score:
+            best_score = score
+            best_goal = goal_name
+    return best_goal or task["candidate_goals"][0]["goal"]
+
+
+def prompt_goal_inference(task: Dict[str, Any]) -> str:
+    candidate_text = "\n".join(
+        f"- {g['goal']}: {g.get('description','')}" for g in task["candidate_goals"]
+    )
+    state = ", ".join(task.get("initial_state", [])) or "empty"
+    return f"""
+You are a goal-state inference module for a tool-augmented LLM agent.
+
+Your task is to map the user's request to one symbolic goal from the candidate list.
+If the request is ambiguous, underspecified, or missing required details, set ambiguity_detected to true.
+
+Return ONLY valid JSON with this schema:
+{{
+  "selected_goal": "one candidate goal string",
+  "confidence": 0.0,
+  "ambiguity_detected": true,
+  "missing_variables": ["optional missing variable names"],
+  "reason": "brief reason"
+}}
+
+User request:
+{task['user_query']}
+
+Current symbolic state:
+{state}
+
+Candidate symbolic goals:
+{candidate_text}
+""".strip()
+
+
+def infer_goal_with_model(model: BedrockModel, task: Dict[str, Any]) -> Tuple[str, float, bool, List[str], str, int, int, Optional[str]]:
+    prompt = prompt_goal_inference(task)
+    text, in_tok, out_tok, err = model.complete(prompt)
+    if err:
+        # Conservative fallback: mark ambiguous and return first candidate.
+        return task["candidate_goals"][0]["goal"], 0.0, True, [], text, in_tok, out_tok, err
+
+    obj = parse_json_object(text)
+    if not obj:
+        return task["candidate_goals"][0]["goal"], 0.0, True, [], text, in_tok, out_tok, "goal_parse_error"
+
+    valid_goals = {g["goal"] for g in task["candidate_goals"]}
+    selected_raw = obj.get("selected_goal")
+    selected = fuzzy_match_symbol(selected_raw, valid_goals)
+    if selected is None:
+        selected = task["candidate_goals"][0]["goal"]
+        parse_err = "invalid_selected_goal"
+    else:
+        parse_err = None
+
+    try:
+        conf = float(obj.get("confidence", 0.0))
+    except Exception:
+        conf = 0.0
+
+    ambiguity = bool(obj.get("ambiguity_detected", False))
+    missing = obj.get("missing_variables", [])
+    if not isinstance(missing, list):
+        missing = []
+
+    return selected, conf, ambiguity, missing, text, in_tok, out_tok, parse_err
+
+
+def prompt_tool_choice(task: Dict[str, Any], visible_tools: List[str], tools_by_name: Dict[str, Dict[str, Any]], state: Set[str], selected_goal: str) -> str:
+    tool_lines = []
+    for name in visible_tools:
+        t = tools_by_name[name]
+        tool_lines.append(
+            f"- {name}: {t.get('description','')} "
+            f"requires={t.get('requires', [])} produces={t.get('produces', [])}"
+        )
+    state_s = ", ".join(sorted(state)) or "empty"
+    return f"""
+You are a tool-calling agent. Choose exactly one visible tool that best advances the task.
+
+Return ONLY valid JSON with this schema:
+{{
+  "tool": "one visible tool name",
+  "arguments": {{}},
+  "reason": "brief reason"
+}}
+
+User request:
+{task['user_query']}
+
+Selected symbolic goal:
+{selected_goal}
+
+Current symbolic state:
+{state_s}
+
+Visible tools:
+{chr(10).join(tool_lines)}
+""".strip()
+
+
+def choose_tool_with_model(model: BedrockModel, task: Dict[str, Any], visible_tools: List[str], tools_by_name: Dict[str, Dict[str, Any]], state: Set[str], selected_goal: str) -> Tuple[Optional[str], str, int, int, Optional[str]]:
+    if not visible_tools:
+        return None, "", 0, 0, "no_visible_tools"
+    if len(visible_tools) == 1:
+        # Still invoke the model in smoke/full mode to validate all model tool-choice calls.
+        pass
+
+    prompt = prompt_tool_choice(task, visible_tools, tools_by_name, state, selected_goal)
+    text, in_tok, out_tok, err = model.complete(prompt)
+    if err:
+        return None, text, in_tok, out_tok, err
+
+    obj = parse_json_object(text)
+    if not obj:
+        return None, text, in_tok, out_tok, "tool_parse_error"
+
+    valid = set(visible_tools)
+    tool = fuzzy_match_symbol(obj.get("tool"), valid)
+    if tool is None:
+        return None, text, in_tok, out_tok, "invalid_tool_selection"
+    return tool, text, in_tok, out_tok, None
+
+
+def choose_clarification_tool(task: Dict[str, Any]) -> str:
+    rt = task.get("request_type", "")
+    if rt == "missing_variable":
+        return "ask_entity_clarification"
+    if rt == "clarification_required":
+        return "ask_permission_clarification" if "permission" in task.get("user_query", "").lower() else "ask_goal_clarification"
+    return "ask_goal_clarification"
+
+
+def initial_goal_for_method(method: str, task: Dict[str, Any], model: BedrockModel) -> Tuple[str, bool, bool, Dict[str, Any], int, int, Optional[str]]:
+    """
+    Returns: selected_goal, should_clarify, goal_correct, info, input_tokens, output_tokens, error
+    """
+    true_goal = task.get("intended_goal")
+
+    if method == "gold_goal_cmtf":
+        return true_goal, False, True, {"source": "gold"}, 0, 0, None
+
+    if method == "semantic_goal_cmtf":
+        selected = semantic_goal_select(task)
+        return selected, False, selected == true_goal, {"source": "semantic"}, 0, 0, None
+
+    if method == "top_goal_cmtf":
+        selected, conf, amb, miss, raw, itok, otok, err = infer_goal_with_model(model, task)
+        return selected, False, selected == true_goal, {
+            "source": "model_top_goal", "confidence": conf, "ambiguity_detected": amb,
+            "missing_variables": miss, "raw": raw,
+        }, itok, otok, err
+
+    if method == "gist_cmtf":
+        selected, conf, amb, miss, raw, itok, otok, err = infer_goal_with_model(model, task)
+        # Conservative GIST rule: clarify if model says ambiguous/missing, low confidence,
+        # request type is ambiguous/missing/clarification, or top goal is write-like on vague request.
+        rt = task.get("request_type")
+        vague = bool(re.search(r"\b(handle|take care|deal with|fix)\b", task.get("user_query", "").lower()))
+        should_clarify = bool(amb or miss or conf < 0.70 or rt in {"ambiguous_goal", "missing_variable", "clarification_required"} or vague)
+
+        return selected, should_clarify, selected == true_goal, {
+            "source": "gist", "confidence": conf, "ambiguity_detected": amb,
+            "missing_variables": miss, "raw": raw,
+        }, itok, otok, err
+
+    # For all_tools/state_aware, no goal inference is required for filtering, but the model still needs a goal context.
+    return true_goal, False, True, {"source": "implicit_gold_for_prompt_context"}, 0, 0, None
+
+
+def run_one(task: Dict[str, Any], tools: List[Dict[str, Any]], method: str, model: BedrockModel, max_steps: int = 8) -> Dict[str, Any]:
+    tools_by_name = tool_by_name(tools)
+    state = set(task.get("initial_state", []))
+    true_goal = task.get("intended_goal")
+    true_goal_set = {true_goal} if true_goal else set()
+    gold_path = task.get("gold_path", [])
+
+    total_in = 0
+    total_out = 0
+    trajectory = []
+    wrong_tools = 0
+    premature_exposure_count = 0
+    premature_call_count = 0
+    clarification_count = 0
+    unnecessary_clarification = 0
+    wrong_goal_execution = 0
+    goal_correct = True
+    selected_goal = true_goal
+    stop_reason = "max_steps"
+    first_error = None
+
+    selected_goal, should_clarify, goal_correct, goal_info, itok, otok, goal_err = initial_goal_for_method(method, task, model)
+    total_in += itok
+    total_out += otok
+    if goal_err:
+        first_error = first_error or goal_err
+
+    if method == "gist_cmtf" and should_clarify:
+        ctool = choose_clarification_tool(task)
+        visible = [ctool]
+        clarification_count += 1
+        if task.get("request_type") == "explicit_goal":
+            unnecessary_clarification += 1
+        trajectory.append({
+            "step": 0,
+            "visible_tools": visible,
+            "chosen_tool": ctool,
+            "state_before": sorted(state),
+            "state_after": sorted(state.union(set(tools_by_name[ctool].get("produces", [])))),
+            "clarification": True,
+        })
+        state.update(tools_by_name[ctool].get("produces", []))
+        # In the benchmark, clarification resolves the intended goal.
+        selected_goal = true_goal
+        goal_correct = True
+
+    for step in range(1, max_steps + 1):
+        selected_goal_set = {selected_goal} if selected_goal else true_goal_set
+
+        if true_goal and true_goal in state:
+            stop_reason = "success"
+            break
+
+        if method == "all_tools":
+            visible = visible_all_tools(tools)
+        elif method == "state_aware":
+            visible = visible_state_aware(tools, state)
+        else:
+            visible = cmtf_frontier(tools, state, selected_goal_set)
+
+        # Premature exposure: visible write-like downstream tools before goal specified/clarified.
+        if any(t in WRITE_LIKE_TOOLS for t in visible) and task.get("request_type") in {"ambiguous_goal", "missing_variable", "clarification_required"}:
+            if not ("goal_specified" in state or "entity_identified" in state or "permission_confirmed" in state):
+                premature_exposure_count += len([t for t in visible if t in WRITE_LIKE_TOOLS])
+
+        if not visible:
+            stop_reason = "no_visible_tools"
+            break
+
+        chosen, raw, in_tok, out_tok, err = choose_tool_with_model(model, task, visible, tools_by_name, state, selected_goal or true_goal)
+        total_in += in_tok
+        total_out += out_tok
+        if err:
+            first_error = first_error or err
+            stop_reason = err
+            break
+        if chosen is None:
+            stop_reason = "no_chosen_tool"
+            break
+
+        # Wrong tool relative to gold path step.
+        idx = max(0, len([x for x in trajectory if not x.get("clarification")]))
+        expected = gold_path[idx] if idx < len(gold_path) else None
+        if expected and chosen != expected:
+            wrong_tools += 1
+
+        if chosen in CLARIFY_TOOLS:
+            clarification_count += 1
+            if task.get("request_type") == "explicit_goal":
+                unnecessary_clarification += 1
+        if chosen in WRITE_LIKE_TOOLS and task.get("request_type") in {"ambiguous_goal", "missing_variable", "clarification_required"}:
+            if not ("goal_specified" in state or "entity_identified" in state or "permission_confirmed" in state):
+                premature_call_count += 1
+
+        state_before = sorted(state)
+        tool = tools_by_name[chosen]
+        req = canonical_set(tool.get("requires", []))
+        if not req.issubset(state):
+            stop_reason = "precondition_failure"
+            trajectory.append({
+                "step": step,
+                "visible_tools": visible,
+                "chosen_tool": chosen,
+                "state_before": state_before,
+                "state_after": sorted(state),
+                "error": stop_reason,
+            })
+            break
+        state.update(tool.get("produces", []))
+        trajectory.append({
+            "step": step,
+            "visible_tools": visible,
+            "chosen_tool": chosen,
+            "state_before": state_before,
+            "state_after": sorted(state),
+            "raw": raw,
+        })
+
+        if selected_goal and selected_goal in state and selected_goal != true_goal:
+            wrong_goal_execution = 1
+            stop_reason = "wrong_goal_reached"
+            break
+
+        if true_goal and true_goal in state:
+            stop_reason = "success"
+            break
+
+    success = 1 if true_goal and true_goal in state and not wrong_goal_execution else 0
+    if selected_goal != true_goal and not success:
+        # If the agent committed to a wrong inferred goal and failed true goal, count as wrong-goal execution
+        # when it reached that selected goal or followed at least one downstream step toward it.
+        if selected_goal and selected_goal in state:
+            wrong_goal_execution = 1
+
+    return {
+        "task_id": task.get("task_id"),
+        "domain": task.get("domain"),
+        "request_type": task.get("request_type"),
+        "model": model.model_id,
+        "method": method,
+        "success": success,
+        "wrong_goal_execution": wrong_goal_execution,
+        "goal_correct": int(bool(goal_correct)),
+        "clarification_count": clarification_count,
+        "unnecessary_clarification": unnecessary_clarification,
+        "premature_exposure_count": premature_exposure_count,
+        "premature_call_count": premature_call_count,
+        "wrong_tools": wrong_tools,
+        "tools_exposed_total": sum(len(x.get("visible_tools", [])) for x in trajectory),
+        "steps": len(trajectory),
+        "input_tokens": total_in,
+        "output_tokens": total_out,
+        "tokens": total_in + total_out,
+        "selected_goal": selected_goal,
+        "true_goal": true_goal,
+        "stop_reason": stop_reason,
+        "first_error": first_error or "",
+        "trajectory": trajectory,
+        "goal_info": goal_info,
+    }
+
+
+def summarize(metrics: List[Dict[str, Any]], out_dir: str) -> None:
+    import pandas as pd
+    df = pd.DataFrame(metrics)
+    if df.empty:
+        return
+
+    def agg(group_cols, name):
+        s = df.groupby(group_cols).agg(
+            n=("task_id", "count"),
+            success=("success", "mean"),
+            wrong_goal_execution=("wrong_goal_execution", "mean"),
+            avg_tools_exposed=("tools_exposed_total", lambda x: (x / df.loc[x.index, "steps"].clip(lower=1)).mean()),
+            wrong_tools=("wrong_tools", "mean"),
+            premature_exposure_count=("premature_exposure_count", "mean"),
+            premature_call_count=("premature_call_count", "mean"),
+            clarification_count=("clarification_count", "mean"),
+            unnecessary_clarification=("unnecessary_clarification", "mean"),
+            input_tokens=("input_tokens", "mean"),
+            output_tokens=("output_tokens", "mean"),
+            tokens=("tokens", "mean"),
+        ).reset_index()
+        s.to_csv(Path(out_dir) / name, index=False)
+
+    agg(["method"], "summary_by_method.csv")
+    agg(["model", "method"], "summary_by_model_method.csv")
+    agg(["request_type", "method"], "summary_by_request_method.csv")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tasks", default="gist_tasks_120.json")
+    ap.add_argument("--tools", default="gist_tool_registry.json")
+    ap.add_argument("--output-dir", default="results_gist")
+    ap.add_argument("--region", default="us-east-1")
+    ap.add_argument("--models", default="all", help="all or comma-separated model IDs")
+    ap.add_argument("--methods", default="all", help="all or comma-separated methods")
+    ap.add_argument("--num-tasks", type=int, default=5)
+    ap.add_argument("--mode", choices=["smoke", "full"], default="smoke")
+    ap.add_argument("--resume", action="store_true", help="Skip model-method-task rows already present in output metrics CSV")
+    args = ap.parse_args()
+
+    tasks = load_json(args.tasks)
+    tools = load_json(args.tools)
+
+    if args.mode == "smoke":
+        tasks = tasks[: args.num_tasks]
+    elif args.num_tasks and args.num_tasks > 0 and args.num_tasks < len(tasks):
+        tasks = tasks[: args.num_tasks]
+
+    models = DEFAULT_MODELS if args.models == "all" else [x.strip() for x in args.models.split(",") if x.strip()]
+    methods = DEFAULT_METHODS if args.methods == "all" else [x.strip() for x in args.methods.split(",") if x.strip()]
+
+    ensure_dir(args.output_dir)
+    metrics_path = Path(args.output_dir) / "gist_task_metrics.csv"
+    traces_path = Path(args.output_dir) / "gist_raw_traces.jsonl"
+
+    done = set()
+    if args.resume and metrics_path.exists():
+        with open(metrics_path, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                done.add((row["model"], row["method"], row["task_id"]))
+        print(f"[{now()}] Resume enabled. Found {len(done)} completed rows.")
+
+    fieldnames = [
+        "task_id", "domain", "request_type", "model", "method", "success",
+        "wrong_goal_execution", "goal_correct", "clarification_count", "unnecessary_clarification",
+        "premature_exposure_count", "premature_call_count", "wrong_tools", "tools_exposed_total", "steps",
+        "input_tokens", "output_tokens", "tokens", "selected_goal", "true_goal", "stop_reason", "first_error",
+    ]
+
+    write_header = not metrics_path.exists() or not args.resume
+    mode = "a" if args.resume and metrics_path.exists() else "w"
+    all_metrics = []
+
+    with open(metrics_path, mode, newline="") as mf, open(traces_path, "a" if args.resume else "w") as tf:
+        writer = csv.DictWriter(mf, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+
+        total = len(tasks) * len(models) * len(methods)
+        count = 0
+        for model_id in models:
+            model = BedrockModel(model_id, args.region)
+            for method in methods:
+                for task in tasks:
+                    key = (model_id, method, task["task_id"])
+                    count += 1
+                    if key in done:
+                        continue
+                    print(f"[{now()}] {count}/{total} model={model_id} method={method} task={task['task_id']}", flush=True)
+                    try:
+                        m = run_one(task, tools, method, model)
+                    except Exception as e:
+                        traceback.print_exc()
+                        m = {
+                            "task_id": task.get("task_id"),
+                            "domain": task.get("domain"),
+                            "request_type": task.get("request_type"),
+                            "model": model_id,
+                            "method": method,
+                            "success": 0,
+                            "wrong_goal_execution": 0,
+                            "goal_correct": 0,
+                            "clarification_count": 0,
+                            "unnecessary_clarification": 0,
+                            "premature_exposure_count": 0,
+                            "premature_call_count": 0,
+                            "wrong_tools": 0,
+                            "tools_exposed_total": 0,
+                            "steps": 0,
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "tokens": 0,
+                            "selected_goal": "",
+                            "true_goal": task.get("intended_goal"),
+                            "stop_reason": "runner_exception",
+                            "first_error": f"{type(e).__name__}: {e}",
+                            "trajectory": [],
+                            "goal_info": {},
+                        }
+                    writer.writerow({k: m.get(k, "") for k in fieldnames})
+                    mf.flush()
+                    tf.write(json.dumps(m) + "\n")
+                    tf.flush()
+                    all_metrics.append(m)
+
+    # Load complete metrics including resumed rows for summary.
+    if metrics_path.exists():
+        import pandas as pd
+        complete = pd.read_csv(metrics_path).to_dict("records")
+        summarize(complete, args.output_dir)
+        print(f"[{now()}] Wrote summaries to {args.output_dir}")
+
+
+if __name__ == "__main__":
+    main()

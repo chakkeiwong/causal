@@ -1,0 +1,406 @@
+import json
+from pathlib import Path
+
+tasks = []
+
+def add(task):
+    task["task_id"] = f"{task['domain']}_{task['request_type']}_{len(tasks)+1:03d}"
+    tasks.append(task)
+
+# -----------------------------
+# Calendar explicit updates/summaries/deletes/details
+# -----------------------------
+calendar_events = [
+    ("dentist appointment", "tomorrow", "4 PM"),
+    ("team sync", "Monday", "2 PM"),
+    ("doctor visit", "Friday", "11 AM"),
+    ("1:1 with Priya", "Tuesday", "3 PM"),
+    ("project review", "Thursday", "10 AM"),
+    ("lunch with Alex", "Wednesday", "12:30 PM"),
+    ("demo prep meeting", "next Monday", "9 AM"),
+    ("budget review", "next Friday", "1 PM"),
+    ("interview prep", "tomorrow", "5 PM"),
+    ("design review", "Friday", "2 PM"),
+]
+
+for event, date, time in calendar_events:
+    add({
+        "domain": "calendar",
+        "request_type": "explicit_goal",
+        "user_query": f"Move my {event} on {date} to {time}.",
+        "initial_state": ["date", "event_description", "new_time"],
+        "candidate_goals": [
+            {"goal": "event_updated", "description": "update or reschedule an existing calendar event"},
+            {"goal": "event_summarized", "description": "summarize details of a calendar event"},
+            {"goal": "event_deleted", "description": "cancel or delete a calendar event"},
+            {"goal": "event_details_found", "description": "find details of a calendar event"}
+        ],
+        "intended_goal": "event_updated",
+        "requires_clarification": False,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": [],
+        "gold_chains": {
+            "event_updated": ["search_events", "update_event"],
+            "event_summarized": ["search_events", "read_event", "summarize_event"],
+            "event_deleted": ["search_events", "delete_event"],
+            "event_details_found": ["search_events", "read_event"]
+        }
+    })
+
+for event, date, _ in calendar_events:
+    add({
+        "domain": "calendar",
+        "request_type": "explicit_goal",
+        "user_query": f"Find my {event} on {date} and summarize it.",
+        "initial_state": ["date", "event_description"],
+        "candidate_goals": [
+            {"goal": "event_summarized", "description": "summarize a calendar event"},
+            {"goal": "event_updated", "description": "update a calendar event"},
+            {"goal": "event_deleted", "description": "delete a calendar event"},
+            {"goal": "event_details_found", "description": "find event details"}
+        ],
+        "intended_goal": "event_summarized",
+        "requires_clarification": False,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": [],
+        "gold_chains": {
+            "event_summarized": ["search_events", "read_event", "summarize_event"],
+            "event_updated": ["search_events", "update_event"],
+            "event_deleted": ["search_events", "delete_event"],
+            "event_details_found": ["search_events", "read_event"]
+        }
+    })
+
+# -----------------------------
+# Email explicit tasks
+# -----------------------------
+email_people = ["Alex", "Priya", "Jordan", "Maya", "Chris", "Sam", "Nina", "Rahul", "Taylor", "Morgan"]
+email_topics = ["launch", "contract deadline", "budget", "design review", "customer issue", "roadmap", "hiring plan", "migration", "Q3 planning", "demo"]
+
+for person, topic in zip(email_people, email_topics):
+    add({
+        "domain": "email",
+        "request_type": "explicit_goal",
+        "user_query": f"Find the email from {person} about the {topic} and draft a polite reply.",
+        "initial_state": ["sender_description", "email_topic"],
+        "candidate_goals": [
+            {"goal": "draft_created", "description": "create a draft email reply"},
+            {"goal": "email_summarized", "description": "summarize an email"},
+            {"goal": "email_sent", "description": "send an email reply"},
+            {"goal": "email_archived", "description": "archive an email"}
+        ],
+        "intended_goal": "draft_created",
+        "requires_clarification": False,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": [],
+        "gold_chains": {
+            "draft_created": ["search_emails", "read_email", "create_draft"],
+            "email_summarized": ["search_emails", "read_email", "summarize_email"],
+            "email_sent": ["search_emails", "read_email", "create_draft", "send_email"],
+            "email_archived": ["search_emails", "archive_email"]
+        }
+    })
+
+# -----------------------------
+# File explicit tasks
+# -----------------------------
+files = [
+    ("Q3 planning document", "risks section"),
+    ("launch checklist", "owners section"),
+    ("budget spreadsheet", "assumptions section"),
+    ("design document", "open questions section"),
+    ("migration plan", "rollback section"),
+    ("customer report", "summary section"),
+    ("roadmap document", "dependencies section"),
+    ("hiring plan", "timeline section"),
+    ("incident review", "action items section"),
+    ("security review", "findings section"),
+]
+
+for fname, section in files:
+    add({
+        "domain": "files",
+        "request_type": "explicit_goal",
+        "user_query": f"Find the {fname} and summarize the {section}.",
+        "initial_state": ["file_description", "section_name"],
+        "candidate_goals": [
+            {"goal": "section_summarized", "description": "summarize a specific section of a document"},
+            {"goal": "file_shared", "description": "share a file with a recipient"},
+            {"goal": "file_deleted", "description": "delete a file"},
+            {"goal": "file_details_found", "description": "find file details"}
+        ],
+        "intended_goal": "section_summarized",
+        "requires_clarification": False,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": [],
+        "gold_chains": {
+            "section_summarized": ["search_files", "read_file", "summarize_section"],
+            "file_shared": ["search_files", "share_file"],
+            "file_deleted": ["search_files", "delete_file"],
+            "file_details_found": ["search_files"]
+        }
+    })
+
+# -----------------------------
+# Ambiguous goal requests
+# -----------------------------
+ambiguous_calendar = [
+    "Can you handle my dentist appointment tomorrow?",
+    "Can you deal with my team sync on Monday?",
+    "Please take care of my project review.",
+    "Can you fix the meeting conflict at 3 PM?",
+    "Handle my doctor visit on Friday.",
+    "Can you sort out my lunch with Alex?",
+    "Please deal with the demo prep meeting.",
+    "Can you handle the budget review?",
+    "Fix my interview prep event.",
+    "Can you take care of the design review?"
+]
+
+for q in ambiguous_calendar:
+    add({
+        "domain": "calendar",
+        "request_type": "ambiguous_goal",
+        "user_query": q,
+        "initial_state": ["date", "event_description"],
+        "candidate_goals": [
+            {"goal": "event_details_found", "description": "find details of a calendar event"},
+            {"goal": "event_summarized", "description": "summarize a calendar event"},
+            {"goal": "event_updated", "description": "reschedule or update a calendar event"},
+            {"goal": "event_deleted", "description": "cancel or delete a calendar event"}
+        ],
+        "intended_goal": "event_summarized",
+        "requires_clarification": True,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": ["goal_specified"],
+        "gold_chains": {
+            "event_details_found": ["search_events", "read_event"],
+            "event_summarized": ["search_events", "read_event", "summarize_event"],
+            "event_updated": ["search_events", "update_event"],
+            "event_deleted": ["search_events", "delete_event"]
+        }
+    })
+
+ambiguous_email = [
+    ("Alex", "launch"),
+    ("Priya", "contract deadline"),
+    ("Jordan", "budget"),
+    ("Maya", "design review"),
+    ("Chris", "customer issue"),
+    ("Sam", "roadmap"),
+    ("Nina", "hiring plan"),
+    ("Rahul", "migration"),
+    ("Taylor", "Q3 planning"),
+    ("Morgan", "demo"),
+]
+
+for person, topic in ambiguous_email:
+    add({
+        "domain": "email",
+        "request_type": "ambiguous_goal",
+        "user_query": f"Take care of this email from {person} about the {topic}.",
+        "initial_state": ["sender_description", "email_topic"],
+        "candidate_goals": [
+            {"goal": "email_summarized", "description": "summarize the email"},
+            {"goal": "draft_created", "description": "draft a reply to the email"},
+            {"goal": "email_sent", "description": "send a reply to the email"},
+            {"goal": "email_archived", "description": "archive the email"}
+        ],
+        "intended_goal": "draft_created",
+        "requires_clarification": True,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": ["goal_specified"],
+        "gold_chains": {
+            "email_summarized": ["search_emails", "read_email", "summarize_email"],
+            "draft_created": ["search_emails", "read_email", "create_draft"],
+            "email_sent": ["search_emails", "read_email", "create_draft", "send_email"],
+            "email_archived": ["search_emails", "archive_email"]
+        }
+    })
+
+ambiguous_files = [
+    "Can you handle the Q3 planning document?",
+    "Please take care of the launch checklist.",
+    "Can you deal with the budget spreadsheet?",
+    "Handle the design document for me.",
+    "Can you sort out the migration plan?",
+    "Please deal with the customer report.",
+    "Take care of the roadmap document.",
+    "Can you handle the hiring plan?",
+    "Please fix the incident review file.",
+    "Can you deal with the security review?"
+]
+
+for q in ambiguous_files:
+    add({
+        "domain": "files",
+        "request_type": "ambiguous_goal",
+        "user_query": q,
+        "initial_state": ["file_description"],
+        "candidate_goals": [
+            {"goal": "file_details_found", "description": "find file details"},
+            {"goal": "section_summarized", "description": "summarize part of a file"},
+            {"goal": "file_shared", "description": "share a file with a recipient"},
+            {"goal": "file_deleted", "description": "delete a file"}
+        ],
+        "intended_goal": "file_details_found",
+        "requires_clarification": True,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": ["goal_specified"],
+        "gold_chains": {
+            "file_details_found": ["search_files"],
+            "section_summarized": ["search_files", "read_file", "summarize_section"],
+            "file_shared": ["search_files", "share_file"],
+            "file_deleted": ["search_files", "delete_file"]
+        }
+    })
+
+# Add 10 more ambiguous mixed tasks
+for i in range(10):
+    add({
+        "domain": "authorization",
+        "request_type": "ambiguous_goal",
+        "user_query": f"Can you clean up item {i+1} from my workspace?",
+        "initial_state": ["file_description"],
+        "candidate_goals": [
+            {"goal": "file_archived", "description": "archive or move a file"},
+            {"goal": "file_deleted", "description": "delete a file"},
+            {"goal": "file_details_found", "description": "find file details"}
+        ],
+        "intended_goal": "file_archived",
+        "requires_clarification": True,
+        "clarification_action": "ask_goal_clarification",
+        "clarification_effects": ["goal_specified"],
+        "gold_chains": {
+            "file_archived": ["search_files", "archive_file"],
+            "file_deleted": ["search_files", "delete_file"],
+            "file_details_found": ["search_files"]
+        }
+    })
+
+# -----------------------------
+# Missing-variable requests
+# -----------------------------
+for i, person in enumerate(email_people):
+    add({
+        "domain": "files",
+        "request_type": "missing_variable",
+        "user_query": f"Share the file with {person}.",
+        "initial_state": ["recipient_description"],
+        "candidate_goals": [
+            {"goal": "file_shared", "description": "share a file with a recipient"},
+            {"goal": "file_details_found", "description": "find a file"},
+            {"goal": "section_summarized", "description": "summarize a document section"}
+        ],
+        "intended_goal": "file_shared",
+        "requires_clarification": True,
+        "clarification_action": "ask_entity_clarification",
+        "clarification_effects": ["file_description", "permission_level"],
+        "gold_chains": {
+            "file_shared": ["search_files", "search_contacts", "share_file"],
+            "file_details_found": ["search_files"],
+            "section_summarized": ["search_files", "read_file", "summarize_section"]
+        }
+    })
+
+for person, topic in zip(email_people, email_topics):
+    add({
+        "domain": "contacts",
+        "request_type": "missing_variable",
+        "user_query": f"Email {person} the update about {topic}.",
+        "initial_state": ["recipient_description", "message_description"],
+        "candidate_goals": [
+            {"goal": "draft_created", "description": "draft an email to a recipient"},
+            {"goal": "email_sent", "description": "send an email to a recipient"},
+            {"goal": "contact_found", "description": "find a contact"}
+        ],
+        "intended_goal": "draft_created",
+        "requires_clarification": True,
+        "clarification_action": "ask_confirmation",
+        "clarification_effects": ["send_or_draft_confirmed"],
+        "gold_chains": {
+            "draft_created": ["search_contacts", "create_draft"],
+            "email_sent": ["search_contacts", "create_draft", "send_email"],
+            "contact_found": ["search_contacts"]
+        }
+    })
+
+for fname, _ in files:
+    add({
+        "domain": "files",
+        "request_type": "missing_variable",
+        "user_query": f"Give access to the {fname}.",
+        "initial_state": ["file_description"],
+        "candidate_goals": [
+            {"goal": "file_shared", "description": "share a file with a recipient"},
+            {"goal": "permission_changed", "description": "change file permissions"},
+            {"goal": "file_details_found", "description": "find file details"}
+        ],
+        "intended_goal": "file_shared",
+        "requires_clarification": True,
+        "clarification_action": "ask_entity_clarification",
+        "clarification_effects": ["recipient_description", "permission_level"],
+        "gold_chains": {
+            "file_shared": ["search_files", "search_contacts", "share_file"],
+            "permission_changed": ["search_files", "change_permission"],
+            "file_details_found": ["search_files"]
+        }
+    })
+
+# -----------------------------
+# Clarification-required / goal-committing tasks
+# -----------------------------
+delete_like = [
+    "Get rid of the old budget file.",
+    "Remove the outdated launch checklist.",
+    "Clean up the old design document.",
+    "Dispose of the stale roadmap file.",
+    "Clear out the obsolete migration plan.",
+    "Delete or archive the old customer report.",
+    "Take the incident review out of my files.",
+    "Remove the old security review.",
+    "Clean up the outdated hiring plan.",
+    "Get rid of the old Q3 document.",
+    "Clear the old demo notes.",
+    "Remove the deprecated API plan.",
+    "Clean up the stale project brief.",
+    "Get rid of the duplicate budget file.",
+    "Remove the old planning memo.",
+    "Clean up this unnecessary file.",
+    "Dispose of the outdated risk report.",
+    "Clear the archived launch draft.",
+    "Remove the old roadmap snapshot.",
+    "Get rid of the stale requirements doc."
+]
+
+for q in delete_like:
+    add({
+        "domain": "authorization",
+        "request_type": "clarification_required",
+        "user_query": q,
+        "initial_state": ["file_description"],
+        "candidate_goals": [
+            {"goal": "file_deleted", "description": "delete a file"},
+            {"goal": "file_archived", "description": "archive or move a file"},
+            {"goal": "file_details_found", "description": "find file details"}
+        ],
+        "intended_goal": "file_archived",
+        "requires_clarification": True,
+        "clarification_action": "ask_confirmation",
+        "clarification_effects": ["delete_confirmed"],
+        "gold_chains": {
+            "file_deleted": ["search_files", "delete_file"],
+            "file_archived": ["search_files", "archive_file"],
+            "file_details_found": ["search_files"]
+        }
+    })
+
+# Trim or assert to 120
+tasks = tasks[:120]
+Path("gist_tasks_120.json").write_text(json.dumps(tasks, indent=2))
+
+from collections import Counter
+print("Wrote gist_tasks_120.json")
+print("Total:", len(tasks))
+print("By request_type:", Counter(t["request_type"] for t in tasks))
+print("By domain:", Counter(t["domain"] for t in tasks))
