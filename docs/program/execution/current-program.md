@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery, structured-model integration and continuation repair.
-The [complete queue review](2026-10-23/program-refresh-structured-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-structured-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery, Tigramite reuse integration and sponsor-count repair.
+The [complete queue review](2026-10-23/program-refresh-tigramite-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-tigramite-v1/remaining-operations.json)
 cover all 376 proposal obligations. The canonical state and controller are authoritative;
 the older numbered master programs are preserved historical contracts.
 
@@ -13,21 +13,21 @@ it is not an unattended research worker.
 
 ## Current integrated documents
 
-The current pair is the [1,262-page monograph](../../causal_proposal_structured_causal_reviewed_v3_2026-10-23.pdf)
-and [57-page sponsor](../../sponsor_proposal_structured_causal_reviewed_2026-10-23.pdf).
-There are 958 audited monograph citations, 225 genuine scholarly PDFs and 343 sponsor citations.
-All 955 predecessor citation identities/contexts and 289 compiled content inputs are preserved.
+The current pair is the [1,265-page monograph](../../causal_proposal_tigramite_reviewed_2026-10-23.pdf)
+and [58-page sponsor](../../sponsor_proposal_tigramite_reviewed_2026-10-23.pdf).
+There are 960 audited monograph citations, 225 genuine scholarly PDFs and 347 sponsor citations.
+All 958 predecessor citation identities/contexts and 290 compiled content inputs are preserved.
 The sponsor binds exact reader bytes. Q2-Q4 pass for this reader; Q1/Q5, mandatory repair rollups,
 fresh visual review and final proposal acceptance remain open.
 
-There are **216 recorded outcomes of 376**,
-**136 ready operations** and **223 nonpassing obligations**.
+There are **217 recorded outcomes of 376**,
+**135 ready operations** and **222 nonpassing obligations**.
 Recorded outcomes include inconclusive results; they are not all completed or qualified capabilities.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 39 | 60 | 102 |
-| reuse | 36 | 3 | 76 | 115 |
+| reuse | 37 | 3 | 75 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Completed work recovered and continued
@@ -56,6 +56,13 @@ versus-customer net values are USD 6 and -3.60. The review grants no native capa
 Fourteen old documentary next-actions still requested already delivered builds or recordings. Their reviewed
 successor actions now point to actual omissions and qualifications, preserving every prior outcome and note.
 The controller already rejects restarting recorded operations; this repair prevents misleading recovery guidance.
+
+The Tigramite source review now has a recorded reference disposition and a preserving integration.
+Fourteen authenticated blobs distinguish CI statistics, graph endpoints, intervention predictions and bootstrap targets.
+Exact authored examples separate correlation 4/5 from a 20-dollar effect and 8-dollar net;
+hard and additive interventions give 1 and 3 under the stated population.
+Modal-summary ties, final-block support, tail missingness and multi-panel provenance require native oracle replay.
+No integration capability is granted, and prior installed-version results retain their own scope.
 
 ## Remaining gaps and execution routes
 
