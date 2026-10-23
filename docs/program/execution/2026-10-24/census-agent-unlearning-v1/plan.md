@@ -1,0 +1,5 @@
+# Agent unlearning census: bounded original review
+
+Inspect candidate181, K-Bench, as an agent-deployment evaluation lead. Authenticate the original title, authors and version history at the 7 October cutoff, acquire the genuine PDF, inspect definitions, experiment units, controls, negative results, denominators, costs and limitations. Compare its actual endpoint with causal identification and banking artifact custody. No title-based capability claim, downloaded-code execution or image preview. One unavailable original does not block other eligible census or reuse work. Keep public/generated proposal evidence separate from later native/bank acceptance.
+
+Plan review: version selection precedes citation; preserve every acquisition receipt; name scholarly original by title and first-author surname/year; extracted-text inspection supports only explicit anchors. Retain source discrepancies and unavailable experiment artifacts. Develop a project-owned exact witness only when needed to expose a substantive distinction. Integrate a connected section and sponsor treatment after source/mathematical review; do not republish earlier papers.

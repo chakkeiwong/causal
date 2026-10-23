@@ -1,0 +1,132 @@
+# Current executable proposal program
+
+Updated 24 October 2026 (Asia/Shanghai) after recovered publication and Python longitudinal target, failure and reuse reviews; frozen predecessors retain their original work directories.
+The [complete queue review](2026-10-24/program-refresh-longitudinal-python-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-longitudinal-python-v1/remaining-operations.json)
+account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
+The [preserved previous program](2026-10-24/program-refresh-longitudinal-python-v1/prior-current-program.md)
+retains earlier workflow, Polars, probabilistic-model, software, agent and integration findings.
+
+This is a research/product proposal supported by public/generated evidence before expensive bank experiments.
+Proposal completion is distinct from implemented capability, independent acceptance, bank validation and adoption.
+Use python3 tools/run_program_checkpoint_v3.py status, next and check. Continue eligible branches across boundaries.
+No unattended research worker runs; the active agent performs the work.
+
+## Current integrated documents
+
+The [current monograph](../../causal_proposal_longitudinal_python_reviewed_2026-10-24.pdf) has 1,348 pages,
+1,026 audited citation records and 235 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_longitudinal_python_reviewed_2026-10-24.pdf) has 80 pages and 465 citations.
+All 1023 predecessor records/contexts and
+316 compiled content inputs are preserved.
+Source traceability, exact arithmetic and all-page text bounds pass. Q2-Q4 pass for these exact bytes.
+Q1/Q5, mandatory coverage/depth and visual/final acceptance remain open.
+
+**239 recorded outcomes of 376; 113 ready;
+203 nonpassing obligations.** Inconclusive and reference-only outcomes are not native qualification.
+
+| Area | Pass | Inconclusive | Open | Total |
+|---|---:|---:|---:|---:|
+| software | 3 | 42 | 57 | 102 |
+| reuse | 56 | 3 | 56 | 115 |
+| chapters | 20 | 2 | 0 | 22 |
+
+## Latest completed review
+
+The Python longitudinal cell now has a bounded primary-source review of zEpid0.9.1 and pygformula1.2.1.
+Its coverage outcome is inconclusive; reference-only choices for both packages pass, with integration disallowed.
+Three audited records distinguish baseline-survival, repeated-action simulation, iterative regression,
+competing-event ordering, retained-population averages, typed policy hooks and failed bootstrap handling.
+Exact authored risks0.1376 versus0.19 imply margins-224 versus300USD under a stipulated loss/premium.
+A fixed two-stratum population averages0.415 while the lower-risk retained stratum averages0.19.
+No downstream model or financial assumption is silently changed, and no native output is claimed.
+Search drift is preserved: old13counted/10returned, new12/12,13observed union identities, and three
+originally unreturned identities remain unresolved. Full helper/dependency/native trials and wider inventory remain open.
+Current software3pass/42inconclusive/57open; reuse56pass/3inconclusive/56open.
+
+DRDID 1.3.0 and did2s 1.2.1 now close as conditional original-R-worker references.
+Nine immutable source blobs are authenticated; package metadata and direct GPL/MIT terms remain bound.
+DRDID preserves ATT, two-period design, retained panel keys, control trimming and resolved options.
+did2s preserves untreated support, both-stage covariance, cluster identity and numerical representation.
+Exact authored examples distinguish ATT36 from ATE60USD, negative4 from positive20USD margins,
+and estimated-baseline variance1 from fixed-baseline variance1/2. Supplied-nuisance and RHS-shape
+witnesses are not fitted native outputs; the matrix witness has unverified native reachability.
+Native integration remains false; transitive rights, locked environments, runtime conformance and costs remain open.
+At the panel review reuse was54 pass/3 inconclusive/58 open. Three audited records are added; scholarly PDFs remain235.
+The first preparation misstated the predecessor count before building. Its failed preparation is preserved;
+the v2 successor explicitly verifies all1020 prior records and315 compiled content inputs.
+
+Statsmodels now has a reviewed reference-only reuse choice against commit 8278e2d218cc85bac2c7af02feb9a19a0e499b04.
+One authenticated pyproject record distinguishes build and runtime requirements and the dynamic version.
+The conditional original Python worker preserves ATE/ATT/ATU, clipping, row alignment and final joint-GMM covariance.
+A whole-library port lacks a measured justification. Direct BSD terms are inspected; transitive/distribution rights,
+locked artifacts, native qualification and complete costs remain open. No upstream code was executed.
+At the statsmodels review reuse was 52 pass/3 inconclusive/60 open. The prior 1,019 records and all contexts remain preserved.
+
+Two additional reuse choices close as reference-only: stremr 0.4 and survtmle 1.1.1.
+Their pinned source, applicable standard terms, target/failure contracts, alternatives, owners and costs
+are explicit; integration_allowed remains false. At that review reuse was 51 pass/3 inconclusive/61 open.
+
+The latest cutoff LLAMIA v2 original is reviewed as a specialist-interface experiment.
+One paper and an exact authored reference add two audited records. The original's Wild, rationale
+and difficulty tables disagree with their headline counterparts; test-set counts and refresh triggers
+also conflict. No performance value is silently corrected, and no fabrication allegation is made.
+A sufficient typed one-bit record and full state each permit USD 100 expected savings under an
+authored binary law, while a constant summary permits zero. This is a designed example, not bank value.
+Crossed rater/position uncertainty and complete costs remain explicit. No native integration is admitted.
+
+The paired sponsor repairs inherited historical census counts against each cited frozen snapshot,
+including the impossible 72 inspected plus 43 unread of 113 statement. Current coverage is 73/40;
+historical review counts remain dated rather than being globally replaced with current totals.
+The first new reader preparation had an incorrect prior-count field. It was preserved without building;
+the corrected v2 reader passes source/context/arithmetic and all-page text checks.
+
+RECON's previous memory/provenance review remains integrated. Its human denominators,
+matched evidence, case-level uncertainty and full costs remain explicit, with no native execution.
+
+The genuine 24-page Sensitivity Uncertainty Alignment original is inspected with adverse findings.
+Explicit admissible examples refute its stated generic risk bounds: a constant fair model would have
+risk 1/2 bounded by 1/2-log(2), and a constant bounded-loss example contradicts the earlier bound.
+Expected perturbation sensitivity cannot replace a supremum upper bound; selected risk must retain
+its conditional denominator. Equal entropy and stability do not certify causal truth. Reported empirical
+tables lack the exact experiment identities needed for independent replay. The score remains a prospective
+diagnostic candidate. One paper and exact authored witnesses add two audited records; no native execution.
+
+The R longitudinal/survival cell reconciles grf, lmtp, ltmle, gfoRmula, stremr and survtmle.
+Eighteen authenticated primary blobs support stremr 0.4 and survtmle 1.1.1 source contracts.
+Baseline and repeated actions, competing-event and elimination targets, effective weights,
+inner/outer convergence, residual timing, single-column paths and dependence units remain separate.
+Authored examples give default risks 3/20 versus 19/100, stipulated insurance margins -200 versus 200 USD,
+and true branch variance 2 versus subject 1 and visit 1/2 independence references. No upstream code executes.
+
+Coverage remains inconclusive: the saved search counted 151 records and returned 10. The 141 unreturned
+records, continuous-time concrete lead, lmtp survival/ife and grf survival primary reviews remain explicit.
+Native trigger cases, complete rights, locked dependencies and matched costs are later qualification work.
+The source draft suffered escaped-text corruption before compilation; the failed draft and receipts are
+preserved. A reviewed v2 manuscript repairs the text. No corrupted PDF was published or accepted.
+
+Census now has 73 inspected/40 unread originals plus four crosscutting obligations. Q1/Q5 and coverage
+rollups cannot pass while their required evidence remains unresolved. The inherited six-image allowance
+is exhausted; fresh visual acceptance is a local blocker only. Public source work remains eligible.
+
+## Remaining gaps and routes
+
+1. Resolve 57 open and 42 inconclusive software cells through cutoff primary evidence and explicit limits.
+   Longitudinal follow-ups are above; commercial follow-ups retain historical Dataiku bytes, SAS server
+   contracts, Domino terminal/error schemas and Posit backend/profile contracts.
+2. Resolve 56 open and 3 inconclusive reuse decisions with exact adopt/integrate/port/reference/reject reasons,
+   dependencies, owners, costs and triggers. Do not reopen passed reference choices to invent native capability.
+3. Inspect 40 unread originals and four crosscutting census obligations; preserve inaccessible-source omissions.
+4. Register and execute public/generated native trials only when actual environments and preregistration exist.
+5. Complete mandatory manuscript coverage/depth, Q1/Q5 and fresh visual review. No blanket completion claim.
+
+Unrestricted latent identification, arbitrary persistence and hidden-state optimal-policy uncertainty have no
+promised universal repair. Justified restrictions or additional information are necessary. Authentic bank truth,
+independent institutional acceptance, platform reliability and real costs remain later external work.
+
+## Exact continuation
+
+Next: SW.CELL.computation_workflow.commercial. Acquire immutable Dataiku cutoff bytes, SAS REST/server workflow contracts, Domino supported terminal/error schema and exact HTTP dependency policy, and Posit concrete backend/server profile. The workflow reader/sponsor and preserving successors are published; do not repeat their publication. Rights, prices and registered native trials remain conditional. Continue independent reuse and census obligations.
+
+Serialize canonical mutations, consume exits, keep tool outputs bounded, preserve failed attempts and successors,
+and commit/push completed units. Independent items do not block each other. There is no global blocker.
