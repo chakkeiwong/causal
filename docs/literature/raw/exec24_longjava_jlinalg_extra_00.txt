@@ -1,0 +1,922 @@
+import java.security.MessageDigest
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'org.jlinalg'
+version = '0.3.6'
+
+def jdistlibVersion = '0.10.2'
+def jdistlibSha256 = '8b50aaa11d2cbd512525e0d74f8e609f40db9f4fc179ccb7a885a82257e0ac81'
+def jdistlibJar = layout.buildDirectory.file(
+    "dependencies/jdistlib-all-${jdistlibVersion}.jar")
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+sourceSets {
+    main {
+        resources.srcDir layout.buildDirectory.dir(
+            'generated-resources/cholmod')
+    }
+    benchmark {
+        java.srcDir 'src/benchmark/java'
+        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+    test {
+        resources.srcDir 'src/benchmark/resources'
+    }
+}
+
+def cholmodSourceDir = layout.projectDirectory.dir('src/main/native/cholmod')
+def cholmodBuildDir = layout.buildDirectory.dir('native/cholmod')
+def cholmodResourceDir = layout.buildDirectory.dir(
+    'generated-resources/cholmod')
+def nativeOs = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def nativeArchName = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+def nativePlatform = nativeOs.contains('win') ? 'windows'
+    : nativeOs.contains('mac') ? 'macos' : 'linux'
+def nativeMachine = ['amd64', 'x86_64'].contains(nativeArchName)
+    ? 'x86_64' : ['aarch64', 'arm64'].contains(nativeArchName)
+        ? 'arm64' : nativeArchName
+def cholmodLibraryName = nativePlatform == 'windows'
+    ? 'jlinalg_cholmod.dll' : nativePlatform == 'macos'
+        ? 'libjlinalg_cholmod.dylib' : 'libjlinalg_cholmod.so'
+def environmentMklRoot = System.getenv('MKLROOT')
+def detectedMklRoot = environmentMklRoot != null
+        && file(environmentMklRoot).isDirectory()
+    ? environmentMklRoot
+    : file('C:/Program Files (x86)/Intel/oneAPI/mkl/2023.1.0').isDirectory()
+        ? 'C:/Program Files (x86)/Intel/oneAPI/mkl/2023.1.0' : null
+def configuredMklRoot = providers.gradleProperty('cholmodMklRoot')
+    .getOrElse(detectedMklRoot)
+def configuredSuiteSparse = providers.gradleProperty('suiteSparseSourceDir')
+    .getOrNull()
+def cholmodConfigureCommand = [
+    'cmake', '-S', cholmodSourceDir.asFile.absolutePath,
+    '-B', cholmodBuildDir.get().asFile.absolutePath,
+    '-DCMAKE_BUILD_TYPE=Release'
+]
+if (configuredMklRoot != null && !configuredMklRoot.isBlank())
+    cholmodConfigureCommand.add(
+        "-DJLINALG_MKL_ROOT=${configuredMklRoot}")
+if (configuredSuiteSparse != null && !configuredSuiteSparse.isBlank())
+    cholmodConfigureCommand.add(
+        "-DFETCHCONTENT_SOURCE_DIR_SUITESPARSE=${configuredSuiteSparse}")
+
+tasks.register('configureCholmodNative', Exec) {
+    group = 'build setup'
+    description = 'Configures the pinned SuiteSparse CHOLMOD JNI bridge.'
+    inputs.dir(cholmodSourceDir)
+    inputs.property('mklRoot', configuredMklRoot ?: '')
+    inputs.property('suiteSparseSource', configuredSuiteSparse ?: '')
+    outputs.file(cholmodBuildDir.map { it.file('CMakeCache.txt') })
+    commandLine cholmodConfigureCommand
+}
+
+tasks.register('buildCholmodNative', Exec) {
+    group = 'build'
+    description = 'Builds the SuiteSparse CHOLMOD JNI bridge for this host.'
+    dependsOn tasks.named('configureCholmodNative')
+    inputs.file(cholmodSourceDir.file('cholmod_jni.c'))
+    outputs.file(cholmodBuildDir.map {
+        it.file("bin/Release/${cholmodLibraryName}")
+    })
+    commandLine 'cmake', '--build', cholmodBuildDir.get().asFile.absolutePath,
+        '--config', 'Release', '--target', 'jlinalg_cholmod', '--parallel'
+}
+
+tasks.register('packageCholmodNative', Sync) {
+    group = 'build'
+    description = 'Stages the host CHOLMOD JNI library as a classpath resource.'
+    dependsOn tasks.named('buildCholmodNative')
+    from(cholmodBuildDir.map { it.dir('bin') }) {
+        include "**/${cholmodLibraryName}"
+        eachFile { details -> details.path = details.name }
+        includeEmptyDirs = false
+    }
+    into(cholmodResourceDir.map {
+        it.dir("native/${nativePlatform}-${nativeMachine}")
+    })
+}
+
+tasks.register('nativeCholmodJar', Jar) {
+    group = 'build'
+    description = 'Builds a platform-specific CHOLMOD native resource JAR.'
+    dependsOn tasks.named('packageCholmodNative')
+    archiveClassifier = "cholmod-${nativePlatform}-${nativeMachine}"
+    from cholmodResourceDir
+}
+
+dependencies {
+    implementation 'org.yaml:snakeyaml:2.5'
+    api files(jdistlibJar)
+    api 'com.github.samtools:htsjdk:5.0.0'
+    api 'com.github.luben:zstd-jni:1.5.7-16'
+    // Local Open Targets Parquet import; no external extensions are required.
+    runtimeOnly 'org.duckdb:duckdb_jdbc:1.5.5.1'
+
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.register('fetchJdistlib') {
+    group = 'build setup'
+    description = 'Downloads and verifies the pinned JDistlib release.'
+    outputs.file(jdistlibJar)
+
+    doLast {
+        File destination = jdistlibJar.get().asFile
+        destination.parentFile.mkdirs()
+
+        def digest = { File file ->
+            MessageDigest md = MessageDigest.getInstance('SHA-256')
+            file.withInputStream { input ->
+                byte[] buffer = new byte[8192]
+                for (int count = input.read(buffer); count >= 0;
+                     count = input.read(buffer)) {
+                    if (count > 0) md.update(buffer, 0, count)
+                }
+            }
+            md.digest().collect { String.format('%02x', it & 0xff) }.join('')
+        }
+
+        if (destination.isFile() && digest(destination) == jdistlibSha256) {
+            return
+        }
+
+        File temporary = new File(destination.parentFile,
+            destination.name + '.download')
+        temporary.delete()
+        new URI("https://github.com/robbyjo/JDistlib/releases/download/" +
+            "v${jdistlibVersion}/jdistlib-all-${jdistlibVersion}.jar")
+            .toURL().withInputStream { input ->
+                temporary.withOutputStream { output -> output << input }
+            }
+
+        String actual = digest(temporary)
+        if (actual != jdistlibSha256) {
+            temporary.delete()
+            throw new GradleException(
+                "JDistlib checksum mismatch: expected ${jdistlibSha256}, got ${actual}")
+        }
+        java.nio.file.Files.move(temporary.toPath(), destination.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    dependsOn tasks.named('fetchJdistlib')
+    options.encoding = 'UTF-8'
+    options.release = 17
+    options.compilerArgs += ['-Xlint:all', '-Werror']
+}
+
+tasks.withType(Javadoc).configureEach {
+    dependsOn tasks.named('fetchJdistlib')
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+    exclude 'org/jlinalg/internal/**'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat = 'full'
+    }
+}
+
+def websiteRootPath = layout.projectDirectory.dir('site').asFile.absolutePath
+def documentationRootPath = layout.projectDirectory.dir('docs').asFile.absolutePath
+
+tasks.register('checkWebsite') {
+    group = 'verification'
+    description = 'Checks the static website structure, local links, and theme support.'
+    inputs.dir(websiteRootPath)
+    inputs.dir(documentationRootPath)
+
+    doLast {
+        File siteRoot = new File(websiteRootPath).canonicalFile
+        Set<File> htmlFiles = [] as Set
+        siteRoot.eachFileRecurse(groovy.io.FileType.FILES) { File candidate ->
+            if (candidate.name.endsWith('.html')) {
+                htmlFiles.add(candidate)
+            }
+        }
+
+        List<String> requiredPages = [
+            'cell-spatial-validation.html',
+            'vignettes/single-cell.html',
+            'vignettes/spatial-analysis.html',
+            'vignettes/auditable-omics-pipeline.html',
+            'regression-inference-validation.html',
+            'vignettes/censored-ordinal.html',
+            'vignettes/sampling-models.html',
+            'vignettes/acat-rare-variants.html',
+            'xwas-followup-validation.html',
+            'latent-confounder-validation.html',
+            'vignettes/ldsc.html',
+            'vignettes/predicted-omics.html',
+            'vignettes/genomic-factor.html',
+            'vignettes/prediction-scores.html',
+            'vignettes/predictions-and-contrasts.html',
+            'vignettes/instrumental-variable-regression.html',
+            'vignettes/conditional-score-conditioning.html',
+            'vignettes/latent-confounders-and-batch.html',
+            'vignettes/differential-regions-testing-imputation.html',
+            'inference-workflows-validation.html',
+            'index.html',
+            'verification.html',
+            'citations.html',
+            'vignettes/index.html',
+            'vignettes/enrichment.html',
+            'vignettes/grm.html',
+            'vignettes/command-line.html',
+            'vignettes/cli-association-tutorial.html',
+            'vignettes/cli-mediation-tutorial.html',
+            'vignettes/cli-mr-tutorial.html',
+            'vignettes/cli-susie-tutorial.html',
+            'vignettes/cli-colocalization-tutorial.html',
+            'vignettes/linear-models.html',
+            'vignettes/basic-statistical-tests.html',
+            'vignettes/nonlinear-models.html',
+            'vignettes/mediation.html',
+            'vignettes/beta-regression.html',
+            'vignettes/penalized-regression.html',
+            'vignettes/mixed-models.html',
+            'vignettes/survival.html',
+            'vignettes/pedigree.html',
+            'vignettes/glmm.html',
+            'vignettes/association.html',
+            'vignettes/omics-transforms.html',
+            'vignettes/mendelian-randomization.html',
+            'vignettes/multivariate-mr.html',
+            'vignettes/xwas-mr-pipeline.html',
+            'vignettes/meta-analysis.html',
+            'vignettes/time-series.html',
+            'vignettes/susie.html',
+            'vignettes/sem.html',
+            'vignettes/formulas-backends.html',
+            'vignettes/regression-families.html',
+            'vignettes/advanced-extensions.html'
+        ]
+        requiredPages.each { String relative ->
+            if (!new File(siteRoot, relative).isFile()) {
+                throw new GradleException(
+                    "Missing required website page: ${relative}")
+            }
+        }
+
+        File citationRegistry = new File(documentationRootPath, 'citations.json')
+        Map citationData = (Map) new groovy.json.JsonSlurper().parse(citationRegistry)
+        List citationReferences = (List) citationData.references
+        Set citationIds = citationReferences.collect { reference -> reference.id as String } as Set
+        if (citationIds.size() != citationReferences.size()) {
+            throw new GradleException('Scientific citation registry contains duplicate IDs')
+        }
+
+        File citationPage = new File(siteRoot, 'citations.html')
+        String citationSource = citationPage.getText('UTF-8')
+        if (!citationSource.contains('data-citation-search') ||
+            !citationSource.contains('data-citation-entry') ||
+            !citationSource.contains('data-citation-topic')) {
+            throw new GradleException(
+                'Scientific citation page must expose searchable citation entries')
+        }
+        citationIds.each { String citationId ->
+            if (!citationSource.contains("id=\"${citationId}\"")) {
+                throw new GradleException(
+                    "Scientific citation page is missing registry entry: ${citationId}")
+            }
+        }
+
+        File citationMarkdown = new File(documentationRootPath, 'CITATIONS.md')
+        if (!citationMarkdown.isFile()) {
+            throw new GradleException('Missing generated docs/CITATIONS.md')
+        }
+        String citationMarkdownSource = citationMarkdown.getText('UTF-8')
+        citationIds.each { String citationId ->
+            if (!citationMarkdownSource.contains("id=\"${citationId}\"")) {
+                throw new GradleException(
+                    "Markdown citation index is missing registry entry: ${citationId}")
+            }
+        }
+
+        citationReferences.each { Map reference ->
+            String pmid = reference.pmid as String
+            String pmcid = reference.pmcid as String
+            if (pmid && (!citationSource.contains("PMID: ${pmid}") ||
+                !citationMarkdownSource.contains("PMID: ${pmid}"))) {
+                throw new GradleException(
+                    "Generated citation indexes are missing PMID ${pmid}")
+            }
+            if (pmcid && (!citationSource.contains("PMCID: ${pmcid}") ||
+                !citationMarkdownSource.contains("PMCID: ${pmcid}"))) {
+                throw new GradleException(
+                    "Generated citation indexes are missing PMCID ${pmcid}")
+            }
+        }
+        Map pageCitations = (Map) citationData.pages
+        File vignetteRoot = new File(siteRoot, 'vignettes')
+        vignetteRoot.eachFileMatch(groovy.io.FileType.FILES, ~/.*\.html/) { File page ->
+            if (page.name == 'index.html') {
+                return
+            }
+            String slug = page.name.substring(0, page.name.length() - '.html'.length())
+            List mapped = (List) pageCitations[slug]
+            if (!mapped) {
+                throw new GradleException(
+                    "Website vignette lacks a citation mapping: ${page.name}")
+            }
+            String source = page.getText('UTF-8')
+            if (!source.contains('SCIENTIFIC-CITATIONS:START') ||
+                !source.contains('SCIENTIFIC-CITATIONS:END')) {
+                throw new GradleException(
+                    "Website vignette lacks a scientific citation panel: ${page.name}")
+            }
+            mapped.each { Object citationId ->
+                if (!source.contains("citations.html#${citationId}")) {
+                    throw new GradleException(
+                        "${page.name} is missing mapped citation ${citationId}")
+                }
+            }
+        }
+
+        File markdownVignettes = new File(documentationRootPath, 'vignettes')
+        markdownVignettes.eachFileMatch(groovy.io.FileType.FILES, ~/.*\.md/) { File page ->
+            if (!page.name.equalsIgnoreCase('README.md')) {
+                String source = page.getText('UTF-8')
+                if (!source.contains('SCIENTIFIC-CITATIONS:START') ||
+                    !source.contains('SCIENTIFIC-CITATIONS:END')) {
+                    throw new GradleException(
+                        "Markdown vignette lacks scientific citations: ${page.name}")
+                }
+            }
+        }
+
+        List<String> cliExamplePages = [
+            'vignettes/censored-ordinal.html',
+            'vignettes/sampling-models.html',
+            'vignettes/acat-rare-variants.html',
+            'vignettes/ldsc.html',
+            'vignettes/predicted-omics.html',
+            'vignettes/genomic-factor.html',
+            'vignettes/prediction-scores.html',
+            'vignettes/predictions-and-contrasts.html',
+            'vignettes/instrumental-variable-regression.html',
+            'vignettes/conditional-score-conditioning.html',
+            'vignettes/latent-confounders-and-batch.html',
+            'vignettes/differential-regions-testing-imputation.html',
+            'vignettes/grm.html',
+            'vignettes/command-line.html',
+            'vignettes/cli-association-tutorial.html',
+            'vignettes/cli-mediation-tutorial.html',
+            'vignettes/cli-mr-tutorial.html',
+            'vignettes/cli-susie-tutorial.html',
+            'vignettes/cli-colocalization-tutorial.html',
+            'vignettes/linear-models.html',
+            'vignettes/beta-regression.html',
+            'vignettes/penalized-regression.html',
+            'vignettes/mixed-models.html',
+            'vignettes/survival.html',
+            'vignettes/pedigree.html',
+            'vignettes/glmm.html',
+            'vignettes/association.html',
+            'vignettes/omics-transforms.html',
+            'vignettes/mendelian-randomization.html',
+            'vignettes/multivariate-mr.html',
+            'vignettes/xwas-mr-pipeline.html',
+            'vignettes/formulas-backends.html'
+        ]
+        cliExamplePages.each { String relative ->
+            String source = new File(siteRoot, relative).getText('UTF-8')
+            if (!source.contains('java -jar')) {
+                throw new GradleException(
+                    "CLI vignette lacks an executable-JAR example: ${relative}")
+            }
+        }
+
+        htmlFiles.each { File page ->
+            String source = page.getText('UTF-8')
+            def references = source =~ /(?i)(?:href|src)="([^"]+)"/
+            references.each { match ->
+                String target = match[1]
+                String path = target.split('[?#]', 2)[0]
+                if (!path || path.startsWith('http://') ||
+                    path.startsWith('https://') || path.startsWith('mailto:')) {
+                    return
+                }
+
+                java.nio.file.Path requested = page.parentFile.toPath()
+                    .resolve(path).normalize().toAbsolutePath()
+                File resolved = requested.toFile().canonicalFile
+                if (!resolved.toPath().startsWith(siteRoot.toPath())) {
+                    throw new GradleException(
+                        "Website reference escapes site root in ${page}: ${target}")
+                }
+                if (!resolved.exists()) {
+                    throw new GradleException(
+                        "Broken website reference in ${page}: ${target}")
+                }
+
+                java.nio.file.Path relative = siteRoot.toPath().relativize(requested)
+                File exactParent = siteRoot
+                relative.each { java.nio.file.Path segment ->
+                    String expectedName = segment.toString()
+                    String[] childNames = exactParent.list()
+                    if (childNames == null || !childNames.contains(expectedName)) {
+                        String actualName = childNames == null ? null :
+                            childNames.find { String candidate ->
+                                candidate.equalsIgnoreCase(expectedName)
+                            }
+                        String detail = actualName == null ? "missing path component" :
+                            "path case differs from ${actualName}"
+                        throw new GradleException(
+                            "Broken website reference in ${page}: ${target} (${detail})")
+                    }
+                    exactParent = new File(exactParent, expectedName)
+                }
+            }
+        }
+
+        String styles = new File(siteRoot, 'assets/styles.css').getText('UTF-8')
+        String script = new File(siteRoot, 'assets/app.js').getText('UTF-8')
+        if (!styles.contains('prefers-color-scheme: dark') ||
+            !script.contains('option value="system"') ||
+            !script.contains('option value="light"') ||
+            !script.contains('option value="dark"') ||
+            !script.contains('removeAttribute("data-theme")')) {
+            throw new GradleException(
+                'Website must preserve system-default light/dark theming and explicit overrides')
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('checkWebsite')
+}
+
+tasks.register('benchmarkXwasFollowup', JavaExec) {
+    group = 'verification'
+    description = 'Times reproducible synthetic LDSC, molecular, factor and score workloads.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.XwasFollowupBenchmark'
+    jvmArgs '-Xms64m', '-Xmx1g'
+}
+
+tasks.register('benchmarkRegressionInference', JavaExec) {
+    group = 'verification'
+    description = 'Times R-checked censored, ordinal, rare-event and survey regression fixtures.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.RegressionInferenceBenchmark'
+    jvmArgs '-Xms64m', '-Xmx1g'
+}
+
+tasks.register('executableJar', Jar) {
+    group = 'build'
+    description = 'Builds the self-contained java -jar command-line application.'
+    dependsOn tasks.named('classes')
+    archiveBaseName = 'jlinalg'
+    archiveVersion = project.version
+    destinationDirectory = layout.buildDirectory.dir('cli')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Main-Class': 'org.jlinalg.cli.JLinAlgCli',
+            'Implementation-Title': 'JLinAlg CLI',
+            'Implementation-Version': project.version
+        )
+    }
+    from sourceSets.main.output
+    from {
+        configurations.runtimeClasspath.collect { dependency ->
+            dependency.isDirectory() ? dependency : zipTree(dependency)
+        }
+    }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('executableJar')
+}
+
+tasks.register('benchmarkAssociation', JavaExec) {
+    group = 'verification'
+    description = 'Runs deterministic GWAS/TWAS association macrobenchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.AssociationBenchmark'
+    jvmArgs '-Xms1g', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkInferenceAudit', JavaExec) {
+    group = 'benchmark'
+    description = 'Runs voom and complete SVA/AutoSVA audit scaling probes.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.InferenceAuditBenchmark'
+}
+
+tasks.register('benchmarkAcat', JavaExec) {
+    group = 'benchmark'
+    description = 'Runs the fused-versus-composed ACAT-O score benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.AcatBenchmark'
+    systemProperties System.properties.findAll { key, value ->
+        key.toString().startsWith('jlinalg.benchmark.acat.')
+    }
+}
+
+tasks.register('benchmarkCoreStatisticsAudit', JavaExec) {
+    group = 'verification'
+    description = 'Runs the accuracy-audited Kendall workload paired with base R.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.CoreStatisticsAuditBenchmark'
+    jvmArgs '-Xms64m', '-Xmx512m'
+}
+
+tasks.register('benchmarkXwasMr', JavaExec) {
+    group = 'verification'
+    description = 'Runs the parallel xWAS MR benchmark shared with R.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.XwasMrBenchmark'
+    jvmArgs '-Xms1g', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkCoxPipeline', JavaExec) {
+    group = 'verification'
+    description = 'Runs prepared Cox score-scan and start-stop sweep benchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.CoxPipelineBenchmark'
+    jvmArgs '-Xms512m', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkLoess', JavaExec) {
+    group = 'verification'
+    description = 'Runs the deterministic direct-surface LOESS benchmark shared with R.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.LoessBenchmark'
+    jvmArgs '-Xms512m', '-Xmx2g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkRegressionFamilies', JavaExec) {
+    group = 'verification'
+    description = 'Profiles the deterministic multivariate and nonparametric regression families.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.RegressionFamiliesBenchmark'
+    jvmArgs '-Xms512m', '-Xmx2g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.regression.')
+    }
+}
+
+tasks.register('benchmarkMediation', JavaExec) {
+    group = 'verification'
+    description = 'Runs deterministic Gaussian mediation benchmarks shared with R.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.MediationBenchmark'
+    jvmArgs '-Xms512m', '-Xmx2g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.mediation.')
+    }
+}
+
+[
+    benchmarkFeasibleExtensions: 'FeasibleExtensionsBenchmark',
+    benchmarkSemJoint: 'SemJointBenchmark',
+    benchmarkMetaParity: 'MetaParityBenchmark',
+    benchmarkSparseMixedParity: 'SparseMixedParityBenchmark',
+    benchmarkMrConditional: 'MrConditionalBenchmark',
+    benchmarkSelectiveInference: 'SelectiveInferenceBenchmark',
+    benchmarkExactQuantile: 'ExactQuantileBenchmark',
+    benchmarkGlmmQuadrature: 'GlmmQuadratureBenchmark',
+    benchmarkExactTimeSeries: 'ExactTimeSeriesBenchmark'
+].each { taskName, benchmarkClass ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        description = 'Runs the accuracy-gated ' + benchmarkClass + ' R fixture benchmark.'
+        dependsOn tasks.named('benchmarkClasses')
+        classpath = sourceSets.benchmark.runtimeClasspath
+        mainClass = 'org.jlinalg.benchmark.' + benchmarkClass
+        jvmArgs '-Xms64m', '-Xmx1g'
+        systemProperties System.properties.findAll { key, ignored ->
+            key.toString().startsWith('jlinalg.benchmark.')
+        }
+    }
+}
+
+tasks.register('benchmarkBetaRegression', JavaExec) {
+    group = 'verification'
+    description = 'Benchmarks specialized beta regression against the generic distributional engine.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.BetaRegressionBenchmark'
+    jvmArgs '-Xms512m', '-Xmx2g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.beta.')
+    }
+}
+
+tasks.register('benchmarkBetaMixedModel', JavaExec) {
+    group = 'verification'
+    description = 'Runs grouped and pedigree sparse beta mixed-model benchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.BetaMixedModelBenchmark'
+    jvmArgs '-Xms512m', '-Xmx2g'
+    systemProperties System.properties.findAll { key, value ->
+        key.toString().startsWith('jlinalg.benchmark.beta.mixed.')
+    }
+}
+
+tasks.register('benchmarkSparsePedigreePev', JavaExec) {
+    group = 'verification'
+    description = 'Profiles batched sparse pedigree PEV and reliability extraction.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.SparsePedigreePevBenchmark'
+    jvmArgs '-Xms512m', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkSalamandersZeroInflated', JavaExec) {
+    group = 'verification'
+    description = 'Benchmarks ZIP/ZINB against exported glmmTMB Salamanders matrices.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.SalamandersZeroInflatedBenchmark'
+    jvmArgs '-Xms512m', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.salamanders.')
+    }
+}
+
+tasks.register('benchmarkZeroInflatedMixed', JavaExec) {
+    group = 'verification'
+    description = 'Profiles sparse correlated-pedigree zero-inflated fitting.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.ZeroInflatedMixedBenchmark'
+    jvmArgs '-Xms512m', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkTimeSeries', JavaExec) {
+    group = 'verification'
+    description = 'Runs real-data AR, ARMA, ARIMA, and seasonal macrobenchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TimeSeriesBenchmark'
+    jvmArgs '-Xms512m', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkColocSusie', JavaExec) {
+    group = 'verification'
+    description = 'Runs the deterministic coloc.susie combination benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.ColocSusieBenchmark'
+    jvmArgs '-Xms256m', '-Xmx2g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.coloc.')
+    }
+}
+
+tasks.register('benchmarkSusie', JavaExec) {
+    group = 'verification'
+    description = 'Runs SuSiE on the official N3finemapping vignette data.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.SusieBenchmark'
+    jvmArgs '-Xms1g', '-Xmx4g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.susie.')
+    }
+}
+
+tasks.register('benchmarkMixedModels', JavaExec) {
+    group = 'verification'
+    description = 'Runs deterministic dense/sparse mixed-model macrobenchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.MixedModelBenchmark'
+    jvmArgs '-Xms1g', '-Xmx6g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkTopmedSem', JavaExec) {
+    group = 'verification'
+    description = 'Runs the TOPMed observed-variable SEM benchmark shared with lavaan.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedSemBenchmark'
+    systemProperties System.properties.findAll { key, value ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkTopmed100', JavaExec) {
+    group = 'verification'
+    description = 'Runs the prepared TOPMed 100-gene BMI benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.Topmed100GeneBenchmark'
+    jvmArgs '-Xms2g', '-Xmx12g'
+    args providers.gradleProperty('topmedArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkTopmedSlidingSet', JavaExec) {
+    group = 'verification'
+    description = 'Runs the TOPMed pedigree-aware sliding-window set benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedSlidingWindowSetBenchmark'
+    jvmArgs '-Xms2g', '-Xmx14g'
+    args providers.gradleProperty('topmedSetArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkTopmedPenalized', JavaExec) {
+    group = 'verification'
+    description = 'Runs the prepared TOPMed 100-gene penalized benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedPenalizedBenchmark'
+    jvmArgs '-Xms1g', '-Xmx4g'
+    args providers.gradleProperty('topmedPenalizedArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkTopmedObesityGlmm', JavaExec) {
+    group = 'verification'
+    description = 'Runs the prepared TOPMed Obesity GLM/GLMM benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedObesityGlmmBenchmark'
+    jvmArgs '-Xms2g', '-Xmx12g'
+    args providers.gradleProperty('topmedArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkTopmedCox', JavaExec) {
+    group = 'verification'
+    description = 'Runs the prepared TOPMed Cox/coxme comparison benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedCoxBenchmark'
+    jvmArgs '-Xms2g', '-Xmx12g'
+    args providers.gradleProperty('topmedCoxArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkGam', JavaExec) {
+    group = 'verification'
+    description = 'Runs cold, discrete, prepared-scan, and warm GAM benchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.GamBenchmark'
+    jvmArgs '-Xms1g', '-Xmx6g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+tasks.register('benchmarkTopmedGam', JavaExec) {
+    group = 'verification'
+    description = 'Runs the prepared TOPMed BMI P-spline benchmark.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedGamBenchmark'
+    jvmArgs '-Xms2g', '-Xmx12g'
+    args providers.gradleProperty('topmedGamArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkTopmedGamm', JavaExec) {
+    group = 'verification'
+    description = 'Runs prepared TOPMed batch and pedigree GAMM benchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedGammBenchmark'
+    jvmArgs '-Xms2g', '-Xmx12g'
+    args providers.gradleProperty('topmedGammArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkTopmedMetaAnalysis', JavaExec) {
+    group = 'verification'
+    description = 'Runs four-cohort TOPMed fixed/random meta-analysis benchmarks.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.benchmark.TopmedMetaAnalysisBenchmark'
+    jvmArgs '-Xms1g', '-Xmx4g'
+    args providers.gradleProperty('topmedMetaArgs').map {
+        it.split('\\s+') as List<String>
+    }.getOrElse([])
+}
+
+tasks.register('benchmarkConditionalScoreExport', JavaExec) {
+    group = 'verification'
+    description = 'Runs R-checked end-to-end conditional score export timings.'
+    dependsOn tasks.named('benchmarkClasses')
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'org.jlinalg.cli.ConditionalScoreExportBenchmark'
+    jvmArgs '-Xms64m', '-Xmx1g'
+    systemProperties System.properties.findAll { key, ignored ->
+        key.toString().startsWith('jlinalg.benchmark.')
+    }
+}
+
+// v0.3.0 audit workloads, paired with independent reference regression tests.
+// Run sequentially for meaningful local timings.
+[
+    benchmarkFittingAudit: 'org.jlinalg.benchmark.FittingAuditBenchmark',
+    benchmarkDistributionalAudit: 'org.jlinalg.benchmark.DistributionalAuditBenchmark',
+    benchmarkRemainingMixedAudit: 'org.jlinalg.benchmark.RemainingMixedBenchmark',
+    benchmarkRemainingModelsAudit: 'org.jlinalg.benchmark.RemainingModelsAuditBenchmark',
+    benchmarkEstimatorExtensions: 'org.jlinalg.benchmark.EstimatorExtensionsBenchmark',
+    benchmarkSummaryKernelAudit: 'org.jlinalg.benchmark.SummaryKernelAuditBenchmark',
+    benchmarkGeneticAudit: 'org.jlinalg.genetics.GeneticAuditBenchmark',
+    benchmarkPipelineOlsAudit: 'org.jlinalg.association.PipelineOlsAuditBenchmark',
+    benchmarkPipelineBhAudit: 'org.jlinalg.cli.PipelineBhAuditBenchmark',
+    benchmarkPipelineKernelAudit: 'org.jlinalg.settest.PipelineKernelAuditBenchmark',
+    benchmarkRareMetaEngineering: 'org.jlinalg.cli.RareMetaEngineeringBenchmark'
+].each { taskName, className ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        description = 'Runs an independently checked v0.3.0 audit workload.'
+        dependsOn tasks.named('benchmarkClasses')
+        classpath = sourceSets.benchmark.runtimeClasspath
+        mainClass = className
+        jvmArgs '-Xms256m', '-Xmx1g'
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            pom {
+                name = 'JLinAlg'
+                description = 'Java linear and mixed-model algorithms backed by JDistlib.'
+                licenses {
+                    license {
+                        name = 'GNU General Public License, version 2 or later'
+                        url = 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.html'
+                        distribution = 'repo'
+                    }
+                }
+            }
+        }
+    }
+}
