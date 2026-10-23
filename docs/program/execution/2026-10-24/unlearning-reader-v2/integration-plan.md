@@ -1,0 +1,1 @@
+Preserve all 1031 predecessor source records, contexts and content inputs; add three reviewed unlearning records. Keep scorer, provenance, environment and full coverage, native/visual/final acceptance open. Build, review exact bytes, renew Q2-Q4, pair sponsor and reconcile the whole program.
