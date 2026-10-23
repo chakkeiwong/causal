@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery, controlled-write publication and the SCOPE-RL/OBP reuse decisions.
-The [complete queue review](2026-10-23/program-refresh-obp-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-obp-reuse-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery, controlled-write publication and the SCOPE-RL, OBP and POMDP-Py reuse decisions.
+The [complete queue review](2026-10-23/program-refresh-pomdp-py-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-pomdp-py-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
 Older numbered programs and publication pairs remain historical evidence.
 
@@ -13,21 +13,21 @@ No unattended research worker runs; the active agent performs the work.
 
 ## Current integrated documents
 
-The [current monograph](../../causal_proposal_obp_reuse_reviewed_2026-10-23.pdf) has 1,306 pages,
-996 audited citations and 232 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_obp_reuse_reviewed_2026-10-23.pdf) has 70 pages and 409 citations.
-All 994 immediate-predecessor source records/contexts and
-303 compiled content inputs survive unchanged.
+The [current monograph](../../causal_proposal_pomdp_py_reuse_reviewed_2026-10-23.pdf) has 1,309 pages,
+998 audited citations and 232 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_pomdp_py_reuse_reviewed_2026-10-23.pdf) has 71 pages and 413 citations.
+All 996 immediate-predecessor source records/contexts and
+304 compiled content inputs survive unchanged.
 All-page text bounds and source traceability pass. Q2-Q4 pass for these reader bytes;
 Q1/Q5, mandatory coverage/depth rollups and visual/final acceptance remain open.
 
-**225 recorded outcomes of 376; 127 ready; 215 nonpassing obligations.**
+**226 recorded outcomes of 376; 126 ready; 214 nonpassing obligations.**
 Recorded outcomes include inconclusive findings and scoped references; they do not establish native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 40 | 59 | 102 |
-| reuse | 44 | 3 | 68 | 115 |
+| reuse | 45 | 3 | 67 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Recovered and completed work
@@ -36,6 +36,13 @@ Controlled-write source review, exact reader Q2-Q4 renewals and paired sponsor p
 Conditional source soundness, shared semantic error, unmatched historical baselines and selective costs remain explicit.
 Census is 70 inspected / 43 unread of 113 originals, plus four crosscutting obligations. Candidate 165 has a genuine-source
 acquisition gap; metadata is not technical evidence and does not block other work.
+
+POMDP-Py 1.3.5.1 has a reference-only disposition from thirteen authenticated blobs. Supplied-model planning
+is distinct from latent identification. Zero-mass observations, restricted support, weighted-particle queries,
+rollout progress, option reward clocks and finite-horizon discounting require explicit qualification.
+Exact authored witnesses give signal-policy values 7/4 versus -13/4 under a misspecified sensor,
+three-stage values 7/4 versus 13/8, option-clock values 11 versus 15, and weighted query/sample probabilities
+1/2 versus 2/3. No downloaded code executes and no native capability is granted.
 
 Open Bandit Pipeline 0.5.5 has a reference-only disposition from eleven authenticated blobs. Its one-decision
 logging/target law, clipping, deterministic replay, probability validation, response-fitting folds and cached
@@ -48,8 +55,8 @@ interval-expression differences and selection identity need native qualification
 preceding findings. Full release/dependency custody, actual native behavior, scientific validity and bank benefit
 remain separate obligations for both packages.
 
-The [preserved previous program review](2026-10-23/program-refresh-scope-rl-reuse-v1/program-review.json)
-retains SCOPE-RL, sensitivity, GIST, medflex and the wider software/agent/integration evidence. Seventeen comparison reviews,
+The [preserved previous program review](2026-10-23/program-refresh-obp-reuse-v1/program-review.json)
+retains OBP, SCOPE-RL, sensitivity, GIST, medflex and the wider software/agent/integration evidence. Seventeen comparison reviews,
 four prospective language designs, fourteen LLM task reviews and twelve integration reviews remain scoped outcomes,
 not executed native trials or blanket acceptance. Completed publications must not be repeated.
 
@@ -58,7 +65,7 @@ not executed native trials or blanket acceptance. Completed publications must no
 1. Complete 59 open and 40 inconclusive software cells with primary cutoff evidence and explicit limits.
    Commercial follow-ups include historical Dataiku bytes, SAS service delegates, Domino terminal schemas,
    Posit server/scheduler contracts, and separate rights/pricing questions.
-2. Complete 68 open and three inconclusive reuse dispositions with concrete adopt/integrate/port/reference/reject
+2. Complete 67 open and three inconclusive reuse dispositions with concrete adopt/integrate/port/reference/reject
    reasoning, dependencies, costs and owners. Do not restart passed reference decisions to invent native approval.
 3. Inspect 43 unread originals and four crosscutting obligations. Resolve inaccessible originals through genuine
    alternative copies or continue an available candidate; preserve omissions without absence claims.
