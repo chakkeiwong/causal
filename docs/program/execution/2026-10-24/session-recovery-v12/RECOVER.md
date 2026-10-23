@@ -1,0 +1,9 @@
+# Recovery12:24October2026
+
+Recovered statsmodels build, recorded DRDID/did2s reference-only choices, published both preserving document pairs and refreshed the full program. Current monograph: docs/causal_proposal_panel_reuse_v2_reviewed_2026-10-24.pdf (1344 pages; SHA256 76fc09927a45539f44ce984a53abd8e6f53c6ca19d257d34d525e306669cfb39). Sponsor: docs/sponsor_proposal_panel_reuse_reviewed_2026-10-24.pdf (80 pages; SHA256 687807aa64a022a7c75990d3ce0df436d637f6f76603528e6f5f3fd85d6792e6).
+
+236/376 recorded,116 ready,205 nonpassing; reuse54pass/3inconclusive/58open; census73inspected/40unread plus4crosscutting.1023reader citations,460sponsor citations,235scholarly PDFs. Q2-Q4 pass for exact bytes; Q1/Q5, mandatory coverage/depth and visual/final acceptance remain open. No native integration is implied. Core/unified checks pass. No pending tool sessions when this snapshot was written.
+
+Continue SW.CELL.longitudinal_survival.Python. Sources are in longitudinal-python-v1: five old pygformula artifacts now authenticated against complete cutoff tree; zEpid cutoff is16a0f96f8b2c65df8715085801f21757d1478e1e; pygformula cutoff is e66f787fcef2d6a9092b88135147c6b13785795c. Seven newly fetched source/license/dependency files authenticated. Complete the selected implementation review, obtain zepid/version.py, retain registry search drift (old13total/10returned; new12/12;13union; three original unreturned remain unknown). pygformula pyproject1.2.1 includes CompRiskReg while requirements.txt omits it; no resolved environment or native run.
+
+Use current state/receipts before repeating transitions. Collector manifest restored. Do not execute downloaded code/tests, spawn agents, edit siblings or use more images in this session. Preserve failed panel v1 preparation; only v2 was built/published. Keep short tool calls, consume exits, serialize canonical mutations. Complete-unit commit/push is next, then continue independent work.

@@ -1,10 +1,10 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai) after crash recovery, reviewed specialist collaboration and a historical sponsor-count repair; frozen predecessors retain their original work directories.
-The [complete queue review](2026-10-24/program-refresh-collaboration-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-collaboration-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai) after recovered publication and pinned DRDID/did2s target, uncertainty and reuse reviews; frozen predecessors retain their original work directories.
+The [complete queue review](2026-10-24/program-refresh-panel-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-panel-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved previous program](2026-10-24/program-refresh-collaboration-v1/prior-current-program.md)
+The [preserved previous program](2026-10-24/program-refresh-panel-reuse-v1/prior-current-program.md)
 retains earlier workflow, Polars, probabilistic-model, software, agent and integration findings.
 
 This is a research/product proposal supported by public/generated evidence before expensive bank experiments.
@@ -14,28 +14,47 @@ No unattended research worker runs; the active agent performs the work.
 
 ## Current integrated documents
 
-The [current monograph](../../causal_proposal_collaboration_v2_reviewed_2026-10-24.pdf) has 1,339 pages,
-1,019 audited citation records and 235 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_collaboration_reviewed_2026-10-24.pdf) has 78 pages and 452 citations.
-All 1017 predecessor records/contexts and
-313 compiled content inputs are preserved.
+The [current monograph](../../causal_proposal_panel_reuse_v2_reviewed_2026-10-24.pdf) has 1,344 pages,
+1,023 audited citation records and 235 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_panel_reuse_reviewed_2026-10-24.pdf) has 80 pages and 460 citations.
+All 1020 predecessor records/contexts and
+315 compiled content inputs are preserved.
 Source traceability, exact arithmetic and all-page text bounds pass. Q2-Q4 pass for these exact bytes.
 Q1/Q5, mandatory coverage/depth and visual/final acceptance remain open.
 
-**233 recorded outcomes of 376; 119 ready;
-208 nonpassing obligations.** Inconclusive and reference-only outcomes are not native qualification.
+**236 recorded outcomes of 376; 116 ready;
+205 nonpassing obligations.** Inconclusive and reference-only outcomes are not native qualification.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 41 | 58 | 102 |
-| reuse | 51 | 3 | 61 | 115 |
+| reuse | 54 | 3 | 58 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Latest completed review
 
+DRDID 1.3.0 and did2s 1.2.1 now close as conditional original-R-worker references.
+Nine immutable source blobs are authenticated; package metadata and direct GPL/MIT terms remain bound.
+DRDID preserves ATT, two-period design, retained panel keys, control trimming and resolved options.
+did2s preserves untreated support, both-stage covariance, cluster identity and numerical representation.
+Exact authored examples distinguish ATT36 from ATE60USD, negative4 from positive20USD margins,
+and estimated-baseline variance1 from fixed-baseline variance1/2. Supplied-nuisance and RHS-shape
+witnesses are not fitted native outputs; the matrix witness has unverified native reachability.
+Native integration remains false; transitive rights, locked environments, runtime conformance and costs remain open.
+Reuse is now54 pass/3 inconclusive/58 open. Three audited records are added; scholarly PDFs remain235.
+The first preparation misstated the predecessor count before building. Its failed preparation is preserved;
+the v2 successor explicitly verifies all1020 prior records and315 compiled content inputs.
+
+Statsmodels now has a reviewed reference-only reuse choice against commit 8278e2d218cc85bac2c7af02feb9a19a0e499b04.
+One authenticated pyproject record distinguishes build and runtime requirements and the dynamic version.
+The conditional original Python worker preserves ATE/ATT/ATU, clipping, row alignment and final joint-GMM covariance.
+A whole-library port lacks a measured justification. Direct BSD terms are inspected; transitive/distribution rights,
+locked artifacts, native qualification and complete costs remain open. No upstream code was executed.
+At the statsmodels review reuse was 52 pass/3 inconclusive/60 open. The prior 1,019 records and all contexts remain preserved.
+
 Two additional reuse choices close as reference-only: stremr 0.4 and survtmle 1.1.1.
 Their pinned source, applicable standard terms, target/failure contracts, alternatives, owners and costs
-are explicit; integration_allowed remains false. Reuse is 51 pass/3 inconclusive/61 open.
+are explicit; integration_allowed remains false. At that review reuse was 51 pass/3 inconclusive/61 open.
 
 The latest cutoff LLAMIA v2 original is reviewed as a specialist-interface experiment.
 One paper and an exact authored reference add two audited records. The original's Wild, rationale
@@ -84,7 +103,7 @@ is exhausted; fresh visual acceptance is a local blocker only. Public source wor
 1. Resolve 58 open and 41 inconclusive software cells through cutoff primary evidence and explicit limits.
    Longitudinal follow-ups are above; commercial follow-ups retain historical Dataiku bytes, SAS server
    contracts, Domino terminal/error schemas and Posit backend/profile contracts.
-2. Resolve 61 open and 3 inconclusive reuse decisions with exact adopt/integrate/port/reference/reject reasons,
+2. Resolve 58 open and 3 inconclusive reuse decisions with exact adopt/integrate/port/reference/reject reasons,
    dependencies, owners, costs and triggers. Do not reopen passed reference choices to invent native capability.
 3. Inspect 40 unread originals and four crosscutting census obligations; preserve inaccessible-source omissions.
 4. Register and execute public/generated native trials only when actual environments and preregistration exist.

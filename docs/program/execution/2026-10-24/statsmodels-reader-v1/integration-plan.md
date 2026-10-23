@@ -1,0 +1,1 @@
+Preserve1019 prior citations and content inputs. Add one authenticated software dependency record and a reference-only statsmodels choice. No new paper or native capability. Compile and text-check; renew Q2-Q4 and pair sponsor. No native/visual/final acceptance.

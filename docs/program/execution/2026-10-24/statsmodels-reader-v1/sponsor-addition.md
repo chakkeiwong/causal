@@ -1,0 +1,5 @@
+## A bounded statsmodels reference decision
+
+Retain selected statsmodels treatment-effect and GMM paths as interpretable references, with an original pinned Python worker as a conditional prototype. The 6 October 2026 commit declares a dynamic version and separate build/runtime dependencies; it is not interchangeable with an installed release. Direct BSD terms are inspected, while complete distribution and dependency clearance remains open. A whole-library port lacks a demonstrated benefit. \citep{exec20_python_effect_source,exec24_statsmodels_distribution}
+
+Target population, clipping, row alignment and final moment covariance remain mandatory. A preliminary robust outcome fit does not qualify final clustered or HAC uncertainty. Prior exact examples supply semantic oracles; native conformance, rank/failure behavior, costs and owner acceptance remain later gates. The proposal reference choice grants no native integration. \citep{exec20_python_effect_reference,exec24_statsmodels_distribution}

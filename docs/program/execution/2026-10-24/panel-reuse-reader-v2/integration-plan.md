@@ -1,0 +1,1 @@
+Preserve1020 prior citations and content inputs. Add two authenticated package source reviews and one authored exact reference; two reference-only decisions. No new paper or native capability. Compile and text-check; renew Q2-Q4 and pair sponsor. No native/visual/final acceptance.
