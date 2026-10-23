@@ -1,0 +1,7 @@
+## Lineage events and accepted causal results
+
+The OpenLineage review pins the core schema and Java/Python clients at the cutoff commit. Its run/job/dataset vocabulary and facets provide a useful conditional integration route. A valid event does not establish a complete execution history, immutable data version or scientifically justified result. Local schema fixtures admit a missing event type, duplicate terminal records and an unsupported custom assertion; these are schema findings, not server tests. \citep{exec24_openlineage_source,exec24_openlineage_reference}
+
+Client delivery semantics also differ. Java's default duration overload need not enforce the caller's deadline; its HTTP transport can raise despite the broader client comment. Python can suppress or filter events and configures retryable POSTs. No run UUID, normal method return or retry setting proves durable exactly-once ingestion. A proposed adapter therefore separates job state, delivery acknowledgement, persisted artifact and causal acceptance. \citep{exec24_openlineage_source}
+
+In an authored example, three completed computations yield one accepted causal artifact and two justified abstentions. A stipulated USD 45 total is USD 15 per completed computation but USD 45 per accepted artifact. Full denominators and refusal reasons remain visible. Reference use is accepted at proposal level; native adoption still needs an exact environment/receiver, approved causal facet, rights review, fault trials and full costs. \citep{exec24_openlineage_reference}

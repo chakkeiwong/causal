@@ -1,0 +1,1 @@
+Preserve1039 prior citation records, contexts and content inputs. Add two source/schema-reference records and no scholarly paper. Keep native delivery, causal truth, visual and final acceptance open. Pair sponsor, reconcile all obligations and continue.
