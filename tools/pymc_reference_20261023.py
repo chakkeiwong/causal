@@ -20,6 +20,9 @@ def calculate():
     obs1=[(u,u,F(1,2)) for u in [0,1]]
     obs2=[(u,u,F(1,2)) for u in [0,1]]
     assert obs1==obs2
+    effects=[sum(F(1,2)*(model(1,u)-model(0,u)) for u in [0,1])
+             for model in [lambda a,u:a,lambda a,u:u]]
+    assert effects==[1,0]
     # Conjugate probability under beta(1,1), six successes, four failures.
     alpha,beta=7,5
     mean=F(alpha,alpha+beta);variance=F(alpha*beta,(alpha+beta)**2*(alpha+beta+1))
@@ -39,7 +42,7 @@ def calculate():
     assert 'nuts_sampler = "nutpie" if can_use_nutpie else "pymc"' in mcmc
     return dict(kind='authored_exact_reference_not_native_execution',
         conditioning_vs_intervention=dict(conditional_means=list(map(str,conditional)),association=str(observational),effect=str(intervention),stipulated_unit_value='100',stipulated_action_cost='250',association_based_net=str(100*observational-250),causal_net=str(100*intervention-250)),
-        observational_equivalence=dict(observed_laws_equal=True,effects=['1','0'],model_weight_after_equal_likelihood='unchanged from prior'),
+        observational_equivalence=dict(observed_laws_equal=True,effects=list(map(str,effects)),model_weight_after_equal_likelihood='unchanged from prior'),
         conjugate_posterior=dict(alpha=alpha,beta=beta,mean=str(mean),variance=str(variance)),
         frozen_rv=dict(trace_x='1',trace_y='1',intervention_x='3',frozen_y='1',regenerated_y_mean='3'),
         deterministic_replacement=dict(trace_x=old_x,trace_x_squared=old_det,new_x_cubed=new_det,old_mean=str(F(sum(old_det),2)),new_mean=str(F(sum(new_det),2))),
