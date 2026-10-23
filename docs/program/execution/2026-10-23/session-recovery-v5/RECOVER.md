@@ -1,0 +1,5 @@
+# Durable recovery
+
+OBP reference-only disposition and preserving pair are complete: 1,306-page reader and 70-page sponsor, 996/409 audited citations, 232 genuine scholarly PDFs. Q2-Q4 and both integrity checks pass. 225/376 recorded, 127 ready, 215 nonpassing. Reuse44 pass/3 inconclusive/68 open; census70/43 plus four crosscutting obligations. Q1/Q5, mandatory rollups and visual/final acceptance remain open. The prior image allowance is exhausted.
+
+Next source unit is pomdp-py-reuse-v1: thirteen blobs authenticated, independent finite-state examples and manuscript drafted. Review receipt still needed before canonical reference closure and preserving integration. Key boundaries: supplied-model planning versus identification, zero-mass beliefs and deprivation, weighted-query/sampling disagreement (ordinary Particles overrides), zero-duration rollout progress, option discount clock, and policy-tree depth discount. No downloaded code executes. Source collector restored. Preserve original count metadata correction and prior publication checks. No unattended worker runs.
