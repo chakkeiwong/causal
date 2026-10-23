@@ -1,8 +1,8 @@
 # Current executable proposal program
 
-Updated 23 October 2026 after crash recovery, panel reuse integration and sequential publication recovery.
-The [complete queue review](2026-10-23/program-refresh-panel-v1/program-review.json)
-and [remaining-operation register](2026-10-23/program-refresh-panel-v1/remaining-operations.json)
+Updated 23 October 2026 after crash recovery, Julia/Rust IV/RD integration and sequential exact-reader review.
+The [complete queue review](2026-10-23/program-refresh-otheriv-v1/program-review.json)
+and [remaining-operation register](2026-10-23/program-refresh-otheriv-v1/remaining-operations.json)
 cover all 376 proposal obligations. The canonical state and controller are authoritative;
 the older numbered master programs are preserved historical contracts.
 
@@ -13,20 +13,20 @@ it is not an unattended research worker.
 
 ## Current integrated documents
 
-The current pair is the [1,270-page monograph](../../causal_proposal_panel_reviewed_2026-10-23.pdf)
-and [59-page sponsor](../../sponsor_proposal_panel_reviewed_2026-10-23.pdf).
-There are 964 audited monograph citations, 225 genuine scholarly PDFs and 353 sponsor citations.
-All 960 predecessor citation identities/contexts and 291 compiled content inputs are preserved.
+The current pair is the [1,275-page monograph](../../causal_proposal_other_iv_rd_reviewed_v3_2026-10-23.pdf)
+and [60-page sponsor](../../sponsor_proposal_other_iv_rd_reviewed_2026-10-23.pdf).
+There are 970 audited monograph citations, 225 genuine scholarly PDFs and 361 sponsor citations.
+All 964 predecessor citation identities/contexts and 292 compiled content inputs are preserved; two inherited source records receive explicit line-anchor corrections.
 The sponsor binds exact reader bytes. Q2-Q4 pass for this reader; Q1/Q5, mandatory repair rollups,
 fresh visual review and final proposal acceptance remain open.
 
-There are **219 recorded outcomes of 376**,
-**133 ready operations** and **220 nonpassing obligations**.
+There are **220 recorded outcomes of 376**,
+**132 ready operations** and **220 nonpassing obligations**.
 Recorded outcomes include inconclusive results; they are not all completed or qualified capabilities.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 39 | 60 | 102 |
+| software | 3 | 40 | 59 | 102 |
 | reuse | 39 | 3 | 73 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
@@ -72,6 +72,18 @@ and supplied-weight SDID 11/2 with stipulated net 3/2. Saved resampling options,
 normalization, retry limits and single-treated inference require native replay.
 Both source-based reuse decisions are recorded as reference-only.
 
+The Julia/Rust IV/RD addition examines FixedEffectModels.jl, RegressionDiscontinuity.jl,
+InstrumentalVariables.jl, RDRobust.jl and rdd_trading. The latter RDRobust repository is a distinct
+repository, with no official affiliation inferred from its metadata. Five profiles and 32 authenticated
+blobs support scoped reference/conditional/reject decisions, not native execution. Full ratio covariance
+24 versus frozen-denominator variance 1 is an exact stipulated witness; weak-IV inference remains separate.
+Eight additional returned Julia leads are uninspected. Six source-line endpoints and an unsupported
+discovery-note lead are corrected through explicit overlays, preserving historical evidence.
+
+Two additional census PDFs have been acquired (epistemic admission and conformal scientific generation).
+Acquisition is not primary-review completion; they remain in the 48 unread until methods and limitations
+are inspected and a preserving census successor is recorded.
+
 ## Remaining gaps and execution routes
 
 1. Complete source coverage and individual reuse dispositions using genuine cutoff originals and explicit
@@ -93,7 +105,7 @@ bank economics are later external work, separate from completing this proposal.
 
 ## Exact continuation
 
-Next: SW.CELL.iv_rd_design.other_relevant. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect exclusion, monotonicity, weak rank, bandwidth and manipulation diagnostics; retain weak-IV sets and discrete running-variable limits; banking example: a credit eligibility threshold.
+Next: SW.CELL.computation_workflow.commercial. Authenticate immutable Dataiku cutoff technical bytes or retain the temporal omission; inspect SAS REST/service delegates, Domino supported server terminal-state schema and Posit server/scheduler profiles. Preserve separate rights/pricing and registered native trials. The four-client, detailed Dataiku and six-manual integrations are delivered; do not repeat publication. Continue independent reuse and census obligations.
 
 Source-specific follow-ups, actual prerequisites and independent alternatives are preserved in the complete
 remaining register. No phase boundary or one unavailable source is a global blocker. Resume the pending
