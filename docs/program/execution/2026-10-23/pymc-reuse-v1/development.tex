@@ -1,0 +1,165 @@
+\section{Bayesian model surgery needs a separate prediction contract}
+\label{exec23:pymc-scope}
+
+PyMC is a plausible worker for bank-specific probabilistic models, including
+hierarchical likelihoods and explicitly modeled latent quantities. The proposed
+product, however, needs to distinguish three questions: which model is being
+conditioned on data, which mechanism is replaced by an intervention, and which
+variables are subsequently regenerated. The inspected repository revision is
+dated 7 October 2026 and is identified by its immutable commit and twelve
+authenticated source, documentation and test files. Its version is dynamically
+resolved; this review does not assert that the selected development revision is
+a named stable release. Its metadata requires Python at least 3.12 and below
+3.15, and a specified PyTensor compatibility range. Those requirements, the
+root Apache license and the actual dependency artifacts must be part of a
+future worker contract rather than inferred from an older installed environment.
+\citep{exec23_pymc_sources}
+
+\subsection{Conditioning does not replace a treatment mechanism}
+\label{exec23:pymc-intervention}
+
+The inspected \texttt{observe} transformation converts selected random or
+deterministic variables into observed variables, with compatible shape and
+type. The \texttt{do} transformation instead replaces named model variables
+by intervention expressions in a cloned graph. An expression depending on
+random variables is represented as a deterministic; a constant intervention
+is shared data by default. These operations provide useful model construction
+machinery. They do not establish that the supplied graph correctly represents
+assignment, latent common causes, information timing or a bank's feasible
+interventions.
+\citep{exec23_pymc_sources}
+
+For an exact example, let hidden borrower type $U$ be Bernoulli with probability
+$1/2$, let observed treatment $A$ agree with $U$ with probability $3/4$, and let
+the outcome be $Y=2A+4U$. Then
+\[
+ E[Y\mid A=1]=5,\qquad E[Y\mid A=0]=1,
+ \qquad E[Y\mid\mathrm{do}(A=1)]-E[Y\mid\mathrm{do}(A=0)]=2.
+\]
+The association is four, while the intervention effect is two because changing
+$A$ leaves the population law of $U$ unchanged. At a stipulated value of
+USD 100 per outcome unit and action cost USD 250, the association-based decision
+reports net USD 150 but the causal calculation gives USD $-50$. The numerical
+example is an authored finite-law calculation; it is neither a package
+benchmark nor estimated bank economics.
+\citep{exec23_pymc_reference}
+
+Even a perfect posterior computation cannot resolve every causal ambiguity.
+The structural models $A=U,Y=A$ and $A=U,Y=U$, with a fair binary $U$, induce
+the same observed law for $(A,Y)$ but treatment effects one and zero.
+Under equal observational likelihoods, posterior odds between these models
+remain their prior odds. A narrower posterior obtained by choosing one model
+is conditional on that choice, not evidence that observations distinguished
+the models. A useful separate computational oracle is the conjugate update
+from a uniform beta prior after six successes and four failures: the posterior
+is beta$(7,5)$ with mean $7/12$ and variance $35/1872$. Agreement with this
+oracle checks a declared probability calculation; it does not validate a
+causal interpretation of those successes.
+\citep{exec23_pymc_reference}
+
+The transformation API also allows interventions that reference the original
+variable. The inspected code warns and gives the replacement a new name with
+a \texttt{do\_} prefix. Such an expression needs an explicit scientific
+interpretation, for example a declared shift policy; it must not be silently
+described as a fixed assignment. Optional pruning removes variables detached
+from observed variables, and its helper explicitly refuses models containing
+Potentials because their prior-versus-likelihood role is ambiguous. Therefore
+pruning cannot substitute for reviewing the target and retained information.
+\citep{exec23_pymc_sources}
+
+\subsection{Stored draws, regenerated variables and changed expressions}
+\label{exec23:pymc-prediction}
+
+The selected forward-sampling implementation separates output selection from
+regeneration. \texttt{var\_names} controls what is returned; it does not request
+a fresh draw. \texttt{sample\_vars} identifies variables to regenerate, while
+\texttt{freeze\_vars} preserves trace values. Random variables present in the
+trace and not explicitly selected for regeneration are automatically frozen.
+Missing random variables, including ordinary observed outcomes absent from
+the trace, are regenerated. The code detects some changed-ancestor cases and
+issues an implicit-freeze warning, but warning availability does not establish
+that the chosen predictive experiment is appropriate.
+\citep{exec23_pymc_sources}
+
+Suppose a stored draw contains $X=1,Y=1$ from a model with
+$Y\mid X\sim N(X,1)$. After changing $X$ to three, retaining the stored $Y$
+returns one, whereas regenerating $Y$ from the changed model has conditional
+mean three. Both operations can be intentional, but they answer different
+questions. A policy simulation must identify which parameter draws remain
+conditioned on the original evidence and which post-intervention variables
+are generated anew. Otherwise an apparently successful transformation can
+leave precisely the outcome of interest tied to the old experiment.
+\citep{exec23_pymc_sources,exec23_pymc_reference}
+
+Changed deterministic expressions require their own attention. The inspected
+documentation explicitly describes replacing a deterministic expression without
+changing any random variable or data value: the predictive machinery can then
+reuse its stored value unless regeneration is requested. For two illustrative
+trace points $X=1,2$, replacing $X^2$ by $X^3$ changes the desired values from
+$(1,4)$ to $(1,8)$ and their mean from $5/2$ to $9/2$. A model digest must
+therefore identify expressions, not just variable names and current data.
+Name-based trace matching with compatible shapes and coordinates is a software
+matching rule, not proof of causal or semantic equivalence between models.
+\citep{exec23_pymc_sources,exec23_pymc_reference}
+
+Predictive handling of Potentials adds another boundary. The inspected prior
+and posterior predictive routines warn that their direct effect on other
+parameters is ignored during forward sampling. A fair binary generator with
+a hard weight excluding zero has weighted probability one of a positive value,
+whereas the unconstrained forward generator still has probability $1/2$.
+This witness explains why a density factor cannot automatically be treated
+as a generative rule. It does not imply that all effects of a Potential vanish:
+posterior ancestors supplied by the trace may already reflect that factor.
+The worker must identify the factor's role, whether it enters the inferential
+posterior, and how the requested predictive law is constructed.
+\citep{exec23_pymc_sources,exec23_pymc_reference}
+
+The selected upstream tests include intervention, self-reference, dimensional
+and predictive cases, as well as a constant-intervention predictive case marked
+as an expected failure. These are useful conformance leads, not executed results
+in this project. The proposed fixture set must exercise both shared and constant
+interventions and inspect the actual result and warning, without converting
+an upstream test marker into a claim that failure was reproduced here.
+\citep{exec23_pymc_sources}
+
+\subsection{Computation and diagnostics must remain visible to the caller}
+\label{exec23:pymc-decision}
+
+Sampler identity cannot safely be left implicit. At the selected revision,
+the default dispatch can choose nutpie when the installed environment, model,
+compilation mode and arguments permit it, otherwise the PyMC sampler. The
+external paths impose restrictions on variable types and supplied steps,
+and reject custom trace backends and per-draw callbacks. Consequently,
+partial-trace persistence described for a PyMC trace backend cannot be
+advertised for every sampler choice. Persisting draws also does not by itself
+establish resumable chain state, independent restarts or distributed recovery.
+\citep{exec23_pymc_sources}
+
+The inspected convergence routine reports missing posterior data, too few
+draws, a single chain and fewer than four chains separately. It checks
+reported divergences and tree-depth statistics; missing statistics return no
+corresponding warning. Its inspected thresholds include an $\widehat R$
+warning above 1.01 and an effective-sample-size warning below 100 per chain.
+These are the package's conditional diagnostics, not a theorem of convergence
+or a guarantee that an intervention model is correct. NUTS source documentation
+also describes energy, trajectory-depth and timing statistics and distinguishes
+CPU from wall time. The product must preserve missing, unavailable, adverse
+and satisfactory diagnostics as different states, rather than flatten them
+into a single successful API status.
+\citep{exec23_pymc_sources}
+
+The current disposition is a source-qualified reference with a conditional
+native Python worker route. A blanket port to other languages would reproduce
+graph rewriting and predictive rules at considerable maintenance cost without
+a demonstrated advantage. A concrete prototype should instead pin the release
+or commit, Python, PyTensor, compiler, sampler and dependencies; register exact
+conjugate and finite latent-model oracles; exercise intervention/freeze/sample
+semantics, Potentials, dimensions and warnings; and measure compilation,
+effective samples, memory, predictive cost and recovery together. Scientific
+owners must justify model and intervention meaning, while maintainers own
+conversion conformance and operators own budgets and persistence. Library,
+CLI and MCP should expose the same target and refusal conditions. LLM-generated
+models can be proposed for review, but cannot certify their own causal graph,
+identification assumptions or scientific validity. Native qualification,
+general causal identification and bank adoption remain open.
+\citep{exec23_pymc_sources,exec23_pymc_reference}
