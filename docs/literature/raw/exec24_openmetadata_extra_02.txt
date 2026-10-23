@@ -1,0 +1,198 @@
+/*
+ *  Copyright 2021 Collate
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package org.openmetadata.service.jdbi3;
+
+import static org.openmetadata.service.jdbi3.locator.ConnectionType.MYSQL;
+import static org.openmetadata.service.jdbi3.locator.ConnectionType.POSTGRES;
+
+import java.util.List;
+import org.jdbi.v3.sqlobject.CreateSqlObject;
+import org.jdbi.v3.sqlobject.customizer.Bind;
+import org.jdbi.v3.sqlobject.statement.SqlQuery;
+import org.jdbi.v3.sqlobject.statement.SqlUpdate;
+import org.jdbi.v3.sqlobject.transaction.Transactional;
+import org.openmetadata.schema.entity.governance.IntakeForm;
+import org.openmetadata.service.jdbi3.locator.ConnectionAwareSqlQuery;
+import org.openmetadata.service.jdbi3.locator.ConnectionAwareSqlUpdate;
+import org.openmetadata.service.util.jdbi.BindFQN;
+import org.openmetadata.service.util.jdbi.BindJson;
+
+/**
+ * Thin composite over the domain aggregator interfaces the DAOs were split into. JDBI builds its
+ * handler map from {@code getMethods()}, which returns inherited methods, so every
+ * {@code @CreateSqlObject} accessor stays wired through this type unchanged.
+ *
+ * <p><b>Referencing the nested types.</b> The member types those aggregators declare are inherited
+ * here, so an existing inline reference such as {@code CollectionDAO.EntityRelationshipObject} still
+ * compiles. An <b>import</b> does not: JLS 7.5 requires the canonical name, which is now the owning
+ * interface — {@code CoreRelationshipDAOs.EntityRelationshipObject},
+ * {@code TimeSeriesDAOs.TestCaseDAO}, and so on. An IDE "add import" or organize-imports that
+ * reaches for {@code CollectionDAO.<Nested>} will therefore not compile; name the owning interface
+ * instead. Spotless does not catch this.
+ *
+ * <p><b>Type-level JDBI configurers belong here, not on an aggregator.</b> Java does not inherit
+ * annotations across interfaces ({@code @Inherited} is superclass-only), so a
+ * {@code @RegisterRowMapper} / {@code @RegisterArgumentFactory} placed on one of the extended
+ * interfaces is silently ignored when JDBI attaches this type. {@code CollectionDAOCompositionTest}
+ * guards both invariants.
+ */
+public interface CollectionDAO
+    extends CoreRelationshipDAOs,
+        OAuthDAOs,
+        WorkflowDocStoreDAOs,
+        AccessControlDAOs,
+        EntityDataDAOs,
+        DataAssetServiceDAOs,
+        SystemTokenDAOs,
+        KnowledgeAssetDAOs,
+        EventSubscriptionDAOs,
+        GovernanceDAOs,
+        ActivityAuditDAOs,
+        TimeSeriesDAOs,
+        ClassificationTagDAOs,
+        FeedDAOs,
+        AiGovernanceDAOs,
+        SearchReindexDAOs,
+        RdfInfraDAOs,
+        Transactional<CollectionDAO> {
+  @CreateSqlObject
+  IndexMappingVersionDAO indexMappingVersionDAO();
+
+  @CreateSqlObject
+  AssetDAO assetDAO();
+
+  @CreateSqlObject
+  DeletionLockDAO deletionLockDAO();
+
+  @CreateSqlObject
+  IntakeFormDAO intakeFormDAO();
+
+  interface IntakeFormDAO extends EntityDAO<IntakeForm> {
+    @Override
+    default String getTableName() {
+      return "intake_form_entity";
+    }
+
+    @Override
+    default Class<IntakeForm> getEntityClass() {
+      return IntakeForm.class;
+    }
+
+    @Override
+    default String getNameHashColumn() {
+      return "fqnHash";
+    }
+
+    @Override
+    default boolean supportsSoftDelete() {
+      return false;
+    }
+
+    @ConnectionAwareSqlQuery(
+        value =
+            "SELECT json FROM intake_form_entity WHERE JSON_EXTRACT(json, '$.entityType') = :entityType LIMIT 1",
+        connectionType = MYSQL)
+    @ConnectionAwareSqlQuery(
+        value =
+            "SELECT json FROM intake_form_entity WHERE json->>'entityType' = :entityType LIMIT 1",
+        connectionType = POSTGRES)
+    String findByEntityType(@Bind("entityType") String entityType);
+  }
+
+  interface AssetDAO {
+    @ConnectionAwareSqlUpdate(
+        value = "INSERT INTO asset_entity (json, fqnHash) VALUES (:json, :fqnHash)",
+        connectionType = MYSQL)
+    @ConnectionAwareSqlUpdate(
+        value = "INSERT INTO asset_entity (json, fqnHash) VALUES (:json :: jsonb, :fqnHash)",
+        connectionType = POSTGRES)
+    void insert(@BindFQN("fqnHash") String fqnHash, @BindJson("json") String json);
+
+    @ConnectionAwareSqlUpdate(
+        value = "UPDATE asset_entity SET json = :json WHERE id = :id",
+        connectionType = MYSQL)
+    @ConnectionAwareSqlUpdate(
+        value = "UPDATE asset_entity SET json = :json::jsonb WHERE id = :id",
+        connectionType = POSTGRES)
+    void update(@BindJson("json") String json, @Bind("id") String id);
+
+    @SqlQuery("SELECT json FROM asset_entity WHERE id = :id")
+    String getById(@Bind("id") String id);
+
+    @SqlQuery(
+        "SELECT json FROM asset_entity WHERE LOWER(assetType) = LOWER(:assetType) AND fqnHash = :fqnHash")
+    List<String> getByFqnExact(
+        @Bind("assetType") String assetType, @BindFQN("fqnHash") String fullyQualifiedName);
+
+    @SqlQuery(
+        "SELECT json FROM asset_entity WHERE LOWER(assetType) = LOWER(:assetType) AND fqnHash LIKE :concatFqnPrefixHash")
+    List<String> getByFqnPrefix(
+        @Bind("assetType") String assetType,
+        @org.openmetadata.service.util.jdbi.BindConcat(
+                value = "concatFqnPrefixHash",
+                parts = {":fqnPrefixHash", "%"},
+                hash = true)
+            String fqnPrefixHash);
+
+    @ConnectionAwareSqlUpdate(
+        value =
+            "UPDATE asset_entity SET json = JSON_SET(json, '$.deleted', true) "
+                + "WHERE fqnHash LIKE :prefix",
+        connectionType = MYSQL)
+    @ConnectionAwareSqlUpdate(
+        value =
+            "UPDATE asset_entity SET json = jsonb_set(json, '{deleted}', 'true') "
+                + "WHERE fqnHash LIKE :prefix",
+        connectionType = POSTGRES)
+    void markDeletedByFqnPrefix(@BindFQN("prefix") String prefix);
+
+    @SqlUpdate("DELETE FROM asset_entity WHERE fqnHash LIKE :prefix")
+    void deleteByFqnPrefix(@BindFQN("prefix") String prefix);
+
+    @SqlUpdate("DELETE FROM asset_entity WHERE id = :id")
+    void delete(@Bind("id") String id);
+
+    @ConnectionAwareSqlQuery(
+        value =
+            "SELECT json FROM asset_entity WHERE LOWER(assetType) = LOWER(:assetType) "
+                + "AND updatedBy = :updatedBy "
+                + "AND JSON_UNQUOTE(JSON_EXTRACT(json, '$.checksum')) = :checksum",
+        connectionType = MYSQL)
+    @ConnectionAwareSqlQuery(
+        value =
+            "SELECT json FROM asset_entity WHERE LOWER(assetType) = LOWER(:assetType) "
+                + "AND updatedBy = :updatedBy AND json ->> 'checksum' = :checksum",
+        connectionType = POSTGRES)
+    List<String> getByChecksum(
+        @Bind("assetType") String assetType,
+        @Bind("updatedBy") String updatedBy,
+        @Bind("checksum") String checksum);
+
+    @ConnectionAwareSqlQuery(
+        value =
+            "SELECT json FROM asset_entity WHERE LOWER(assetType) = LOWER(:assetType) "
+                + "AND updatedAt < :before "
+                + "AND JSON_UNQUOTE(JSON_EXTRACT(json, '$.entityLink')) LIKE :entityLinkPrefix",
+        connectionType = MYSQL)
+    @ConnectionAwareSqlQuery(
+        value =
+            "SELECT json FROM asset_entity WHERE LOWER(assetType) = LOWER(:assetType) "
+                + "AND updatedAt < :before AND json ->> 'entityLink' LIKE :entityLinkPrefix",
+        connectionType = POSTGRES)
+    List<String> listByEntityLinkPrefixOlderThan(
+        @Bind("assetType") String assetType,
+        @Bind("entityLinkPrefix") String entityLinkPrefix,
+        @Bind("before") long before);
+  }
+}
