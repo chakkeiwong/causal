@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-ecmo-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-ecmo-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-panels-java-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-panels-java-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-ecmo-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-panels-java-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,46 +12,45 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_ecmo_reviewed_2026-10-25.pdf) has 1,553 pages,
-1,192 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_ecmo_reviewed_2026-10-25.pdf) has 122 pages and 740 citations.
-All 1,189 predecessor records, citation contexts and 370 compiled content inputs survive.
+The [monograph](../../causal_proposal_panels_java_reviewed_2026-10-25.pdf) has 1,556 pages,
+1,196 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_panels_java_reviewed_2026-10-25.pdf) has 123 pages and 746 citations.
+All 1,192 predecessor records, citation contexts and 371 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**296 recorded outcomes of 376; 57 ready; 158 nonpassing obligations.**
+**297 recorded outcomes of 376; 56 ready; 158 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 53 | 46 | 102 |
+| software | 3 | 54 | 45 | 102 |
 | reuse | 101 | 3 | 11 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor integrates the five-page ECMO author original and ten
-authenticated implementation files. All 1,189 predecessor records and their
-citation contexts remain intact, yielding 1,192 citation records and 258 genuine
-scholarly PDFs. The sponsor preserves 735 records and adds five, yielding 740.
+The preserving successor adds a connected Java panel comparison based on 17
+authenticated originals for Smile, Apache Commons Math and iMetrica. All 1,192
+predecessor records and citation contexts survive, yielding 1,196 records and
+258 genuine scholarly PDFs. The paired sponsor retains 740 records and adds
+six, yielding 746. No new scholarly paper is claimed for software sources.
 
-The connected argument distinguishes expert graph agreement from causal truth,
-retains adverse reported refinement results, and explains loss of within-window
-time ordering. Exact examples address missing-file denominators, sample identity
-and complete costs. No patient data, downloaded code or model was executed.
-Final publisher bytes, supplementary prompt/model identities and archived result
-contents remain separate omissions. Public/generated fixtures provide a route
-for testing the proposed behavior without making private data a global blocker.
+The argument distinguishes ordinary numerical regression from cohort/time
+causal targets and clustered uncertainty. Exact authored examples show a
+negative two-way-effects coefficient despite positive stipulated effects,
+covariance scaling, dependence, unidentified trends and complete costs.
+Source declarations, support limits and module rights remain qualified.
 
-A tuple/list serialization mismatch in an authored review was repaired through
-a successor, with original code, arithmetic and failure log preserved. Only
-candidate 214 advances: 82 originals inspected, 31 unread and four crosscutting
-obligations. Operation counts remain 296 recorded, 57 ready and 158 nonpassing;
-this candidate does not close the whole frontier-census obligation.
+Java panel coverage is recorded inconclusive: selected profiles are reviewed,
+but broader Java/JVM candidates, dedicated estimators, native qualification and
+complete rights remain open. Recorded outcomes rise to 297; passing counts do
+not rise. The frontier census remains 82 inspected, 31 unread and four
+crosscutting tasks. Earlier ECMO, backend and blocked-continuation repairs remain.
 
 ## Remaining gaps and routes
 
-1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
+1. Software: 45 open and 54 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: 11 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
@@ -88,7 +87,7 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 ## Exact continuation
 
-Next: SW.CELL.panels_did.Java. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect cohort/time aggregation, anticipation, treatment reversal, heterogeneous effects, clustering and trend sensitivity; banking example: staggered branch policy rollout.
+Next: LL.CENSUS. Continue32 unread originals and4crosscutting with authentic permitted sources; retain local access/date and final-version omissions. Judge-bias reader/sponsor are already paired: do not repeat their build or publication. Advance independent backend,commercial and software obligations.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
