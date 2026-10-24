@@ -1,0 +1,1911 @@
+"""
+    didint(
+           outcome::Union{AbstractString, Symbol},
+           state::Union{AbstractString, Symbol},
+           time::Union{AbstractString, Symbol},
+           data::Union{DataFrame, RConnector.RDataFrame};
+           gvar::Union{AbstractString, Symbol, Nothing} = nothing,
+           treated_states::Union{T, Vector{T}} where T <: Union{AbstractString, Number, Nothing} = nothing,
+           treatment_times::Union{T, Vector{T}} where T <: Union{AbstractString, Number, Date, Nothing} = nothing,
+           date_format::Union{AbstractString, Nothing} = nothing,
+           covariates::Union{T, Vector{T}} where T <: Union{AbstractString, Symbol, Nothing} = nothing,
+           ccc::AbstractString = "int",
+           agg::AbstractString = "cohort",
+           weighting::AbstractString = "both",
+           ref::Union{Dict{<:AbstractString, <:AbstractString}, Nothing} = nothing,
+           freq::Union{AbstractString, Nothing} = nothing,
+           freq_multiplier::Number = 1,
+           start_date::Union{AbstractString, Number, Date, Nothing} = nothing,
+           end_date::Union{AbstractString, Number, Date, Nothing} = nothing,
+           nperm::Number = 999,
+           verbose::Bool = true,
+           seed::Number = rand(1:1000000),
+           use_pre_controls::Bool = false,
+           notyet::Union{Nothing, Bool} = nothing,
+           hc::Union{AbstractString, Number} = "hc1",
+           truejack::Bool = false,
+           edgecase::Bool = false
+          )
+
+The `didint()` function estimates the average effect of treatment on the treated (ATT)
+while accounting for covariates that may vary by state, time, or by both state and time simultaneously.
+
+# Details
+The arguments `treated_states` and `treated_times` should be entered such that the first element in
+`treated_states` refers to the state treated at the date entered as the first element in `treated_times`,
+the second element in `treated_states` refers to the state treated at the date entered as the second element
+in `treated_times`, and so on. 
+
+# Parameters
+
+## Required Parameters
+- `outcome::Union{AbstractString, Symbol}` 
+    Input the name of the column which identifies the outcome of interest.
+- `state::Union{AbstractString, Symbol}` 
+    Input the name of the column which identifies the state membership of the observation.
+- `time::Union{AbstractString, Symbol}`
+    Input the name of the column which identifies the date of the observation.
+- `data::Union{DataFrame, RConnector.RDataFrame}`
+    The DataFrame to be used for the analysis.
+
+## Treatment Specification
+- `gvar::Union{AbstractString, Symbol, Nothing} = nothing`
+    Name of the column which indicates time of first treatment for each state.
+- `treated_states::Union{T, Vector{T}} where T <: Union{AbstractString, Number, Nothing} = nothing`
+    A vector of strings (or a single string) noting the treated state(s).
+- `treatment_times::Union{T, Vector{T}} where T <: Union{AbstractString, Number, Date, Nothing} = nothing`
+    A vector (or single entry) denoting the associated treatment times of the 'treated_states'.
+
+## Model Specification
+- `ccc::AbstractString = "int"`
+    Specify which version of DID-INT should be used.
+    Options are: `"hom"`, `"time"`, `"state"`, "`add`", and `"int"`. 
+- `agg::AbstractString = "cohort"` 
+    Enter the aggregation method as a string.
+    Options are: `"cohort"`, `"simple"`, `"state"`, `"sgt"`, `"none"`.
+- `weighting::AbstractString = "both"`
+    Specify which weighting method should be used.
+    Options are: `"both"`, `"att"`, `"diff"`, or `"none"`.
+- `covariates::Union{T, Vector{T}} where T <: Union{AbstractString, Symbol, Nothing} = nothing` 
+    A vector of covariates entered as either strings or symbols (or a single covariate string or symbol),
+    or, `nothing` (default).
+- `notyet::Bool = false`
+    Determine if pre-treatment periods from treated states should be used as controls.
+- `ref::Union{Dict{<:AbstractString, <:AbstractString}, Nothing} = nothing`
+    A dictionary specifying which category in a categorical variable should be used
+    as the reference (baseline) category.
+
+## Date Processing & Period Grid Construction
+- `date_format::Union{AbstractString, Nothing} = nothing`
+    Date format (e.g. "yyyy" or "yyyy-mm-dd") to be used when parsing string dates from
+    the time column, or `start_date`, `end_date`, and `treatment_times` arguments.
+- `freq::Union{AbstractString, Nothing} = nothing`
+    A string indicating the desired timeframe of a period for the analysis for staggered adoption scenarios.
+    Options are: `"year"`, `"month"`, `"week"`, `"day"`.
+- `freq_multiplier::Number = 1`
+    An integer by which the 'freq' argument should be multiplied in a staggered adoption scenario, e.g. if a two-year
+    period is desired, set `freq = "year"` and `freq_multiplier = 2`.
+- `start_date::Union{AbstractString, Number, Date, Nothing} = nothing`
+    Any data prior this date is dropped, and serves as the starting date for the period
+    grid construction if activated.
+- `end_date::Union{AbstractString, Number, Date, Nothing} = nothing`
+    Any data after this date is dropped, and serves as the end date for the period
+    grid construction if activated.
+
+## Inference
+- `nperm::Number = 999`
+    The number of unique permutations (not including the initial assignment of treatment times)
+    to be considered when performing the randomization inference.
+- `verbose::Bool = true`
+    A boolean option for displaying progress of the randomization procedure. 
+- `seed::Number = rand(1:1000000)`
+    An integer to set the random seed for the randomization inference procedure.
+- `hc::Union{AbstractString, Number} = "hc1"`
+    Specify which heteroskedasticity-consistent covariance matrix estimator (HCCME) should be used.
+    Options are `0`, `1`, `2`, `3`, and `4` (or `"hc0"`, `"hc1"`, `"hc2"`, `"hc3"`, `"hc4"`).
+- `truejack::Bool = false`
+    When aggregation is set to either `"add"`, `"time"`, or `"hom"`, then in order to get valid jackknife
+    standard errors, we need to re-estimate the DID-INT model from square one (running the large FixedEffectsModels).
+    This is because the covariate effects in those cases depend on values from across states, so dropping a state will change
+    the lambda values, this is not true for the aggregation options of `"int"` or `"state"`
+- `edgecase::Bool = false`
+    When there are at least three states for which a long difference can be calculated, then standard errors for an ATT can be calculated
+    directly from the regression of differences on the intercept term and treatment indicator. However, in cases when there are only two states
+    for a particular long difference regression, the standard error can still be constructed from the variance and covariance terms of the relevant
+    means. Calculating these `edgecase` standard errors can be computationally expensive, therefore by default this argument is set to `false`, but
+    may be toggled on by setting `edgecase = true`.
+
+# Returns
+A DataFrame of results including the estimate of the ATT as well as standard errors and p-values.
+
+# Citations
+- Karim & Webb (2025). "Good Controls Gone Bad: Difference-in-Differences with Covariates". https://arxiv.org/abs/2412.14447
+- MacKinnon & Webb (2020). "Randomization inference for difference-in-differences with few treated clusters". https://doi.org/10.1016/j.jeconom.2020.04.024 
+
+"""
+function didint(outcome::Union{AbstractString, Symbol},
+                state::Union{AbstractString, Symbol},
+                time::Union{AbstractString, Symbol},
+                data;
+                gvar::Union{AbstractString, Symbol, Nothing} = nothing,
+                treated_states::Union{T, Vector{T}} where T <: Union{AbstractString, Number, Nothing} = nothing,
+                treatment_times::Union{T, Vector{T}} where T <: Union{AbstractString, Number, Date, Nothing} = nothing,
+                date_format::Union{AbstractString, Nothing} = nothing,
+                covariates::Union{T, Vector{T}} where T <: Union{AbstractString, Symbol, Nothing} = nothing,
+                ccc::AbstractString = "int",
+                agg::AbstractString = "cohort",
+                weighting::AbstractString = "both",
+                ref::Union{Dict{<:AbstractString, <:AbstractString}, Nothing} = nothing,
+                freq::Union{AbstractString, Nothing} = nothing,
+                freq_multiplier::Number = 1,
+                start_date::Union{AbstractString, Number, Date, Nothing} = nothing,
+                end_date::Union{AbstractString, Number, Date, Nothing} = nothing,
+                nperm::Number = 999,
+                verbose::Bool = true,
+                seed::Number = rand(1:1000000),
+                use_pre_controls::Bool = false,
+                notyet::Union{Nothing, Bool} = nothing,
+                hc::Union{AbstractString, Number} = "hc1",
+                wrapper::Union{AbstractString, Nothing} = nothing,
+                truejack::Bool = false,
+                edgecase::Bool = false
+                )
+
+    # Check hc args
+    hc = hc_checks(hc)
+
+    # Check wrapper input
+    wrapper = init_wrapper_check(wrapper)
+
+    # Check typeof(data)
+    data_type_check(data)
+
+    # Let notyet override use_pre_controls
+    use_pre_controls = isnothing(notyet) ? use_pre_controls : notyet
+
+    # Turn outcome, state, time, and gvar to strings if they were inputted as symbols
+    outcome, state, time, gvar = symbol_to_string(outcome, state, time, gvar)
+
+    # Ensure column for covariates are passed as strings
+    covariates = isnothing(covariates) ? covariates : string.(covariates)
+
+    # Determine if the gvar method or the treatment_times & treated_states method is being used
+    treated_states, treatment_times = gvar_or_treatment_times(gvar, treatment_times, treated_states, data, state;
+                                                              event = false, check = "estimate_didint")
+
+    # Do checks for start_date and end_date
+    start_date = start_end_date_checks(start_date, "start_date", date_format)
+    end_date = start_end_date_checks(end_date, "end_date", date_format)           
+
+    # Check that seed is set correctly
+    seed = Int(round(seed))
+    if seed <= 0 
+        error("'seed' must be a positive integer.")
+    end 
+
+    # Check that agg args are passed correctly
+    agg = lowercase(agg)
+    agg_options = ["cohort", "state", "simple", "none", "sgt", "time"]
+    if !(agg in agg_options)
+        error("'agg' must be one of $(agg_options)")
+    end 
+
+    # Check that weighting arg is passed correctly
+    weighting = lowercase(weighting)
+    weighting_options = ["both", "none", "att", "diff"]
+    if !(weighting in weighting_options) 
+        error("'weighting' must be one of $(weighting_options)")
+    end
+
+    # Round nperm
+    nperm = Int(round(nperm))
+    if nperm < 1
+        error("'nperm' must be a positive integer > 0.")
+    end 
+
+    # Create data copy
+    data_copy = DataFrame(data; copycols = false)    
+
+    # Do validation checks to see if specified columns exist, and that they are able to be processed correctly
+    data_copy, treatment_times, covariates = validate_data(data_copy, outcome, state, time, covariates, treatment_times, date_format;
+                                               warn_missing_covariates = false)
+    treatment_times = !(treatment_times isa AbstractVector) ? [treatment_times] : treatment_times
+
+    # Classify the requested estimation as either a staggered adoption or common adoption scenario
+    if length(unique(treatment_times)) == 1
+        common_adoption = true
+        staggered_adoption = false
+    elseif length(unique(treatment_times)) > 1 
+        common_adoption = false
+        staggered_adoption = true
+        agg = agg == "none" ? "cohort" : agg
+    else
+        error("'treatment_times' must have at least one entry.")
+    end
+    
+    # Make sure treated_states and control_states are vectors, make sure control_states exist
+    treated_states = !(treated_states isa AbstractVector) ? [treated_states] : treated_states 
+    unique_states = unique(data_copy[!, state])
+    control_states = setdiff(unique_states, treated_states)
+    if !(control_states isa AbstractVector)
+        control_states = [control_states]
+    end 
+    missing_control_states = isempty(control_states)
+    if missing_control_states && !use_pre_controls
+        error("No control states were found.")
+    elseif missing_control_states && use_pre_controls
+        # If there are at least two unique treatment times, then should still be able to compute
+        # some ATTs if using the notyet treated cells as controls 
+        if !staggered_adoption
+            error("No valid control states were found.")
+        end 
+    end
+
+    if common_adoption 
+        agg = (in(agg, ["cohort", "simple", "none", "time"]) || length(treated_states) == 1) ? "none" : "state"
+    end
+
+    # Do intial check before filtering that treatment_times length is equal treated_states length
+    if staggered_adoption && length(treatment_times) != length(treated_states)
+        error("'treatment_times' should be the same length as the 'treated_states'.")
+    end 
+
+    # Check missing values
+    data_copy = check_missing_vals(data_copy, state, time, covariates)
+
+    # Ensure the state column is a string or number and that the nonmissingtype(treated_states) == nonmissingtype(state column)
+    validate_state_types(treated_states, data_copy, state)
+    data_copy.state_71X9yTx = data_copy[!, state]
+
+    # Do some checks after (potentially) dropping rows to make sure that the analysis
+    # is still valid
+    if (length(unique(data_copy.state_71X9yTx)) == 1)
+        error("Not enough non-missing observations.\nFound", length(unique(data_copy.state_71X9yTx)), "states after dropping missing observations.")
+    end 
+
+    # Validate and convert dates to Date objects, filter data by date range
+    data_copy, treatment_times, start_date, end_date, all_times, freq = validate_and_convert_dates(data_copy, time, treatment_times, date_format,
+                                                                                                   freq, start_date, end_date) 
+
+    # In the case of staggered adoption, do date matching procedure should be done
+    match_to_these_dates, time_to_index = nothing, nothing
+    if staggered_adoption
+        data_copy, treatment_times, treated_states, match_to_these_dates, time_to_index, period = perform_date_matching(data_copy, all_times, freq, freq_multiplier,
+                                                                                                                        start_date, end_date, treatment_times,
+                                                                                                                        treated_states)
+    end
+
+    # Check that treated states actually exist
+    treated_states, treatment_times = validate_treated_states(treated_states, treatment_times, data_copy)
+
+    # Do some checks for treatment_times vector length
+    if common_adoption && length(treatment_times) != length(treated_states)
+        if length(treatment_times) != 1
+            error("'treatment_times' should either be the same length as the 'treated_states' vector or of length 1.")
+        else
+            treatment_times = fill(treatment_times[1], length(treated_states))
+        end 
+    elseif staggered_adoption && length(treatment_times) != length(treated_states)
+        error("'treatment_times' should be the same length as the 'treated_states'.")
+    end 
+
+    # Also need to make sure that start_times < treatment_times < end_times is true for each state
+    for i in eachindex(treated_states)
+        s = treated_states[i]
+        treat_time = treatment_times[i]
+        state_dates = data_copy[data_copy.state_71X9yTx .== s, :time_71X9yTx]
+        earliest = minimum(state_dates)
+        latest = maximum(state_dates)
+        if !(earliest < treat_time)
+            earliest = string(earliest)
+            treat_time = string(treat_time)
+            error("For state $s, the earliest date for which there is non-missing value ($earliest) is not strictly less than the treatment time ($treat_time).")
+        end
+        if !(treat_time <= latest)
+            treat_time = string(treat_time)
+            latest = string(latest)
+            error("For state $s, the treatment time ($treat_time) is greater than the last date ($latest) for which there is a non-missing observation.")
+        end
+    end
+
+    # Ensure state column is a string (as are treated_states)
+    data_copy, treated_states = validate_string_treated_states(data_copy; treated_states = treated_states)
+
+    # Once any date matching procedures are done, convert time_71X9yTx back to a string for processing in `categorical()`
+    # Also keep a column vector copy as a date
+    data_copy.time_dmG5fpM = data_copy.time_71X9yTx
+    if common_adoption
+        data_copy.time_71X9yTx = ifelse.(data_copy.time_71X9yTx .>= treatment_times[1], "post", "pre")
+        data_copy.time_71X9yTx = string.(data_copy.time_71X9yTx)
+        data_copy = check_states_for_common_adoption(data_copy, treated_states)
+    elseif staggered_adoption
+        data_copy.time_71X9yTx = string.(data_copy.time_71X9yTx)
+    else
+        error("A non-common or non-staggered adoption scenario was discovered!?")
+    end 
+
+    # Create dummies for each time and state interaction 
+    data_copy.state_time = categorical(data_copy.state_71X9yTx .* "0IQR7q6Wei7Ejp4e" .* data_copy.time_71X9yTx)
+
+    # Convert factor covariates into multiple numeric dummy variable columns
+    data_copy, covariates_to_include = process_covariates(covariates, data_copy, ref)
+
+    # Force outcome to float64 to speed up regression (runs faster if <:Number rather than <:Union{Number, Missing})
+    data_copy.outcome_71X9yTx = convert(Vector{Float64}, data_copy.outcome_71X9yTx)
+
+    # Check edgecase arg, if true, make sure that its even possible to be in an edgecase situation
+    if edgecase == true && ccc == "add"
+        @warn "'edgecase' standard errors are not available for the 'ccc = add' option."
+        edgecase == false
+    end
+    if (edgecase && common_adoption) && !((length(unique_states) == 2) || (agg == "state" && ((length(unique_states) - length(treated_states)) == 1)))
+        edgecase = false
+    end
+
+    # Overwrite truejack depending on the ccc arg
+    if ccc in ["int", "state"]
+        truejack = false
+    end
+ 
+    # Run the fixed effects model and get back the dataframe of means (or means residualized by covariates) for each period at each state
+    lambda_df, vcov_lambda = iterative_demean(data_copy, ccc, covariates_to_include, staggered_adoption, hc, edgecase,
+                                              agg = agg, time_to_index = time_to_index, treatment_times = treatment_times, match_to_these_dates = match_to_these_dates,
+                                              treated_states = treated_states, unique_states = unique_states, use_pre_controls = use_pre_controls)
+
+    # Define a function that initializes the results dataframe columns
+    init_column() = Vector{Union{Missing, Float64}}(missing, nrows)
+
+    # Compute ATT
+    if staggered_adoption
+        
+        diff_df, ri_diff_df = construct_diff_df(lambda_df, treated_states, treatment_times, time_to_index, match_to_these_dates, use_pre_controls,
+                                                 staggered_adoption, common_adoption, data_copy)
+
+        # Do check to make sure that each state has each (g,t) group for RI 
+        randomize = check_prior_to_ri(diff_df, ri_diff_df)
+
+        # Show period length in results
+        if isnothing(date_format) || date_format == "yyyy"
+            date_format = assume_date_format(period)
+        end
+        period = string(period)
+        start_date = parse_date_to_string_didint(start_date, date_format)
+        end_date = parse_date_to_string_didint(maximum(data_copy.time_dmG5fpM), date_format)
+
+        # Run final regression to compute ATT based on weighting/aggregation method
+        if agg == "cohort"
+
+            # Define nrows and vector to iterate through for sub aggregate ATTs
+            unique_treatment_times = sort(unique(diff_df.treated_time))
+            nrows = length(unique_treatment_times)
+
+            # Create results df
+            results = DataFrame(treatment_time = Vector{Date}(undef, nrows),
+                                att_cohort = init_column(),
+                                agg_att = init_column(),
+                                se_agg_att = init_column(),
+                                pval_agg_att = init_column(),
+                                jknifese_agg_att = init_column(),
+                                jknifepval_agg_att = init_column(),
+                                ri_pval_agg_att = init_column(),
+                                nperm = init_column(),
+                                se_att_cohort = init_column(),
+                                pval_att_cohort = init_column(),
+                                jknifese_att_cohort = init_column(),
+                                jknifepval_att_cohort = init_column(),
+                                ri_pval_att_cohort = init_column(),
+                                weights = Vector{Union{Nothing, Float64}}(nothing, nrows))
+
+            # Compute the sub aggregate ATTs
+            for i in eachindex(unique_treatment_times)
+                trt = unique_treatment_times[i]
+                temp = diff_df[diff_df.treated_time .== trt, :]
+                X = convert(Matrix{Float64},(hcat(ones(nrow(temp)), temp.treat)))
+                Y = convert(Vector{Float64}, temp.diff)
+                if in(weighting, ["diff", "both"])
+                    W = convert(Vector{Float64}, temp.n)
+                    W ./= sum(W)
+                else
+                    W = fill(nothing, nrow(temp))
+                end            
+                results.treatment_time[i] = trt
+                result_dict = final_regression_results(X, Y, W = W, hc = hc)
+                results.att_cohort[i] = result_dict["beta_hat"]
+                results.se_att_cohort[i] = length(Y) == 2 ? edge_case_se(temp.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+                results.pval_att_cohort[i] = result_dict["pval_att"] 
+                if weighting in ["att", "both"]
+                    results.weights[i] = sum(temp[temp.treat .== 1, "n_t"])
+                end
+            end
+
+            # Compute aggregate ATT and return results
+            results = scale_weights_final(results, weighting)
+            X = ones(nrow(results), 1)
+            Y = convert(Vector{Float64}, results.att_cohort)
+            W = results.weights
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, covariates_to_include)
+            results = !randomize ? results : randomization_inference_v2(vcat(diff_df, ri_diff_df), nperm, results, "cohort",
+                                                                        verbose, seed, weighting, use_pre_controls)
+
+        elseif agg == "simple"
+
+            # Define nrows and object to iterate through for sub aggregate ATTs (unique_diffs)
+            unique_diffs = sort(unique(select(diff_df, :t, :r1, :treated_time)), [:treated_time, :t])
+            nrows = nrow(unique_diffs)
+
+            # Create results df
+            results = DataFrame(r1 = Vector{Date}(undef, nrows),
+                                time = Vector{Date}(undef, nrows),
+                                gvar = Vector{Date}(undef, nrows),
+                                att_gt = init_column(),
+                                agg_att = init_column(),
+                                se_agg_att = init_column(),
+                                pval_agg_att = init_column(),
+                                jknifese_agg_att = init_column(),
+                                jknifepval_agg_att = init_column(),
+                                ri_pval_agg_att = init_column(),
+                                nperm = init_column(),
+                                se_att_gt = init_column(),
+                                pval_att_gt = init_column(),
+                                jknifese_att_gt = init_column(),
+                                jknifepval_att_gt = init_column(),
+                                ri_pval_att_gt = init_column(),
+                                weights = Vector{Union{Nothing, Float64}}(nothing, nrows))
+            
+            # Compute the sub aggregate ATTs
+            for i in 1:nrow(unique_diffs)
+                t = unique_diffs[i,"t"]
+                r1 = unique_diffs[i,"r1"]
+                gvar = unique_diffs[i, "treated_time"]
+                temp = diff_df[(diff_df.t .== t) .& (diff_df.r1 .== r1), :]
+                X = convert(Matrix{Float64},(hcat(ones(nrow(temp)), temp.treat)))
+                Y = convert(Vector{Float64}, temp.diff)
+                if in(weighting, ["diff", "both"])
+                    W = convert(Vector{Float64}, temp.n)
+                    W ./= sum(W)
+                else
+                    W = fill(nothing, nrow(temp))
+                end 
+                results.time[i] = t
+                results.r1[i] = r1
+                results.gvar[i] = gvar
+                result_dict = final_regression_results(X, Y, W = W, hc = hc)
+                results.att_gt[i] = result_dict["beta_hat"]
+                results.se_att_gt[i] = length(Y) == 2 ? edge_case_se(temp.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+                results.pval_att_gt[i] = result_dict["pval_att"] 
+                if weighting in ["att", "both"]
+                    results.weights[i] = sum(temp[temp.treat .== 1, "n_t"])
+                end
+            end
+
+            # Sort results dataframe and compute aggregate ATT, return results
+            sort!(results, [:time])
+            sort!(results, [:r1])
+            results = scale_weights_final(results, weighting)
+            X = ones(nrow(results), 1)
+            Y = convert(Vector{Float64}, results.att_gt)
+            W = results.weights
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, covariates_to_include)
+            results = !randomize ? results : randomization_inference_v2(vcat(diff_df, ri_diff_df), nperm, results, "simple",
+                                                                        verbose, seed, weighting, use_pre_controls)
+
+        elseif agg == "state"
+
+            # Define nrows and identify object to iterate thru for the sub aggregate ATTs
+            nrows = length(treated_states)
+
+            # Create results df
+            results = DataFrame(state = Vector{String}(undef, nrows),
+                                att_s = init_column(),
+                                agg_att = init_column(),
+                                se_agg_att = init_column(),
+                                pval_agg_att = init_column(),
+                                jknifese_agg_att = init_column(),
+                                jknifepval_agg_att = init_column(),
+                                ri_pval_agg_att = init_column(),
+                                nperm = init_column(),
+                                se_att_s = init_column(),
+                                pval_att_s = init_column(),
+                                jknifese_att_s = init_column(),
+                                jknifepval_att_s = init_column(),
+                                ri_pval_att_s = init_column(),
+                                weights = Vector{Union{Nothing, Float64}}(nothing, nrows))
+
+            # Compute sub aggregate ATTs
+            for i in eachindex(treated_states)
+                state = treated_states[i]
+                trt = treatment_times[i]
+                temp_treated = diff_df[diff_df.state .== state, :]
+                temp_control = diff_df[(diff_df.treat .== 0) .&& (diff_df.treated_time .== trt), :]
+                temp = vcat(temp_control, temp_treated)
+                X = convert(Matrix{Float64}, hcat(ones(nrow(temp)), temp.treat))
+                Y = convert(Vector{Float64}, temp.diff)
+                if in(weighting, ["diff", "both"])
+                    W = convert(Vector{Float64}, temp.n)
+                    W ./= sum(W)
+                else
+                    W = fill(nothing, nrow(temp))
+                end 
+                results.state[i] = state
+                result_dict = final_regression_results(X, Y, W = W, hc = hc)
+                results.att_s[i] = result_dict["beta_hat"]
+                results.se_att_s[i] = length(Y) == 2 ? edge_case_se(temp.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+                results.pval_att_s[i] = result_dict["pval_att"] 
+                if weighting in ["att", "both"]
+                    results.weights[i] = sum(temp[temp.treat .== 1, "n_t"])
+                end
+            end
+
+            # Sort results dataframe and compute aggregate ATT, return results
+            results.tuple_state = custom_sort_order.(results.state)
+            sort!(results,[order(:tuple_state)])
+            select!(results, Not([:tuple_state]))
+            results = scale_weights_final(results, weighting)
+            X = ones(nrow(results), 1)
+            Y = convert(Vector{Float64}, results.att_s)
+            W = results.weights
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, covariates_to_include)
+            results = !randomize ? results : randomization_inference_v2(vcat(diff_df, ri_diff_df), nperm, results, "state",
+                                                                        verbose, seed, weighting, use_pre_controls)
+
+        elseif agg == "none"  
+            
+            # Create results df
+            results = DataFrame(agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                se_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                pval_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                jknifese_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                jknifepval_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                ri_pval_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                nperm = Vector{Union{Missing, Float64}}(missing, 1))
+            
+            # Compute aggregate ATT, return results
+            X = convert(Matrix{Float64}, hcat(ones(nrow(diff_df)), diff_df.treat))
+            Y = convert(Vector{Float64}, diff_df.diff)
+            if in(weighting, ["diff", "both"])
+                W = convert(Vector{Float64}, diff_df.n)
+                W ./= sum(W)
+            else
+                W = fill(nothing, nrow(diff_df))
+            end 
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, covariates_to_include)
+            results = !randomize ? results : randomization_inference_v2(vcat(diff_df, ri_diff_df), nperm, results, "none",
+                                                                        verbose, seed, weighting, use_pre_controls)
+
+        elseif agg == "sgt"
+            
+            # Compute nrows and define object to iterate thru for the sub aggregate ATTs
+            unique_sgt = sort(unique(select(diff_df[diff_df.treat .== 1,:], :state, :t, :treated_time)), [:state, :treated_time, :t])
+            nrows = nrow(unique_sgt)
+
+            # Create results df
+            results = DataFrame(state = Vector{String}(undef, nrows),
+                                gvar = Vector{Date}(undef, nrows),
+                                t = Vector{Date}(undef, nrows),
+                                att_sgt = init_column(),
+                                agg_att = init_column(),
+                                se_agg_att = init_column(),
+                                pval_agg_att = init_column(),
+                                jknifese_agg_att = init_column(),
+                                jknifepval_agg_att = init_column(),
+                                ri_pval_agg_att = init_column(),
+                                nperm = init_column(),
+                                se_att_sgt = init_column(),
+                                pval_att_sgt = init_column(),
+                                jknifese_att_sgt = init_column(),
+                                jknifepval_att_sgt = init_column(),
+                                ri_pval_att_sgt = init_column(),
+                                weights = Vector{Union{Nothing, Float64}}(nothing, nrows))
+            
+            # Compute the sub aggregate ATTs 
+            for i in 1:nrow(unique_sgt)
+                state = unique_sgt[i, "state"]
+                gvar = unique_sgt[i, "treated_time"]
+                t = unique_sgt[i, "t"]
+                temp_treated = diff_df[(diff_df.state .== state) .&& (diff_df.treated_time .== gvar) .&& (diff_df.t .== t),:]
+                temp_control = diff_df[(diff_df.treat .== 0) .&& (diff_df.treated_time .== gvar) .&& (diff_df.t .== t),:]
+                temp = vcat(temp_treated, temp_control)
+                X = convert(Matrix{Float64}, hcat(ones(nrow(temp)), temp.treat))
+                Y = convert(Vector{Float64}, temp.diff)
+                if in(weighting, ["diff", "both"])
+                    W = convert(Vector{Float64}, temp.n)
+                    W ./= sum(W)
+                else
+                    W = fill(nothing, nrow(temp))
+                end 
+                results.state[i] = state
+                results.gvar[i] = gvar
+                results.t[i] = t
+                result_dict = final_regression_results(X, Y, W = W, hc = hc)
+                results.att_sgt[i] = result_dict["beta_hat"]
+                results.se_att_sgt[i] = length(Y) == 2 ? edge_case_se(temp.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+                results.pval_att_sgt[i] = result_dict["pval_att"] 
+                if weighting in ["att", "both"]
+                    results.weights[i] = sum(temp[temp.treat .== 1, "n_t"])
+                end
+            end 
+
+            # Compute aggregate ATT, return results
+            results = scale_weights_final(results, weighting)
+            X = ones(nrow(results), 1)
+            Y = convert(Vector{Float64}, results.att_sgt)
+            W = results.weights
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, covariates_to_include)
+            results = !randomize ? results : randomization_inference_v2(vcat(diff_df, ri_diff_df), nperm, results, "sgt",
+                                                                        verbose, seed, weighting, use_pre_controls)
+
+        elseif agg == "time"
+
+            # Compute nrows, define times to iterate thru to get sub aggregate ATTs
+            nrows = length(unique(diff_df.time_since_treatment))
+            times = sort(unique(diff_df.time_since_treatment))
+
+            # Create results df
+            results = DataFrame(periods_post_treat = init_column(),
+                                att_t = init_column(),
+                                agg_att = init_column(),
+                                se_agg_att = init_column(),
+                                pval_agg_att = init_column(),
+                                jknifese_agg_att = init_column(),
+                                jknifepval_agg_att = init_column(),
+                                ri_pval_agg_att = init_column(),
+                                nperm = init_column(),
+                                se_att_t = init_column(),
+                                pval_att_t = init_column(),
+                                jknifese_att_t = init_column(),
+                                jknifepval_att_t = init_column(),
+                                ri_pval_att_t = init_column(),
+                                weights = Vector{Union{Nothing, Float64}}(nothing, nrows))
+
+            # Special procedure for adding time or gvar dummies (yields equivalent results)
+            diff = vcat(diff_df, ri_diff_df)
+            treated_category = categorical(string.(diff.treated_time); ordered = true)
+            levels_tt   = levels(treated_category)         
+            dummy_cols  = Symbol[]                         
+            for i in eachindex(levels_tt) 
+                tt = levels_tt[i]                    
+                colname = Symbol("tt_", i)
+                diff[!, colname] = Int.(treated_category .== tt)
+                push!(dummy_cols, colname)
+            end
+
+            # Compute sub aggregate ATTs
+            for i in eachindex(times)
+                t = times[i]
+                temp = diff[(diff.time_since_treatment .== t) .&& (diff.treat .!= -1), :]
+                X = design_matrix_time_agg(temp, dummy_cols, Symbol("treat"))
+                Y = convert(Vector{Float64}, temp.diff)
+                if in(weighting, ["diff", "both"])
+                    W = convert(Vector{Float64}, temp.n)
+                    W ./= sum(W)
+                else
+                    W = fill(nothing, nrow(temp))
+                end 
+                results.periods_post_treat[i] = t
+                result_dict = final_regression_results(X, Y, W = W, hc = hc)
+                results.att_t[i] = result_dict["beta_hat"]
+                results.se_att_t[i] = length(Y) == 2 ? edge_case_se(temp.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+                results.pval_att_t[i] = result_dict["pval_att"] 
+                if weighting in ["att", "both"]
+                    results.weights[i] = sum(temp[temp.treat .== 1, "n_t"])
+                end
+            end
+
+            # Compute aggregate ATT, return results
+            results = scale_weights_final(results, weighting)
+            X = ones(nrow(results), 1)
+            Y = convert(Vector{Float64}, results.att_t)
+            W = results.weights
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff[diff.treat .!= -1, :], results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, covariates_to_include)
+            results = !randomize ? results : randomization_inference_v2(diff, nperm, results, "time",
+                                                                        verbose, seed, weighting, use_pre_controls,
+                                                                        dummy_cols = dummy_cols)
+        end
+
+        # Return staggered adoption results
+        results.period .= period
+        results.start_date .= start_date
+        results.end_date .= end_date
+	    results = wrapper_check(results, wrapper)
+        return results
+
+    elseif common_adoption
+
+        # Create diff matrix
+        diff_df = construct_diff_df(lambda_df, treated_states, treatment_times, time_to_index, match_to_these_dates, use_pre_controls,
+                                    staggered_adoption, common_adoption, data_copy)
+
+        # Compute results
+        if in(agg, ["cohort", "simple", "none"]) || length(treated_states) == 1
+            agg = "none"
+            results = DataFrame(agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                se_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                pval_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                jknifese_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                jknifepval_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                ri_pval_agg_att = Vector{Union{Missing, Float64}}(missing, 1),
+                                nperm = Vector{Union{Missing, Float64}}(missing, 1))
+            X = convert(Matrix{Float64}, hcat(ones(nrow(diff_df)), diff_df.treat))
+            Y = convert(Vector{Float64}, diff_df.diff)
+            if in(weighting, ["diff", "both"])
+                W = convert(Vector{Float64}, diff_df.n)
+                W ./= sum(W)
+            else
+                W = fill(nothing, nrow(diff_df))
+            end 
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = length(Y) == 2 ? edge_case_se(diff_df.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, nothing, treatment_times, nothing,
+                                          use_pre_controls, covariates_to_include)
+            results = randomization_inference_v2(diff_df, nperm, results, agg,
+                                                 verbose, seed, weighting,
+                                                 use_pre_controls)
+
+        elseif in(agg, ["state", "sgt"])
+            agg = "state"
+            # Define nrows and identify object to iterate thru for the sub aggregate ATTs
+            nrows = length(treated_states)
+
+            # Create results df
+            results = DataFrame(state = Vector{String}(undef, nrows),
+                                att_s = init_column(),
+                                agg_att = init_column(),
+                                se_agg_att = init_column(),
+                                pval_agg_att = init_column(),
+                                jknifese_agg_att = init_column(),
+                                jknifepval_agg_att = init_column(),
+                                ri_pval_agg_att = init_column(),
+                                nperm = init_column(),
+                                se_att_s = init_column(),
+                                pval_att_s = init_column(),
+                                jknifese_att_s = init_column(),
+                                jknifepval_att_s = init_column(),
+                                ri_pval_att_s = init_column(),
+                                weights = Vector{Union{Nothing, Float64}}(nothing, nrows))
+
+            # Compute sub aggregate ATTs
+            for i in eachindex(treated_states)
+                state = treated_states[i]
+                trt = treatment_times[i]
+                temp_treated = diff_df[diff_df.state .== state, :]
+                temp_control = diff_df[(diff_df.treat .== 0) .&& (diff_df.treated_time .== trt), :]
+                temp = vcat(temp_control, temp_treated)
+                X = convert(Matrix{Float64}, hcat(ones(nrow(temp)), temp.treat))
+                Y = convert(Vector{Float64}, temp.diff)
+                if in(weighting, ["diff", "both"])
+                    W = convert(Vector{Float64}, temp.n)
+                    W ./= sum(W)
+                else
+                    W = fill(nothing, nrow(temp))
+                end 
+                results.state[i] = state
+                result_dict = final_regression_results(X, Y, W = W, hc = hc)
+                results.att_s[i] = result_dict["beta_hat"]
+                results.se_att_s[i] = length(Y) == 2 ? edge_case_se(temp.lambda_idx, vcov_lambda) : result_dict["beta_hat_se"]
+                results.pval_att_s[i] = result_dict["pval_att"] 
+                if weighting in ["att", "both"]
+                    results.weights[i] = sum(temp[temp.treat .== 1, "n_t"])
+                end
+            end
+
+            # Sort results dataframe and compute aggregate ATT, return results
+            results.tuple_state = custom_sort_order.(results.state) # Just for you, Yunhan
+            sort!(results,[order(:tuple_state)])
+            select!(results, Not([:tuple_state]))
+            results = scale_weights_final(results, weighting)
+            X = ones(nrow(results), 1)
+            Y = convert(Vector{Float64}, results.att_s)
+            W = results.weights
+            result_dict = final_regression_results(X, Y, W = W, hc = hc)
+            results.agg_att[1] = result_dict["beta_hat"]
+            results.se_agg_att[1] = result_dict["beta_hat_se"]
+            results.pval_agg_att[1] = result_dict["pval_att"]
+            results = jackknife_procedure(diff_df, results, weighting,
+                                          truejack, agg, data_copy,
+                                          ccc, covariates, common_adoption, staggered_adoption,
+                                          treated_states, nothing, treatment_times, nothing,
+                                          use_pre_controls, covariates_to_include)
+            results = randomization_inference_v2(diff_df, nperm, results, "state",
+                                                 verbose, seed, weighting, use_pre_controls)
+
+        end
+    results = wrapper_check(results, wrapper)
+    return results
+    end 
+
+end
+
+### The following functions are parent functions within the didint() function:
+function scale_weights_final(results::DataFrame, weighting::AbstractString)
+    
+    # Scale weights and convert to either Float64 or Nothing
+    if weighting in ["att", "both"]
+        results.weights ./= sum(results.weights)
+        results.weights = convert(Vector{Float64}, results.weights)
+    elseif weighting in ["diff", "none"]
+        results.weights = convert(Vector{Nothing}, results.weights)
+    end
+    return results
+end
+
+function check_states_for_common_adoption(data_copy, treated_states)
+
+    states = unique(data_copy.state_71X9yTx)
+    states_to_drop = []
+    for state in states
+        periods = unique(data_copy[data_copy.state_71X9yTx .== state, :].time_71X9yTx)
+        if !("pre" in periods && "post" in periods)
+            @warn "State $state does not have at least one post-treatment and one pre-treatment observation.\nDropping $state."
+            push!(states_to_drop, state)
+        end
+    end
+
+    data_copy = isempty(states_to_drop) ? data_copy : filter(row -> row.state_71X9yTx ∉ states_to_drop, data_copy)
+
+    remaining_states = unique(data_copy.state_71X9yTx)
+    n_states = length(remaining_states)
+    if n_states < 2
+        error("Only found $n_states with observations both post-treatment and pre-treatment!")
+    end
+    have_treated = any(state -> state in remaining_states, treated_states)
+    have_control = any(state -> state ∉ treated_states, remaining_states)
+
+    if have_treated && have_control
+        return data_copy
+    else
+        error("After dropping states that did not have at least one post-treatment and one pre-treatment observation,\nthere was not a single pair of a treated and untreated state required in order to compute ATTs.")
+    end
+
+end
+
+function design_matrix_time_agg(temp::DataFrame, dummy_cols::Vector{Symbol}, treat_col::Symbol)
+
+    # This function adds dummy variables corresponding to the different gvars
+    # e.g. in the 4 periods since treatment group you could have multiple different 
+    # treatment times, so this function accounts for those differences
+
+    # This function is called both from within didint() and during the randomization inference
+    
+    # Only keep the dummy columns where at least one row is 1
+    active = [c for c in dummy_cols if any(temp[!, c] .== 1)]
+
+    # Drop the first of the kept dummies to avoid perfect multicollinearity with intercept
+    dummies_keep = length(active) ≤ 1 ? Symbol[] : active[2:end]
+
+    # If no kept dummy, just omit 
+    if isempty(dummies_keep)
+        X = hcat(ones(nrow(temp)), temp[:, treat_col])               
+    else 
+        X = hcat(ones(nrow(temp)), Matrix(temp[:, dummies_keep]), temp[:, treat_col])            
+    end
+    return X
+end
+
+function final_regression_results(X::Matrix, Y::Vector; W::Vector = [nothing], hc::AbstractString = "hc1")
+
+    n = length(Y)
+    # Check for and remove missing values
+    # Build mask for each component
+    x_valid = [!any(ismissing, X[i, :]) for i in 1:n]
+    y_valid = .!ismissing.(Y)
+
+    if eltype(W) <: Nothing
+        valid_mask = x_valid .& y_valid
+    else
+        w_valid = .!ismissing.(W)
+        valid_mask = x_valid .& y_valid .& w_valid
+    end
+
+    # Filter out missing observations
+    X = X[valid_mask, :]
+    Y = Y[valid_mask]
+    if eltype(W) <: Number
+        W = W[valid_mask]
+    end
+    
+    # Check if we have enough observations left
+    ncolx = size(X, 2)
+    n = length(Y)
+    if n < ncolx
+        @warn "Insufficient observations after dropping missing values (n = $n, k = $ncolx)"
+        return Dict("beta_hat" => missing, "beta_hat_se" => missing, 
+                   "pval_att" => missing, "beta_hat_se_jknife" => missing, 
+                   "pval_att_jknife" => missing)
+    end
+
+    beta_hat = nothing
+    beta_hat_cov = nothing
+
+    # Run OLS (normally if weights aren't provided, and scale (X,Y) -> (Xw,Yw) otherwise)
+    if eltype(W) <: Nothing
+        beta_hat = safe_solve(X, Y)
+        if ismissing(beta_hat)
+            return Dict("beta_hat" => missing, "beta_hat_se" => missing, "pval_att" => missing,
+                       "beta_hat_se_jknife" => missing, "pval_att_jknife" => missing)
+        end
+        if n > ncolx
+            resid = Y - X * beta_hat
+            beta_hat_cov = compute_hc_covariance(X, resid, hc)
+        end
+    elseif eltype(W) <: Number
+        W ./= sum(W)
+        sw = sqrt.(W)           
+        Xw = X .* sw            
+        Yw = Y .* sw
+        beta_hat = safe_solve(Xw, Yw)
+        if ismissing(beta_hat)
+            return Dict("beta_hat" => missing, "beta_hat_se" => missing, "pval_att" => missing,
+                       "beta_hat_se_jknife" => missing, "pval_att_jknife" => missing)
+        end
+        if n > ncolx
+            resid_w = Yw - Xw * beta_hat
+            beta_hat_cov = compute_hc_covariance(Xw, resid_w, hc)
+        end
+    end 
+
+    if n > ncolx
+        beta_hat_var = diag(beta_hat_cov)
+        beta_hat_se = sqrt(beta_hat_var[ncolx]) 
+    else 
+        beta_hat_se = missing
+    end
+    dof = n - ncolx
+    pval_att = dof > 0 && !ismissing(beta_hat_se) ? 2 * (1 - cdf(TDist(dof), abs(beta_hat[ncolx] / beta_hat_se))) : missing 
+    result_dict = Dict("beta_hat" => beta_hat[ncolx], "beta_hat_se" => beta_hat_se, "pval_att" => pval_att)
+    return result_dict
+end
+
+function custom_sort_order(s)
+    parsed = tryparse(Int, s)
+    if isnothing(parsed)
+        (0, lowercase(s))
+    else
+        (1, parsed)
+    end 
+end
+
+function check_prior_to_ri(diff_df, ri_diff_df)
+    
+    randomize = true
+
+    # Get all required (t, r1) combinations and check for each state, each pair exists in the combined data
+    combined_df = vcat(diff_df, ri_diff_df)
+    all_states = unique(combined_df.state)
+    required_pairs = unique(select(combined_df, :t, :r1))
+    for state in all_states
+        state_data = combined_df[combined_df.state .== state, :]
+        state_pairs = unique(select(state_data, :t, :r1))
+        missing_pairs = antijoin(required_pairs, state_pairs, on=[:t, :r1])
+        if nrow(missing_pairs) > 0
+            randomize = false
+            break
+        end
+    end
+    if !randomize
+        @warn "Randomization inference cannot be performed.\nDid not find all the non-missing values for differences required to implement randomization inference procedure."
+    end
+
+    return randomize
+
+end
+
+function randomization_inference_v2(diff_df::DataFrame, nperm::Int, results::DataFrame,
+                                    agg::AbstractString, verbose::Bool, seed::Number,
+                                    weighting::AbstractString,
+                                    use_pre_controls::Bool;
+                                    dummy_cols::Union{Vector{Symbol}, Nothing} = nothing)
+    
+    # PART ONE: CREATE RANDOMIZED TREATMENT COLUMNS
+    original_treated = unique(diff_df[diff_df.treat .== 1, [:state, :treated_time]])
+    k = nrow(original_treated)  
+    treatment_times = original_treated.treated_time
+    treatment_states = original_treated.state
+    all_states = unique(diff_df.state)
+
+    # compute_n_unique_assignments() computes all of the possible assignments (including the actual assignment)
+    # so taking compute_n_unique_assignments() - 1 gives us the number of all of the possible unique randomizations besides the actual assignment
+    n_unique_perms = compute_n_unique_assignments(treatment_times, length(all_states)) - 1 
+    if nperm > n_unique_perms
+        @warn "'nperm' was set to $nperm but only $n_unique_perms unique permutations exist. \n 
+                Setting 'nperm' to $(n_unique_perms)."
+        nperm = n_unique_perms
+    end 
+    if nperm < 399
+        @warn "'nperm' is less than 399!"
+    end 
+
+    randomized_diff_df = diff_df
+    Random.seed!(seed)
+    
+    i = 1
+    seen = Set{String}()
+    pairs = zip(original_treated.state, original_treated.treated_time)
+    key = join(sort([string(s, "-", t) for (s, t) in pairs]), "")
+    push!(seen, key)
+    while i <= nperm
+        shuffled_states = shuffle(all_states)
+        new_treated_states = shuffled_states[1:k]
+        new_treated_times = treatment_times[randperm(k)]
+        pairs = zip(new_treated_states, new_treated_times)
+        key = join(sort([string(s, "-", t) for (s, t) in pairs]), "")
+        if key in seen
+            continue
+        end 
+        assigned_tt = Dict(new_treated_states[j] => new_treated_times[j] for j in 1:k)
+        new_treat = Vector{Int}(undef, nrow(diff_df))
+        for row_idx in 1:nrow(diff_df)
+            state = diff_df[row_idx, :state]
+            trt_time = diff_df[row_idx, :treated_time]
+            if haskey(assigned_tt, state)
+                if trt_time == assigned_tt[state]
+                    new_treat[row_idx] = 1
+                else 
+                    if use_pre_controls
+                        t = diff_df[row_idx, :t]
+                        if t < assigned_tt[state]
+                            new_treat[row_idx] = 0
+                        else
+                            new_treat[row_idx] = -1
+                        end 
+                    else
+                        new_treat[row_idx] = -1
+                    end
+                end
+            else
+                new_treat[row_idx] = 0
+            end
+        end
+        randomized_diff_df[!, Symbol("treat_random_", i)] = new_treat
+        i += 1
+    end
+
+    # PART TWO: COMPUTE RI_ATT & RI_ATT_SUBGROUP
+    # Force agg arguments for common adoption to either none or state
+    if (length(unique(treatment_times)) == 1 && in(agg, ["cohort", "simple"])) || (length(unique(treatment_times)) == 1 && length(unique(treatment_states)) == 1)
+        agg = "none"
+    end 
+    if length(unique(treatment_times)) == 1 && agg == "sgt"
+        agg = "state"
+    end 
+
+    att_ri = Vector{Float64}(undef, nperm)
+    if agg == "cohort" 
+        treatment_times = sort(unique(treatment_times))
+        att_ri_cohort = Matrix{Float64}(undef, nperm, length(treatment_times))
+        for j in 1:nperm 
+            colname = Symbol("treat_random_$(j)")
+            W = Vector{Float64}(undef, length(treatment_times))
+            for i in eachindex(treatment_times)
+                # Compute sub aggregate ATT
+                trt = treatment_times[i]
+                temp = diff_df[(diff_df[!, colname] .!= -1) .&& (diff_df.treated_time .== trt), :]
+                att_ri_cohort[j,i] = compute_ri_sub_agg_att(temp, weighting, colname)
+                
+                # Compute weights
+                if in(weighting, ["att", "both"])
+                    W[i] = sum(temp[temp[!, colname] .== 1, "n_t"])
+                end 
+            end
+
+            # Compute aggregate ATT
+            if in(weighting, ["att", "both"])
+                W ./= sum(W)
+            elseif in(weighting, ["none", "diff"])
+                W .= (1 / length(W))
+            end 
+            att_ri[j] = dot(W, att_ri_cohort[j,:])
+            if verbose && j % 100 == 0
+                println("Completed $(j) of $(nperm) permutations")
+            end
+        end 
+    elseif agg == "state"
+        att_ri_state = Matrix{Float64}(undef, nperm, length(treatment_times))
+        for j in 1:nperm 
+            colname = Symbol("treat_random_$(j)")
+            W = Vector{Float64}(undef, length(treatment_states))
+            for i in eachindex(treatment_states)
+                # Compute sub aggregate ATT
+                trt = treatment_times[i]
+                temp = diff_df[(diff_df[!, colname] .!= -1) .&& (diff_df.treated_time .== trt), :]
+                temp_treated_silos = unique(temp[temp[!, colname] .== 1, "state"])
+                temp_treated_silo = shuffle(temp_treated_silos)[1]
+                temp = temp[(temp.state .== temp_treated_silo) .|| (temp[!, colname] .== 0), :]
+                att_ri_state[j,i] = compute_ri_sub_agg_att(temp, weighting, colname)
+
+                # Compute weights
+                if in(weighting, ["att", "both"])
+                    W[i] = sum(temp[temp[!, colname] .== 1, "n_t"])
+                end 
+            end
+
+            # Compute aggregate ATT
+            if in(weighting, ["att", "both"])
+                W ./= sum(W)
+            elseif in(weighting, ["none", "diff"])
+                W .= (1 / length(treatment_states))
+            end 
+            att_ri[j] = dot(W, att_ri_state[j,:])
+            if verbose && j % 100 == 0
+                println("Completed $(j) of $(nperm) permutations")
+            end 
+        end 
+    elseif agg == "simple"
+        unique_diffs = unique(select(diff_df[diff_df.treat .== 1,:], :t, :r1, :treated_time))
+        att_ri_simple = Matrix{Float64}(undef, nperm, nrow(unique_diffs))
+        for j in 1:nperm
+            colname = Symbol("treat_random_$(j)")
+            W = Vector{Float64}(undef, nrow(unique_diffs))
+            for i in 1:nrow(unique_diffs)
+                # Compute sub aggregate ATT
+                t = unique_diffs[i,"t"]
+                r1 = unique_diffs[i,"r1"]
+                temp = diff_df[(diff_df[!, colname] .!= -1) .&& (diff_df.t .== t) .&& (diff_df.r1 .== r1), :]
+                att_ri_simple[j,i] = compute_ri_sub_agg_att(temp, weighting, colname)
+
+                # Compute weights
+                if in(weighting, ["att", "both"])
+                    W[i] = sum(temp[temp[!, colname] .== 1, "n_t"])
+                end 
+            end
+
+            # Compute aggregate ATT
+            if in(weighting, ["att", "both"])
+                W ./= sum(W)
+            elseif in(weighting, ["none", "diff"])
+                W .= (1 / nrow(unique_diffs))
+            end 
+            att_ri[j] = dot(W, att_ri_simple[j,:])
+            if verbose && j % 100 == 0
+                println("Completed $(j) of $(nperm) permutations")
+            end
+        end 
+    elseif agg == "sgt"
+        unique_diffs = unique(select(diff_df[diff_df.treat .== 1,:], :state, :t, :r1, :treated_time))
+        att_ri_sgt = Matrix{Float64}(undef, nperm, nrow(unique_diffs))
+        for j in 1:nperm
+            colname = Symbol("treat_random_$(j)")
+            W = Vector{Float64}(undef, nrow(unique_diffs))
+            for i in 1:nrow(unique_diffs)
+                # Compute sub aggregate ATT
+                t = unique_diffs[i,"t"]
+                r1 = unique_diffs[i,"r1"]
+                temp = diff_df[(diff_df[!, colname] .!= -1) .&& (diff_df.t .== t) .&& (diff_df.r1 .== r1), :]
+                temp_treated_silos = unique(temp[temp[!, colname] .== 1, "state"])
+                temp_treated_silo = shuffle(temp_treated_silos)[1]
+                temp = temp[(temp.state .== temp_treated_silo) .|| (temp[!, colname] .== 0), :]
+                att_ri_sgt[j,i] = compute_ri_sub_agg_att(temp, weighting, colname)
+                
+                # Compute weights
+                if in(weighting, ["att", "both"])
+                    W[i] = sum(temp[temp[!, colname] .== 1, "n_t"])
+                end 
+            end
+
+            # Compute aggregate ATT
+            if in(weighting, ["att", "both"])
+                W ./= sum(W)
+            elseif in(weighting, ["none", "diff"])
+                W .= (1 / nrow(unique_diffs))
+            end 
+            att_ri[j] = dot(W, att_ri_sgt[j,:])
+            if verbose && j % 100 == 0
+                println("Completed $(j) of $(nperm) permutations")
+            end
+        end 
+    elseif agg == "none"
+        for j in 1:nperm
+            colname = Symbol("treat_random_$(j)")
+            temp = diff_df[diff_df[!, colname] .!= -1,:]
+            att_ri[j] = compute_ri_sub_agg_att(temp, weighting, colname)
+            if verbose && j % 100 == 0
+                println("Completed $(j) of $(nperm) permutations")
+            end
+        end 
+    elseif agg == "time"
+        times = results.periods_post_treat
+        att_ri_time = Matrix{Float64}(undef, nperm, length(times))
+        for j in 1:nperm
+            colname = Symbol("treat_random_$(j)")
+            W = Vector{Float64}(undef, length(times))
+            for i in eachindex(times)
+                # Compute sub aggregate ATT
+                t = times[i]
+                temp = diff_df[(diff_df[!, colname] .!= -1) .&& (diff_df.time_since_treatment .== t), :]
+                Y = convert(Vector{Float64}, temp.diff)
+                X = design_matrix_time_agg(temp, dummy_cols, colname)
+                if in(weighting, ["diff", "both"]) 
+                    W_diff = convert(Vector{Float64}, temp.n)
+                    W_diff ./= sum(W_diff) 
+                    sw = sqrt.(W_diff)           
+                    X = X .* sw            
+                    Y = Y .* sw
+                end 
+                att_ri_time[j,i] = (X \ Y)[end]
+                
+                # Compute weights
+                if in(weighting, ["att", "both"])
+                    W[i] = sum(temp[temp[!, colname] .== 1, "n_t"])
+                end 
+            end
+
+            # Compute aggregate ATT
+            if in(weighting, ["att", "both"])
+                W ./= sum(W)
+            elseif in(weighting, ["none", "diff"])
+                W .= (1 / length(times))
+            end 
+            att_ri[j] = dot(W, att_ri_time[j,:])
+            if verbose && j % 100 == 0
+                println("Completed $(j) of $(nperm) permutations")
+            end
+        end
+    end
+
+    # PART THREE: COMPUTE P-VALS BASED ON RI_ATT & RI_ATT_SUBGROUP
+    agg_att = results.agg_att[1]
+    if agg == "cohort"
+        for i in eachindex(treatment_times)
+            sub_agg_att = results[results.treatment_time .== treatment_times[i], "att_cohort"][1]
+            results[results.treatment_time .== treatment_times[i], "ri_pval_att_cohort"] .= (sum(abs.(att_ri_cohort[:,i]) .> abs(sub_agg_att))) / length(att_ri_cohort[:,i])
+        end
+    elseif agg == "state"
+        for i in eachindex(treatment_states)
+            sub_agg_att = results[results.state .== treatment_states[i], "att_s"][1]
+            results[results.state .== treatment_states[i], "ri_pval_att_s"] .= (sum(abs.(att_ri_state[:,i]) .> abs(sub_agg_att))) / length(att_ri_state[:,i])
+        end 
+    elseif agg == "simple"
+        for i in 1:nrow(unique_diffs)
+            t = unique_diffs[i,"t"]
+            r1 = unique_diffs[i,"r1"]
+            gvar = unique_diffs[i, "treated_time"]
+            sub_agg_att = results[(results.time .== t) .&& (results.r1 .== r1) .&& (results.gvar .== gvar), "att_gt"][1]
+            results[(results.time .== t) .&& (results.r1 .== r1) .&& (results.gvar .== gvar), "ri_pval_att_gt"] .= (sum(abs.(att_ri_simple[:,i]) .> abs(sub_agg_att))) / length(att_ri_simple[:,i])
+        end
+    elseif agg == "sgt"
+        for i in 1:nrow(unique_diffs)
+            t = unique_diffs[i,"t"]
+            gvar = unique_diffs[i, "treated_time"]
+            state = unique_diffs[i, "state"]
+            sub_agg_att = results[(results.t .== t) .&& (results.gvar .== gvar) .&& (results.state .== state), "att_sgt"][1]
+            results[(results.t .== t) .&& (results.gvar .== gvar) .&& (results.state .== state), "ri_pval_att_sgt"] .= (sum(abs.(att_ri_sgt[:,i]) .> abs(sub_agg_att))) / length(att_ri_sgt[:,i])
+        end 
+    elseif agg == "time"
+        for i in eachindex(times)
+            sub_agg_att = results[results.periods_post_treat .== times[i], "att_t"][1]
+            results[results.periods_post_treat .== times[i], "ri_pval_att_t"] .= (sum(abs.(att_ri_time[:,i]) .> abs(sub_agg_att))) / length(att_ri_time[:,i])
+        end 
+    end
+    results.ri_pval_agg_att[1] = ((sum(abs.(att_ri) .> abs(agg_att))) / length(att_ri))
+    results.nperm[1] = nperm
+    return results
+end
+
+## The following functions are used within randomization_inference_v2():
+function compute_n_unique_assignments(treatment_times::Vector, total_n_states::Number)
+    # This computes the combinations formula * the multinomial coefficient
+    n_assignments = length(treatment_times)
+    unique_assignments = unique(treatment_times)
+    num = factorial(big(total_n_states))           
+    den = factorial(big(total_n_states - n_assignments))
+    for m in unique_assignments
+        n_m = sum(treatment_times .== m)
+        den *= factorial(big(n_m))
+    end
+    return num ÷ den                  
+end
+
+function compute_ri_sub_agg_att(temp::DataFrame, weighting::AbstractString, colname::Symbol)
+
+    X = convert(Vector{Float64}, temp[!, colname])
+    Y = convert(Vector{Float64}, temp.diff)
+    if in(weighting, ["both", "diff"])
+        W_diff  = convert(Vector{Float64}, temp.n)
+        W_diff ./= sum(W_diff)
+        sub_agg_att = (dot(W_diff[X .== 1], Y[X .== 1]) / sum(W_diff[X .== 1])) - 
+                             (dot(W_diff[X .== 0], Y[X .== 0]) / sum(W_diff[X .== 0]))
+    elseif in(weighting, ["att", "none"])
+        sub_agg_att = mean(Y[X .== 1]) - mean(Y[X .== 0])
+    end 
+    return sub_agg_att
+end 
+
+## The following functions are for the jackknife procedure
+function jackknife_procedure(diff_df, results, weighting,
+                             truejack, agg, data_copy,
+                             ccc, covariates, common_adoption, staggered_adoption,
+                             treated_states, time_to_index, treatment_times, match_to_these_dates,
+                             use_pre_controls, covariates_to_include)
+
+    # Do a simple check for edge case when there is less than 2 control or less than 2 treated states
+    n_treated = length(unique(diff_df[diff_df.treat .== 1, :state]))
+    n_control = length(unique(diff_df[diff_df.treat .== 0, :state]))
+    if n_control < 2 || n_treated < 2
+        @warn "Need at least 2 treated states and 2 control states to do jackknife procedure."
+        if agg != "none"
+            se_keys = Dict("cohort" => :jknifese_att_cohort, "state" => :jknifese_att_s, "simple" => :jknifese_att_gt,
+                           "sgt" => :jknifese_att_sgt,"time" => :jknifese_att_t)
+            pval_keys = Dict("cohort" => :jknifepval_att_cohort, "state" => :jknifepval_att_s, "simple" => :jknifepval_att_gt,
+                             "sgt" => :jknifepval_att_sgt, "time" => :jknifepval_att_t)
+            results[:, se_keys[agg]] .= missing
+            results[:, pval_keys[agg]] .= missing
+        end
+        results.jknifese_agg_att[1] = missing
+        results.jknifepval_agg_att[1] = missing
+    end
+
+    # Recycling this chunk from randomization_inference_v2 function
+    original_treated = unique(diff_df[diff_df.treat .== 1, [:state, :treated_time]])  
+    treatment_times = original_treated.treated_time
+    treatment_states = original_treated.state
+    all_states = unique(diff_df.state)
+
+    # Force agg arguments for common adoption to either none or state
+    if (length(unique(treatment_times)) == 1 && in(agg, ["cohort", "simple"])) || (length(unique(treatment_times)) == 1 && length(unique(treatment_states)) == 1)
+        agg = "none"
+    end 
+    if length(unique(treatment_times)) == 1 && agg == "sgt"
+        agg = "state"
+    end
+
+    # Define simple function to make the jackdf
+    make_jackdf = (sub_group) -> begin
+                                     without = repeat(all_states, inner = length(sub_group))
+                                     sub_group = repeat(sub_group, outer = length(all_states))
+                                     nrows = length(without)
+                                     att = Vector{Union{Float64, Missing}}(undef, nrows)
+                                     weights = Vector{Union{Nothing, Float64}}(nothing, nrows)
+                                     jackdf = DataFrame(without = without, sub_group = sub_group, att = att, weights = weights)
+                                     return jackdf
+                                 end
+
+    # Create preallocation dataframe for the jackknife coefficient estimates
+    unique_diffs = nothing
+    if agg == "cohort"
+        sub_group = sort(unique(diff_df.treated_time))
+    elseif agg == "state"
+        state_df = DataFrame(treated_states = treated_states)
+        state_df.tuple_state = custom_sort_order.(state_df.treated_states)
+        sort!(state_df,[order(:tuple_state)])
+        sub_group = state_df.treated_states
+    elseif agg == "simple"
+        unique_diffs = sort(unique(select(diff_df, :t, :r1, :treated_time)), [:treated_time, :t])
+        sub_group = string.(eachrow(unique_diffs))
+    elseif agg == "sgt"
+        unique_diffs = sort(unique(select(diff_df[diff_df.treat .== 1,:], :state, :t, :r1, :treated_time)), [:state, :treated_time, :t])
+        sub_group = string.(eachrow(unique_diffs))
+    elseif agg == "none"
+        sub_group = ["none"]
+    elseif agg == "time"
+        sub_group = sort(unique(diff_df.time_since_treatment))
+    end
+    jackdf = make_jackdf(sub_group)
+
+    # Otherwise, do jackknife procedure
+    if truejack
+        jackdf = true_jackknife_procedure(data_copy, results, weighting, agg, ccc,
+                                          covariates, common_adoption, staggered_adoption,
+                                          treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                          use_pre_controls, all_states, sub_group, unique_diffs, jackdf, covariates_to_include)
+    elseif !truejack
+        jackdf = fast_jackknife_procedure(diff_df, weighting, agg, jackdf, all_states, sub_group, unique_diffs)
+    end
+
+    # Once the jackknife df is populated, we can compute aggregate and potentially sub-aggregate ATTs jackknife SE and pvals
+
+    # Do aggregate ATT jackknife SE and pvals first:
+    if weighting in ["att", "both"]
+        agg_jacks = [let w = sub_df.weights, a = sub_df.att, valid = .!ismissing.(a)
+                     isempty(a[valid]) ? missing : dot(w[valid] ./ sum(w[valid]), a[valid])
+                     end for sub_df in groupby(jackdf, :without)]
+        agg_jacks = collect(skipmissing(agg_jacks))
+    else
+        agg_jacks = [let a = sub_df.att, valid = .!ismissing.(a)
+                     isempty(a[valid]) ? missing : mean(a[valid])
+                     end for sub_df in groupby(jackdf, :without)]
+        agg_jacks = collect(skipmissing(agg_jacks))
+    end
+    n = length(agg_jacks)
+    jknife_se = n >= 2 ? sqrt(sum((agg_jacks .- results.agg_att[1]).^2) * ((n - 1) / n)) : missing
+    dof_jack = n - 1
+    pval_att_jknife = dof_jack > 0 && !ismissing(jknife_se) ? 2 * (1 - cdf(TDist(dof_jack), abs(results.agg_att[1] / jknife_se))) : missing
+    results.jknifese_agg_att[1] = jknife_se
+    results.jknifepval_agg_att[1] = pval_att_jknife
+
+    # Next, do sub-aggregate ATTs jackknife SE and pvals:
+    aggdict = Dict("sgt" => "sgt", "state" => "s", "cohort" => "cohort", "simple" => "gt", "time" => "t", "none" => "none")
+    jknife_se_sub_col = Symbol(join(["jknifese_att_", aggdict[agg]], ""))
+    jknife_pval_sub_col = Symbol(join(["jknifepval_att_", aggdict[agg]], ""))
+    jknife_att_sub_col = Symbol(join(["att_", aggdict[agg]], ""))
+    if agg in ["sgt", "state"]
+        # Can't compute jackknife SE for single-state level ATT
+        results[:, jknife_se_sub_col] .= missing
+        results[:, jknife_pval_sub_col] .= missing
+    elseif agg in ["cohort", "simple", "time"]
+        sub_counter = 1
+        for sg in unique(jackdf.sub_group)
+            # Any sub_jacks vector that has a missing values implies that there is only one treated state for that sub-agg ATT, so we can skip
+            # the calculation of the SE and PVAL in those cases.
+            sub_jacks = jackdf[jackdf.sub_group .== sg, :att]
+            n_sub = length(sub_jacks)
+            has_missing = any(ismissing, sub_jacks)
+            sg_att = results[sub_counter, jknife_att_sub_col]
+            dof_jack_sub = has_missing ? 0 : n_sub - 1
+            jknife_se_sub = n_sub >= 2  && !has_missing ? sqrt(sum((sub_jacks .- sg_att).^2) * ((n_sub - 1) / n_sub)) : missing
+            pval_att_jknife_sub = dof_jack_sub > 0 && !ismissing(jknife_se_sub) ? 2 * (1 - cdf(TDist(dof_jack_sub), abs(sg_att / jknife_se_sub))) : missing
+
+            results[sub_counter, jknife_se_sub_col] = jknife_se_sub
+            results[sub_counter, jknife_pval_sub_col] = pval_att_jknife_sub
+
+            sub_counter += 1
+        end
+    end
+
+    return results
+end
+
+function fast_jackknife_procedure(diff_df, weighting, agg, jackdf, all_states, sub_group, unique_diffs)
+
+    # Cycle through the withouts and sub_groups and compute coefficients
+    idx_jack = 1
+    for without in all_states
+        without_mask = diff_df.state .!= without
+        idx_unique_diffs = 1
+        for sg in sub_group
+            if agg == "cohort"
+                temp = diff_df[without_mask .& (diff_df.treated_time .== sg), :]
+            elseif agg == "state"
+                temp = sg == without ? missing : diff_df[without_mask .& ((diff_df.state .== sg) .| (diff_df.treat .== 0)), :]
+            elseif agg == "simple"
+                t = unique_diffs.t[idx_unique_diffs]
+                r1 = unique_diffs.r1[idx_unique_diffs]
+                temp = diff_df[without_mask .& (diff_df.t .== t) .& (diff_df.r1 .== r1), :]
+            elseif agg == "sgt"
+                t = unique_diffs.t[idx_unique_diffs]
+                r1 = unique_diffs.r1[idx_unique_diffs]
+                s = unique_diffs.state[idx_unique_diffs]
+                temp = sg == without ? missing : diff_df[(without_mask .& (diff_df.t .== t) .& (diff_df.r1 .== r1) .& (diff_df.treat .== 0)) .|
+                                                         (without_mask .& (diff_df.t .== t) .& (diff_df.r1 .== r1) .& (diff_df.state .== s)), :]
+            elseif agg == "none"
+                temp = diff_df[without_mask, :]
+            elseif agg == "time"
+                temp = diff_df[without_mask .& (diff_df.time_since_treatment .== sg), :]
+                att = jackknife_time_compute(temp, weighting)
+            end
+
+            # If there is no variation in temp.treat return missing
+            if !ismissing(temp) && length(unique(temp.treat)) < 2
+                temp = missing
+            end
+
+            # Otherwise, do computation of att
+            if agg != "time"
+                att = ismissing(temp) ? missing : compute_ri_sub_agg_att(temp, weighting, :treat) # Note this works fine for the jackknife case too
+            end
+
+            # Also do keep track of treated obs for sub-agg att
+            if weighting in ["att", "both"]
+                w = ismissing(temp) ? 0 : sum(temp[temp.treat .== 1, :n_t])
+            else
+                w = nothing
+            end
+
+            # Assign to jackdf
+            jackdf.att[idx_jack] = att
+            jackdf.weights[idx_jack] = w
+
+            # Update counters
+            idx_unique_diffs += 1
+            idx_jack += 1
+        end
+    end
+    return jackdf
+end
+
+function true_jackknife_procedure(data_copy, results, weighting, agg, ccc,
+                                  covariates, common_adoption, staggered_adoption,
+                                  treated_states, time_to_index, treatment_times, match_to_these_dates,
+                                  use_pre_controls, all_states, sub_group, unique_diffs, jackdf, covariates_to_include)
+
+    # Cycle through the withouts and sub_groups and compute coefficients
+    idx_jack = 1
+    for without in all_states
+        idx_unique_diffs = 1
+
+        # Re-estimate fixed effects model
+        lambda_df, _ = iterative_demean(data_copy[data_copy.state .!= without, :], ccc, covariates_to_include, staggered_adoption, "hc0", false)
+
+        # Construct diff_df
+        diff_df = construct_diff_df(lambda_df, treated_states, treatment_times, time_to_index, match_to_these_dates, use_pre_controls,
+                                    staggered_adoption, common_adoption, data_copy, jackknife = true, without = without)
+
+        if agg == "time"
+            treated_category = categorical(string.(diff_df.treated_time); ordered = true)
+            levels_tt   = levels(treated_category)                               
+            for i in eachindex(levels_tt) 
+                tt = levels_tt[i]                    
+                colname = Symbol("tt_", i)
+                diff[!, colname] = Int.(treated_category .== tt)
+            end
+        end
+
+        # Estimate sub-agg ATTs
+        for sg in sub_group
+            if agg == "cohort"
+                temp = diff_df[(diff_df.treated_time .== sg), :]
+            elseif agg == "state"
+                temp = sg == without ? missing : diff_df[((diff_df.state .== sg) .| (diff_df.treat .== 0)), :]
+            elseif agg == "simple"
+                t = unique_diffs.t[idx_unique_diffs]
+                r1 = unique_diffs.r1[idx_unique_diffs]
+                temp = diff_df[(diff_df.t .== t) .& (diff_df.r1 .== r1), :]
+            elseif agg == "sgt"
+                t = unique_diffs.t[idx_unique_diffs]
+                r1 = unique_diffs.r1[idx_unique_diffs]
+                s = unique_diffs.state[idx_unique_diffs]
+                temp = sg == without ? missing : diff_df[((diff_df.t .== t) .& (diff_df.r1 .== r1) .& (diff_df.treat .== 0)) .|
+                                                         ((diff_df.t .== t) .& (diff_df.r1 .== r1) .& (diff_df.state .== s)), :]
+            elseif agg == "none"
+                temp = diff_df
+            elseif agg == "time"
+                temp = diff_df[(diff_df.time_since_treatment .== sg), :]
+                att = jackknife_time_compute(temp, weighting)
+            end
+            
+            # If there is no variation in temp.treat return missing
+            if !ismissing(temp) && length(unique(temp.treat)) < 2
+                temp = missing
+            end
+
+            # Otherwise, do computation of att
+            if agg != "time"
+                att = ismissing(temp) ? missing : compute_ri_sub_agg_att(temp, weighting, :treat) # Note this works fine for the jackknife case too
+            end
+
+            # Also do keep track of treated obs for sub-agg att
+            if weighting in ["att", "both"]
+                w = ismissing(temp) ? 0 : sum(temp[temp.treat .== 1, :n_t])
+            else
+                w = nothing
+            end
+
+            # Assign to jackdf
+            jackdf.att[idx_jack] = att
+            jackdf.weights[idx_jack] = w
+
+            # Update counters
+            idx_unique_diffs += 1
+            idx_jack += 1
+        end
+
+    end
+    return jackdf
+end
+
+function construct_diff_df(lambda_df, treated_states, treatment_times, time_to_index, match_to_these_dates, use_pre_controls,
+                           staggered_adoption, common_adoption, data_copy; jackknife = false, without = nothing)
+
+    if jackknife
+        mask = treated_states .!= without
+        treated_states = treated_states[mask]
+        treatment_times = treatment_times[mask]
+    end
+
+    if staggered_adoption
+
+        # Initialize diff_df
+        unique_states = unique(lambda_df.state)
+        diff_df = DataFrame(state = String[], treated_time = Date[],
+                            t = Date[], r1 = Date[], diff = Float64[],
+                            treat = Int[], n = Int[], n_t = Int[],
+                            lambda_idx = Union{Tuple{Int,Int}, Missing}[])
+
+        for i in eachindex(treated_states)
+            idx = time_to_index[treatment_times[i]]
+            one_period_prior_treatment = match_to_these_dates[idx - 1]
+            temp = lambda_df[(lambda_df.state .== treated_states[i]) .& (lambda_df.time .>= one_period_prior_treatment), :]
+            lambda_r1 = temp[temp.time .== one_period_prior_treatment, [:lambda, :lambda_index]]
+            empty_check = isempty(lambda_r1.lambda)
+            lambda_r1_var_idx =  empty_check ? missing : lambda_r1.lambda_index[1]
+            lambda_r1 = empty_check ? missing : lambda_r1.lambda[1]
+            temp = temp[temp.time .> one_period_prior_treatment, :]
+            sort!(temp, :time)
+            years = temp.time
+            diffs = Vector{Union{Float64, Missing}}(undef, nrow(temp))
+            lambda_indices = Vector{Union{Tuple{Int,Int}, Missing}}(undef, nrow(temp))
+            n = Vector{Int}(undef, nrow(temp))
+            n_t = Vector{Int}(undef, nrow(temp))
+            for j in eachindex(diffs)
+                lambda_j = temp[j, [:lambda, :lambda_index]]
+                empty_check = isempty(lambda_j.lambda)
+                lambda_j_var_idx = empty_check ? missing : lambda_j.lambda_index[1]
+                lambda_j = empty_check ? missing : lambda_j.lambda[1]
+                diffs[j] = lambda_j - lambda_r1
+                lambda_indices[j] = ismissing(lambda_j_var_idx) || ismissing(lambda_r1_var_idx) ? missing : (Int(lambda_j_var_idx), Int(lambda_r1_var_idx))
+                post = temp[j, "time"]
+                pre = one_period_prior_treatment
+                n[j] = sum(in.(data_copy.time_dmG5fpM, Ref([post, pre])) .&& (data_copy.state_71X9yTx .== treated_states[i]))
+                n_t[j] = sum((data_copy.time_dmG5fpM .== post) .&& (data_copy.state_71X9yTx .== treated_states[i]))
+            end 
+            temp_df = DataFrame(state = treated_states[i], treated_time = treatment_times[i],
+                                t = years, r1 = one_period_prior_treatment, diff = diffs, treat = 1,
+                                n = n, n_t = n_t, lambda_idx = lambda_indices)
+            diff_df = vcat(diff_df, temp_df) 
+        end
+        
+        # Compute diffs for control states
+        unique_diffs = unique(select(diff_df, :t, :r1, :treated_time))
+        control_states = setdiff(unique_states, treated_states)     
+        for i in eachindex(control_states)
+            temp = lambda_df[(lambda_df.state .== control_states[i]), :]
+            diffs = Vector{Union{Float64, Missing}}(undef, nrow(unique_diffs))
+            lambda_indices = Vector{Union{Tuple{Int,Int}, Missing}}(undef, nrow(unique_diffs))
+            n = Vector{Int}(undef, nrow(unique_diffs))
+            n_t = Vector{Int}(undef, nrow(unique_diffs))
+            for j in 1:nrow(unique_diffs)
+                t = unique_diffs[j,"t"]
+                r1 = unique_diffs[j,"r1"]
+
+                lambda_t = temp[temp.time .== t, [:lambda, :lambda_index]]
+                empty_check = isempty(lambda_t.lambda)
+                lambda_t_idx = empty_check ? missing : lambda_t.lambda_index[1]
+                lambda_t = empty_check ? missing : lambda_t.lambda[1]
+
+                lambda_r1 = temp[temp.time .== r1, [:lambda, :lambda_index]]
+                empty_check = isempty(lambda_r1.lambda)
+                lambda_r1_idx = empty_check ? missing : lambda_r1.lambda_index[1]
+                lambda_r1 = empty_check ? missing : lambda_r1.lambda[1]
+
+                diffs[j] = lambda_t - lambda_r1
+                lambda_indices[j] = ismissing(lambda_r1_idx) || ismissing(lambda_t_idx) ? missing : (Int(lambda_r1_idx), Int(lambda_t_idx))
+
+                n[j] = sum(in.(data_copy.time_dmG5fpM, Ref([t, r1])) .&& (data_copy.state_71X9yTx .== control_states[i]))
+                n_t[j] = sum((data_copy.time_dmG5fpM .== t) .&& (data_copy.state_71X9yTx .== control_states[i]))
+            end 
+            trtd_time = [match_to_these_dates[findfirst(==(t), match_to_these_dates) + 1] for t in unique_diffs.r1]
+            temp_df = DataFrame(state = control_states[i], treated_time = trtd_time,
+                                t = unique_diffs.t, r1 = unique_diffs.r1, diff = diffs, treat = 0,
+                                n = n, n_t = n_t, lambda_idx = lambda_indices)
+            diff_df = vcat(diff_df, temp_df)
+        end
+
+        # Add the periods since treatment column to diff_df
+        ordered_t = match_to_these_dates   
+        t_period = indexin(diff_df.t, ordered_t)             
+        treated_time_period = indexin(diff_df.treated_time, ordered_t) 
+        diff_df.time_since_treatment = t_period .- treated_time_period 
+
+        # Compute diffs for randomization inference
+        if !jackknife || use_pre_controls
+            ri_diff_df = DataFrame(state = String[], treated_time = Date[],
+                                   t = Date[], r1 = Date[], diff = Float64[],
+                                   treat = Int[], n = Int[], n_t = Int[],
+                                   lambda_idx = Union{Tuple{Int,Int}, Missing}[])
+            for i in eachindex(treated_states)
+                ri_diffs = unique(select(diff_df[(diff_df.state .!= treated_states[i]) .& (diff_df.treated_time .!= treatment_times[i]), :], :t, :r1))
+                temp = lambda_df[(lambda_df.state .== treated_states[i]), :]
+                diffs = Vector{Union{Float64, Missing}}(undef, nrow(ri_diffs))
+                lambda_indices = Vector{Union{Tuple{Int,Int}, Missing}}(undef, nrow(ri_diffs))
+                n = Vector{Int}(undef, nrow(ri_diffs))
+                n_t = Vector{Int}(undef, nrow(ri_diffs))
+                for j in 1:nrow(ri_diffs)
+                    t = unique_diffs[j,"t"]
+                    r1 = unique_diffs[j,"r1"]
+
+                    lambda_t = temp[temp.time .== t, [:lambda, :lambda_index]]
+                    empty_check = isempty(lambda_t.lambda)
+                    lambda_t_idx = empty_check ? missing : lambda_t.lambda_index[1]
+                    lambda_t = empty_check ? missing : lambda_t.lambda[1]
+
+                    lambda_r1 = temp[temp.time .== r1, [:lambda, :lambda_index]]
+                    empty_check = isempty(lambda_r1.lambda)
+                    lambda_r1_idx = empty_check ? missing : lambda_r1.lambda_index[1]
+                    lambda_r1 = empty_check ? missing : lambda_r1.lambda[1]
+
+                    diffs[j] = lambda_t - lambda_r1
+                    lambda_indices[j] = ismissing(lambda_r1_idx) || ismissing(lambda_t_idx) ? missing : (Int(lambda_r1_idx), Int(lambda_t_idx))
+
+                    n[j] = sum(in.(data_copy.time_dmG5fpM, Ref([t, r1])) .&& (data_copy.state_71X9yTx .== treated_states[i]))
+                    n_t[j] = sum((data_copy.time_dmG5fpM .== t) .&& (data_copy.state_71X9yTx .== treated_states[i]))
+                end
+                trtd_time = [match_to_these_dates[findfirst(==(t), match_to_these_dates) + 1] for t in ri_diffs.r1]
+                temp_df = DataFrame(state = treated_states[i], treated_time = trtd_time,
+                                    t = ri_diffs.t, r1 = ri_diffs.r1, diff = diffs, treat = -1,
+                                    n = n, n_t = n_t, lambda_idx = lambda_indices)
+                ri_diff_df = vcat(ri_diff_df, temp_df)
+            end
+            t_period = indexin(ri_diff_df.t, ordered_t)             
+            treated_time_period = indexin(ri_diff_df.treated_time, ordered_t) 
+            ri_diff_df.time_since_treatment = t_period .- treated_time_period 
+        end
+
+
+        # If use_pre_controls is true re-structure the ri_diff_df and diff_df
+        # to add the pre-treatment periods from treated silos as control contrasts
+        if use_pre_controls
+            for (t,s) in zip(treatment_times, treated_states)
+                ri_diff_df[ri_diff_df.state .== s .&& ri_diff_df.t .< t, "treat"] .= 0
+            end
+            diff_df = vcat(diff_df, ri_diff_df[ri_diff_df.treat .== 0,:])
+            ri_diff_df = ri_diff_df[ri_diff_df.treat .== -1,:]
+            unique_states = unique(diff_df.state)
+            control_states = setdiff(unique_states, treated_states)
+            if isempty(control_states)
+                # If there are no pure control states, do extra processing to remove cells
+                # where there are no treat-control pairs
+                diff_df = subset(
+                            groupby(diff_df, [:t, :r1]),
+                            :treat => x -> any(x .== 1) && any(x .== 0)
+                          )
+                ri_diff_df = semijoin(ri_diff_df, diff_df, on=[:t, :r1])
+            end 
+        end
+
+        # In the case where the diff_df has missing values for diffs, drop those rows
+        if any(ismissing.(diff_df.diff))
+            diff_df = dropmissing(diff_df, :diff)
+            diff_df = subset(
+                            groupby(diff_df, [:t, :r1]),
+                            :treat => x -> any(x .== 1) && any(x .== 0)
+                          )
+            if nrow(diff_df) == 0 && !jackknife
+                error("Could not find a single pair of non-missing valued treated & untreated differences for the same (g,t) group.\nUnable to compute any ATTs.")
+            end
+            if !jackknife
+                ri_diff_df = semijoin(ri_diff_df, diff_df, on=[:t, :r1])
+                ri_diff_df = dropmissing(ri_diff_df, :diff)
+            end
+        end
+
+        if !jackknife
+            return diff_df, ri_diff_df
+        end
+
+    elseif common_adoption
+
+        # Create diff matrix
+        states = unique(lambda_df.state)
+        diff_df = DataFrame(state = states,
+                            diff = Vector{Float64}(undef, length(states)),
+                            treat = Vector{Float64}(undef, length(states)),
+                            treated_time = fill(unique(treatment_times)[1], length(states)),
+                            n = Vector{Float64}(undef, length(states)),
+                            n_t = Vector{Float64}(undef, length(states)),
+                            lambda_idx = Vector{Union{Tuple{Int,Int}, Missing}}(undef, length(states)))
+        for i in eachindex(states)
+            state = states[i]
+            if state in treated_states
+                trt = 1
+            else 
+                trt = 0
+            end 
+            diff = lambda_df[(lambda_df.state .== state) .&& (lambda_df.time .== "post"), "lambda"][1] - lambda_df[(lambda_df.state .== state) .&& (lambda_df.time .== "pre"), "lambda"][1]
+            lambda_idx_post = Int(lambda_df[(lambda_df.state .== state) .&& (lambda_df.time .== "post"), "lambda_index"][1])
+            lambda_idx_pre = Int(lambda_df[(lambda_df.state .== state) .&& (lambda_df.time .== "pre"), "lambda_index"][1])
+            lambda_indices = (lambda_idx_pre, lambda_idx_post)
+            diff_df.lambda_idx[i] = lambda_indices
+            diff_df.diff[i] = diff
+            diff_df.treat[i] = trt
+            diff_df.n[i] = sum(data_copy.state_71X9yTx .== state)
+            diff_df.n_t[i] = sum((data_copy.state_71X9yTx .== state) .&& (data_copy.time_71X9yTx .== "post"))
+        end 
+
+    end
+
+    return diff_df
+
+end
+
+function jackknife_time_compute(temp, weighting)
+
+    if length(unique(temp.treat)) < 2
+        temp = missing
+        att = missing
+    else 
+        tt_cols = [col for col in names(temp) if occursin(r"^tt_\d+$", string(col))]
+        X = convert(Matrix{Float64}, hcat(ones(nrow(temp)), Matrix(temp[:, tt_cols]), temp[:, :treat]))
+        ncolx = size(X, 2)
+        varied_dummies = [i for i in 2:ncolx-1 if length(unique(X[:, i])) > 1]
+        cols_to_keep = [1; varied_dummies; ncolx]
+        X_sub = X[:, cols_to_keep]
+        X_sub_rank = rank(X_sub)
+        X_sub_ncolx = size(X_sub, 2)
+        v = 2
+        while (X_sub_rank < X_sub_ncolx) && X_sub_ncolx > 2
+            cols_to_keep = [1; varied_dummies[v:end]; ncolx]
+            X_sub = X[:, cols_to_keep]
+            X_sub_rank = rank(X_sub)
+            X_sub_ncolx = size(X_sub, 2)
+            v += 1
+        end
+        X = X_sub
+        Y = convert(Vector{Float64}, temp.diff)
+        if in(weighting, ["diff", "both"]) 
+            W_diff = convert(Vector{Float64}, temp.n)
+            W_diff ./= sum(W_diff) 
+            sw = sqrt.(W_diff)           
+            X = X .* sw            
+            Y = Y .* sw
+        end 
+        att = rank(X) == size(X, 2) ? (X \ Y)[end] : missing
+    end
+    return att
+end
+
+function edge_case_se(lambda_indices, vcov_lambda)
+
+    # The fully expanded term var(ATT) involves multiple cov terms, that under different ccc options
+    # are zero. In order to not have a bunch of if else statements and clutter things up, only one 
+    # formula is provided here, but note that depending on the ccc selection some (or all for ccc = int)
+    # of the cov terms will be zero.
+
+    #s1_l1 short for state1_lambda1, etc
+    s1_l1_var = vcov_lambda[lambda_indices[1][1], lambda_indices[1][1]]
+    s1_l2_var = vcov_lambda[lambda_indices[1][2], lambda_indices[1][2]]
+    s2_l1_var = vcov_lambda[lambda_indices[2][1], lambda_indices[2][1]]
+    s2_l2_var = vcov_lambda[lambda_indices[2][2], lambda_indices[2][2]]
+
+    # If any of the variance terms for lambda are 0, NaN, or Inf then the var(ATT) is not computable
+    if any(x -> x == 0 || isnan(x) || isinf(x), [s1_l1_var, s1_l2_var, s2_l1_var, s2_l2_var])
+        return missing
+    end
+
+    se_att = sqrt(s1_l1_var + s1_l2_var + s2_l1_var + s2_l2_var - 2*vcov_lambda[lambda_indices[1][1], lambda_indices[1][2]] - 
+             2*vcov_lambda[lambda_indices[2][1], lambda_indices[2][2]] + -2*(vcov_lambda[lambda_indices[1][2], lambda_indices[2][2]] -
+             vcov_lambda[lambda_indices[1][2], lambda_indices[2][1]] - vcov_lambda[lambda_indices[1][1], lambda_indices[2][2]] +
+             vcov_lambda[lambda_indices[1][1], lambda_indices[2][1]]))
+    return se_att
+
+end

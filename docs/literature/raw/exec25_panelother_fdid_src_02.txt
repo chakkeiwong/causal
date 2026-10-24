@@ -1,0 +1,206 @@
+classdef FdidEstimator
+    % FDIDESTIMATOR Implements the Factorial Difference-in-Differences Estimator
+    % using high-performance Two-Way Fixed Effects (TWFE) absorbing algorithm.
+    %
+    % Model: Y_it = alpha_i + beta_t + beta_GZ (G_i Z_it) + beta_X X_i Z_it + beta_GZX (G_i X_i Z_it) + eps_it
+
+    properties
+        Data table
+        IdVar (1,1) string
+        TimeVar (1,1) string
+        OutcomeVar (1,1) string
+        BaseFactorVar (1,1) string
+        ExposureVar (1,1) string
+        CovariateVars (1,:) string = string.empty
+
+        % Estimation Results
+        Coef struct
+        SE struct
+        TStat struct
+        PValue struct
+
+        IsFitted (1,1) logical = false
+    end
+
+    methods
+        function obj = FdidEstimator(data, idVar, timeVar, outcomeVar, baseFactorVar, exposureVar, covariateVars)
+            % Constructor
+            arguments
+                data table
+                idVar (1,1) string = "id"
+                timeVar (1,1) string = "time"
+                outcomeVar (1,1) string = "y"
+                baseFactorVar (1,1) string = "g"
+                exposureVar (1,1) string = "z"
+                covariateVars (1,:) string = string.empty
+            end
+
+            obj.Data = data;
+            obj.IdVar = idVar;
+            obj.TimeVar = timeVar;
+            obj.OutcomeVar = outcomeVar;
+            obj.BaseFactorVar = baseFactorVar;
+            obj.ExposureVar = exposureVar;
+            obj.CovariateVars = covariateVars;
+        end
+
+        function obj = fit(obj)
+            % FIT Estimates the FDID model using Within-Transformation
+            arguments
+                obj (1,1) FdidEstimator
+            end
+
+            % Extract variables
+            y = obj.Data.(obj.OutcomeVar);
+            id = obj.Data.(obj.IdVar);
+            time = obj.Data.(obj.TimeVar);
+            g = obj.Data.(obj.BaseFactorVar);
+            z = obj.Data.(obj.ExposureVar);
+
+            X_cov = [];
+            if ~isempty(obj.CovariateVars)
+                for i = 1:length(obj.CovariateVars)
+                    % Center covariates for strict tau_inter identification
+                    x_i = obj.Data.(obj.CovariateVars(i));
+                    x_i = x_i - mean(x_i, 'omitnan');
+                    X_cov = [X_cov, x_i]; %#ok<AGROW>
+                end
+            end
+
+            % Construct Regressors for TWFE
+            % Required interactions:
+            % 1. Z (Exposure)
+            % 2. G*Z (Effect Modification/Causal Moderation base)
+            % 3. X*Z (Covariates with exposure)
+            % 4. G*X*Z (Covariates with exposure and group)
+
+            gz = g .* z;
+
+            if isempty(X_cov)
+                % Just Z and G*Z
+                X_reg = [z, gz];
+                varNames = ["Z", "GZ"];
+            else
+                xz = X_cov .* z;
+                gxz = X_cov .* g .* z;
+                X_reg = [z, gz, xz, gxz];
+
+                varNames = ["Z", "GZ"];
+                for j = 1:size(X_cov,2)
+                    varNames = [varNames, "X" + num2str(j) + "Z", "GX" + num2str(j) + "Z"]; %#ok<AGROW>
+                end
+            end
+
+            % Within Transformation (Absorb Unit and Time FEs)
+            [y_ddot, X_ddot] = FdidEstimator.absorbFEs(y, X_reg, id, time);
+
+            % OLS on transformed data
+            [n_obs, k] = size(X_ddot);
+
+            % beta_hat = (X'X)^-1 X'Y (using pinv for stability with singular matrices)
+            XX = X_ddot' * X_ddot;
+            XY = X_ddot' * y_ddot;
+            XX_inv = pinv(XX); % Use robust pseudo-inverse
+            beta_hat = XX_inv * XY;
+
+            % Residuals
+            u_hat = y_ddot - X_ddot * beta_hat;
+
+            % Cluster-Robust Standard Errors (CRSE) at 'id' level
+            % V_CRSE = (X'X)^-1 * (\sum_c X_c' u_c u_c' X_c) * (X'X)^-1
+            [unq_id, ~, id_idx] = unique(id);
+            G_clusters = length(unq_id);
+
+            meat = zeros(k, k);
+            for c = 1:G_clusters
+                mask = (id_idx == c);
+                X_c = X_ddot(mask, :);
+                u_c = u_hat(mask);
+                score_c = X_c' * u_c;
+                meat = meat + (score_c * score_c');
+            end
+
+            % Finite sample adjustment
+            df_adj = (G_clusters / (G_clusters - 1)) * ((n_obs - 1) / (n_obs - k));
+            V_CRSE = df_adj * (XX_inv * meat * XX_inv);
+
+            se_hat = sqrt(diag(V_CRSE));
+
+            % Inference
+            t_stat = beta_hat ./ se_hat;
+            p_val = 2 * (1 - tcdf(abs(t_stat), G_clusters - 1));
+
+            % Store results
+            obj.Coef = struct();
+            obj.SE = struct();
+            obj.TStat = struct();
+            obj.PValue = struct();
+
+            for i = 1:k
+                name = varNames(i);
+                obj.Coef.(name) = beta_hat(i);
+                obj.SE.(name) = se_hat(i);
+                obj.TStat.(name) = t_stat(i);
+                obj.PValue.(name) = p_val(i);
+            end
+
+            obj.IsFitted = true;
+        end
+
+        function displayResults(obj)
+            % DISPLAYRESULTS Prints formatted estimation results
+            arguments
+                obj (1,1) FdidEstimator
+            end
+
+            if ~obj.IsFitted
+                error("FdidEstimator:NotFitted", "Model must be fitted before displaying results.");
+            end
+
+            fprintf('\n======================================================\n');
+            fprintf('        Factorial Difference-in-Differences (FDID)\n');
+            fprintf('======================================================\n');
+            fprintf('%-15s %10s %10s %10s %10s\n', 'Variable', 'Estimate', 'Std.Err', 't-Stat', 'P>|t|');
+            fprintf('------------------------------------------------------\n');
+
+            vars = string(fieldnames(obj.Coef));
+            for i = 1:length(vars)
+                var = vars(i);
+                fprintf('%-15s %10.4f %10.4f %10.4f %10.4f\n', ...
+                    var, obj.Coef.(var), obj.SE.(var), obj.TStat.(var), obj.PValue.(var));
+            end
+            fprintf('======================================================\n');
+            fprintf('Estimates represent the average causal interaction (tau_inter).\n');
+            fprintf('Standard errors are Cluster-Robust at the Unit level.\n');
+            fprintf('======================================================\n\n');
+        end
+    end
+
+    methods (Static, Access = private)
+        function [v_ddot, M_ddot] = absorbFEs(v, M, id, time)
+            % ABSORBFES Removes unit and time fixed effects using within-transformation.
+
+            [~, ~, id_idx] = unique(id);
+            [~, ~, time_idx] = unique(time);
+
+            % (Removed N and T to fix unused variable lints)
+
+            % Compute means
+            v_mean_id = splitapply(@mean, v, id_idx);
+            v_mean_time = splitapply(@mean, v, time_idx);
+            v_mean_all = mean(v);
+
+            v_ddot = v - v_mean_id(id_idx) - v_mean_time(time_idx) + v_mean_all;
+
+            k = size(M, 2);
+            M_ddot = zeros(size(M));
+            for j = 1:k
+                mj = M(:, j);
+                mj_mean_id = splitapply(@mean, mj, id_idx);
+                mj_mean_time = splitapply(@mean, mj, time_idx);
+                mj_mean_all = mean(mj);
+                M_ddot(:, j) = mj - mj_mean_id(id_idx) - mj_mean_time(time_idx) + mj_mean_all;
+            end
+        end
+    end
+end

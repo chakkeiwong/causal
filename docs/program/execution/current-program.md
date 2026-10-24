@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-graph-reuse-wave-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-graph-reuse-wave-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-panels-other-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-panels-other-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-graph-reuse-wave-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-panels-other-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,33 +12,33 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_agena_reuse_reviewed_2026-10-25.pdf) has 1,580 pages,
-1,213 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_graph_reuse_wave_reviewed_2026-10-25.pdf) has 129 pages and 800 citations.
-All 1,209 predecessor records, citation contexts and 378 compiled content inputs survive.
+The [monograph](../../causal_proposal_panels_other_reviewed_2026-10-25.pdf) has 1,583 pages,
+1,217 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_panels_other_reviewed_2026-10-25.pdf) has 131 pages and 806 citations.
+All 1,213 predecessor records, citation contexts and 380 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**307 recorded outcomes of 376; 46 ready; 150 nonpassing obligations.**
+**308 recorded outcomes of 376; 43 ready; 150 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 55 | 44 | 102 |
+| software | 3 | 56 | 43 | 102 |
 | reuse | 109 | 4 | 2 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The grouped preserving successor adds Dara graph-interface and AgenaRisk wrapper/runtime comparisons. Dara's commercial causaLens branch remains unselected,so its umbrella outcome is inconclusive. AgenaRisk is a bounded reference choice. Thirty-five selected original files were authenticated;the preserved Dara README failure is repaired by authenticating the root symlink and resolved target against one pinned tree.
+The preserving successor adds a connected Julia/MATLAB panel comparison. Forty original files bind the DiffinDiffs suite and archived alias, DiDInt, and two independent MATLAB implementations. Cohort-time targets, comparison eligibility, anticipation, absorbing-treatment assumptions, weighting and uncertainty are explicit. Exact authored examples expose negative TWFE weighting, unbalanced one-pass projection limits and a conditional factorial coefficient-label mismatch; no native failure is claimed.
 
-The source argument distinguishes graph rendering from edit authority and identification;scenario evidence from interventions;and scenario identifiers from complete cache identity. Exact graph,confounding,cache and cost witnesses reproduce independently. No downloaded vendor code,licensed runtime or native failure was executed. Complete rights,current private support,service profiles and actual prices remain unresolved. Six attempted HUGIN,MATLAB and Agena website routes were rejected by the fixed collector;the permitted AgenaRisk Git route succeeded. These local access limits establish no product absence. The sponsor opening date is corrected to25October2026 while historical evidence remains dated.
+All 1,213 predecessor records, contexts and content inputs survive; the reader has 1,217 records and 258 scholarly PDFs, with 806 in the paired sponsor. Panel-language coverage is inconclusive: remaining candidate searches, gretl/Octave originals, package/runtime/dependency rights and native public qualification remain open. The unchanged commercial omissions and Dara inconclusive branch remain visible.
 
-All1,209 predecessor records and contexts survive;the reader has1,213 records and258 genuine scholarly PDFs,with800 records in the paired sponsor. There are307 recorded outcomes,reuse109pass/four inconclusive/two open,and150 nonpassing obligations. Software remains3/55/44;census82/31plus4crosscutting. The remaining open reuse decisions are MATLAB toolboxes and HUGIN;the commercial causaLens revisit remains explicit.
+There are 308 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 56 inconclusive / 43 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
 ## Remaining gaps and routes
 
-1. Software: 44 open and 55 inconclusive cells. Complete explicit search tails,
+1. Software: 43 open and 56 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
@@ -76,7 +76,7 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 ## Exact continuation
 
-Next: SW.CELL.panels_did.other_relevant. Resolve package/dependency license and licensed runtime; inspect other-language offerings. Do not count this as native vendor functionality. Inspect cohort/time aggregation, anticipation, treatment reversal, heterogeneous effects, clustering and trend sensitivity; banking example: staggered branch policy rollout.
+Next: LL.CENSUS. Continue the 31 unread originals and four crosscutting tasks. Preserve all recorded source/date/identity limits, including157/199/202/206, and seek distinct permitted genuine originals without repeating unchanged blocked routes. Copilot and the commercial network reference decisions are published; continue independent software cells and remaining concrete reuse candidates.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.

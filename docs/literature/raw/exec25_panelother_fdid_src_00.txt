@@ -1,0 +1,132 @@
+# Factorial Difference-in-Differences (FDID) for MATLAB
+
+This repository contains a high-performance, object-oriented MATLAB replication of the **Factorial Difference-in-Differences (FDID)** model, based strictly on the theoretical framework presented in:
+
+> **Xu, Zhao, and Ding (2024)**. _Factorial Difference-in-Differences_. [arXiv:2407.11937v2](https://arxiv.org/abs/2407.11937)
+
+## Overview
+
+The FDID framework provides a robust identification strategy for panel data where:
+
+1. **Universal Exposure**: An event (the "Treatment") affects **all** units simultaneously (no clean control group).
+2. **Baseline Modulator**: A baseline factor ($G$) modulates the impact of the event across different units.
+
+This implementation accurately distinguishes between **Effect Modification** (what canonical DID recovers) and **Causal Moderation** (the true causal interaction of the baseline factor, identifiable under the _Factorial Parallel Trends_ assumption).
+
+## Components
+
+The replication is divided into four main files reflecting a professional econometric package:
+
+1. **`MonteCarloSim.m`**: A rigorous Data Generating Process (DGP) simulator for FDID panel structures.
+   - Generates simulated datasets controlling effect modifications ($\tau_{em}$) vs. causal moderations ($\tau_{inter}$).
+   - Injects canonical and factorial parallel trends violations, heteroskedasticity, and AR(1) serial correlation.
+2. **`FdidEstimator.m`**: A computationally efficient TWFE-based estimator.
+   - Utilizes Within-Transformation (absorbing unit and time fixed effects) for optimal performance on large $N$ panels, completely avoiding large sparse `dummyvar` matrices.
+   - Incorporates robust `pinv` solvers to handle TWFE collinearity.
+   - By default, calculates Unit-Level **Cluster-Robust Standard Errors** (CRSE) with finite-sample corrections.
+3. **`run_monte_carlo.m`**: Evaluation script demonstrating the estimator's unbiasedness, RMSE, and properties under valid vs. invalid factorial assumptions across 200 replications.
+4. **`run_empirical_fdid.m`**: Empirical application mock-up. Demonstrates the usage syntax on a proxy dataset modeling the "Clans and Calamity" Great Famine study.
+
+## Mathematical Framework
+
+The FDID setup relies on a panel data structure where an event occurs at time $T_0$. All units are exposed to the event ($Z_{it}=1$ for $t \ge T_0$). The baseline factor $G_i \in \{0, 1\}$ divides the units into two groups.
+
+The potential outcomes are modeled as:
+
+$$
+Y_{it}(g, z) = \alpha_i + \beta_t + \beta_{GZ} g z + \beta_{X} X_i z + \beta_{GZX} g X_i z + \epsilon_{it}(g, z)
+$$
+
+The Two-Way Fixed Effects (TWFE) regression estimated by `FdidEstimator` is:
+
+$$
+Y_{it} = \mu_i + \lambda_t + \beta_{GZ} (G_i Z_{it}) + \beta_X (X_i Z_{it}) + \beta_{GZX} (G_i X_i Z_{it}) + \epsilon_{it}
+$$
+
+Where:
+
+- $\mu_i$ and $\lambda_t$ are unit and time fixed effects.
+- $\beta_{GZ}$ captures the **Causal Moderation** ($\tau_{inter}$) if the Factorial Parallel Trends assumption holds and covariates are centered.
+- $\beta_{GZ}$ captures only the **Effect Modification** ($\tau_{em}$) if only canonical Parallel Trends holds.
+
+## Usage Guide
+
+### 1. Generating Data with `MonteCarloSim`
+
+The `MonteCarloSim` class provides an interface to generate synthetic FDID data.
+
+```matlab
+% Initialize simulator
+sim = MonteCarloSim();
+sim.NumUnits = 1000;
+sim.NumPeriods = 4;
+sim.EventTime = 3;
+
+% Configure parameters
+sim.TauInter = 2.0;       % True causal moderation
+sim.TauEm = 2.0;          % Set different from TauInter to violate Factorial PT
+sim.HasHeteroskedasticity = true;
+
+% Generate data
+[data, trueParams] = sim.generate();
+```
+
+### 2. Estimating with `FdidEstimator`
+
+The `FdidEstimator` fits the TWFE model on the panel data, using within-transformation to efficiently absorb fixed effects.
+
+```matlab
+% Initialize the estimator
+% Arguments: (data, idVar, timeVar, outcomeVar, baseFactorVar, exposureVar, covariatesList)
+estimator = FdidEstimator(data, "id", "time", "y", "g", "z", ["x"]);
+
+% Fit the model (calculates coefficients, robust standard errors, t-stats, p-values)
+estimator = estimator.fit();
+
+% Display the formatted results table
+estimator.displayResults();
+
+% Access specific coefficients or p-values programmatically
+betaGZ = estimator.Coef.GZ;
+pValGZ = estimator.PValue.GZ;
+```
+
+### Empirical Application Example
+
+```matlab
+% Set up paths and run the empirical mock script
+run_empirical_fdid
+```
+
+**Expected Output:** Formatted regression tables showing the Causal Interaction Estimate (the `GZ` term).
+
+### Monte Carlo Simulation Example
+
+```matlab
+% Run the Monte Carlo test (Note: takes a few seconds to process 200 iterations and draw KDE charts)
+run_monte_carlo
+```
+
+## Critical Considerations & Best Practices
+
+When applying the FDID framework, researchers must exercise extreme caution regarding two core theoretical caveats identified in the literature:
+
+### 1. The Factorial Parallel Trends Assumption
+
+The TWFE regression (the `GZ` coefficient) mathematically converges to the Effect Modification ($\tau_{em}$). It only represents the **Causal Moderation** ($\tau_{inter}$) if the _Factorial Parallel Trends_ assumption holds.
+
+- **What this means:** Under any hypothetical state of the world (e.g., if the event never occurred), the trajectory of outcomes for the $G=1$ group must precisely match the $G=0$ group.
+- **Failure Consequence:** If high-$G$ units and low-$G$ units have differing natural trajectories (due to historical or geographic advantages), the estimate contains severe **Selection Bias**, rending the causal interpretation invalid.
+
+### 2. The Danger of Over-Controlling Covariates ($X$)
+
+To rescue the _Factorial Parallel Trends_ assumption, researchers often condition on baseline covariates $X$. However, indiscriminately adding covariates in an FDID TWFE framework can be disastrous:
+
+- **Efficiency Loss & Multicollinearity:** Every added covariate $X$ requires controlling for $X \times Z$ and ideally the three-way interaction $G \times X \times Z$. This exponentially consumes degrees of freedom. Highly correlated covariates will push the design matrix $(X'X)$ towards singularity, exploding standard errors and causing computational instability.
+- **Bad Controls (Colliders & Mediators):** Never control for "post-treatment" variables (factors that could themselves be affected by the event $Z$). Doing so opens endogenous pathways (Collider Bias) or absorbs the mechanism of action (Over-control Bias), thoroughly polluting both $\tau_{inter}$ and $\tau_{em}$.
+- **Best Practice:** Only include strictly **pre-determined, essential confounders** that theoretically dictate both the $G$ group assignment and the underlying time trend. Furthermore, `FdidEstimator` automatically **centers** ($X_i - \bar{X}$) all provided covariates to explicitly ensure the main $\beta_{GZ}$ term anchors to the sample average causal interaction.
+
+## Setup & Requirements
+
+- **Environment**: MATLAB R2017a or higher (uses `string` arrays).
+- **Dependencies**: Uses basic Statistics and Machine Learning Toolbox functions (`normrnd`, `ksdensity`, etc.).

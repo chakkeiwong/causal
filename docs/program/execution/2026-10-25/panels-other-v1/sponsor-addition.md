@@ -1,0 +1,7 @@
+## Other-language panel comparison and qualification
+
+Forty original files resolve the Julia DiffinDiffs suite and archived alias,DiDInt,and two independent MATLAB panel implementations. Suite delegation,cohort-time weights,control eligibility,anticipation,absorbing-treatment assumptions and cluster inference are explicit comparison contracts. General fixed-effects regression does not substitute for the requested staggered-policy target.\citep{exec25_panelother_julia,exec25_panelother_didint,exec25_panelother_matlab,exec25_panelother_choice}
+
+Exact authored panels show a negative TWFE coefficient despite positive treated effects,different answers under cohort versus observation weights,and a failed general projection from one-pass demeaning on an unbalanced panel. Static source traces identify conditional option/label tests;no native package failure is claimed. MATLAB package rights and licensed-runtime requirements,remaining language search tails,delegate versions and public native comparisons remain unresolved.\citep{exec25_panelother_choice}
+
+The proposed public suite fixes the assignment law,targets,support,clusters,truth and full failure/cost denominators. Hypothetical USD9,600 is USD40 per attempt,USD60 per completion and USD120 per admissible result. This advances an inconclusive coverage cell and grants no implementation or acceptance claim.\citep{exec25_panelother_choice}

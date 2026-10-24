@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**307 / 376 proposal operations have recorded outcomes; 46 are ready.** Next: **SW.CELL.panels_did.other_relevant**.
+**308 / 376 proposal operations have recorded outcomes; 43 are ready.** Next: **LL.CENSUS**.
 
-Resolve package/dependency license and licensed runtime; inspect other-language offerings. Do not count this as native vendor functionality. Inspect cohort/time aggregation, anticipation, treatment reversal, heterogeneous effects, clustering and trend sensitivity; banking example: staggered branch policy rollout.
+Continue the 31 unread originals and four crosscutting tasks. Preserve all recorded source/date/identity limits, including157/199/202/206, and seek distinct permitted genuine originals without repeating unchanged blocked routes. Copilot and the commercial network reference decisions are published; continue independent software cells and remaining concrete reuse candidates.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_agena_reuse_reviewed_2026-10-25.pdf) — 1580 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_panels_other_reviewed_2026-10-25.pdf) — 1583 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 
