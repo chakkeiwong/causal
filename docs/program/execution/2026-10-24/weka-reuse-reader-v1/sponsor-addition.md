@@ -1,0 +1,9 @@
+## Weka separates predictive network fitting from intervention value
+
+The selected Weka Bayesian-network reference is a pinned 2022 discontinued mirror, with declared 3.8.7-SNAPSHOT identity. Its README points to the official successor, whose cutoff source identity remains unresolved. Selected primary files expose class-driven initialization, supervised discretization, missing-class removal, weighted CPT estimation and distinct plain search-score counts. These observations do not establish current-release or native behavior.\citep{exec24_weka_source}
+
+A reproducible confounding example yields an observed success difference of three fifths while both intervention means equal one half. Under the stipulated banking values, treating the observed contrast as causal would report 50,000 USD net value when the true intervention loses 10,000 USD. A second exact example shows missing-label selection changing observed success from one half to four fifths. Prediction, label availability and intervention value require separate contracts.\citep{exec24_weka_choice}
+
+The proposed public qualification checks category and node permutations, preprocessing splits, weights and priors, unobserved CPT rows, and invalid probability outputs. The selected normalization failure returns zeros; a downstream worker must preserve a failure rather than interpret zero risk. Retain the software as a historical reference and conditional predictive comparator, defer unrestricted adoption and engine porting, and reject automatic causal interpretation of classifier arrows.\citep{exec24_weka_source,exec24_weka_choice}
+
+An authored 7,200 USD trial costs 20, 24 and 30 USD per submitted, completed and qualified task. Actual support, complete rights, native comparisons and investment value remain unmeasured; no independent, visual or final acceptance is claimed.\citep{exec24_weka_choice}
