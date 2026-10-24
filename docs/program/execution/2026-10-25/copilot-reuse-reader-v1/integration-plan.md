@@ -1,0 +1,1 @@
+Preserve all1203 prior source records,citation contexts and content inputs. Add one concrete Copilot reference choice, component alternatives, semantic/failure contracts and public qualification design; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
