@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-bn-commercial-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-bn-commercial-reuse-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-agents-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-agents-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-bn-commercial-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-agents-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,45 +12,45 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_bn_commercial_reuse_reviewed_2026-10-25.pdf) has 1,565 pages,
-1,205 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_bn_commercial_reuse_reviewed_2026-10-25.pdf) has 126 pages and 775 citations.
-All 1,204 predecessor records, citation contexts and 374 compiled content inputs survive.
+The [monograph](../../causal_proposal_agents_reuse_reviewed_2026-10-25.pdf) has 1,569 pages,
+1,206 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_agents_reuse_reviewed_2026-10-25.pdf) has 127 pages and 784 citations.
+All 1,205 predecessor records, citation contexts and 375 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**301 recorded outcomes of 376; 52 ready; 155 nonpassing obligations.**
+**303 recorded outcomes of 376; 50 ready; 153 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 55 | 44 | 102 |
-| reuse | 104 | 3 | 8 | 115 |
+| reuse | 106 | 3 | 6 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor resolves BayesiaLab and Bayes Server separately as
-commercial references. Ten retained official originals support their scoped
-model, intervention, abduction and API comparisons. Mutable later-acquired
-pages, unselected artifacts and unreconciled order/addenda remain qualified.
-No vendor service was run and no contract accepted. Exact authored examples
-separate population intervention laws from individual counterfactual coupling,
-loaded-model concurrency from host count, and requests from admissible results.
+The preserving successor resolves two agent umbrella leads into six named
+components: LLM-CD, causal_GPT, LLM-and-SCD, CausalAgent, oci-agent and
+OntoLearner. Twenty-nine retained original files are authenticated to their Git
+blobs. Roles, root/dependency/data/provider rights and conditional adaptation
+routes remain separate. Exact authored examples distinguish ancestry from a
+direct edge, missingness from numeric evidence, uniform trimming from overlap
+weighting, and attempted from admissible requests. No upstream code ran.
 
-All 1,204 predecessor records and contexts survive; the reader has 1,205
-records and 258 genuine scholarly PDFs, with 775 records in the paired sponsor.
-Two reference decisions pass without integration: 301 outcomes are recorded,
-reuse is 104 pass / three inconclusive / eight open, and 155 nonpassing
+All 1,205 predecessor records and contexts survive; the reader has 1,206
+records and 258 genuine scholarly PDFs, with 784 records in the paired sponsor.
+Two proposal reference resolutions pass without integration: 303 outcomes are
+recorded, reuse is 106 pass / three inconclusive / six open, and 153 nonpassing
 obligations remain. Software remains three pass / 55 inconclusive / 44 open.
-Census remains 82 inspected / 31 unread plus four crosscutting tasks. Earlier
-Copilot, ECMO, Java/C++ and census-continuation repairs are preserved. Four further source searches record local route limits for candidates157/199/202/206 without changing dispositions or treating metadata as technical evidence.
+Census remains 82 inspected / 31 unread plus four crosscutting tasks. All earlier
+commercial, Copilot, ECMO, Java/C++ and census repairs remain preserved.
 
 ## Remaining gaps and routes
 
 1. Software: 44 open and 55 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: eight open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: six open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 31 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
@@ -82,7 +82,7 @@ recorded outcome. This could repeat instructions to finish a build or record a
 receipt that already existed. Recorded outcomes now derive continuation from
 the final receipt or output revisit trigger. Recorded local blocks take precedence over earlier progress checkpoints.
 Pre-result and pre-block checkpoints remain history; other open operations use
-their latest durable progress. The L6 source followup preserves its inconclusive outcome. The census successor records current 82/31 counts and binds local access failures to the affected candidate actions.
+their latest durable progress. The L6 source followup preserves its inconclusive outcome. The census successor records current 82/31 counts and binds local access failures to the affected candidate actions. Yield verification checks the saved operation checkpoint independently of the next scheduler choice, so normal lane rotation does not falsely stop publication.
 
 ## Exact continuation
 
