@@ -1,0 +1,1724 @@
+                                                       Off-policy Confidence Sequences
+                                             Nikos Karampatziakis1 , Paul Mineiro1 , and Aaditya Ramdas2
+arXiv:2102.09540v1 [cs.LG] 18 Feb 2021
+
+
+
+
+                                                                            1
+                                                                    Microsoft
+                                                                 2
+                                                            Carnegie Mellon University
+                                                {nikosk,pmineiro}@microsoft.com aramdas@cmu.edu
+
+                                                                       February 19, 2021
+
+                                                                                Abstract
+                                                   We develop confidence bounds that hold uniformly over time for off-
+                                               policy evaluation in the contextual bandit setting. These confidence se-
+                                               quences are based on recent ideas from martingale analysis and are non-
+                                               asymptotic, non-parametric, and valid at arbitrary stopping times. We
+                                               provide algorithms for computing these confidence sequences that strike
+                                               a good balance between computational and statistical efficiency. We em-
+                                               pirically demonstrate the tightness of our approach in terms of failure
+                                               probability and width and apply it to the “gated deployment” problem of
+                                               safely upgrading a production contextual bandit system.
+
+
+                                         1    Introduction
+                                         Reasoning about the reward that a new policy π would have achieved if it had
+                                         been deployed, a task known as Off-Policy Evaluation (OPE), is one of the key
+                                         challenges in modern Contextual Bandits (CBs) Langford and Zhang [2007] and
+                                         Reinforcement Learning (RL). A typical OPE use case is the validation of new
+                                         modeling ideas by data scientists. If OPE suggests that π is better, this can
+                                         then be validated online by deploying the new policy to the real world.
+                                             The classic way to to answer whether π has better reward than the current
+                                         policy h is via a confidence interval (CI). Unfortunately, CIs take a very static
+                                         view of the world. Suppose that π is better than h and our OPE shows a higher
+                                         but not significantly better estimated reward. What should we do? We could
+                                         collect more data, but since a CI holds for a particular (fixed) sample size and is
+                                         not designed to handle interactive/adaptive data collection, simply recalculating
+                                         the CI at a larger sample size invalidates its coverage guarantee.
+                                             While there are ways to fix this, such as a crude union bound, the proper
+                                         statistical tool for such cases is called a Confidence Sequence (CS). A CS is a
+                                         sequence of CIs such that the probability that they ever exclude the true value
+
+
+
+                                                                                   1
+is bounded by a prespecified quantity. In other words, they retain validity under
+optional (early) stopping and optional continuation (collecting more data).
+    In this work we develop CSs for OPE using recent insights from martingale
+analysis (for simpler problems). Besides the aforementioned high probability
+uniformly over time guarantee, these CSs make no parametric assumptions and
+are easy to compute. We use them to create a “gated deployment” primitive:
+instead of deploying π directly we keep it in a staging area where we compute
+its off-policy CS as h is collecting data. Then π can replace h as soon as (if
+ever) we can reject the hypothesis that h is better than π.
+    We now introduce some notation to give context to our contributions. We
+have iid CB data of the form (x, a, r) collected by a historical policy h in the
+following way. First a context x was sampled from an unknown distribution
+D. Then h assigns a probability to each action. An action a is sampled with
+probability h(a; x) and performed. A reward r associated with performing a in
+situation x is sampled from an unknown distribution R(x, a). Afterwards, we
+wish to estimate the reward of another policy π  h. We have
+                                                              
+                                                     π(a; x)
+                  V (π) = Ex∼D       [r] = Ex∼D              r                (1)
+                            a∼π(x)          a∼h(x)   h(a; x)
+                            r∼R(x,a)        r∼R(x,a)
+
+
+where the last quantity can be estimated from data. Letting w = π(a;x)
+                                                                    h(a;x) we see
+that Ex∼D,a∼h [w] = 1, where we write w instead of w(x, a) to reduce notation
+clutter. More generally for any function q(x, a) — which is typically a predictor
+of the reward of a at x — we have
+                                          X
+                   Ex∼D,a∼h [wq(x, a)] =      π(a0 ; x)q(x, a0 ),             (2)
+                                            a0
+
+which reduces to E[w] = 1 when q(x, a) = 1 always. Eq. (1) and (2) are the
+building blocks of OPE estimators. The IPS estimatorPHorvitz and Thompson
+                                                           n
+[1952] estimates (1) via Monte Carlo: V̂ IPS (π) = 1/n i=1 wi ri . A plethora of
+other OPE estimators are discussed in Section 6. In general there is a tension
+between the desirability of an unbiased estimator like V̂ IPS and the difficulty of
+working with it in finite samples due to its excessive variance.
+    Recently, Kallus and Uehara [2019] proposed an OPE estimator based on
+Empirical Likelihood Owen [2001] with several desirable properties. Empirical
+Likelihood (EL) has also been used to derive CIs for OPE in CBs Karampatziakis
+et al. [2020] and RL Dai et al. [2020]. Our CSs can be thought of as a natural
+extension to the online setting of the CIs for OPE in the batch setting; its
+advantages include
+   • Our CSs hold non-asymptotically, unlike most existing CIs mentioned
+     above which are either asymptotically valid (or nonasymptotic but overly
+     conservative).
+   • Our CSs are not unnecessarily conservative due to naive union bounds or
+     peeling techniques.
+
+
+                                        2
+    • We do not make any assumptions, either parametric or about the support
+      of w and r, beyond boundedness.
+    • Our validity guarantees are time-uniform, meaning that they remain valid
+      under optional continuation (collecting more data) and/or at stopping
+      times, both of which are not true for all aforementioned CIs.
+
+
+2     Background: OPE Confidence Intervals
+We start by reviewing OPE CIs from the perspective of Karampatziakis et al.
+[2020]. Their CI is constructed by considering plausible distributions from a non-
+parametric family Q of distributions Q for random vectors (w, r) ∈ [0, wmax ] ×
+[0, 1] under the constraint EQ [w] = 1. Let Qwr be the probability that Q ∈ Q
+assigns to the event where the importance weight is w and the reward is r. Then
+there exists Q∗ ∈ Q such that
+                                                                 
+                                            π(a; x)
+              Q∗wr = Ex∼D,a∼h,ρ∼R(x,a) I            = w · I [ρ = r]
+                                            h(a; x)
+
+and V (π) = EQ∗ [wr]. To estimate of V (π) we can find Qmle ∈ Q that maximizes
+the data likelihood. To find a CI we minimize/maximize EQ [wr] over plausible
+Q ∈ Q so the data likelihood is not far off from that of Qmle .
+                                                     1
+   Using convex duality the MLE is Qmle                            mle
+                                       wr = n(1+λmle (w−1)) where λ1   is a dual
+                                                   1
+variable solving
+                                    Xn
+                     λmle
+                      1   = argmax      log(1 + λ1 (wi − 1))
+                                   λ1   i=1
+
+subject to 1 + λ1 (wmaxQn− 1) ≥ 0, 1 − λ1 ≥ 0. The profile likelihood L(v) =
+supQ:EQ [w]=1,EQ [wr]=v i=1 Qwi ,ri is used for CIs. From EL theory, an asymp-
+totic 1 − α-CI is
+                      (            Qn      mle
+                                                  !          )
+                                      i=1 Qwi ,ri      2,1−α
+                       v : −2 ln                    ≤ χ1
+                                        L(v)
+
+where χ2,1−α
+       1     is the 1−α quantile of a χ2 distribution with one degree of freedom.
+Using convex duality the CI is
+               (            n
+                                                                 )
+                            X                              2,1−α
+                 v : B(v) −    log(1 + λmle
+                                         1 (wi − 1)) ≤ χ1
+                             i=1
+
+where the dual profile log likelihood B(v) is
+                            n
+                            X
+              B(v) = sup           log(1 + λ1 (wi − 1) + λ2 (wi ri − v))      (3)
+                      λ1 ,λ2 i=1
+
+
+
+
+                                              3
+subject to (λ1 , λ2 ) ∈ Dv0 where
+                Dvm = {(λ1 , λ2 ) :1 + λ1 (w − 1) + λ2 (wr − v) ≥ m
+                                     ∀(w, r) ∈ {0, wmax } × {0, 1}}.            (4)
+The CI endpoints can be found via bisection on v.
+
+
+3     Off-policy Confidence Sequences
+We now move from the batch setting and asymptotics to online procedures and
+finite sample, time-uniform results. We adapt and extend ideas from Waudby-
+Smith and Ramdas [2020] which constructs CSs for the means of random vari-
+ables in [0, 1]. Our key insight is to combine their construction with an inter-
+pretation of (3) as the log wealth accrued by a skeptic who is betting against
+the hypotheses
+                          EQ∗ [w] = 1 and EQ∗ [wr] = v.
+In particular, the skeptic starts with a wealth of 1 and wants to maximize her
+wealth. Her bet on the outcome w − 1 is captured by λ1 , while λ2 represents
+the bet on the outcome of wr − v so that the wealth after the i-th sample is
+multiplied by 1 + λ1 (wi − 1) + λ2 (wi ri − v). If the outcomes had been in [−1, 1]
+then |λ1 | and |λ2 | would have an interpretation as the fraction of the skeptic’s
+wealth that is being risked on each step. The bets can be positive or negative,
+and their signs represent the directions of the bet. For example, λ2 < 0 means
+the skeptic will make money if wi ri − v < 0. Enforcing the constraints (4) from
+the batch setting here means that the resulting wealth cannot be negative.
+    The first benefit of this framing is that we have mapped the abstract concepts
+of dual likekihood, dual variables, and dual constraints to more familiar concepts
+of wealth, bets, and avoiding bankruptcy. We now formalize our constructions
+and show how they lead to always valid, finite sample, CSs. We introduce a
+family of processes
+                             t
+                             Y
+                  Kt (v) =       (1 + λ1,i (wi − 1) + λ2,i (wi ri − v))
+                             i=1
+
+where λ1,i and λ2,i are predictable, i.e. based on past data (formally, measurable
+with respect to the sigma field σ({(wj , rj )}i−1
+                                              j=1 )). We also formalize CIs and CSs
+below.
+Definition 1. Given data Sn = {(xi , ai , ri )}ni=1 , where xi ∼ D, ai ∼ h(·; xi ),
+ri ∼ R(xi , ai ), a (1 − α)-confidence interval for V (π) is a set Cn = C(h, π, Sn )
+such that
+                              sup Pr(V (π) ∈/ Cn ) ≤ α.
+                               D,R
+
+In contrast, a (1 − α)-confidence sequence for V (π) is a sequence of confidence
+intervals (Ct )t∈N such that
+                         sup Pr(∃t ∈ N : V (π) ∈
+                                               / Ct ) ≤ α.
+                         D,R
+
+
+                                            4
+    We now have the setup to state our first theoretical result.
+Theorem 1. Kt (V (π)) is a nonnegative
+                                Tt      martingale. Moreover, the sequences
+Ct = {v : Kt (v) ≤ α1 } and Ct = i=1 Ci are (1 − α)-confidence sequences for
+V (π).
+
+    All proofs are in the appendix. The process Kt (v) tracks the wealth of
+a skeptic betting against V (π) = v. The process Kt (V (π)) is a nonnegative
+martingale so it has a small probability of attaining large values (formally, Ville’s
+inequality states that the probability of ever exceeding 1/α is at most α). Of
+course, we don’t know V (π), but if we retain all values of v where the wealth
+is below 1/α, and reject the values of v for which it has crossed 1/α at some
+point, this set will always contain V (π) with high probability; this is the basis
+of our construction. The strength of our approach comes from this result, as
+it guarantees always-valid bounds for V (π) using only martingale arguments
+crucially avoiding parametric or other assumptions.
+    What about v 6= V (π)? Can we be sure that Ct does not contain values
+v very far from V (π)? That’s where the betting strategy, quantified by the
+predictable sequences (λ1,i ) and (λ2,i ), enters. The hope is the skeptic can
+eventually force Kt (v) to be large via a series of good bets. Importantly, Theo-
+rem 1 holds regardless of how the bets are set, but good bets will lead to “small”
+Ct . How to smartly bet is the subject of what follows.
+
+
+4     Main Betting Strategy: MOPE
+We develop our main betting strategy, MOPE (Martingale OPE) in steps start-
+ing with a slow but effective algorithm and making changes to trade off a small
+amount of statistical efficiency for large gains in computational efficiency.
+
+4.1    Follow The Leader
+We begin with a Follow-The-Leader (FTL) strategy that is known to work very
+well for iid problems De Rooij et al. [2014]. We define `vi (λ) = ln(1 + λ1 (wi −
+1) + λ2 (wi ri − v)) and set λ = [λ1 , λ2 ] to maximize wealth in hindsight
+                                              t−1
+                                              X
+                            λftl
+                             t (v) = argmax          `vi (λ)                     (5)
+                                         λ     i=1
+
+for every step of betting in Kt (v). The problem (5) is convex and can be solved in
+polynomial time leading to an overall polynomial time algorithm. However, this
+approach has three undesirable properties. First, the algorithm needs to store
+the whole history of (w, r) samples. Second the overall algorithm is tractable
+but slow. Finally, we need to solve (5) for all values of v that we have not yet
+rejected.
+
+
+
+
+                                         5
+4.2    Maximizing a lower bound on wealth
+We can avoid having to store all history by optimizing an easy-to-maintain lower
+bound of (5).
+Lemma 1. For all x ≥ − 12 and ψ = 2 − 4 ln(2), we have
+
+                                       ln(1 + x) ≥ x + ψx2 .
+                                                                                      1/2
+   Observe that if we restrict our bets to lie in the convex set Dv                         (cf. eq. (4))
+                  1/2
+then for all λ ∈ Dv
+                 t−1              t−1               t−1
+                                                              !
+                 X                X                 X
+                      v         >                >
+                     `i (λ) ≥ λ       bi (v) + ψλ       Ai (v) λ
+                     i=1                  i=1                    i=1
+                                  
+                    wi − 1
+where bi (v) =                and Ai (v) = bi (v)bi (v)> . The first step towards a
+                   wi ri − v
+more efficient algorithm is to set our bets at time t as
+                                       t−1
+                                                 !          t−1
+                                       X                    X
+                                   >
+               λt (v) = argmax ψλ          Ai (v) λ + λ>        bi (v)          (6)
+                                   1/2
+                             λ∈Dv                 i=1                    i=1
+
+                           1/2
+The restriction λ ∈ Dv is very mild: it does not allow the skeptic to lose more
+than half of her wealth
+                    P from any P single outcome. The first advantage of this
+formulation is that i Ai (v) and i bi (v) are low degree polynomials of v and
+can share the coefficients
+                            t−1
+                                                (0)        (1)         (2)
+                            X
+                                  Ai (v) = At + vAt + v 2 At
+                            i=1
+                             t−1
+                                                (0)       (1)
+                             X
+                                   bi (v) = bt + vbt .
+                             i=1
+
+Secondly, the coefficients can be updated incrementally
+                                 t−1 
+                                          (wi − 1)2
+                                                                              
+                      (0)
+                                 X                          (wi − 1)wi ri
+                     At =                                                         ,                  (7)
+                                         (wi − 1)wi ri          wi2 ri2
+                                 i=1
+                                 t−1                                   
+                      (1)
+                                 X   0                    −(wi − 1)
+                     At =                                                 ,                          (8)
+                                −(wi − 1)                  −2wi ri
+                          i=1
+                          t−1         
+                      (2)
+                          X     0 0
+                     At =                ,                                                           (9)
+                                0 1
+                          i=1
+                          t−1           
+                      (0)
+                          X     wi − 1
+                     bt =                  ,                                                        (10)
+                                 wi ri
+                                 i=1
+
+
+
+                                                      6
+                              t−1     
+                    (1)
+                              X      0
+                   bt     =              .                                     (11)
+                                    −1
+                              i=1
+
+Finally, we can solve (6) exactly in O(1) time. Section 4.4 will elaborate on this
+using a slight variation of eq. (6).
+
+4.3    Common Bets and Hedging
+The most competitive betting sequences for the process K(v) will take advantage
+of the knowledge of v. However, placing different bets for different values of v
+creates two problems: First, the resulting confidence set need not be an interval
+and second makes it hard to implement Theorem 1 in a computationally efficient
+way. Indeed, even in the simpler setup of Waudby-Smith and Ramdas [2020] the
+authors maintain a grid of test values for the quantity of interest (here v) and
+at least keep track of the wealth separately. This is because tracking the wealth
+for each value in the grid is not straightforward when the bets are different.
+    To make wealth tracking easy and obtain algorithms that do not require the
+discretization of the domain of v, a natural proposal would be to use a common
+bet for all v in each timestep. Unfortunately, this is not adequate because we
+do need λ2 > 0 for v < EQ∗ [wr] and λ2 < 0 for v > EQ∗ [wr]. A simple fix is to
+use a hedged strategy as in Waudby-Smith and Ramdas [2020]. First, we split
+the initial wealth equally. The first half is used to bet against low v’s via the
+process
+                           Yt
+                 Kt+ (v) =     1 + λ+                +
+                                                                     
+                                     1,i (wi − 1) + λ2,i (wi ri − v)
+                               i=1
+
+and the second half to bet against high v’s via a separate process Kt− (v) which
+for symmetry we parametrize as
+                              t
+                              Y
+               Kt− (v) =             1 + λ−               −        0    0
+                                                                          
+                                          1,i (wi − 1) + λ2,i (wi ri − v ) .
+                              i=1
+
+where ri0 = 1 − ri and v 0 = 1 − v. This can be seen as the wealth process for
+betting against 1 − v in an world where r has been remapped to 1 − r. Thus
+betting against high values of v reduces to betting against low values of v in a
+modified process. The total wealth of the hedged process is
+                                           1 +
+                              Kt± (v) =     (K (v) + Kt− (v)),                 (12)
+                                           2 t
+and it can be used for CSs in the same way as Kt (v):
+Theorem 2. The sequence Ct± = {v : Kt± (v) ≤ α1 } and its running intersection
+Tt    ±
+ i=1 Ci are 1 − α CSs for V (π).
+
+    It remains to design a common bet for Kt+ (v). Betting against any fixed v0
+will not work well when V (π) = v0 since the optimal bet for V (π) is 0 but such a
+
+
+                                               7
+Algorithm 1 Solve λ∗ = argmaxλ∈C ψλ> Aλ + λ> b
+ Input: A, b
+ λ = −(2ψA)−1 b
+ if λ ∈ C then
+    Return λ
+ end nh
+      if                i         1 o
+             1              1
+ Λ=      2(1−wmax ) , 0  ,  2 , 0 , 0, 2  {vertices of C}
+  for c, d ∈ {([0, 1], 0), ([1, 1], 12 ), ([1 − wmax , 1], 12 )} do
+              >       −1
+    µ = − c c>(2ψA)   b+d
+                (2ψA)−1 c
+                          {Lagrange multiplier}
+                   −1
+    λ = −(2ψA) (b + µc)
+    if λ ∈ C then
+       Λ = Λ ∪ {λ} {Add feasible solutions on faces}
+    end if
+  end for
+  Return argmaxλ∈Λ ψλ> Aλ + λ> b
+
+
+bet cannot help us reject those v that are far from V (π). Therefore we propose
+to adaptively choose the bets against the smallest v that has not been rejected.
+As we construct the CS, we have access to the values of v that constitute the
+endpoints of the CS at the last time step. These values are on the cusp of
+plausibility given the available data and confidence level which means the bets
+are neither too conservative nor too detached from what can be estimated.
+
+4.4    Avoiding grid search
+Once we have determined v for the current step we could choose λ via (6). For
+reasons that will become apparent shortly, we can also consider
+                                  t−1
+                                            !         t−1
+                                  X                   X
+                              >
+                λt = argmax ψλ        Ai (v) λ + λ>       bi (v),        (13)
+                           λ∈C             i=1                        i=1
+
+                               T            1/2
+where C = {λ : λ2 ≥ 0} ∩           v∈[0,1] Dv   or more succintly
+                                                                              
+                                                 1                         1
+             C=       λ : λ2 ≥ 0, λ1 + λ2 ≤        , λ1 (1 − wmax ) + λ2 ≤         .
+                                                 2                         2
+
+The constraint λ2 ≥ 0 is expected for good bets in Kt+ (v) (and by reduction in
+Kt− (v)) since we are eliminating v’s with E[wr − v] > 0. Since there are only
+three constraints and two variables we can exactly solve (13) very efficiently. Our
+implementation first tries to return the unconstrained maximizer, if feasible. If
+not, we evaluate the objective on up to 6 candidates: up to one candidate
+per face of C (obtained via maximizing the objective subject to one equality
+constraint) and its 3 vertices. Algorithm 1 summarizes this.
+
+
+                                                 8
+Algorithm 2 MOPE: Martingale Off-Policy Evaluation
+ Input: process Z = (wi , ri )∞  i=1 , wmax , α
+ Let Z 0 = (wi , 1 − ri ) for (wi , ri ) in Z
+ for vi , vi0 in zip(LCS(Z), LCS(Z 0 )) do
+   Output(vi , 1 − vi0 )
+ end for
+ function LCS(Z)
+   λ1 = [0, 0]> , v = 0
+   for i = 1, . . . do
+      Observe (wi , ri ) from Z
+      Update statistics via (7)-(11) and (18)-(22).
+      if (14) has real roots then
+          v = max(v, largest root of (14))
+      end if
+      yield v {execution suspends/resumes here}
+                (0)      (1)       (2)
+      A = Ai + vAi + v 2 Ai
+              (0)     (1)
+      b = bi + vbi
+      λi+1 = argmaxλ∈C ψλ> Aλ + b> λ.
+   end for
+ end function
+
+
+   Given λ1 , . . . , λt−1 , from (13) we get from Lemma 1
+                   t−1
+                   X                     t−1
+                                         X                     t−1
+                                                               X
+                         `vi (λi ) ≥ ψ         λ>
+                                                i Ai (v)λi +         λ>
+                                                                      i bi (v)
+                   i=1                   i=1                   i=1
+
+for all v ∈ [0, 1]. Thus, if the lower bound exceeds ln(1/α) for a particular v,
+the log wealth will also exceed it. Furthermore, the lower bound is quadratic in
+v so we can easily find those values v ∈ [0, 1] such that
+                      t−1               t−1                 
+                      X
+                           >
+                                        X
+                                             >              2
+                    ψ     λi Ai (v)λi +     λi bi (v) = ln     .            (14)
+                      i=1               i=1
+                                                            α
+
+The extra 2 is due to the hedged process. Appendix B explains this and the
+details of how to incrementally maintain statistics for solving (14) via eqs. (18)-
+(22). The advantage of (13) over (6) is that the latter cannot ensure that old
+                              1/2
+bets will produce values in Dv for future values of v while the former always
+                     1/2
+does because C ⊆ Dv , ∀v ∈ [0, 1].
+    The whole process of updating the statistics, tightening the lower bound v
+via (14) and computing the new bets via (13) is summarized in Algorithm 2.
+
+Confidence Intervals. If one only desires a single CI using a fixed batch of
+data, then a CI can be formed by returning the last set from the CS on any
+permutation of the data. To reduce variance, we can average the wealth of
+several independent permutations without violating validity.
+
+
+                                                 9
+Alternative Betting Algorithms An obvious question is why develop this
+strategy and not just feed the convex functions −`vi (λ) to an online learning
+algorithm? The Online Newton Step (ONS) Hazan et al. [2007] is particularly
+well-suited as −`vi (λ) is exp-concave. While ONS does not require storing all
+history and needs small per-step computation, we could not find an efficient way
+to efficiently reason about Kt (v) for every v ∈ [0, 1]. While the ONS bounds
+the log wealth in terms of the gradients observed at each bet, these gradients
+depend on v in a way that makes it hard to efficiently reuse for different values
+of v. Our approach on the other hand maintains a lower bound on the wealth
+as a second degree polynomial in v, enabling us to reason about all values of v
+in constant time.
+
+
+5     Extensions
+5.1    Adding a Reward Predictor
+So far we have only used the special case E[w] = 1 of eq. (2). However, it is
+common to have access to a reward predictor q(x, a) mapping context and action
+to an estimated reward. Here we will just assume that q(x, a) is any measurable
+function of (x, a) with codomain [0, 1]. We use eq. (2) to define the zero mean
+quantity                                   X
+                     ci = wi q(xi , ai ) −   π(a0 ; xi )q(xi , a0 ).        (15)
+                                           a0
+
+Thus E[wr − c] = E[wr] but when q(xi , ai ) is a good reward predictor, the
+variance of wr − c will be much smaller than that of wr. We propose the wealth
+process
+                         Yt
+               Ktq (v) =    (1 + λ1,i (w − 1) + λ2,i (wi ri − ci − v))
+                          i=1
+
+for predictable sequences (λ1,i , λ2,i ) ∈ Ev0 , where
+
+              Evm = {(λ1 , λ2 ) : 1 + λ1 (w − 1) + λ2 (wr − c − v) ≥ m
+                     ∀(x, a, r, q) ∈ supp(D) × A × {0, 1} × [0, 1]|A| }.
+
+Note that w = w(x, a) and c = c(x, a, q) so all quantities are well defined. This
+set looks daunting but without loss of generality it suffices to only consider two
+actions: a, which is sampled by h, and an alternative one a0 , h(a) ∈ {1/wmax , 1},
+and π(a), q(x, a), q(x, a0 ) ∈ {0, 1}. Considering all these combinations and re-
+moving redundant constraints leads to the equivalent description for Evm as
+                 n 
+                           −1  −1     W      W
+                                                  >           o
+                    λ : −v     v0   −W − v W + v0    λ≥m−1 ,                  (16)
+
+where W = wmax − 1 and v 0 = 1 − v.
+                                                                  1/2
+   For an efficient procedure we introduce the set C q = v∈[0,1] Ev to enable
+                                                        T
+the use of our lower bound and common bets for all v. This set can be shown
+
+
+                                           10
+to be the same as (16) but with v = 1 and v 0 = 1. For predictable sequences of
+           −q
+bets λ+q         q
+      t , λt ∈ C define the processes
+
+                           t
+                           Y
+              Kt+q (v) =          1 + λ+q              +q                  
+                                       1,i (wi − 1) + λ2,i (wi ri − ci − v) ,
+                           i=1
+                          t
+             Kt−q (v) =          1 + λ−q              −q
+                          Y
+                                                               0    0    0
+                                                                           
+                                      1,i (wi − 1) + λ2,i (wi ri − ci − v ) ,
+                          i=1
+
+where ri0 = 1 − ri , v 0 = 1 − v. For the definition of c0i we reason as follows: If
+q(x, a) is a good reward predictor for ri then q 0 (x, a) = 1 − q(x, a) is a good
+reward predictor for ri0 . Plugging q 0 (x, a) in place of q(x, a) in (15) leads to c0i =
+wi − 1 − ci . Finally, the hedged process is just Kt±q (v) = 21 (Kt+q (v) + Kt−q (v))
+and we have
+Theorem 3. The sequences Ctq = {v : Ktq (v) ≤ α1 } and Ct±q = {v : Kt±q (v) ≤
+ 1
+                                           Tt    q     Tt    ±q
+α } as well as their running intersections  i=1 Ci and  i=1 Ci  are 1 − α CSs
+for V (π).
+
+   Appendix D contains the details on how to bet. We close this section with
+two remarks. First, a “bad” q(x, a) can make wr − c have larger variance
+than wr. To protect against this case we can run a doubly hedged process:
+   2
+Kt± (v) = 21 (Kt±q (v) + Kt± (v)) which will accrue wealth almost as well as the
+best of its two components. Second our framework allows for q(x, a) to be
+updated in every step as long as the updates are predictable.
+
+5.2    Scalar Betting
+Since E[w] = 1, it would seem that the λ1 bet cannot have any long term
+benefits. While this will be shown to be false in our experiments we nevertheless
+develop a betting strategy that only bets on wi ri − v. The advantages of this
+strategy are computational and conceptual simplicity. Similarly to Section 4.3
+                             ≷
+we use a hedged process Kt (v) = 21 (Kt> (v) + Kt< (v)) where
+                                 Y
+                  Kt> (v) =            1 + λ>
+                                                           
+                                            2,i (wi ri − v) ,
+                                 i=1
+                                 Y
+                  Kt< (v) =            1 + λ<
+                                                                        
+                                            2,i (wi (1 − ri ) − (1 − v)) .
+                                 i=1
+
+Appendix C.1 provides an alternative justification via a worst case argument.
+The upshot is that λ1 = max(0, −λ2 ) is a reasonable choice and it leads to the
+above processes.
+   We explain betting for Kt> (v), since betting for Kt< (v) reduces to that. We
+use a result by Fan et al. [2015]:
+
+                       ln(1 + λξ) ≥ λξ + (ln (1 − λ) + λ) · ξ 2
+
+
+                                               11
+for all ξ ≥ −1 and λ ∈ [0, 1), which we reproduce in Appendix C.2. We apply
+it in our case with ξi = wi ri − v ≥ −1 and consider the log wealth lower bound
+for a fixed λ2
+                                    t−1
+                                    X                                 t−1
+                                                                      X
+                 ln(Kt> (v)) ≥ λ2         ξi + (ln (1 − λ2 ) + λ2 )         ξi2 .
+                                    i=1                               i=1
+
+       Pt−1
+When i=1 ξi2 > 0 the lower bound is concave and can be maximized in λ2 by
+setting its derivative to 0. This gives
+                                       Pt−1
+                                          i=1 (wi ri − v)
+                  λ>2,t (v) = Pt−1               Pt−1             .
+                               i=1 (w r
+                                     i i −  v) + i=1 (wi ri − v)2
+       Pt−1
+When i=1 ξi2 = 0 we can set λ>    2,t (v) = 0. Finally, employing the same ideas as
+Section 4.4 we can adaptively choose the v to bet against and avoid maintaining
+a grid of values for v. Details are in Appendix C.3
+
+5.3     Gated Deployment
+A common OPE use case is to estimate the difference V (π) − V (h). If we
+can reject all negative values (i.e. the lower CS crosses 0) then π should be
+deployed. Conversely, rejecting all positive values (i.e. the upper CS crosses 0)
+means π should be discarded. Since h is the policy collecting the data we have
+V (h) = E[r]. Thus we can form a CS around V (π) − V (h) by considering the
+process:
+                         t
+                         Y
+              Ktgd (v) =   (1 + λ1,i (wi − 1) + λ2,i (wi ri − ri − v))
+                           i=1
+
+for predictable λ1,i , λ2,i subject to (λ1,i , λ2,i ) ∈ Gv0 where
+
+                 Gvm = {(λ1 , λ2 ) :1 + λ1 (w − 1) + λ2 (wr − r) ≥ m
+                                    ∀(w, r) ∈ {0, wmax } × {0, 1}}.                 (17)
+
+As before, we can form a hedged process and restrict bets to a set that enables
+the use of our lower bound. We defer these details to appendix E. We can then
+show
+                                                           Tt
+Theorem 4. The sequences Ctgd = {v : Ktgd (v) ≤ α1 } and i=1 Cigd are 1 − α
+CSs for V (π) − V (h).
+    This CS has two advantages over a classical A/B test. First, we don’t have
+to choose a stopping time in advance. The CS can run for as little or as long as
+necessary. Second, if π were worse than h the A/B test would have an adverse
+effect on the quality of the overall system, while here we can reason about this
+degradation without deploying π.
+
+
+
+                                             12
+6    Related Work
+Apart from IPS, other popular OPE estimators include Doubly Robust Robins
+and Rotnitzky [1995], Dudı́k et al. [2011] which incorporates (2) as an additive
+control variate and SNIPS Swaminathan and Joachims [2015] which incorporates
+E[w] = 1 as a multiplicative control variate. The quest to balance the bias-
+variance tradeoff in OPE has led to many different proposals Wang et al. [2017],
+Vlassis et al. [2019]. EL-based estimators are proposed in Kallus and Uehara
+[2019] and Karampatziakis et al. [2020].
+    CIs for OPE include both finite-sample Thomas et al. [2015] and asymp-
+totic Li et al. [2015], Karampatziakis et al. [2020] ones. Some works that pro-
+pose both types are Bottou et al. [2013] and Dai et al. [2020]. The latter obtains
+CIs without knowledge of w, a much more challenging scenario that requires ad-
+ditional assumptions.
+    We are not aware of any CSs for OPE. For on-policy setups, the most com-
+petitive CSs all rely on exploiting (super)martingales, and in some sense all
+admissible CSs have to Ramdas et al. [2020]. Examples include Robbins’ mix-
+ture martingale Robbins [1970] and the techniques of Howard et al. [2020]. The
+recent work of Waudby-Smith and Ramdas [2020] which leverages a betting
+view substantially increases the scope of these techniques, while simplifying and
+tightening the constructions. Similar betting ideas have been recently used in
+the development of parameter-free online algorithms Orabona and Pál [2016].
+
+
+7    Experiments
+
+                                
+
+                                
+
+                                
+          F R Y H U D J H
+
+
+
+
+                                                    0 2 3 (
+                                                    6 F D O D U  % H W W L Q J
+                                
+
+                                
+
+                                
+                                                                                                                                      
+                                                                                                                           
+                                                                                               V D P S O H V
+
+Figure 1: Empirical coverage for two proposed CSs. The CS that bets on both
+w − 1 and wr − v converges to nominal coverage while the CS that does not bet
+on w − 1 overcovers.
+
+
+
+                                                                                     13
+                                                            ( >w 2 @       ( >wr @                                                                                 ( >w 2 @       ( >wr @     
+                                                                                                    0 2 3 (                                                                                                       0 2 3 (
+                                                                                                           9 H F W R U V                                                                                                9 H F W R U V
+                                                                                                           & R P P R Q                                                                                                  & R P P R Q
+                                                                                                        % R X Q G                                                                                                    % R X Q G
+                                                                                                       3 R L Q W Z L V H  $ V \ P                                                                                   3 R L Q W Z L V H  $ V \ P
+                      
+       Z L G W K
+
+
+
+
+                      
+
+                      
+
+                      
+
+                                                            ( >w 2 @       ( >wr @                                                                                 ( >w 2 @       ( >wr @     
+                      
+
+                      
+
+                      
+       Z L G W K
+
+
+
+
+                      
+                                      0 2 3 (                                                                                                       0 2 3 (
+                                          9 H F W R U V                                                                                                9 H F W R U V
+                                       & R P P R Q                                                                                                  & R P P R Q
+                                          % R X Q G                                                                                                    % R X Q G
+                                   3 R L Q W Z L V H  $ V \ P                                                                                   3 R L Q W Z L V H  $ V \ P
+
+                                                                                                                                                                                               
+                                                                       V D P S O H V                                                                                                 V D P S O H V
+
+
+Figure 2: The width of 95% CS produced by MOPE and its three ablations.
+The pointwise asymptotic curve is not a CS.
+
+
+
+
+                             1.0
+
+                             0.9
+
+                             0.8
+              reward
+
+
+
+
+                             0.7
+                                                                                                                                                                  with reward predictor
+                             0.6                                                                                                                                  no reward predictor
+                                                                                                                                                                  double hedging
+                                                                                                                                                                  V( )
+                             0.5
+                                                                                        102                                                        103                                                                        104
+                                                                                                                                     samples
+
+Figure 3: Three 99.9% CSs with/without a reward predictor and a doubly
+hedged one that achieves the best of both
+
+
+
+
+                                                                                                                                     14
+                            1.00
+                            0.75
+                            0.50
+        reward difference   0.25
+                            0.00
+                            0.25
+                            0.50
+                                                          True V( ) V(h)
+                            0.75                          Off-Policy CS
+                            1.00                          On Policy CS (A/B)
+                                   102              103                   104
+                                          samples
+
+Figure 4: CS for gated deployment and A/B test. π can be deployed as soon as
+the lower CS crosses 0 (dotted line at t = 657).
+
+
+7.1    Coverage
+While any predictable betting sequence guarantees correct coverage, some will
+overcover more than others. Here we investigate the coverage properties of
+MOPE and the strategy of Section 5.2. We generate 1000 sequences of 100000
+(w, r) pairs each from a different distribution. All distributions are maximum
+entropy distributions subject to (w, r) ∈ {0, 0.5, 2, 100} × {0, 1}, E[w] = 1,
+E[w2 ] = 10 and V (π) sampled uniformly in [0, 1]. In Figure 1 we show the
+empirical mean coverage of the two CSs for α = 0.05. MOPE approaches
+nominal coverage from above, a property rarely seen with standard confidence
+bounds.
+
+7.2    Computational vs. Statistical Efficiency
+We run an ablation study for the three ingredients of MOPE, where −Vector
+is the scalar betting technique of section 5.2; −Common solves (6) over a grid
+of 200 v values at each timestep; and −Bound optimizes the log wealth exactly
+rather than the bound of Lemma 1, i.e., Algorithm 2 with equation (5) in lieu
+of equation (13).
+     We use four synthetic environments which are distributions over (w, r) gen-
+erated in the same way as section 7.1 but with (V (π), E[w2 ]) ∈ {0.05, 0.5} ×
+{10, 50}. Table 1 shows the running times for each method in the environment
+with the largest variance. We see that directly maximizing wealth and indi-
+vidual betting per v are very slow. MOPE and −Vector are computationally
+efficient. In Figure 2 we show the average CS width over 10 repetitions for
+500000 time steps for MOPE and its ablations as well as the asymptotic CI
+from Karampatziakis et al. [2020] which is only valid pointwise and provides a
+lower bound for all CSs in the figure. MOPE is better than −Vector and as
+
+
+                                         15
+       Table 1: Timings for MOPE and its ablations on 500000 samples
+           Method        MOPE      -Vector     -Common      -Bound
+           Time (sec)       32        14.5       10440       15882
+
+
+good or better than −Bound. While MOPE is not as tight as the (much more
+computationally demanding) −Common, the gap is small in all but the most
+challenging environment.
+
+7.3    Effect of a Reward Predictor
+We now investigate the use of reward predictors in our CSs using the processes
+                 2
+Kt±q (v) and Kt± (v) of Section 5.1. We use the first 1 million samples from the
+mnist8m dataset which has 10 classes and train the following functions: h using
+linear multinomial logistic regression (MLR), π again using MLR but now on
+1000 random Fourier features (RFF) Rahimi and Recht [2007] that approximate
+a Gaussian kernel machine, and finally q which uses the same RFF represetation
+as π but instead its i-th output is independently trained to predict whether the
+input is the i-th class using 10 binary logistic regressions. We used the rest
+of the data with the following protocol: for each input/label pair (xi , yi ), we
+sample action ai with probability 0.9h(ai ; xi ) + 0.01 (so that we can safely set
+wmax = 100), we set ri = 1 if ai = yi , otherwise ri = 0, and record wi and ci .
+We estimated V (π) ≈ 0.9385 using the next million samples. In Figure 3 we
+show the CS for V (π) averaged over 5 runs each with 10000 different samples
+                                             2
+using the processes Kt±q (v), Kt± (v) and Kt± (v). We see that including a reward
+predictor dramatically improves the lower bound and somewhat hurts the upper
+bound. The doubly hedged process on the other hand attains the best of both
+worlds.
+
+7.4    CSs for Gated Deployment
+Here we investigate the use of CSs for gated deployment. We use the same h
+and π and the same data as in Section 7.3 but now we are using the process
+Ktgd (v) (or rather a computationally efficient version of this process based on
+a hedged process with common bets and optimizing a quadratic lower bound
+c.f. Appendix E). Figure 4 shows the average CS over 5 runs each with 10000
+different samples. We see that the CS contains the true difference (about 0.17)
+and quickly decides that π is better than h at t = 657 samples. We also include
+an on-policy CS (from Waudby-Smith and Ramdas [2020]) which can only be
+computed if π is deployed e.g. in an A/B test. While this is riskier when π is
+inferior to h, the on-policy rewards typically have lower variance. Thus the on
+policy CS can conclude that π is better than h at the same α = 0.01 using 440
+samples (220 for each policy). If the roles of π and h were swapped, i.e, π was
+the behavior policy and h was a proposed alternative, the on policy CS would
+
+
+
+                                       16
+still need to collect 220 samples from h. In contrast, a system using the off-
+policy CS would never have to experience any regret when the behavior policy
+is superior.
+
+
+8    Conclusions
+We presented a generic way to construct confidence sequences for OPE in the
+Contextual Bandit setting. The construction leaves a lot of freedom in designing
+betting strategies and we mostly explored options with an eye towards compu-
+tational efficiency. Theoretically we achieve finite sample coverage and validity
+at any time with minimal assumptions. Empirically the resulting sequences are
+tight and not too far away from asymptotic and pointwise valid existing work.
+Theoretical results on the width of our CSs remain elusive and are both an
+interesting area for future work and a key to unlock much stronger analyses of
+various algorithms in Bandits and RL.
+
+
+
+
+                                       17
+References
+John Langford and Tong Zhang. The epoch-greedy algorithm for contextual
+  multi-armed bandits. In Proceedings of the 20th International Conference on
+  Neural Information Processing Systems, pages 817–824. Citeseer, 2007. 1
+Daniel G Horvitz and Donovan J Thompson. A generalization of sampling
+ without replacement from a finite universe. Journal of the American statistical
+ Association, 47(260):663–685, 1952. 2
+Nathan Kallus and Masatoshi Uehara. Intrinsically efficient, stable, and
+  bounded off-policy evaluation for reinforcement learning. arXiv preprint
+  arXiv:1906.03735, 2019. 2, 13
+Art B Owen. Empirical likelihood. Chapman and Hall/CRC, 2001. 2
+
+Nikos Karampatziakis, John Langford, and Paul Mineiro. Empirical likelihood
+  for contextual bandits. Advances in neural information processing systems,
+  33, 2020. 2, 3, 13, 15
+Bo Dai, Ofir Nachum, Yinlam Chow, Lihong Li, Csaba Szepesvari, and Dale
+  Schuurmans. Coindice: Off-policy confidence interval estimation. Advances
+  in neural information processing systems, 33, 2020. 2, 13
+Ian Waudby-Smith and Aaditya Ramdas. Variance-adaptive confidence se-
+  quences by betting. arXiv:2010.09686 [math, stat], October 2020. URL
+  http://arxiv.org/abs/2010.09686v1. arXiv: 2010.09686. 4, 7, 13, 16
+
+Steven De Rooij, Tim Van Erven, Peter D Grünwald, and Wouter M Koolen.
+  Follow the leader if you can, hedge if you must. The Journal of Machine
+  Learning Research, 15(1):1281–1316, 2014. 5
+Elad Hazan, Amit Agarwal, and Satyen Kale. Logarithmic regret algorithms
+  for online convex optimization. Machine Learning, 69(2-3):169–192, 2007. 10
+
+Xiequan Fan, Ion Grama, and Quansheng Liu. Exponential inequalities for
+  martingales with applications. Electronic Journal of Probability, 20, 2015. 11,
+  25
+James M. Robins and Andrea Rotnitzky. Semiparametric efficiency in multivari-
+  ate regression models with missing data. Journal of the American Statistical
+  Association, 90(429):122–129, 1995. 13
+Miroslav Dudı́k, John Langford, and Lihong Li. Doubly robust policy evaluation
+ and learning. arXiv preprint arXiv:1103.4601, 2011. 13
+Adith Swaminathan and Thorsten Joachims. The self-normalized estimator for
+ counterfactual learning. In advances in neural information processing systems,
+ pages 3231–3239, 2015. 13
+
+
+
+                                       18
+Yu-Xiang Wang, Alekh Agarwal, and Miroslav Dudı́k. Optimal and adaptive
+  off-policy evaluation in contextual bandits. In Proceedings of the 34th Inter-
+  national Conference on Machine Learning, ICML 2017, Sydney, NSW, Aus-
+  tralia, 6-11 August 2017, pages 3589–3597, 2017. URL http://proceedings.
+  mlr.press/v70/wang17a.html. 13
+
+Nikos Vlassis, Aurelien Bibaut, Maria Dimakopoulou, and Tony Jebara. On
+  the design of estimators for bandit off-policy evaluation. In International
+  Conference on Machine Learning, pages 6468–6476, 2019. 13
+Philip Thomas, Georgios Theocharous, and Mohammad Ghavamzadeh. High-
+  confidence off-policy evaluation. In Proceedings of the AAAI Conference on
+  Artificial Intelligence, volume 29, 2015. 13
+Lihong Li, Shunbao Chen, Jim Kleban, and Ankur Gupta. Counterfactual
+  estimation and optimization of click metrics in search engines: A case study.
+  In Proceedings of the 24th International Conference on World Wide Web,
+  pages 929–934. ACM, 2015. 13
+
+Léon Bottou, Jonas Peters, Joaquin Quiñonero-Candela, Denis X Charles,
+   D Max Chickering, Elon Portugaly, Dipankar Ray, Patrice Simard, and
+   Ed Snelson. Counterfactual reasoning and learning systems: The example
+   of computational advertising. The Journal of Machine Learning Research, 14
+   (1):3207–3260, 2013. 13
+
+Aaditya Ramdas, Johannes Ruf, Martin Larsson, and Wouter Koolen. Admissi-
+  ble anytime-valid sequential inference must rely on nonnegative martingales.
+  arXiv preprint arXiv:2009.03167, 2020. 13
+Herbert Robbins. Statistical Methods Related to the Law of the Iterated Log-
+  arithm. The Annals of Mathematical Statistics, 41(5):1397–1409, October
+  1970. ISSN 0003-4851, 2168-8990. 13
+Steven R. Howard, Aaditya Ramdas, Jon McAuliffe, and Jasjeet Sekhon. Time-
+  uniform, nonparametric, nonasymptotic confidence sequences. The Annals of
+  Statistics, forthcoming, 2020. 13
+
+Francesco Orabona and Dávid Pál. Coin betting and parameter-free online
+  learning. In NIPS, pages 577–585, 2016. 13
+Ali Rahimi and Benjamin Recht. Random features for large-scale kernel ma-
+  chines. In NIPS, volume 3, page 5. Citeseer, 2007. 16
+Jean Ville. Etude critique de la notion de collectif. Bull. Amer. Math. Soc, 45
+  (11):824, 1939. 20
+
+
+
+
+                                      19
+A      Proofs
+A.1      Main Lemma
+The following lemma will be helpful in the proofs of all our Theorems.
+
+Lemma 2. Suppose we have a family of stochastic processes (Mt (m))∞       t=0 in-
+dexed by m ∈ [0, 1] and further assume the process (Mt (µ))∞
+                                                           t=0 for some µ ∈ [0, 1]
+is a non-negative martingale with respect to a filtration Ft (i.e. E[Mt |Ft−1 ] =
+Mt−1 for t ≥ 1) with initial value M0 = 1. Then for any given α ∈ [0, 1] the
+sequence of sets Ct = m : Mt (m) ≤ α1 is a (1 − α) confidence sequence for µ
+                                   Tt
+and so is its running intersection i=1 Ci .
+Proof. For the first part, by the definition of a CS it suffices to show that
+Pr (∃t ∈ N : µ ∈
+               / Ct ) ≤ α or
+                                                  
+                                                  1
+                  Pr ∃t ∈ N : µ ∈
+                                / m : Mt (m) ≤         ≤ α.
+                                                  α
+
+An error occurs only if Mt (µ) exceeds 1/α at any point. This means that it
+suffices to show that
+                                              
+                                             1
+                       Pr ∃t ∈ N : Mt (µ) ≥      ≤ α,
+                                             α
+
+which is true by Ville’s inequality Ville [1939] since Mt (µ) is a non-negative
+martingale with initial value 1.
+   For the second part, we need to show that
+                                    t                  !
+                                   \                  1
+               Pr ∃t ∈ N : µ ∈   /      m : Ms (m) ≤       ≤ α.
+                                   s=1
+                                                     α
+
+This reduces to showing
+                                                           
+                                                          1
+               Pr ∃t ∈ N : ∃s ∈ {1, . . . , t} : Ms (µ) ≥     ≤ α,
+                                                          α
+
+which further simplifies to
+                                                  
+                                                 1
+                            Pr ∃t ∈ N : Mt (µ) ≥     ≤ α,
+                                                 α
+
+and this is again implied by Ville’s inequality.
+
+A.2      Proof of Theorem 1
+Proof. Consider the filtration (Ft )∞ t=0 generated by the sequence of sigma-fields
+F0 ⊂ F1 ⊂ . . . with F0 the trivial sigma-field and Ft = σ((w0 , r0 ), (w1 , r1 ), . . . , (wt , rt )).
+
+
+                                             20
+It suffices to show that our betting ensures that Kt (V (π)) is a non-negative mar-
+tingale with initial value 1 as we can then apply lemma 2. K0 (v) = 1 is by the
+definition of the process (we start with a wealth of 1), and Kt (v) ≥ 0 for all
+v ∈ [0, 1] because our bets are in the set Dv0 (c.f. eq (4)). Thus it remains to show
+E [Kt (V (π)) |Ft−1 ] = Kt−1 (V (π)). We have the following chain of equalities
+
+E [Kt (V (π)) |Ft−1 ] = E [Kt−1 (1 + λ1,t (wt − 1) + λ2,t (wt rt − V (π))) |Ft−1 ]
+                      = Kt−1 E [1 + λ1,t (wt − 1) + λ2,t (wt rt − V (π))|Ft−1 ]
+                      = Kt−1 (1 + E [λ1,t (wt − 1)|Ft−1 ] + E [λ2,t (wt rt − V (π))|Ft−1 ])
+                      = Kt−1 (1 + λ1,t E [(wt − 1)|Ft−1 ] + λ2,t E [(wt rt − V (π))|Ft−1 ])
+                      = Kt−1 (1 + λ1,t · 0 + λ2,t · 0) = Kt−1
+
+where we have used that Kt−1 , λ1,t , λ2,t are measurable with respect to Ft−1
+and that E[w] = 1 and E[wr] = V (π).
+
+A.3      Proof of Lemma 1
+                    function f (x) = ln(1 + x) − x − ψx2 with domain − 12 , ∞ .
+                                                                            
+Proof. Consider the
+Note that f − 12 = 0 and limx→∞ f (x) = ∞.
+                
+                                             Furthermore
+                                                            f has two critical
+points: 0 and − 2ψ+1                       2ψ+1
+                 2ψ . But f (0) = 0 and f − 2ψ              > 0 so we conclude that
+f (x) ≥ 0 for all x ≥ − 12 .
+
+A.4      Proof of Theorem 2
+Proof. We will first show that Kt± (V (π)) is a non-negative martingale with ini-
+tial value 1. Consider the same filtration as for Theorem 1. Note that K0± (v) = 1
+is by the definition of the process (we start with a wealth of 1). We analyze
+Kt+ (v) and Kt− (v) separately. Note that Kt+ (v) ≥ 0 for all v ∈ [0, 1] because our
+bets are in the set C ⊂ Dv0 (c.f. eq (4)). For Kt− (v) we note that the process is
+isomorphic to a process similar to Kt+ (v) but with the reward and v redefined.
+Thus our bets keep Kt− (v) ≥ 0. We now show the equality
+
+                       E Kt− (V (π)) |Ft−1 = Kt−1  −
+                                           
+                                                     (V (π)),
+
+as the equality E Kt+ (V (π)) |Ft−1 = Kt−1  +
+                                  
+                                               (V (π)) is exactly what was shown
+in Theorem 1. We have
+
+E Kt− (V (π)) |Ft−1 = E Kt−1
+                          −
+                                 1 + λ−                 −
+                                                                                        
+                                       1,t (wt − 1) + λ2,t (wt (1 − rt )(1 − V (π))) |Ft−1
+                         −
+                            E 1 + λ−                  −
+                                                                                       
+                     = Kt−1          1,t (wt − 1) + λ2,t (wt − 1 + V (π) − wt rt )|Ft−1
+                           −
+                               1 + (λ−      −                          −
+                                                                                                        
+                        = Kt−1       1,t + λ2,t )E [(wt − 1)|Ft−1 ] + λ2,t E [(V (π) − wt rt )|Ft−1 ]
+                           −
+                               1 + (λ−      −            −           −
+                                                                
+                        = Kt−1       1,t + λ2,t ) · 0 + λ2,t · 0 = Kt−1 .
+
+Therefore 21 Kt+ (V (π)) + Kt− (V (π)) is also a non-negative martingale with
+                                      
+
+initial value 1. Applying Lemma 2 finishes the proof of the theorem.
+
+
+                                          21
+A.5      Proof of Theorem 3
+Proof. We note that the proof below works for a sequence of predictable func-
+tions qt (x, a) but to reduce notation we use q(x, a). Consider the filtration
+(Ft )∞
+     t=0 generated by the sequence of sigma-fields F0 ⊂ F1 ⊂ . . . with F0 the
+trivial sigma-field and Ft = σ((x1 , a1 , r1 ), . . . , (xt , at , rt )). Note that K0q (v) = 1
+and Ktq (v) ≥ 0 for all v ∈ [0, 1] because our bets are in the set C q . Thus it re-
+mains to show E [Ktq (V (π)) |Ft−1 ] = Kt−1 (V (π)). We have the following chain
+of equalities
+E [Ktq (V (π)) |Ft−1 ] = E Kt−1
+                           q                                                                  
+                                 (1 + λ1,t (wt − 1) + λ2,t (wt rt − ct − V (π))) |Ft−1
+                          q
+                       = Kt−1 (1 + λ1,t E [wt − 1|Ft−1 ] + λ2,t E [wt rt − V (π)|Ft−1 ] − λ2,t E [ct |Ft−1 ])
+                                            "                                             #!
+                          q
+                                                           X                                       q
+                                                                    0             0
+                       = Kt−1 1 − λ2,t E wt q(xt , at ) −       π(a ; xt )q(xt , a ) Ft−1    = Kt−1    ,
+                                                                       a0
+
+where we have used that Kt−1 , λ1,t , λ2,t are measurable with respect to Ft−1
+and Pthat E[w] = 1 and E[wr] = V (π) as well as Ext ∼D,at ∼h [wt q(xt , at )] =
+Ext [ a0 π(a0 ; xt )q(xt , a0 )]. Thus the claim for Ctq and its running intersection
+can be shown by applying lemma 2. The claim for Ct±q is completely analogous
+using the ideas here and in the proof of Theorem 2.
+
+A.6      Proof of Theorem 4
+Proof. Consider the same filtration as for Theorem 1. Note that K0gd (v) = 1 is
+by the definition of the process and that Ktgd (v) ≥ 0 for all v ∈ [0, 1] because
+our bets are in the set Gv0 (c.f. eq (17)). Finally, we have
+ h                          i                                                                    
+E Ktgd (V (π) − V (h)) |Ft−1 = E Kt−1
+                                  gd                                                         
+                                        1 + λ1,t (wt − 1) + λ2,t wt rt − rt − (V (π) − V (h)) |Ft−1
+                                   gd
+                                = Kt−1 (1 + λ1,t E [wt − 1|Ft−1 ] + λ2,t E [wt rt − V (π)|Ft−1 ] − λ2,t E [rt − V (h)|Ft−1 ])
+                                   gd                                          gd
+                                = Kt−1 (1 + λ1,t · 0 + λ2,t · 0 − λ2,t · 0) = Kt−1 .
+
+Therefore Ktgd (V (π) − V (h)) is a non-negative martingale with initial value 1.
+Applying lemma 2 finishes the proof of the theorem.
+
+
+B      Avoiding grid search
+We first lower bound each process separately, then lower bound the hedged
+process. We denote the bets for K + (respectively K − ) as λ+ , (resp. λ− ). From
+lemma 1 we have
+                                  t−1
+                                  X         >               X      >
+                  ln(Kt+ (v)) ≥         λ+
+                                         i bi (v) + ψ           λ+
+                                                                 i Ai (v)λ+
+                                                                          i ,
+                                  i=1                       i
+
+and
+                                 t−1
+                                 X         >                X      >
+                 ln(Kt− (v)) ≥          λ−
+                                         i b0i (v 0 ) + ψ       λ−
+                                                                 i A0i (v 0 )λ−
+                                                                              i ,
+                                  i=1                       i
+
+
+                                                22
+                                                     
+                                wi − 1
+where v 0 = 1 − v, b0i (v) =                              and A0i (v) = b0i (v)b0i (v)> . For the
+                            wi (1 − ri ) − v
+Hedged process, using that for any a, b
+                                ln (exp(a) + exp(b)) ≥ max(a, b)
+to first establish
+              ln(K ± (v)) ≥ max(ln(K + (v)) − ln(2), ln(K − (v)) − ln(2))
+and further bound each term in the maximum by the respective quadratic lower
+bound. We conclude that if a v achieves
+                t−1                                        
+                X      >             X >                   2
+                    λ+
+                     i   b i (v) + ψ   λ+
+                                        i A i (v)λ +
+                                                   i = ln     ,
+                i=1                  i
+                                                           α
+
+or a v 0 = 1 − v achieves
+                    t−1                                                
+                    X        > 0 0           X      > 0 0 −            2
+                          λ−
+                           i  bi (v ) + ψ        λ−
+                                                  i  Ai (v )λi = ln       ,
+                    i=1                      i
+                                                                       α
+
+then we also achieve Kt± (v) ≥ α1 . In terms of v and v 0 these expressions are
+second degree equations and thus their real roots in [0, 1] (if any) provide a safe
+bracketing of the confidence region {v : Kt± (v) ≤ 1/α}. For Kt+ let
+                          t−1             
+                          X       wi − 1
+                                     >
+                 Ct =           λ+
+                                 i           ,                                               (18)
+                                   wi ri
+                      i=1
+                      t−1       
+                      X      >    0
+                 St =     λ+
+                           i          ,                                                      (19)
+                                  1
+                      i=1
+                      t−1
+                                     (wi − 1)2
+                                                                      
+                      X
+                             +>                      (wi − 1)wi ri
+                 Qt =     ψλi                                            λ+
+                                                                          i ,                (20)
+                                    (wi − 1)wi ri        wi2 ri2
+                      i=1
+                      t−1                                       
+                      X        >         0         −(wi − 1)
+                 Tt =     ψλ+i                                     λ+
+                                                                    i ,                      (21)
+                                    −(wi − 1)       −2wi ri
+                      i=1
+                      t−1                 
+                      X        >    0 0
+                 Ut =     ψλ+i               λ+i ,                                           (22)
+                                    0 1
+                          i=1
+
+and define Ct0 , St0 , Q0t , Tt0 , Ut0 similarly by using λ−             +
+                                                           i instead of λi and 1−ri instead
+                                              +
+of ri . Then the largest real root v of
+                                                                
+                                                         2       2
+                       Ct − St v + Qt + Tt v + Ut v − ln             = 0,
+                                                                 α
+
+if it exists, satisfies Kt± (v + ) ≥ α1 . Similarly we can obtain v 0 as the largest
+real root of the quadratic with Ct0 , St0 , Q0t , Tt0 , Ut0 in place of Ct , St , Qt , Tt , Ut , if
+it exists. Then v − = 1 − v 0 satisfies Kt± (v − ) ≥ α1 .
+
+
+                                                 23
+C       Details of the Scalar Betting Strategy
+C.1      Elimination of one bet
+Since in the long term λ1 should be 0 its purpose can only be as a hedge in the
+short-term. We formulate this by considering the worst case wealth reduction
+among three outcomes : (w, r) = (wmax , 1), (w, r) = (wmax , 0) and w = 0
+with any reward. We choose λ1 to maximize the wealth in the worst of these
+outcomes. Thus we set up a family of Linear Programs (LPs) parametrized by
+λ2 and v and with optimization variables α and λ1 :
+
+             maximize α
+             subject to α ≤ 1 + λ1 (wmax − 1) + λ2 (wmax − v) (z1 )
+                        α ≤ 1 + λ1 (wmax − 1) − λ2 v          (z2 )
+                        α ≤ 1 − λ1 − λ2 v                     (z3 ),
+
+where the variable zi in parentheses next to each constraint is the corresponding
+dual variable.
+Theorem 5. For any v ∈ [0, 1] and any λ2 ∈ R, the optimal value of λ1 in the
+above LP is λ∗1 = max(−λ2 , 0).
+Proof. The dual program is
+
+      minimize (1 + λ2 (wmax − v))z1 + (1 − λ2 v)z2 + (1 − λ2 v)z3
+      subject to zi ≥ 0                                            i = 1, 2, 3
+                 −(wmax − 1)(z1 + z2 ) + z3 = 0
+                 z1 + z2 + z3 = 1.
+
+Consider the following two dual feasible settings:
+                                        1          wmax − 1
+                        z1 = 0, z2 =        , z3 =          ,
+                                       wmax         wmax
+and
+                                1                  wmax − 1
+                        z1 =        , z2 = 0, z3 =          ,
+                               wmax                 wmax
+with corresponding dual objectives: 1 − λ2 v and 1 − λ2 v + λ2 . From here we
+see that if λ2 > 0 the former attains a better dual objective and is thus a better
+bound for the primal objective. When λ2 < 0 the latter is better.
+    When λ2 > 0, a primal feasible setting is α = 1 − λ2 v, λ1 = 0. Furthermore
+this setting achieves the same objective as the first dual feasible setting so we
+conclude that these are the optimal primal and dual solutions when λ2 > 0.
+    When λ2 < 0, a primal feasible setting is α = 1 − λ2 v + λ2 , λ1 = −λ2 .
+Furthermore this setting achieves the same objective as the second dual feasible
+setting so we conclude that these are the optimal primal and dual solutions
+when λ2 < 0.
+    Finally when λ2 = 0 the two cases give the same value for λ1 so we conclude
+λ1 = max(−λ2 , 0) for all λ2 ∈ R (and v ≥ 0).
+
+
+                                          24
+   The theorem suggests that in a hedged strategy the wealth process elimi-
+nating low values of V (π) should set λ>  1 = 0 because E[wr − v] > 0 and thus
+λ>
+ 2  >  0. The wealth   process  that eliminates high values of V (π) on the other
+hand should have λ1 = −λ2 because E[wr − v] < 0 and thus λ2 < 0. Thus the
+two processes look like
+          Y
+Kt> (v) =     1 + λ>
+                                  
+                   2,i (wi ri − v) ,
+            i=1
+            Y                                          Y
+Kt< (v) =         1 − λ<               <
+                                                          1 − λ<
+                                                                                           
+                       2,i (wi − 1) + λ2,i (wi ri − v) =       2,i (wi (1 − ri ) − (1 − v)) .
+            i=1                                                    i=1
+
+In the main text we have redefined λ<        <
+                                    2,i := −λ2,i for symmetry.
+
+
+C.2     A Technical Lemma
+The following result can be extracted from the proof of Proposition 4.1 in Fan
+et al. [2015].
+Lemma 3. For ξ ≥ −1 and λ ∈ [0, 1) we have
+
+                           ln(1 + λξ) ≥ λξ + (ln (1 − λ) + λ) · ξ 2 .                             (23)
+
+Proof. Note that λξ ≥ −λ > −1. For x > −1 the function f (x) = ln(1+x)−x
+                                                                       x2   is
+increasing in x, therefore f (λξ) ≥ f (−λ). Rearranging leads to the statement
+of the lemma.
+    We will be using this lemma with bets λ ∈ [0, 1) and ξi = wi ri − v or
+ξi = wi (1 − ri ) − (1 − vi ). In either case ξi ≥ −1. This lemma provides a
+stronger lower bound than that of Lemma 1. The reason we use the latter for
+vector bets is that the natural extension of (23) to the vector case does not lead
+to a convex problem.
+
+C.3     Avoiding grid Search
+                                   −
+Suppose that our bets λ+
+                       2,i and λ2,i do not depend on v. We have the individual
+lower bounds
+                    X                     X
+      ln(K + (v)) ≥   λ+2,i (wi ri − v) +  (ln(1 − λ+
+                                                    2,i ) + λ2,i )(wi ri − v)
+                                                                             2
+
+                           i                          i
+
+and
+                      X                              X
+      ln(K − (v)) ≥            λ−        0    0
+                                2,i (wi ri − v ) +        (ln(1 − λ−        −         0    0 2
+                                                                   2,i ) + λ2,i )(wi ri − v ) ,
+                       i                             i
+
+where r0 = 1 − r, v 0 = 1 − v. For the Hedged process, using that for any a, b
+
+                                ln (exp(a) + exp(b)) ≥ max(a, b)
+
+
+                                                 25
+to first establish
+
+                  ln(K ± (v)) ≥ max(ln(K + (v)) − ln(2), ln(K − (v)) − ln(2))
+
+and further bound each term in the maximum by the respective quadratic lower
+bound. We conclude that if a v achieves
+                                                                          
+       X                     X                                            2
+           λ+
+            2,i (w r
+                  i i − v) +   (ln(1 − λ +
+                                         2,i ) + λ+
+                                                  2,i )(w  r
+                                                          i i − v)2
+                                                                    = ln
+        i                    i
+                                                                          α
+
+or a v 0 = 1 − v achieves
+                                                                                  
+       X                            X                                             2
+              λ−        0    0
+               2,i (wi ri − v ) +     (ln(1 − λ−
+                                               2,i ) + λ−
+                                                        2,i )(w r
+                                                               i i
+                                                                  0
+                                                                    − v 0 2
+                                                                         )  = ln
+          i                         i
+                                                                                  α
+
+then we also achieve K ± (v) > α1 . Thus, a valid confidence interval can be
+obtained by considering the roots of these quadratics. Let
+        X                                     X
+   C=       λ+
+             2,i wi ri                   C0 =    λ−        0
+                                                   2,i wi ri
+              i                                                      i
+          X                                                          X
+    S=            λ+
+                   2,i
+                                                               0
+                                                              S =        λ−
+                                                                          2,i
+              i                                                      i
+          X                                                          X
+                                                               0
+                                                                          ln(1 − λ−        −
+                                                                                               2 02
+                    ln(1 − λ+        +
+                                               wi2 ri2
+                                           
+    Q=                      2,i ) + λ2,i                      Q =                 2,i ) + λ2,i wi ri
+              i                                                      i
+          X                                                          X
+                    ln(1 − λ+        +                         0
+                                                                          ln(1 − λ−        −       0
+                                                                                             
+    T =                     2,i ) + λ2,i       wi ri          T =                 2,i ) + λ2,i wi ri
+              i                                                      i
+          X                                                          X
+                    ln(1 − λ+        +
+                                                              U0 =        ln(1 − λ−        −
+                                                                                                
+    U=                      2,i ) + λ2,i                                          2,i ) + λ2,i
+              i                                                      i
+
+
+
+We obtain:
+                                       p
+                            2T + S −           (2T + S)2 − 4U (Q + C − ln(2/α))
+                   vmin =
+                                                        2U
+or vmin = 0 if the discriminant is negative, and
+                                     p
+                 0       2T 0 + S 0 − (2T 0 + S 0 )2 − 4U 0 (Q0 + C 0 − ln(2/α))
+    vmax = 1 − v = 1 −
+                                                   2U 0
+or vmax = 1 if the discriminant is negative.
+
+
+D      Reward Predictors
+D.1     Betting
+We describe betting for Kt+q (v). Betting for Kt−q (v) is analogous. We overload
+the log wealth at step i when betting against v as `vi (λ) = ln(1 + λ1,i (wi − 1) +
+
+
+                                                         26
+                                                                                 1/2
+λ2,i (wi ri − ci − v). We use lemma 1 to obtain that for any λ ∈ Ev , we have
+                          t−1              t−1              t−1
+                                                                      !
+                 +q
+                          X                X                X
+                               v         >                >
+            ln(Kt (v)) =      `i (λ) ≥ λ       bi (v) + ψλ      Ai (v) λ,
+                           i=1                    i=1                      i=1
+                                           
+                         wi − 1
+where now bi (v) =                  and Ai (v) = bi (v)bi (v)> . As in the case
+                     wi ri − ci − v
+without reward predictor we have that the wealth lower bound is a polynomial
+in v with
+                         t−1
+                                            (0)          (1)         (2)
+                         X
+                               Ai (v) = At + vAt + v 2 At ,
+                         i=1
+                          t−1
+                                            (0)         (1)
+                          X
+                                 bi (v) = bt + vbt ,
+                          i=1
+
+and the coefficients can be maintained as
+                   t−1 
+                               (wi − 1)2
+                                                                     
+             (0)
+                   X                           (wi − 1)(wi ri − ci )
+           At =                                                        ,
+                         (wi − 1)(wi ri − ci )     (wi ri − ci )2
+                    i=1
+                   t−1                              
+             (1)
+                   X          0          −(wi − 1)
+           At =                                         ,
+                         −(wi − 1) −2(wi ri − ci )
+                    i=1
+                   t−1         
+             (2)
+                   X     0 0
+           At =                   ,
+                         0 1
+                    i=1
+                   t−1             
+             (0)
+                   X      wi − 1
+            bt =                      ,
+                         wi ri − ci
+                    i=1
+                   t−1       
+             (1)
+                   X      0
+            bt =                .
+                         −1
+                   i=1
+
+Given a v we compute concrete values for these coefficients and then solve
+                              t−1                t−1
+                                                           !
+                              X                 X
+               λt = argmax λ>     bi (v) + ψλ>       Ai (v) λ.
+                         λ∈E 1/2      i=1                      i=1
+
+A similar procedure like the one in Algorithm 1 can then be used for solving
+this problem.
+
+D.2     Avoiding Grid Search
+To find the value of v that we can plug in to the above optimization problem
+we proceed as in section 4.4, and further explained in Appendix B. To find a v
+such that Kt±q (v) ≥ α1 it suffices to solve
+                   t−1               t−1                    
+                   X
+                         >
+                                     X
+                                           >                2
+                       λi bi (v) + ψ      λi Ai (v)λi = ln     ,
+                   i=1                i=1
+                                                            α
+
+
+                                                  27
+given the previous bets λ1 , . . . , λt−1 . This is a second degree equation which
+can be solved by maintaining the quantities
+               t−1                  
+               X
+                      >    wi − 1
+        Ct =     λi                     ,
+                         wi ri − ci
+             i=1
+             t−1       
+             X
+                    >    0
+        St =     λi           ,
+                         1
+             i=1
+             t−1
+                                (wi − 1)2
+                                                                      
+             X                                   (wi − 1)(wi ri − ci )
+        Qt =     ψλi >                                                   λi ,
+                           (wi − 1)(wi ri − ci )     (wi ri − ci )2
+             i=1
+             t−1                                      
+             X
+                      >         0         −(wi − 1)
+        Tt =     ψλi                                      λi ,
+                           −(wi − 1) −2(wi ri − ci )
+             i=1
+             t−1                 
+             X
+                      >    0 0
+        Ut =     ψλi                λi ,
+                           0 1
+               i=1
+
+and finding the largest real root v of
+                                                            
+                                                            2
+                     Ct − St v + Qt + Tt v + Ut v 2 − ln       = 0,
+                                                            α
+
+if it exists, otherwise setting v = 0.
+
+D.3     Double Hedging
+Double Hedging boils down to running four processes: Kt+q , Kt−q ,Kt+ , and Kt− .
+Note that the wealth is split in 4 so anywhere we used ln α2 in a hedged
+process now we need to use ln α4 . Note that both Kt+q (v) and Kt+ (v) are
+                                   
+
+trying to establish bounds for the same random variable and in principle they
+could communicate about values that have been eliminated. However we keep
+things simple and just run the four processes without sharing any information.
+The wealth of the doubly hedged process can then be lower bounded by the
+wealth of the most successful betting strategy starting from a wealth of 14 .
+
+
+E     Gated Deployment
+E.1     Hedging
+Since we don’t typically know whether π is better or worse that h we can hedge
+our bets via the process
+                                        1 +gd
+                          Kt±gd (v) =    (K   (v) + Kt−gd (v)),
+                                        2 t
+
+
+
+                                            28
+where
+                           t
+                           Y
+             Kt+gd (v) =         1 + λ+               +
+                                                                          
+                                      1,i (wi − 1) + λ2,i (wi ri − ri − v) ,
+                           i=1
+                            t
+             Kt−gd (v) =
+                           Y
+                                 1 + λ−               −        0    0    0
+                                                                           
+                                      1,i (wi − 1) + λ2,i (wi ri − ri − v ) ,
+                           i=1
+
+                               −      −                    −
+for predictable λ+      +                             +         0               0
+                 1,i , λ2,i , λ1,i , λ2,i subject to λi , λi ∈ Gv . As before, ri = 1 − ri
+      0
+and v = 1 − v.
+
+E.2     Betting and Avoiding Grid Search
+Betting and avoiding grid search can be obtained using the same equations as
+for reward predictors but replacing all occurrences of ci with ri .
+    A key difference we spell out is the feasible region. In order to use common
+bets and to be able
+                  T to use the quadratic lower bound of the log wealth we need
+to specify the set v∈[0,1] Gvm . This set is equivalent to
+                                                        
+                           
+                                   −1 −2                  
+                                                           
+                                    −1     0
+                                                         
+                      m
+                                               
+                     G = λ:                   λ ≥ m − 1 ,
+                           
+                           
+                                   W −1                  
+                                                           
+                                    W W
+                                                          
+
+where W = wmax − 1. If we further restrict λ2 ≥ 0 for each of the subprocesses
+because we expect each to eliminate v such that E[wr − v] > 0 and v 0 such that
+E[wr0 − v 0 ] > 0 then the feasible region further simplifies to
+            G = {λ : λ2 ≥ 0, W λ1 − λ2 ≥ m − 1, −λ1 − 2λ2 ≥ m − 1}.
+Placing bets in this region can be done using the same ideas as Algorithm 1.
+
+
+F       Reproducibility Checklist
+ Assumptions: The contextual bandit data is iid. The policy π is absolutely
+     continuous with respect to behavior policy h.
+ Complexity: MOPE and the scalar Betting Strategy are streaming algorithms.
+    They require constant time per sample and constant memory independent
+    of number of samples. The exact wealth ablation requires memory that
+    scales linearly with the number of samples and time per step that scales at
+    least linearly with the number of samples. The ablation that solves a QP
+    per value v requires at least 1 times more memory and computation that
+    MOPE and provides results that are accurate up to . We used  = 0.005
+    in the experiments.
+ Code: included with the supplementary material and will be released publicly
+    upon acceptance.
+
+
+                                            29
+Data: synthetic environments are part of the code. Instructions for getting the
+    mnist8m data are in the “Mnist-Policies” notebook.
+Hyperparameters: There are no hyperparameters. The confidence level is an
+   input and is stated in each experiment description or the corresponding
+   figure.
+
+Computing infrastructure: Off-the-shelf workstation running Linux (Code works
+   on a Windows laptop as well).
+
+
+
+
+                                     30
+

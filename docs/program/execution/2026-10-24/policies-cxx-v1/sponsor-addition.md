@@ -1,0 +1,8 @@
+# C++ policy engines and the scientific target
+
+The selected C++ source profiles serve different roles. Vowpal Wabbit transforms contextual-bandit feedback and supplies distinct inference components; AI-Toolbox evaluates supplied models and supports planning; mlpack trains controllers with replay. Three genuine original papers clarify software architecture and the assumptions behind time-uniform off-policy inference. These roles remain separate from hidden-state identification and native qualification. \citep{exec24_policycxx_vw,exec24_policycxx_aitoolbox,exec24_policycxx_mlpack,exec24_policycxx_aitoolbox_paper,exec24_policycxx_cs2021,exec24_policycxx_anytime2024}
+
+Exact authored examples show why contracts matter. Probability clipping changes an 84 USD target to 44 or 76 under two illustrative estimators. A zero reported variation with tolerance disabled can accompany a value of ten whose infinite-horizon counterpart is 100. Terminal, control-trace and categorical multistep/projection branches have precise conformance questions. These are static and algebraic observations, not native benchmark failures. \citep{exec24_policycxx_comparison}
+
+The proposal favors conditional original-worker reuse with exact distributions, rights, logging/model identity, units, clocks, refusal and independent reference tests. Coverage remains inconclusive because search tails, maintained alternatives and qualification remain. At a stipulated 900 USD cost, 100 requests, 75 conformant and 45 useful outputs cost nine, 12 and 20 USD per respective unit. Public prototypes should establish merit before expensive bank evidence. \citep{exec24_policycxx_comparison}
+

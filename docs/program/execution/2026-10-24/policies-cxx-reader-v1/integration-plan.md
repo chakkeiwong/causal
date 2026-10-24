@@ -1,0 +1,1 @@
+Preserve all1090 prior source records, citation contexts and content inputs. Add three genuine scholarly originals, three pinned source profiles and one authored exact reference. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
