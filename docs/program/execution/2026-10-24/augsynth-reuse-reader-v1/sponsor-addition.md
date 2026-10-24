@@ -1,0 +1,7 @@
+# Augmentation needs an extrapolation contract
+
+The pinned augsynth 0.2.0 source is retained as a reference for public comparisons. Its ridge adjustment permits negative donor weights. An authored example with weights -1/4 and 5/4 gives counterfactual revenue 130 thousand USD and a gap of 20; the simplex gap is 30. This is a change of estimator, not observed bank value. Native adoption and a full port await complete rights, numerical, calendar and uncertainty qualification. \citep{exec24_augsynth_source,exec24_augsynth_choice}
+
+The review traces the actual ridge tuning path, exclusion of its last feasible holdout start, and conditional repeated-zero or empty confidence-grid cases. The lambda grid includes its nominal endpoints and has one more candidate than its interval count. These static findings motivate explicit public oracles and refusal states. They do not constitute native benchmark failures. Single-date, multiple-outcome and staggered routes retain separate contracts. \citep{exec24_augsynth_source}
+
+Scientific, adapter, rights/platform and evaluation owners have distinct qualification obligations. An illustrative 3,600 USD over 180 attempted, 150 completed and 120 usable tasks gives 20, 24 and 30 USD per denominator. Tuning, null refits and failed trials count toward these costs. Public evidence can justify a bank experiment without establishing unknown bank assignment or counterfactual truth. \citep{exec24_augsynth_choice}

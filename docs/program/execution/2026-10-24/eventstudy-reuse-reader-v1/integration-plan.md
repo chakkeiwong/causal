@@ -1,0 +1,1 @@
+Preserve all1117 prior source records, citation contexts and content inputs. Add one pinned Stata source profile, additional inspection of a retained original and one authored exact reference. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

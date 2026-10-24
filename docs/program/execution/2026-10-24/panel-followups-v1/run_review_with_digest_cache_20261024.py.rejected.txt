@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Run declared local review tools with a process-local, metadata-guarded SHA cache.
+
+No state-validation rule is skipped. Every new file identity is hashed from its
+bytes. Size, inode, device, mode, nanosecond mtime and ctime invalidate entries.
+The cache is discarded on exit and is not an authenticity/security boundary.
+This runner never imports or executes downloaded sources.
+"""
+import argparse,hashlib,json,os,runpy,sys,time
+from pathlib import Path
+import master_control as core
+ROOT=Path(__file__).resolve().parents[1]
+ALLOWED={'run_program_checkpoint_v3.py','publish_synth_reuse_reader_20261024.py','publish_synth_reuse_sponsor_20261024.py','refresh_synth_reuse_program_20261024.py','causal_program.py'}
+
+class DigestCache:
+    def __init__(self):
+        self.entries={};self.calls=0;self.hits=0;self.bytes_hashed=0
+    @staticmethod
+    def signature(st):
+        return (st.st_dev,st.st_ino,st.st_mode,st.st_size,st.st_mtime_ns,st.st_ctime_ns)
+    def __call__(self,path):
+        path=Path(path);self.calls+=1
+        # Open on every call so missing/inaccessible files cannot return a stale hit.
+        with path.open('rb') as stream:
+            before=self.signature(os.fstat(stream.fileno()));key=str(path.absolute())
+            previous=self.entries.get(key)
+            if previous and previous[0]==before:
+                after=self.signature(os.fstat(stream.fileno()))
+                if after!=before:raise RuntimeError('File changed during digest lookup: '+str(path))
+                self.hits+=1;return previous[1]
+            digest=hashlib.file_digest(stream,'sha256').hexdigest()
+            after=self.signature(os.fstat(stream.fileno()))
+            if after!=before:raise RuntimeError('File changed during hashing: '+str(path))
+            self.bytes_hashed+=before[3];self.entries[key]=(before,digest);return digest
+
+def main():
+    p=argparse.ArgumentParser();p.add_argument('--metrics',required=True);p.add_argument('script',choices=sorted(ALLOWED));p.add_argument('args',nargs=argparse.REMAINDER);a=p.parse_args()
+    metrics=(ROOT/a.metrics).resolve();assert metrics.is_relative_to(ROOT/'docs/program/execution') and not metrics.exists()
+    target=ROOT/'tools'/a.script;assert target.is_file() and target.resolve().parent==ROOT/'tools'
+    cache=DigestCache();original=core.sha;core.sha=cache;started=time.monotonic();success=False
+    try:
+        sys.argv=[str(target)]+a.args;runpy.run_path(str(target),run_name='__main__');success=True
+    finally:
+        core.sha=original
+        data=dict(script=a.script,args=a.args,success=success,elapsed_seconds=round(time.monotonic()-started,3),sha_calls=cache.calls,cache_hits=cache.hits,bytes_hashed=cache.bytes_hashed,cache_scope='process_only_metadata_guarded',validation_rules_unchanged=True)
+        metrics.parent.mkdir(parents=True,exist_ok=True);metrics.write_text(json.dumps(data,indent=2)+chr(10));print(json.dumps(dict(digest_cache_metrics=str(metrics.relative_to(ROOT)),**data)),flush=True)
+if __name__=='__main__':main()

@@ -1,0 +1,1 @@
+Preserve all1120 prior source records, citation contexts and content inputs. Add one pinned did source profile and one authored R-panel comparison; preserve seven inherited technical records. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

@@ -1,0 +1,1 @@
+Preserve all1125 prior source records, citation contexts and content inputs. Add authenticated Synth implementation and authored reference decision; preserve inherited manual and Python comparison. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

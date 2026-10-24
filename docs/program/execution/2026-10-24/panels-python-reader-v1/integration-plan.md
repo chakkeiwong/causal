@@ -1,0 +1,1 @@
+Preserve all1122 prior source records, citation contexts and content inputs. Add two pinned Python source profiles and one authored panel comparison; preserve inherited PyFixest and linearmodels limits. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
