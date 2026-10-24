@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-ray-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-ray-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-splink-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-splink-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-ray-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-splink-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,51 +12,55 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_ray_reviewed_2026-10-24.pdf) has 1,413 pages,
-1,081 audited citation records and 242 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_ray_reviewed_2026-10-24.pdf) has 96 pages and 561 citations.
-All 1,079 predecessor records, citation contexts and 333 compiled content inputs survive.
+The [monograph](../../causal_proposal_splink_reviewed_2026-10-24.pdf) has 1,417 pages,
+1,083 audited citation records and 242 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_splink_reviewed_2026-10-24.pdf) has 96 pages and 565 citations.
+All 1,081 predecessor records, citation contexts and 334 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**252 recorded outcomes of 376; 101 ready; 198 nonpassing obligations.**
+**253 recorded outcomes of 376; 100 ready; 197 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 49 | 50 | 102 |
-| reuse | 61 | 3 | 51 | 115 |
+| reuse | 62 | 3 | 50 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-Ray Core now has a cutoff-pinned source profile and an explicit reference disposition.
-The selected commit is 7 October 2026 at 15:33:11 UTC, within the Shanghai cutoff.
-An initial UTC-day candidate is preserved; thirteen matching blobs were rebound and
-five changed documents acquired from the corrected revision. Eighteen selected source
-files support task,actor,object,GCS,resource,environment and trusted-code boundaries.
+Splink now has a cutoff-pinned source profile and a reference disposition.
+The 6 October 2026 revision declares version 5.0.0. Twenty technical files
+are inspected among 24 authenticated source files; source version and installed
+PyPI distribution remain distinct identities. No package or database worker ran.
 
-Exact authored witnesses preserve a 2 USD logical mean across 120 retry-event
-permutations and reject conflicting duplicates; naive attempt accounting gives 2.40
-or 3 USD. Cluster aggregation gives 1/2 versus a row-only 1/4, and floating-point
-reduction order gives 1 versus 0. Stipulated scaling yields 2.5 versus 1.43 with
-overhead; stipulated complete costs give 60/90/120 USD per attempt/request/accepted artifact.
-These are design witnesses, not Ray benchmarks, vendor prices or calibrated intervals.
+The connected banking argument distinguishes candidate recall from full recall,
+pair scores from graph components and a joint linkage law, and accurate retained
+matches from an unbiased observation mechanism. It documents EM session-prior
+semantics and the iteration-cap path that still emits convergence wording.
+These are static source observations, not observed native failures.
 
-Reference-only disposition preserves a local baseline. Conditional native adoption
-requires profiling, selected distribution/rights, durable logical accounting,
-scientific fold/clock/covariance invariants, external isolation and complete fault/cost
-qualification. No Ray package,cluster,MCP server or downloaded code was executed.
-Development-source identity is distinct from an installed release; Core does not
-qualify Train,Tune,Serve,Data,RLlib or a commercial hosted service transitively.
+Exact authored examples give candidate/full recall 90/54 percent, a zero contrast
+changed to 100 USD by selective observation, a joint transitivity lower bound
+of 0.92 incompatible with a pair score of 0.10, and joint-map variance 304 rather
+than conditional variance 4. Stipulated full costs give 80/120/160 USD per
+attempt/request/accepted artifact. No empirical calibration or prices are asserted.
 
-The prior Java/Python policy,scientific-method,panel,validation,survival and earlier
-LLM/integration arguments remain intact. Census stays 77/36 plus four crosscutting.
+Conditional adoption requires a selected distribution and rights, comparison and
+backend semantics, feature clocks, blocking and convergence diagnostics, joint
+identity uncertainty, public fault/selection oracles and complete costs. The
+completed Ray, Java/Python policy, scientific-method and earlier arguments remain.
+Census stays 77/36 plus four crosscutting obligations.
+
+The census continuation is refreshed after detecting an obsolete instruction to
+republish already delivered scientific-method/Python work. Independent obligations
+remain eligible; durable progress notes now name unfinished sources and limits.
 
 ## Remaining gaps and routes
 
 1. Software:50open and49inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
-2. Reuse:51open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
+2. Reuse:50open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
 3. Frontier census:36unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister justified task/version splits, semantic/refusal/fault oracles and full costs before broader native or bank claims.
@@ -68,7 +72,7 @@ acceptance and actual economic value remain later external work, not global prop
 
 ## Exact continuation
 
-Next:LL.CENSUS. Publish preserving scientific-method reader and paired sponsor, reconcile, then continue36unread originals and fourcrosscutting tasks; independent Python off-policy source review remains ready.
+Next:SW.CELL.policies_offpolicy.Cxx. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Separate fixed-policy evaluation, policy selection and unknown optimum; require logger, support and hidden-state scope; banking example: dynamic servicing.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
