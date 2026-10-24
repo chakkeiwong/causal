@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-panels-java-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-panels-java-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-panels-cxx-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-panels-cxx-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-panels-java-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-panels-cxx-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,45 +12,46 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_panels_java_reviewed_2026-10-25.pdf) has 1,556 pages,
-1,196 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_panels_java_reviewed_2026-10-25.pdf) has 123 pages and 746 citations.
-All 1,192 predecessor records, citation contexts and 371 compiled content inputs survive.
+The [monograph](../../causal_proposal_panels_cxx_reviewed_2026-10-25.pdf) has 1,559 pages,
+1,203 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_panels_cxx_reviewed_2026-10-25.pdf) has 124 pages and 755 citations.
+All 1,196 predecessor records, citation contexts and 372 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**297 recorded outcomes of 376; 56 ready; 158 nonpassing obligations.**
+**298 recorded outcomes of 376; 55 ready; 158 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 54 | 45 | 102 |
+| software | 3 | 55 | 44 | 102 |
 | reuse | 101 | 3 | 11 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor adds a connected Java panel comparison based on 17
-authenticated originals for Smile, Apache Commons Math and iMetrica. All 1,192
-predecessor records and citation contexts survive, yielding 1,196 records and
-258 genuine scholarly PDFs. The paired sponsor retains 740 records and adds
-six, yielding 746. No new scholarly paper is claimed for software sources.
+The preserving successor adds selected fixest C++ kernels with their R callers,
+xhdfe API and covariance paths, and separate dated SDID, capybara, gfe and
+NNRPanel scope leads. Thirty-one new original files are authenticated; all
+1,196 preceding citation records and contexts survive, yielding 1,203 records
+and 258 scholarly PDFs. The paired sponsor retains 746 records and adds nine.
 
-The argument distinguishes ordinary numerical regression from cohort/time
-causal targets and clustered uncertainty. Exact authored examples show a
-negative two-way-effects coefficient despite positive stipulated effects,
-covariance scaling, dependence, unidentified trends and complete costs.
-Source declarations, support limits and module rights remain qualified.
+Exact examples distinguish weighted residualization, an absorbed treatment,
+lag-weight normalization, full covariance after block replacement and complete
+costs. A successor preserves and corrects the initial short-panel discussion:
+the inspected two-period kernel cap leaves lag zero only, so the lag-one
+algebra is not reported as its native output. The covariance counterexample
+is algebraic; reachability in the package is not proved and no native failure
+or benchmark result is claimed. Source/rights/dependency omissions remain.
 
-Java panel coverage is recorded inconclusive: selected profiles are reviewed,
-but broader Java/JVM candidates, dedicated estimators, native qualification and
-complete rights remain open. Recorded outcomes rise to 297; passing counts do
-not rise. The frontier census remains 82 inspected, 31 unread and four
-crosscutting tasks. Earlier ECMO, backend and blocked-continuation repairs remain.
+C++ panel coverage is recorded inconclusive. Recorded outcomes rise to 298;
+passing counts do not rise. Software coverage is three pass, 55 inconclusive
+and 44 open. The frontier census remains 82 inspected, 31 unread and four
+crosscutting tasks. Earlier ECMO, Java, backend and continuation repairs survive.
 
 ## Remaining gaps and routes
 
-1. Software: 45 open and 54 inconclusive cells. Complete explicit search tails,
+1. Software: 44 open and 55 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: 11 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.

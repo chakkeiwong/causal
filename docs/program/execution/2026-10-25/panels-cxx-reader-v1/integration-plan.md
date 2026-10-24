@@ -1,0 +1,1 @@
+Preserve all1196 prior source records,citation contexts and content inputs. Add two selected C++ profiles,four scoped leads and exact projection,time,covariance and cost witnesses;preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

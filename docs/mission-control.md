@@ -4,7 +4,7 @@
 
 Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**297 / 376 proposal operations have recorded outcomes; 56 are ready.** Next: **LL.CENSUS**.
+**298 / 376 proposal operations have recorded outcomes; 55 are ready.** Next: **LL.CENSUS**.
 
 Continue32 unread originals and4crosscutting with authentic permitted sources; retain local access/date and final-version omissions. Judge-bias reader/sponsor are already paired: do not repeat their build or publication. Advance independent backend,commercial and software obligations.
 
@@ -12,7 +12,7 @@ Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DE
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_panels_java_reviewed_2026-10-25.pdf) — 1556 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_panels_cxx_reviewed_2026-10-25.pdf) — 1559 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 
