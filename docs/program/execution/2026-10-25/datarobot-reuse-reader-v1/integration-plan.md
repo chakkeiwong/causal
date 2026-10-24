@@ -1,0 +1,1 @@
+Preserve all1207 prior source records,citation contexts and content inputs. Add DataRobot propensity/weighting choice, exact normalization/ESS and cost examples; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

@@ -1,0 +1,278 @@
+CELL 2
+from io import BytesIO
+import os
+
+import datarobot as dr
+import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
+import pandas as pd
+import seaborn as sns
+
+CELL 4
+dr.Client()
+
+CELL 6
+working_df = pd.read_csv("storage/diabetes_subset.csv")
+working_df
+
+CELL 9
+plot_df = working_df.groupby("diabetesMed").readmitted.mean().to_frame().reset_index()
+p = sns.barplot(data=plot_df, x="diabetesMed", y="readmitted")
+p.axes.yaxis.set_major_formatter(PercentFormatter(1))
+
+CELL 11
+propensity_df = working_df.drop(columns=["readmitted"])
+propensity_df
+
+CELL 13
+sns.kdeplot(
+    data=propensity_df, x="number_diagnoses", hue="diabetesMed", common_norm=False
+)
+
+CELL 14
+sns.kdeplot(
+    data=propensity_df, x="num_lab_procedures", hue="diabetesMed", common_norm=False
+)
+
+CELL 15
+sns.kdeplot(
+    data=propensity_df, x="num_medications", hue="diabetesMed", common_norm=False
+)
+
+CELL 16
+sns.kdeplot(
+    data=propensity_df, x="time_in_hospital", hue="diabetesMed", common_norm=False
+)
+
+CELL 17
+plot_df = (
+    propensity_df.assign(sampling_weight=1)  # unweighted
+    .groupby(["diabetesMed", "age"])
+    .sampling_weight.sum()
+    .pipe(lambda df: df / df.groupby("diabetesMed").transform("sum"))
+    .to_frame("percent")
+    .reset_index()
+)
+p = sns.barplot(data=plot_df, x="age", y="percent", hue="diabetesMed")
+p.axes.yaxis.set_major_formatter(PercentFormatter(1))
+
+CELL 21
+propensity_project = dr.Project.create(
+    sourcedata=propensity_df, project_name="Propensity of Diabetes Medication"
+)
+
+CELL 22
+print(f"Project ID: {propensity_project.id}")
+
+CELL 24
+propensity_project.analyze_and_model(target="diabetesMed", worker_count=-1)
+
+CELL 26
+propensity_project.wait_for_autopilot(check_interval=30)
+
+CELL 27
+propensity_project.get_uri()
+
+CELL 29
+propensity_model = propensity_project.get_top_model()
+propensity_model
+
+CELL 30
+propensity_model.get_uri()
+
+CELL 32
+propensity_model.metrics.get("AUC")
+
+CELL 33
+propensity_model.metrics.get("LogLoss")
+
+CELL 35
+def plot_feature_impact(datarobot_model, title=None, max_features=100):
+    """This function plots feature impact
+    Input:
+        datarobot_model: <Datarobot Model object>
+        title : <string> --> title of graph
+    """
+    # Get feature impact
+    feature_impacts = datarobot_model.get_or_request_feature_impact()
+
+    # Sort feature impact based on normalised impact
+    feature_impacts.sort(key=lambda x: x["impactNormalized"], reverse=True)
+
+    fi_df = pd.DataFrame(feature_impacts)  # Save feature impact in pandas dataframe
+    fig, ax = plt.subplots(figsize=(14, 5))
+    b = sns.barplot(
+        y="featureName", x="impactNormalized", data=fi_df[:max_features], color="b"
+    )
+    b.axes.set_title("Feature Impact" if not title else title, fontsize=20)
+
+CELL 36
+plot_feature_impact(propensity_model)
+
+CELL 40
+scoring_df = propensity_df.drop(columns=["diabetesMed"])
+scoring_df
+
+CELL 41
+predict_job = propensity_model.request_predictions(dataframe=scoring_df)
+predict_job
+
+CELL 42
+propensity_predictions = predict_job.get_result_when_complete()
+propensity_predictions
+
+CELL 43
+propensity_scores_df = (
+    propensity_predictions[["row_id", "class_Yes"]]
+    .set_index("row_id")
+    .rename(columns={"class_Yes": "propensity_score"})
+)
+propensity_scores_df
+
+CELL 44
+propensity_scores_df.hist()
+
+CELL 46
+def compute_iptw(df, stabilize=True):
+    if stabilize:
+        # Compute "stablized" weights to deal with extreme weight values
+        numerator_treatment = (working_df.diabetesMed == "Yes").mean()
+        numerator_control = (working_df.diabetesMed == "No").mean()
+    else:
+        # Use non-stablized weights
+        numerator_treatment = 1
+        numerator_control = 1
+    return (df.diabetesMed == "Yes") * numerator_treatment / (df.propensity_score) + (
+        df.diabetesMed == "No"
+    ) * numerator_control / (1 - df.propensity_score)
+
+CELL 47
+iptw_df = (
+    working_df.assign(
+        row_id=lambda df: range(df.shape[0])
+    )  # assign a 0 to (N-1) row ID, to match up with predictions
+    .set_index("row_id")
+    .join(propensity_scores_df, how="left")  # join propensity scores
+    .assign(sampling_weight=compute_iptw)
+)
+iptw_df
+
+CELL 48
+sns.kdeplot(data=iptw_df, x="sampling_weight", hue="diabetesMed", common_norm=False)
+
+CELL 51
+fig, axes = plt.subplots(1, 2, figsize=(15, 5), sharey=True)
+fig.suptitle("num_medications")
+axes[0].set_title("Unadjusted")
+axes[1].set_title("Adjusted")
+sns.kdeplot(
+    data=propensity_df,
+    x="num_medications",
+    hue="diabetesMed",
+    common_norm=False,
+    ax=axes[0],
+)
+sns.kdeplot(
+    data=iptw_df,
+    x="num_medications",
+    hue="diabetesMed",
+    common_norm=False,
+    ax=axes[1],
+    weights="sampling_weight",
+)
+None
+
+CELL 52
+fig, axes = plt.subplots(1, 2, figsize=(15, 5), sharey=True)
+fig.suptitle("time_in_hospital")
+axes[0].set_title("Unadjusted")
+axes[1].set_title("Adjusted")
+sns.kdeplot(
+    data=propensity_df,
+    x="time_in_hospital",
+    hue="diabetesMed",
+    common_norm=False,
+    ax=axes[0],
+)
+sns.kdeplot(
+    data=iptw_df,
+    x="time_in_hospital",
+    hue="diabetesMed",
+    common_norm=False,
+    ax=axes[1],
+    weights="sampling_weight",
+)
+None
+
+CELL 53
+PERCENT_FORMAT_STRING_0_100 = (
+    "{x:.1f}%"  # format string for formatting 0-100 floats as a percentage
+)
+
+
+def prepare_categorical_plot_df(categorical_var, weight=True):
+    if not weight:
+        plot_df = iptw_df.assign(sampling_weight=1)  # unweighted
+    else:
+        plot_df = iptw_df
+
+    plot_df = (
+        plot_df.groupby(["diabetesMed", categorical_var])
+        .sampling_weight.sum()
+        .pipe(
+            lambda df: 100 * (df / df.groupby("diabetesMed").transform("sum"))
+        )  # we are using 0-100 values for percentage (for compatibility with bar labels)
+        .to_frame("percent")
+        .reset_index()
+    )
+
+    return plot_df
+
+CELL 54
+fig, axes = plt.subplots(1, 2, figsize=(15, 5), sharey=True)
+fig.suptitle("time_in_hospital")
+axes[0].set_title("Unadjusted")
+axes[1].set_title("Adjusted")
+sns.barplot(
+    data=prepare_categorical_plot_df("age", weight=False),
+    x="age",
+    y="percent",
+    hue="diabetesMed",
+    ax=axes[0],
+)
+sns.barplot(
+    data=prepare_categorical_plot_df("age", weight=True),
+    x="age",
+    y="percent",
+    hue="diabetesMed",
+    ax=axes[1],
+)
+axes[0].yaxis.set_major_formatter(PERCENT_FORMAT_STRING_0_100)
+None
+
+CELL 57
+fig, axes = plt.subplots(1, 2, figsize=(15, 5), sharey=True)
+fig.suptitle("readmitted")
+axes[0].set_title("Unadjusted")
+axes[1].set_title("Adjusted")
+sns.barplot(
+    data=prepare_categorical_plot_df("readmitted", weight=False).pipe(
+        lambda df: df[df.readmitted == True]
+    ),
+    x="diabetesMed",
+    y="percent",
+    ax=axes[0],
+)
+sns.barplot(
+    data=prepare_categorical_plot_df("readmitted", weight=True).pipe(
+        lambda df: df[df.readmitted == True]
+    ),
+    x="diabetesMed",
+    y="percent",
+    ax=axes[1],
+)
+axes[0].yaxis.set_major_formatter(PERCENT_FORMAT_STRING_0_100)
+for ax in axes:
+    for container in ax.containers:
+        ax.bar_label(container, fmt="%.1f%%")
+None

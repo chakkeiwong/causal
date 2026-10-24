@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-agents-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-agents-reuse-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-workflow-reuse-wave-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-workflow-reuse-wave-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-agents-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-workflow-reuse-wave-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,45 +12,45 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_agents_reuse_reviewed_2026-10-25.pdf) has 1,569 pages,
-1,206 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_agents_reuse_reviewed_2026-10-25.pdf) has 127 pages and 784 citations.
-All 1,205 predecessor records, citation contexts and 375 compiled content inputs survive.
+The [monograph](../../causal_proposal_datarobot_reuse_reviewed_2026-10-25.pdf) has 1,575 pages,
+1,209 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_workflow_reuse_wave_reviewed_2026-10-25.pdf) has 129 pages and 792 citations.
+All 1,206 predecessor records, citation contexts and 376 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**303 recorded outcomes of 376; 50 ready; 153 nonpassing obligations.**
+**305 recorded outcomes of 376; 48 ready; 151 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 55 | 44 | 102 |
-| reuse | 106 | 3 | 6 | 115 |
+| reuse | 108 | 3 | 4 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor resolves two agent umbrella leads into six named
-components: LLM-CD, causal_GPT, LLM-and-SCD, CausalAgent, oci-agent and
-OntoLearner. Twenty-nine retained original files are authenticated to their Git
-blobs. Roles, root/dependency/data/provider rights and conditional adaptation
-routes remain separate. Exact authored examples distinguish ancestry from a
-direct edge, missingness from numeric evidence, uniform trimming from overlap
-weighting, and attempted from admissible requests. No upstream code ran.
+The grouped preserving successor resolves Dataiku workflow and DataRobot propensity references. Dataiku separates trigger/run/outcome and scientific acceptance; the actual agent predecessor is preserved directly through the reviewed intermediate draft.
+A genuine pinned March2025 DataRobot notebook was acquired and Git-authenticated; code
+and original prose were inspected without saved-output replay. The root
+license remains unavailable. The argument distinguishes predictive treatment
+modeling from causal identification,alignment,target weights and uncertainty.
+Exact examples show that arm-constant stabilization leaves the normalized
+mean and weight-concentration ESS unchanged. No vendor service or data ran.
 
-All 1,205 predecessor records and contexts survive; the reader has 1,206
-records and 258 genuine scholarly PDFs, with 784 records in the paired sponsor.
-Two proposal reference resolutions pass without integration: 303 outcomes are
-recorded, reuse is 106 pass / three inconclusive / six open, and 153 nonpassing
+All 1,206 predecessor records and contexts survive; the reader has 1,209
+records and 258 genuine scholarly PDFs, with 792 records in the paired sponsor.
+Two reference choices pass without integration: 305 outcomes are recorded,
+reuse is 108 pass / three inconclusive / four open, and 151 nonpassing
 obligations remain. Software remains three pass / 55 inconclusive / 44 open.
 Census remains 82 inspected / 31 unread plus four crosscutting tasks. All earlier
-commercial, Copilot, ECMO, Java/C++ and census repairs remain preserved.
+Dataiku,agent,commercial and census repairs remain preserved.
 
 ## Remaining gaps and routes
 
 1. Software: 44 open and 55 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: six open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: four open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 31 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
@@ -90,4 +90,4 @@ Next: SW.CELL.panels_did.other_relevant. Resolve package/dependency license and 
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
-Commit and push completed units, then continue the next ready obligation.
+Publish reviewed independent deltas in bounded waves to avoid repeated full-book reviews; record each decision separately. Commit and push completed waves, then continue ready obligations.
