@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-opengm-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-opengm-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-smile-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-smile-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-opengm-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-smile-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,39 +12,40 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_opengm_reuse_reviewed_2026-10-24.pdf) has 1,513 pages,
-1,158 audited citation records and 256 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_opengm_reuse_reviewed_2026-10-24.pdf) has 115 pages and 688 citations.
-All 1,155 predecessor records, citation contexts and 360 compiled content inputs survive.
+The [monograph](../../causal_proposal_smile_reuse_reviewed_2026-10-24_v2.pdf) has 1,517 pages,
+1,159 audited citation records and 256 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_smile_reuse_reviewed_2026-10-24_v2.pdf) has 117 pages and 697 citations.
+All 1,158 predecessor records, citation contexts and 361 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**276 recorded outcomes of 376; 77 ready; 178 nonpassing obligations.**
+**278 recorded outcomes of 376; 75 ready; 176 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 81 | 3 | 31 | 115 |
+| reuse | 83 | 3 | 29 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates a historical OpenGM reference decision.
-Thirteen selected originals authenticate to the 26 July 2019 revision with
-version 2.3.1 declaration. The genuine five-page 2012 library paper is inspected.
-The selected README declares unmaintained; complete current support and optional
-solver rights remain separate qualification questions.
+The successor integrates two distinct SMILE engine and GeNIe/SMILE ecosystem
+reference decisions, sharing a vendor and primary evidence without counting
+them as separate native capabilities. Ten retained official audit records
+preserve exact original bytes and manual-family/date limitations.
 
-The connected argument separates joint optimization, marginal probabilities
-and causal intervention. It traces visitor cancellation, nonfinite default
-bounds, ordered factor axes and conditional infinite-penalty arithmetic.
-Exact authored examples show a 200,000 USD marginal-decision loss difference,
-a partial incumbent of four versus optimum zero, and repeated-factor and
-axis-order effects. No acquired code or native worker was executed.
+The connected argument compares discovery patterns, DAG conversion, uniform
+parameter initialization, fixed-structure DBNs, temporal array mapping,
+supplied-model utility and interruption. Exact authored examples demonstrate
+observational causal ambiguity, 80,000 versus minus 40,000 USD incremental
+net value, and information-clock and slice-order consequences. A matched
+scope matrix and public test program retain server rights, wrapper profiles,
+prices and native qualification as local conditional gates.
 
-All 1,155 predecessor records and contexts survive, producing 1,158 records.
-The paired sponsor preserves all 683 prior citations and adds five.
+All 1,158 predecessor records and contexts survive, producing 1,159 records.
+The paired sponsor preserves all 688 prior citations and adds nine, including
+six inherited official records newly used in its vendor comparison.
 Panel continuation still references its completed specific source inspection;
 the original Python coverage receipt remains inconclusive. Source, arithmetic
 and text/bounds checks do not establish visual or final acceptance.
@@ -53,7 +54,7 @@ and text/bounds checks do not establish visual or final acceptance.
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 31 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 29 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
