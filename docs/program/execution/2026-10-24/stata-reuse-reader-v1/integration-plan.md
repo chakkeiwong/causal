@@ -1,0 +1,1 @@
+Preserve all1159 prior source records, citation contexts and content inputs. Add authenticated Stata retained official manuals and command-specific reference choice and authored reference decision; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

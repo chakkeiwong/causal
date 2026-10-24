@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preserve all prior sources and integrate Stata factor,inference,error and reference contracts."""
+"""Preserve all prior sources and integrate Stata target,uncertainty,pooling and information-clock contracts."""
 import argparse,json,re
 from pathlib import Path
 import build_network_commercial_reader_20261020 as engine

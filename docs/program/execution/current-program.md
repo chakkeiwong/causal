@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-smile-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-smile-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-stata-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-stata-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-smile-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-stata-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,49 +12,45 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_smile_reuse_reviewed_2026-10-24_v2.pdf) has 1,517 pages,
-1,159 audited citation records and 256 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_smile_reuse_reviewed_2026-10-24_v2.pdf) has 117 pages and 697 citations.
-All 1,158 predecessor records, citation contexts and 361 compiled content inputs survive.
+The [monograph](../../causal_proposal_stata_reuse_reviewed_2026-10-24.pdf) has 1,521 pages,
+1,160 audited citation records and 256 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_stata_reuse_reviewed_2026-10-24.pdf) has 117 pages and 700 citations.
+All 1,159 predecessor records, citation contexts and 362 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**278 recorded outcomes of 376; 75 ready; 176 nonpassing obligations.**
+**279 recorded outcomes of 376; 74 ready; 175 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 83 | 3 | 29 | 115 |
+| reuse | 84 | 3 | 28 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates two distinct SMILE engine and GeNIe/SMILE ecosystem
-reference decisions, sharing a vendor and primary evidence without counting
-them as separate native capabilities. Ten retained official audit records
-preserve exact original bytes and manual-family/date limitations.
+The successor integrates the command-specific Stata reference decision.
+Twenty-three inherited primary records retain their identities and edition
+limits. Selected targets, assignment-group clustering, aggregation, imputation
+pooling and prediction-time contracts receive a fresh source inspection.
 
-The connected argument compares discovery patterns, DAG conversion, uniform
-parameter initialization, fixed-structure DBNs, temporal array mapping,
-supplied-model utility and interruption. Exact authored examples demonstrate
-observational causal ambiguity, 80,000 versus minus 40,000 USD incremental
-net value, and information-clock and slice-order consequences. A matched
-scope matrix and public test program retain server rights, wrapper profiles,
-prices and native qualification as local conditional gates.
+Exact authored examples show 70,000 versus minus 20,000 USD from different
+aggregation weights, a tenfold standard-error difference under repeated branch
+shocks, and the missing between-imputation variance. Dynamic-panel innovation
+and state-information examples distinguish diagnostic and prediction targets.
+No commercial binary, shared worker or licensed service was executed.
 
-All 1,158 predecessor records and contexts survive, producing 1,159 records.
-The paired sponsor preserves all 688 prior citations and adds nine, including
-six inherited official records newly used in its vendor comparison.
-Panel continuation still references its completed specific source inspection;
-the original Python coverage receipt remains inconclusive. Source, arithmetic
-and text/bounds checks do not establish visual or final acceptance.
+All 1,159 predecessor records and contexts survive, producing 1,160 records.
+The paired sponsor preserves all 697 prior citations and adds three.
+Source, arithmetic and text/bounds checks do not establish visual or final
+acceptance. Exact server/API entitlement, artifacts and prices remain open.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 29 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 28 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
