@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-other-dynamic-coverage-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-other-dynamic-coverage-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-r-network-coverage-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-r-network-coverage-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-other-dynamic-coverage-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-r-network-coverage-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,33 +12,33 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_other_dynamic_coverage_reviewed_2026-10-25.pdf) has 1,625 pages,
-1,275 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_other_dynamic_coverage_reviewed_2026-10-25.pdf) has 139 pages and 884 citations.
-All 1,269 predecessor records, citation contexts and 390 compiled content inputs survive.
+The [monograph](../../causal_proposal_r_network_coverage_reviewed_2026-10-25.pdf) has 1,631 pages,
+1,284 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_r_network_coverage_reviewed_2026-10-25.pdf) has 141 pages and 895 citations.
+All 1,275 predecessor records, citation contexts and 391 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**320 recorded outcomes of 376; 31 ready; 150 nonpassing obligations.**
+**321 recorded outcomes of 376; 30 ready; 150 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 68 | 31 | 102 |
+| software | 3 | 69 | 30 | 102 |
 | reuse | 109 | 4 | 2 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor compares DynamicPanelModels.jl, LocalProjections.jl, MacroEconometricTools.jl, StateSpaceModels.jl and gretl. Forty-eight originals authenticate calendar and instrument clocks, horizon rows, rank scaling, proxy normalization, partial observations, forecast indices and command failure branches. Exact authored examples reproduce. Coverage remains inconclusive; no native admission is inferred.
+The preserving successor compares interference, latenetwork, BicliqueRT, NetworkTargeting, NetworkCausalTree, MisspecifiedInterference, autognet and clusteredinterference. Sixty-two retrievals authenticate61 unique originals covering exposure maps,assignment probabilities,network score kernels,randomized tails,solver failures,missing groups and nested simulation. Exact authored examples reproduce. Coverage remains inconclusive; no native admission is inferred.
 
-All 1,269 predecessor records, contexts and content inputs survive; the reader has 1,275 records and 258 scholarly PDFs, with 884 in the paired sponsor. Coverage is inconclusive: bounded searches return 37 unique leads with uninspected candidates and ecosystem limits; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
+All 1,275 predecessor records, contexts and content inputs survive; the reader has 1,284 records and 258 scholarly PDFs, with 895 in the paired sponsor. Coverage is inconclusive: bounded searches return 60 unique leads with uninspected candidates and ecosystem limits; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
 
-There are 320 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 68 inconclusive / 31 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
+There are 321 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 69 inconclusive / 30 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
 ## Remaining gaps and routes
 
-1. Software: 31 open and 68 inconclusive cells. Complete explicit search tails,
+1. Software: 30 open and 69 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.

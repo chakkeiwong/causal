@@ -1,0 +1,5 @@
+# R network and interference coverage
+
+Operation SW.CELL.networks_interference.R. Cutoff 2026-10-07. Independent source work proceeds while the prior temporal delivery finishes; canonical mutations serialize.
+
+Preserve the existing inferference source decision and expand coverage to designed-experiment exposure estimators, instrumented network effects, network-targeted policies, heterogeneous effects and misspecified network structures. Screen bounded searches, pin authentic pre-cutoff revisions, authenticate files, inspect actual estimation/covariance/dependency paths, and compare targets, exposure maps, assignment support, sampling units, missing ties and failures. Develop exact project-authored banking witnesses without downloaded-code execution. Record uninspected candidates and scientific/native limits; integrate a connected preserving monograph and paired sponsor after review. Qualify search coverage separately from individual implementation and reuse decisions. Continue independent obligations after outcome or local blockage.
