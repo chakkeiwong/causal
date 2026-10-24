@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-frameworks-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-frameworks-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-mcp-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-mcp-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-frameworks-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-mcp-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,47 +12,47 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_frameworks_reuse_reviewed_2026-10-24.pdf) has 1,533 pages,
-1,169 audited citation records and 256 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_frameworks_reuse_reviewed_2026-10-24.pdf) has 118 pages and 709 citations.
-All 1,162 predecessor records, citation contexts and 365 compiled content inputs survive.
+The [monograph](../../causal_proposal_mcp_reuse_reviewed_2026-10-24.pdf) has 1,539 pages,
+1,178 audited citation records and 256 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_mcp_reuse_reviewed_2026-10-24.pdf) has 120 pages and 715 citations.
+All 1,169 predecessor records, citation contexts and 366 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**287 recorded outcomes of 376; 66 ready; 167 nonpassing obligations.**
+**292 recorded outcomes of 376; 61 ready; 162 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 92 | 3 | 20 | 115 |
+| reuse | 97 | 3 | 15 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates six bounded framework reference decisions: LangChain
-with LangGraph, AutoGen, Semantic Kernel, DSPy, LlamaIndex and Haystack.
-Fifty selected new original files authenticate to pinned pre-cutoff revisions;
-thirty-four receive substantive technical/notice inspection. Sixteen acquired
-files remain inventoried without new technical claims. The actual delegated
-workflows package and repository redirect are traced separately.
+The successor integrates five bounded MCP reference decisions covering official
+Python/TypeScript, separate FastMCP, R, Java and three concrete C++ source
+profiles. Sixty-eight selected originals authenticate to pinned pre-cutoff
+revisions; forty-nine receive substantive technical or notice inspection.
+Nineteen acquired files remain inventoried without new technical claims.
 
-The connected argument compares graph replay, conversation state, filters,
-retry results, evaluation denominators, clocks, cancellation and hook effects.
-Exact authored witnesses specify public tests for duplicated actions, budget
-races, lossy uncertainty and complete costs. No acquired code, model or native
-worker was executed. A declared prerelease stays labeled as such.
+The connected argument distinguishes protocol revision, software artifact,
+transport and scientific schema. Selected validation, structured-result,
+error and cancellation paths define explicit adapter and public-test needs.
+Exact authored witnesses cover lost graph marks, units, nonidentification,
+missing versus zero, cancellation after an economic side effect and full costs.
+No acquired code or native SDK was executed.
 
-All 1,162 predecessor records and contexts survive, producing 1,169 records.
-The paired sponsor preserves all 706 prior citations and adds three.
+All 1,169 predecessor records and contexts survive, producing 1,178 records.
+The paired sponsor preserves all 709 prior citations and adds six.
 Source, arithmetic and text/bounds checks do not establish visual or final
-acceptance. Provider/backend and remaining delegate coverage stay open.
+acceptance. Backend, additional SDK and frontier coverage remain open.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 20 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 15 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata

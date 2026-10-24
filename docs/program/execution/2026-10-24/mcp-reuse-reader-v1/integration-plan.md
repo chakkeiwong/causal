@@ -1,0 +1,1 @@
+Preserve all1169 prior source records, citation contexts and content inputs. Add authenticated eight pinned MCP implementation profiles and exact authored comparison; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
