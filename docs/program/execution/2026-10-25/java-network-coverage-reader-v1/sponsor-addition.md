@@ -1,0 +1,9 @@
+# JVM network components need graph and experiment contracts
+
+JGraphT, GraphStream, MASON and Repast Simphony offer distinct components for graph operations, dynamic ingestion and agent-based public experiments. They can support a causal workflow when the bank's graph, assignment law, target population and response mechanism are specified. Their existence does not establish causal identification or bank validation. [@exec25_jnet_jgrapht; @exec25_jnet_graphstream; @exec25_jnet_mason; @exec25_jnet_repast]
+
+The source comparison traces direction and parallel-edge semantics, hop versus weighted paths, induced and live graph views, automatic node creation, shallow state copies, update order, effective seeds and checkpoint failure paths. Authored examples show that incident-neighbor conventions can change an exposure from one to two-thirds or one-half, and that simultaneous and sequential updates can share a mean while having different variances. These are component contracts to test publicly, not installed-platform benchmarks. [@exec25_jnet_choice]
+
+The proposed decisions are conditional integration for JGraphT and GraphStream, and conditional experiment-environment comparison for MASON and Repast. A public trial should enumerate small assignment spaces before studying larger simulations, and record all failures, refusals, runtime and costs. The 71 bounded search leads and selected originals do not establish complete Java ecosystem coverage. Artifact rights, native execution, scientific qualification and independent acceptance remain open. [@exec25_jnet_choice]
+
+A hypothetical USD30,000 study costs USD30 per 1,000 attempts, USD50 per 600 completions or USD75 per 400 accepted outputs. Public known-law tests can justify later bank experiments without presenting synthetic results as authentic bank evidence. [@exec25_jnet_choice]

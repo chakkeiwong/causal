@@ -1,0 +1,3 @@
+# JVM network and interference coverage
+
+Operation SW.CELL.networks_interference.Java. Preserve client cutoff7 October2026. Search explicitly for causal interference,spillovers,network experimentation and adjacent Java graph/simulation infrastructure. Distinguish causal estimators from exposure construction and simulation substrates. Pin pre-cutoff originals,inspect technical delegates and license originals,retain bounded negative discovery results and omissions. Never execute acquired code. Compare proposed graph/time/assignment/population/refusal contracts,not labels. Review independent candidates sequentially;integrate only after predecessor delivery exit.

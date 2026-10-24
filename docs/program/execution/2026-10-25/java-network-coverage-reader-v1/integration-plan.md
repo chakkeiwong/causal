@@ -1,0 +1,1 @@
+Preserve all1291 prior source records,citation contexts and content inputs. Add JVM graph,ingestion,clock,random-state,assignment,typed-failure and cost contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
