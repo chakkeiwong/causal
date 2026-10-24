@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-jmp-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-jmp-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-sas-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-sas-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-jmp-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-sas-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,50 +12,49 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_jmp_reuse_reviewed_2026-10-24.pdf) has 1,524 pages,
-1,161 audited citation records and 256 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_jmp_reuse_reviewed_2026-10-24.pdf) has 117 pages and 703 citations.
-All 1,160 predecessor records, citation contexts and 363 compiled content inputs survive.
+The [monograph](../../causal_proposal_sas_reuse_reviewed_2026-10-24.pdf) has 1,527 pages,
+1,162 audited citation records and 256 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_sas_reuse_reviewed_2026-10-24.pdf) has 118 pages and 706 citations.
+All 1,161 predecessor records, citation contexts and 364 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**280 recorded outcomes of 376; 73 ready; 174 nonpassing obligations.**
+**281 recorded outcomes of 376; 72 ready; 173 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 85 | 3 | 27 | 115 |
+| reuse | 86 | 3 | 26 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates a bounded JMP workflow-specific reference decision.
-Four inherited official records retain their distinct 19.2, 19.0, 19, 18.1
-and 16 documentation profiles. Image-only equations remain uninspected;
-new claims use authenticated prose and independently authored mathematics.
+The successor integrates a component-specific SAS reference decision.
+Fourteen inherited primary records retain distinct SAS/STAT and SAS/ETS
+procedure editions, a spatial guide, pinned sasctl sources and separate
+historical preview service examples. No runtime or entitlement is inferred.
 
-The connected argument distinguishes specified treatment mixtures, adaptive
-subgroup selection, observed dose support, supplied-model instruments and
-competing-event removal mechanisms. Exact examples give 47,500 versus
-62,500 USD for different mixtures, selection optimism of seven eighths,
-and observationally unresolved off-support and event-removal responses.
-No commercial binary, entitled automation service or vendor correction was tested.
+The connected argument distinguishes supplied structural models, event-time
+information, missing-outcome laws, client paging, terminal states and wall-time
+deadlines. Exact authored examples include identical covariances with different
+intervention slopes and one-million to six-million USD missing-outcome loss.
+No acquired code, vendor binary or commercial server was executed.
 
-All 1,160 predecessor records and contexts survive, producing 1,161 records.
-The paired sponsor preserves all 700 prior citations and adds three.
+All 1,161 predecessor records and contexts survive, producing 1,162 records.
+The paired sponsor preserves all 703 prior citations and adds three.
 Source, arithmetic and text/bounds checks do not establish visual or final
-acceptance. Supported automation, exact artifacts, rights and prices remain open.
+acceptance. Exact profiles, rights, artifacts and prices remain open.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 27 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 26 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
-   limits remain local. Clinical 125/207/277 client challenges and workflow 136
+   limits remain local. Clinical 125/207/267 client challenges and workflow 136
    and energy 218 original access limits are preserved; independent work continues.
 4. Commercial qualification: resolve named supported server/API profiles,
    entitlement, price and complete request/failure denominators.
