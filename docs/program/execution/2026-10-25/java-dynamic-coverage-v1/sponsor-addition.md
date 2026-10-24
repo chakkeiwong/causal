@@ -1,0 +1,5 @@
+## JVM temporal models and intervention meaning
+
+The JVM comparison follows Tetrad lag and temporal-search utilities, Smile forecasting, ScalaTion VAR/VARX and JDemetra+ state-space paths. It distinguishes graph discovery, point prediction, regression uncertainty and intervention meaning. Selected source paths expose concrete naming, regressor-layout, unfinished-entry-point and numerical contracts to test before integration. Missing-observation state propagation and diffuse initialization provide useful conditional references without establishing bank causal truth. [@exec25_jdyn_tetrad; @exec25_jdyn_smile; @exec25_jdyn_scalation; @exec25_jdyn_jdplus]
+
+The proposed public trials freeze calendars, source artifacts, forecast horizons, exogenous scenarios and refusal rules. Exact authored examples supply indexing, differencing, variance and denominator checks. A hypothetical 21,000 USD study costs 30 USD across each of 700 requests, 42 USD across each of 500 completions and 60 USD across each of 350 accepted outputs. Whole-ecosystem coverage, binary/dependency rights, commercial entitlement and native qualification remain open. [@exec25_jdyn_choice]
