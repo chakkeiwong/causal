@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-pydynpd-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-pydynpd-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-scientific-method-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-scientific-method-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-pydynpd-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-scientific-method-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_pydynpd_reviewed_2026-10-24.pdf) has 1,396 pages,
-1,071 audited citation records and 240 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_pydynpd_reviewed_2026-10-24.pdf) has 91 pages and 539 citations.
-All 1,068 predecessor records, citation contexts and 329 compiled content inputs survive.
+The [monograph](../../causal_proposal_scientific_method_reviewed_v2_2026-10-24.pdf) has 1,400 pages,
+1,073 audited citation records and 241 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_scientific_method_reviewed_2026-10-24.pdf) has 93 pages and 543 citations.
+All 1,071 predecessor records, citation contexts and 330 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,34 +30,36 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-The pydynpd reference decision now binds 16 authenticated original source blobs,
-a genuine Wu2023 paper and exact authored witnesses. Three records extend the
-monograph; the sponsor also adopts two already-inspected inherited theory records.
-The choice passes as a proposal reference disposition and grants no native integration.
+The scientific-method perspective now has its own genuine45-page May2025preprint,
+primary anchors and an exact authored reference. Two records extend the monograph;
+the sponsor preserves every prior argument and adds the same bounded findings.
+The related journal article has a different title and unavailable original. Candidate165
+therefore stays open: the census remains77inspected/36unread plus4crosscutting tasks.
 
-The argument follows causal moments through calendar and row identity, instrument
-construction, weighting/rank, covariance, diagnostic steps, model search and termination.
-Version declarations disagree; the source commit remains authoritative. Ordering,
-compressed calendar steps, skipped search failures and an uncapped inspected iteration
-path are preserved source concerns, not observed package failures.
+The connected argument follows business questions through observation, hypothesis,
+experiment and automation. It distinguishes representation loss, formal translation,
+shared judge errors, public-to-bank transport, and complete costs. Exact witnesses
+show that eventual-repayment labels can lose10000USDof ten-day cash information;
+a verified inclusive100USDconstraint can violate a strict one; and majority error
+is0.00856under independent judges but0.1under a shared error with the same marginals.
 
-Exact witnesses show a solved invalid moment returning two for a structural coefficient
-of one, rank deficiency identifying only a sum, and a common shock retaining variance
-one across100accounts. Stipulated screening can yield a survivor probability0.8784;
-stable USD10 responses imply USD50/200 at persistence0.8/0.95. Complete costs distinguish
-USD5perattempt,USD12.50persurvivor andUSD50peraccepted artifact. No measured bank value.
+Constructed environments reverse the preferred contact action and give7USDregret.
+A stipulated240USDworkflow costs6perattempt,8pertoolcompletion and30peracceptedanswer,
+with correct refusals reported separately. These are explicit examples, not measured
+model performance, native qualification or bank economics. General algorithmic
+confidence and unrestricted causal identification remain unestablished.
 
-Conditional original-worker/targeted-repair and typed CLI/MCP contracts require public
-or generated semantic,negative-control and failure fixtures before expensive bank trials.
-The stale census continuation describing completed survival work has a preserved successor
-note; the36unread originals and4crosscutting obligations remain open. Pandera, R-policy,
-Julia/Rust survival and prior LLM/integration content remains intact.
+The proposed public/generated comparison freezes tasks, search budgets, semantic and
+refusal oracles and all failures before expensive bank trials. CLI/MCP artifact contracts
+preserve question, diagram, identification and experiment identities. The survey is
+adopted as a design perspective; underlying packages still require their own review.
+All prior pydynpd, Pandera, policy, survival and LLM/integration arguments remain intact.
 
 ## Remaining gaps and routes
 
 1. Software:52open and47inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
 2. Reuse:52open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
-3. Frontier census:36unread originals and four crosscutting obligations. Candidate217 original access/date remains local; candidate27 metadata supplies no original.
+3. Frontier census:36unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister justified task/version splits, semantic/refusal/fault oracles and full costs before broader native or bank claims.
 6. Manuscript acceptance: finish mandatory coverage/depth, Q1/Q5 and fresh visual review; text bounds alone are not visual acceptance.
