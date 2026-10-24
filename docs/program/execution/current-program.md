@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-scientific-method-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-scientific-method-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-policies-python-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-policies-python-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-scientific-method-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-policies-python-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,52 +12,53 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_scientific_method_reviewed_v2_2026-10-24.pdf) has 1,400 pages,
-1,073 audited citation records and 241 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_scientific_method_reviewed_2026-10-24.pdf) has 93 pages and 543 citations.
-All 1,071 predecessor records, citation contexts and 330 compiled content inputs survive.
+The [monograph](../../causal_proposal_policies_python_reviewed_2026-10-24.pdf) has 1,403 pages,
+1,074 audited citation records and 241 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_policies_python_reviewed_2026-10-24.pdf) has 94 pages and 550 citations.
+All 1,073 predecessor records, citation contexts and 331 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**249 recorded outcomes of 376; 104 ready; 199 nonpassing obligations.**
+**250 recorded outcomes of 376; 103 ready; 199 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 47 | 52 | 102 |
+| software | 3 | 48 | 51 | 102 |
 | reuse | 60 | 3 | 52 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The scientific-method perspective now has its own genuine45-page May2025preprint,
-primary anchors and an exact authored reference. Two records extend the monograph;
-the sponsor preserves every prior argument and adds the same bounded findings.
-The related journal article has a different title and unavailable original. Candidate165
-therefore stays open: the census remains77inspected/36unread plus4crosscutting tasks.
+Four already inspected Python policy families now have a connected target-specific
+comparison. Eleven unchanged source records are reused; one audited synthesis record
+is new. All four authored reference result objects reproduce. The software coverage
+operation is inconclusive: a bounded ten-result bibliographic search from2527reported
+matches does not establish a complete package or alias census.
 
-The connected argument follows business questions through observation, hypothesis,
-experiment and automation. It distinguishes representation loss, formal translation,
-shared judge errors, public-to-bank transport, and complete costs. Exact witnesses
-show that eventual-repayment labels can lose10000USDof ten-day cash information;
-a verified inclusive100USDconstraint can violate a strict one; and majority error
-is0.00856under independent judges but0.1under a shared error with the same marginals.
+OBP supplies selected contextual-bandit paths; SCOPE-RL supplies selected sequential
+scores; d3rlpy supplies learning and its particular fitted-Q target; POMDP-Py plans
+within supplied latent models. These outputs are not interchangeable. The comparison
+binds logger/support, policy randomness, history, physical clocks, episode endings,
+reward transformations, uncertainty and selected-policy targets.
 
-Constructed environments reverse the preferred contact action and give7USDregret.
-A stipulated240USDworkflow costs6perattempt,8pertoolcompletion and30peracceptedanswer,
-with correct refusals reported separately. These are explicit examples, not measured
-model performance, native qualification or bank economics. General algorithmic
-confidence and unrestricted causal identification remain unestablished.
+Preserved exact witnesses distinguish randomized8USD from greedy10USD, terminal2USD
+from10USD, and cumulative monetary28USD from a naive23.50USDinverse. Fixed-score
+resampling and re-normalized ratios remain distinct. Same-name standalone and
+transitive packages are not asserted to be the same imported artifact.
 
-The proposed public/generated comparison freezes tasks, search budgets, semantic and
-refusal oracles and all failures before expensive bank trials. CLI/MCP artifact contracts
-preserve question, diagram, identification and experiment identities. The survey is
-adopted as a design perspective; underlying packages still require their own review.
-All prior pydynpd, Pandera, policy, survival and LLM/integration arguments remain intact.
+Conditional original-worker and CLI/MCP routes retain explicit source, rights,
+environment, semantic/refusal, uncertainty and complete-cost requirements. Generated
+finite laws and inspected public tasks can justify later bank experiments. Unknown
+logging, unsupported actions and unrestricted hidden-state identification have no
+promised universal repair. No native or bank capability is admitted.
+
+The scientific-method preprint and its unresolved journal-original boundary remain
+intact, alongside pydynpd, Pandera, R-policy, survival and earlier LLM/integration work.
 
 ## Remaining gaps and routes
 
-1. Software:52open and47inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
+1. Software:51open and48inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
 2. Reuse:52open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
 3. Frontier census:36unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
@@ -70,7 +71,7 @@ acceptance and actual economic value remain later external work, not global prop
 
 ## Exact continuation
 
-Next:SW.CELL.policies_offpolicy.Python. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Separate fixed-policy evaluation, policy selection and unknown optimum; require logger, support and hidden-state scope; banking example: dynamic servicing.
+Next:SW.DECISION.inherited_ray. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
