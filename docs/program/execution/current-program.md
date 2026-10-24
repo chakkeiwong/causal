@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-mcp-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-mcp-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-judge-bias-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-judge-bias-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-mcp-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-judge-bias-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_mcp_reuse_reviewed_2026-10-24.pdf) has 1,539 pages,
-1,178 audited citation records and 256 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_mcp_reuse_reviewed_2026-10-24.pdf) has 120 pages and 715 citations.
-All 1,169 predecessor records, citation contexts and 366 compiled content inputs survive.
+The [monograph](../../causal_proposal_judge_bias_reviewed_2026-10-24.pdf) has 1,542 pages,
+1,180 audited citation records and 257 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_judge_bias_reviewed_2026-10-24.pdf) has 120 pages and 719 citations.
+All 1,178 predecessor records, citation contexts and 367 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,23 +30,23 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-The successor integrates five bounded MCP reference decisions covering official
-Python/TypeScript, separate FastMCP, R, Java and three concrete C++ source
-profiles. Sixty-eight selected originals authenticate to pinned pre-cutoff
-revisions; forty-nine receive substantive technical or notice inspection.
-Nineteen acquired files remain inventoried without new technical claims.
+The successor integrates the selected authentic MM-JudgeBias v3 preprint,
+with final conference bytes retained as a separate omission. Its scoring
+metrics, perturbation assumptions, curation, operational settings, abstention
+and scope are inspected. All other census entries remain unchanged:
+81 selected originals inspected, 32 unread and four crosscutting obligations.
 
-The connected argument distinguishes protocol revision, software artifact,
-transport and scientific schema. Selected validation, structured-result,
-error and cancellation paths define explicit adapter and public-test needs.
-Exact authored witnesses cover lost graph marks, units, nonidentification,
-missing versus zero, cancellation after an economic side effect and full costs.
-No acquired code or native SDK was executed.
+The banking argument distinguishes sensitivity, stability and absolute causal
+correctness. Exact authored examples make conditional eligibility, score
+normalization, refusal coverage, false-acceptance losses and cost denominators
+explicit. Three attempts on 100 logical cases do not supply 300 independent
+cases. No model experiment or downloaded source code was executed.
 
-All 1,169 predecessor records and contexts survive, producing 1,178 records.
-The paired sponsor preserves all 709 prior citations and adds six.
-Source, arithmetic and text/bounds checks do not establish visual or final
-acceptance. Backend, additional SDK and frontier coverage remain open.
+All 1,178 predecessor records and contexts survive, producing 1,180 records
+and 257 scholarly PDFs. The paired sponsor preserves 715 citations and adds
+four. Full-byte source checks, arithmetic and text/bounds checks do not
+establish visual, independent or final acceptance. Rights, final-version
+comparison and native public qualification remain distinct next steps.
 
 ## Remaining gaps and routes
 
@@ -54,10 +54,11 @@ acceptance. Backend, additional SDK and frontier coverage remain open.
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: 15 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
-3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
+3. Frontier census: 32 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
    limits remain local. Clinical 125/207/277 client challenges and workflow 136
-   and energy 218 original access limits are preserved; independent work continues.
+   and energy 218 original access limits are preserved; candidate225 final conference
+   bytes remain a separate omission after the selected preprint review. Independent work continues.
 4. Commercial qualification: resolve named supported server/API profiles,
    entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister task/version splits, scientific and refusal
@@ -83,7 +84,7 @@ preserved as history; open operations still use their latest durable progress.
 
 ## Exact continuation
 
-Next: LL.CENSUS. Continue the33unread originals and4crosscutting tasks with permitted authentic originals;retain source limits163conference,165journal,217access/date,27metadata,136workflow,218energy and125/207/277client challenges. Mediation reuse is recorded and paired;other-language policy has a recorded inconclusive comparison and paired reader. Do not repeat their build or original receipt. Advance independent open software/reuse tasks or create reviewed successors for recorded gaps;no global blocker.
+Next: SW.CELL.panels_did.Java. A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect cohort/time aggregation, anticipation, treatment reversal, heterogeneous effects, clustering and trend sensitivity; banking example: staggered branch policy rollout.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
