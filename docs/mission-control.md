@@ -4,7 +4,7 @@
 
 Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**292 / 376 proposal operations have recorded outcomes; 61 are ready.** Next: **SW.CELL.panels_did.Java**.
+**294 / 376 proposal operations have recorded outcomes; 59 are ready.** Next: **SW.CELL.panels_did.Java**.
 
 A search hit is not a capability or absence finding; matched technical sources and licensing/runtime remain to be checked. Inspect cohort/time aggregation, anticipation, treatment reversal, heterogeneous effects, clustering and trend sensitivity; banking example: staggered branch policy rollout.
 

@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-judge-bias-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-judge-bias-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-dose-alias-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-dose-alias-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-judge-bias-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-dose-alias-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -14,45 +14,44 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 The [monograph](../../causal_proposal_judge_bias_reviewed_2026-10-24.pdf) has 1,542 pages,
 1,180 audited citation records and 257 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_judge_bias_reviewed_2026-10-24.pdf) has 120 pages and 719 citations.
+[sponsor proposal](../../sponsor_proposal_dose_alias_reviewed_2026-10-24.pdf) has 120 pages and 722 citations.
 All 1,178 predecessor records, citation contexts and 367 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**292 recorded outcomes of 376; 61 ready; 162 nonpassing obligations.**
+**294 recorded outcomes of 376; 59 ready; 160 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 97 | 3 | 15 | 115 |
+| reuse | 99 | 3 | 13 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates the selected authentic MM-JudgeBias v3 preprint,
-with final conference bytes retained as a separate omission. Its scoring
-metrics, perturbation assumptions, curation, operational settings, abstention
-and scope are inspected. All other census entries remain unchanged:
-81 selected originals inspected, 32 unread and four crosscutting obligations.
+The integrated monograph remains byte-identical to the reviewed judge-bias
+reader: 1,180 source records and 257 scholarly PDFs. Its connected dose-response
+comparison already distinguishes causaldrf 0.4.2 and CausalGPS 0.5.1 at exact
+pinned revisions. Two separate catalogue entries still lacked their own receipts.
 
-The banking argument distinguishes sensitivity, stability and absolute causal
-correctness. Exact authored examples make conditional eligibility, score
-normalization, refusal coverage, false-acceptance losses and cost denominators
-explicit. Three attempts on 100 logical cases do not supply 300 independent
-cases. No model experiment or downloaded source code was executed.
+The reconciliation checks each alias against its component name and revision,
+rights/dependencies, target and uncertainty, alternatives, costs, owner duties,
+conversion contract and revisit condition. Both retain the reference-only
+choice. This closes two administrative decision obligations without creating
+new research evidence, native integration or additional software coverage.
 
-All 1,178 predecessor records and contexts survive, producing 1,180 records
-and 257 scholarly PDFs. The paired sponsor preserves 715 citations and adds
-four. Full-byte source checks, arithmetic and text/bounds checks do not
-establish visual, independent or final acceptance. Rights, final-version
-comparison and native public qualification remain distinct next steps.
+The exact paired sponsor preserves all 719 predecessor sources and adds three
+project records. It updates effective counts to 294 recorded outcomes and
+99 passing reuse decisions, with three inconclusive and 13 open. Census remains
+81 inspected, 32 unread and four crosscutting obligations. Final-edition,
+public native, visual, independent and proposal acceptance remain open.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 15 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 13 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 32 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
