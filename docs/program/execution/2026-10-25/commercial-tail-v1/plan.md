@@ -1,0 +1,3 @@
+# Remaining named commercial reference decisions
+
+Inspect original technical documentation and explicit rights for MATLAB toolboxes, HUGIN and AgenaRisk. Preserve acquisition failures. Separate current mutable text from evidence at the 7 October cutoff. Use exact authored public/synthetic fixtures to specify causal semantics, return statuses and full costs. Resolve each named reference decision only to the evidence supported; unresolved rights or identity can remain inconclusive. Combine reviewed manuscript additions with Dara in a preserving publication after the workflow wave completes. Do not execute downloaded software or change sibling repositories.

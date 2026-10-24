@@ -1,0 +1,7 @@
+## AgenaRisk wrapper and licensed-runtime reference
+
+The pinned public AgenaRisk API is a Java/CLI reference with sixteen authenticated originals. Its September2026 freeze notice, final-public-release label, Maven snapshot and mutable core dependency are distinct identities. Apache wrapper source does not establish permission for a licensed engine, embedded application or network service; the retained usage document and the README make a specific deployment agreement necessary before integration. No runtime or agreement was exercised.\citep{exec25_agena_source,exec25_agena_choice}
+
+Selected methods distinguish scenario evidence and delegated propagation; an authored finite example gives observed contrast3/5 but intervention contrast0. The CLI cache skips dataset identifiers without binding model/data/query digests, and its selected output path rewrites JSON. Exact same-ID and changed-model witnesses motivate content-bound caches, atomic recovery tests and complete failure/cost accounting. These static findings are not native failure reports. Learning delegates, concurrency, deadlines and causal-query semantics need separate qualification.\citep{exec25_agena_source,exec25_agena_choice}
+
+The proposed public trials compare matched finite-network oracles, a permitted pinned runtime and the proposed adapter. Hypothetical USD8,000 full cost is USD40 per attempt,USD50 per completion and USD80 per admissible result. Actual price, private-release support, licensed service entitlement and business value remain unverified.\citep{exec25_agena_choice}

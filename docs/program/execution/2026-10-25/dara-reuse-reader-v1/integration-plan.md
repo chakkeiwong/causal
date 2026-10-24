@@ -1,0 +1,1 @@
+Preserve all1209 prior source records,citation contexts and content inputs. Add Dara graph semantics, edit authority, exact witnesses and commercial deferral; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

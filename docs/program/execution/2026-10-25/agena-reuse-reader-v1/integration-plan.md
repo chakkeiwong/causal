@@ -1,0 +1,1 @@
+Preserve all1211 prior source records,citation contexts and content inputs. Add AgenaRisk evidence/intervention, cache, failure and rights contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

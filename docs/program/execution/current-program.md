@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-workflow-reuse-wave-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-workflow-reuse-wave-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-graph-reuse-wave-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-graph-reuse-wave-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-workflow-reuse-wave-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-graph-reuse-wave-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,45 +12,35 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_datarobot_reuse_reviewed_2026-10-25.pdf) has 1,575 pages,
-1,209 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_workflow_reuse_wave_reviewed_2026-10-25.pdf) has 129 pages and 792 citations.
-All 1,206 predecessor records, citation contexts and 376 compiled content inputs survive.
+The [monograph](../../causal_proposal_agena_reuse_reviewed_2026-10-25.pdf) has 1,580 pages,
+1,213 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_graph_reuse_wave_reviewed_2026-10-25.pdf) has 129 pages and 800 citations.
+All 1,209 predecessor records, citation contexts and 378 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**305 recorded outcomes of 376; 48 ready; 151 nonpassing obligations.**
+**307 recorded outcomes of 376; 46 ready; 150 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 55 | 44 | 102 |
-| reuse | 108 | 3 | 4 | 115 |
+| reuse | 109 | 4 | 2 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The grouped preserving successor resolves Dataiku workflow and DataRobot propensity references. Dataiku separates trigger/run/outcome and scientific acceptance; the actual agent predecessor is preserved directly through the reviewed intermediate draft.
-A genuine pinned March2025 DataRobot notebook was acquired and Git-authenticated; code
-and original prose were inspected without saved-output replay. The root
-license remains unavailable. The argument distinguishes predictive treatment
-modeling from causal identification,alignment,target weights and uncertainty.
-Exact examples show that arm-constant stabilization leaves the normalized
-mean and weight-concentration ESS unchanged. No vendor service or data ran.
+The grouped preserving successor adds Dara graph-interface and AgenaRisk wrapper/runtime comparisons. Dara's commercial causaLens branch remains unselected,so its umbrella outcome is inconclusive. AgenaRisk is a bounded reference choice. Thirty-five selected original files were authenticated;the preserved Dara README failure is repaired by authenticating the root symlink and resolved target against one pinned tree.
 
-All 1,206 predecessor records and contexts survive; the reader has 1,209
-records and 258 genuine scholarly PDFs, with 792 records in the paired sponsor.
-Two reference choices pass without integration: 305 outcomes are recorded,
-reuse is 108 pass / three inconclusive / four open, and 151 nonpassing
-obligations remain. Software remains three pass / 55 inconclusive / 44 open.
-Census remains 82 inspected / 31 unread plus four crosscutting tasks. All earlier
-Dataiku,agent,commercial and census repairs remain preserved.
+The source argument distinguishes graph rendering from edit authority and identification;scenario evidence from interventions;and scenario identifiers from complete cache identity. Exact graph,confounding,cache and cost witnesses reproduce independently. No downloaded vendor code,licensed runtime or native failure was executed. Complete rights,current private support,service profiles and actual prices remain unresolved. Six attempted HUGIN,MATLAB and Agena website routes were rejected by the fixed collector;the permitted AgenaRisk Git route succeeded. These local access limits establish no product absence. The sponsor opening date is corrected to25October2026 while historical evidence remains dated.
+
+All1,209 predecessor records and contexts survive;the reader has1,213 records and258 genuine scholarly PDFs,with800 records in the paired sponsor. There are307 recorded outcomes,reuse109pass/four inconclusive/two open,and150 nonpassing obligations. Software remains3/55/44;census82/31plus4crosscutting. The remaining open reuse decisions are MATLAB toolboxes and HUGIN;the commercial causaLens revisit remains explicit.
 
 ## Remaining gaps and routes
 
 1. Software: 44 open and 55 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: four open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 31 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
