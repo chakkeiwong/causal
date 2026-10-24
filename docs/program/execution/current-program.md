@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-scpi-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-scpi-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-linearmodels-panel-v2/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-linearmodels-panel-v2/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-scpi-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-linearmodels-panel-v2/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,44 +12,52 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_scpi_reuse_reviewed_2026-10-24.pdf) has 1,469 pages,
-1,131 audited citation records and 253 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_scpi_reuse_reviewed_2026-10-24.pdf) has 107 pages and 639 citations.
-All 1,129 predecessor records, citation contexts and 348 compiled content inputs survive.
+The [monograph](../../causal_proposal_linearmodels_panel_v2_reviewed_2026-10-24.pdf) has 1,478 pages,
+1,135 audited citation records and 253 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_linearmodels_panel_reviewed_2026-10-24.pdf) has 109 pages and 645 citations.
+All 1,133 predecessor records, citation contexts and 350 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**265 recorded outcomes of 376; 88 ready; 189 nonpassing obligations.**
+**266 recorded outcomes of 376; 87 ready; 188 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 70 | 3 | 42 | 115 |
+| reuse | 71 | 3 | 41 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates the scpi 4.0.1 R reference decision. Eight originals
-authenticate to the 10 June 2026 CRAN-mirror pin. The observed packager field
-and future-dated bibliography remain explicit provenance limits; no author
-release equality, paper theorem or native qualification is inferred.
+The combined successor integrates fect 2.4.5 and the panel-specific
+linearmodels source follow-up. Twelve fect originals match the preserved
+30 May 2026 archive; eight panel/helper originals match the pinned
+7 October 2026 source tree. Rights, installed distributions and native
+scientific qualification remain distinct requirements.
 
-The chapter distinguishes targets,weight constraints,coefficient/future-error
-components,joint-coverage scopes,failed simulated solves,asymmetric supplied
-bounds and degenerate matrices. Exact interval,tail,Boolean,matrix and financial
-examples reproduce. Downloaded package code was not executed.
+Fect develops treatment switching, estimand weights, validation clocks,
+matrix shrinkage, iteration and bootstrap failures. The panel argument
+develops within transformations, missing/singleton/absorbed-row policies,
+covariance scaling and reference degrees of freedom, temporal clocks and
+solver termination. Exact authored arithmetic reproduces; downloaded
+package code was not executed. Original Python coverage remains inconclusive.
 
-All 1,129 predecessor source records,contexts and compiled inputs survive;
-two new records bring the total to 1,131. The paired sponsor preserves all635
-previous citation records and adds four. Source/arithmetic/text checks do not
-establish fresh visual,independent or final acceptance.
+The panel continuation now references the completed source inspection
+and specifies the remaining candidate, dependency and public-trial work.
+It no longer tells the next session to repeat that inspection.
+
+All 1,133 immediate predecessor records and contexts survive, producing
+1,135 records. The combined sponsor preserves all 639 scpi citations
+and adds six; no intermediate fect sponsor is claimed. Q2-Q4 were renewed
+once for both additions. Source, arithmetic and text/bounds checks do not
+establish visual, independent or final acceptance.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 42 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 41 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata

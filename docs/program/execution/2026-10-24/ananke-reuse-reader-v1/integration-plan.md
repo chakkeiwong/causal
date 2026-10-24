@@ -1,0 +1,1 @@
+Preserve all1135 prior source records, citation contexts and content inputs. Add authenticated Ananke selected source and authored reference decision; preserve all inherited Synth and panel comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

@@ -1,0 +1,1 @@
+Preserve all1133 prior source records, citation contexts and content inputs. Add authenticated panel-specific sources and authored reference comparison; preserve all inherited Synth and panel comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
