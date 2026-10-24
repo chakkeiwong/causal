@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-ananke-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-ananke-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-lingam-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-lingam-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-ananke-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-lingam-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,37 +12,38 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_ananke_reuse_reviewed_2026-10-24.pdf) has 1,481 pages,
-1,137 audited citation records and 253 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_ananke_reuse_v2_reviewed_2026-10-24.pdf) has 109 pages and 649 citations.
-All 1,135 predecessor records, citation contexts and 351 compiled content inputs survive.
+The [monograph](../../causal_proposal_lingam_reuse_reviewed_2026-10-24.pdf) has 1,484 pages,
+1,139 audited citation records and 253 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_lingam_reuse_reviewed_2026-10-24.pdf) has 109 pages and 653 citations.
+All 1,137 predecessor records, citation contexts and 352 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**267 recorded outcomes of 376; 86 ready; 187 nonpassing obligations.**
+**268 recorded outcomes of 376; 85 ready; 186 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 72 | 3 | 40 | 115 |
+| reuse | 73 | 3 | 39 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates the Ananke 0.5.0 reference-only decision.
-Nine selected original members authenticate to the preserved wheel uploaded
-5 December 2023. Historical version selection, conflicting license metadata,
-dependency constraints and unverified installed distributions remain explicit.
+The successor integrates the LiNGAM 1.13.0 reference-only decision.
+Nine selected original files authenticate to the pinned 8 September 2026
+repository tree, including three newly acquired version/dependency texts.
+Selected source identity is distinct from installed-wheel, rights and native
+scientific qualification.
 
-The argument distinguishes graph identification, experimental preconditions,
-supplied-model oracle evaluation, missingness naming and effect reporting.
-A conditional binary reporting mismatch is source-traced: a risk-difference
-point can accompany log-odds bootstrap quantiles. Authored finite examples
-and AST inspection reproduce; downloaded package code was not executed.
+The argument distinguishes model assumptions, matrix orientation, path priors,
+pruning and effect construction. Bootstrap threshold frequencies and nonzero
+effect medians use different selections; VAR lag-selection and cleanup limits
+remain explicit. Authored matrix,summary,dependence and cost examples reproduce.
+Downloaded package code was not executed and no causal capability is admitted.
 
-All 1,135 predecessor records and contexts survive, producing 1,137 records.
-The paired sponsor preserves all 645 prior citations and adds four.
+All 1,137 predecessor records and contexts survive, producing 1,139 records.
+The paired sponsor preserves all 649 prior citations and adds four.
 Panel continuation still references its completed specific source inspection;
 the original Python coverage receipt remains inconclusive. Source, arithmetic
 and text/bounds checks do not establish visual or final acceptance.
@@ -51,7 +52,7 @@ and text/bounds checks do not establish visual or final acceptance.
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 40 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 39 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
