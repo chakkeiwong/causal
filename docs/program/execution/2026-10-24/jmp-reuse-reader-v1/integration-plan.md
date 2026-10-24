@@ -1,0 +1,1 @@
+Preserve all1160 prior source records, citation contexts and content inputs. Add authenticated JMP retained official prose and workflow-specific reference choice and authored reference decision; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
