@@ -1,0 +1,1 @@
+Preserve all1217 prior source records,citation contexts and content inputs. Add R synthetic-control targets,donor assumptions,solver diagnostics,resampling and exact witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

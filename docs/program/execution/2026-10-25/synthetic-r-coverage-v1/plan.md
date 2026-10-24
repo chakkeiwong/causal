@@ -1,0 +1,10 @@
+# R synthetic-control coverage and inference contracts
+
+Continue SW.CELL.synthetic_controls.R after the panel publication has completed. The six registered candidates are Synth, augsynth, scpi, fect, gsynth and synthdid. Preserve their reviewed, pinned source and reference decisions. Inspect actual inference/solver paths where coverage remains incomplete; distinguish the gsynth wrapper from its fect delegate and package reference from integration permission.
+
+1. Authenticate existing source records and inspect the complete selected resampling, constraint, donor and uncertainty paths. Search complementary R candidates using bounded primary repository discovery, recording cutoff and saturation limits.
+2. Develop a connected comparison for one treated regional banking portfolio: target, donor eligibility, spillovers, information clock, pre-fit and selection, failed placebo denominators, time versus donor uncertainty and the exact reuse boundary.
+3. Derive reproducible rational examples showing how donor contamination, selection and omitted failures affect the claimed result. Specify public/generated qualification and all request/cost denominators. Do not execute downloaded code or infer native behavior from a source branch.
+4. Review alternatives, rights, source omissions and the chapter argument. Publish a preserving monograph and paired sponsor only after prior delivery exits. Record an honest coverage disposition; retain every unresolved essential source and native qualification obligation.
+
+Stopping rule: inspect the registered six candidates, selected essential delegates, and the first bounded pages of explicit complementary searches. New substantive leads are mapped to existing aliases or recorded as unresolved candidates; incomplete search or technical coverage cannot earn pass. Literature cutoff is 7 October 2026 (Asia/Shanghai); later discovery is not historical availability or evidence of pre-cutoff technical behavior. No scholarly claims are added without genuine retained originals.
