@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-augsynth-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-augsynth-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-scpi-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-scpi-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-augsynth-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-scpi-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,46 +12,44 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_augsynth_reuse_reviewed_2026-10-24.pdf) has 1,466 pages,
-1,129 audited citation records and 253 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_augsynth_reuse_reviewed_2026-10-24.pdf) has 107 pages and 635 citations.
-All 1,127 predecessor records, citation contexts and 347 compiled content inputs survive.
+The [monograph](../../causal_proposal_scpi_reuse_reviewed_2026-10-24.pdf) has 1,469 pages,
+1,131 audited citation records and 253 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_scpi_reuse_reviewed_2026-10-24.pdf) has 107 pages and 639 citations.
+All 1,129 predecessor records, citation contexts and 348 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**264 recorded outcomes of 376; 89 ready; 190 nonpassing obligations.**
+**265 recorded outcomes of 376; 88 ready; 189 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 69 | 3 | 43 | 115 |
+| reuse | 70 | 3 | 42 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates the augsynth 0.2.0 reference decision. Thirteen
-original files authenticate to the 4 September 2026 repository pin. The
-chapter distinguishes single-date, multiple-outcome and staggered dispatch,
-negative donor weights, donor eligibility, tuning calendars, solver status
-and conditional confidence-grid states. Exact authored financial examples
-reproduce; downloaded package code was not executed.
+The successor integrates the scpi 4.0.1 R reference decision. Eight originals
+authenticate to the 10 June 2026 CRAN-mirror pin. The observed packager field
+and future-dated bibliography remain explicit provenance limits; no author
+release equality, paper theorem or native qualification is inferred.
 
-A draft misinterpreted R sequence semantics. An authored base-R check
-established that the lambda grid includes its nominal endpoints. The rejected
-witness and correction are preserved. Remaining holdout and interval findings
-are conditional static observations, not observed native failures.
+The chapter distinguishes targets,weight constraints,coefficient/future-error
+components,joint-coverage scopes,failed simulated solves,asymmetric supplied
+bounds and degenerate matrices. Exact interval,tail,Boolean,matrix and financial
+examples reproduce. Downloaded package code was not executed.
 
-All 1,127 predecessor records, citation contexts and compiled inputs survive;
-two new audited records bring the total to 1,129. The paired sponsor preserves
-all 631 prior citation records and adds four. The source/arithmetic/text review
-is not fresh visual, independent or final acceptance.
+All 1,129 predecessor source records,contexts and compiled inputs survive;
+two new records bring the total to 1,131. The paired sponsor preserves all635
+previous citation records and adds four. Source/arithmetic/text checks do not
+establish fresh visual,independent or final acceptance.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 43 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 42 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata

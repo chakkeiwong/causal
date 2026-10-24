@@ -1,0 +1,7 @@
+# Prediction intervals need complete failure accounting
+
+The pinned R scpi source is retained as a reference, with mirror and installed-release provenance limits explicit. Separating fitted-weight error from future counterfactual error is useful for public comparisons. An authored revenue example yields a counterfactual range of 85–115 thousand USD and an effect range of 5–35. Component probability claims need a stated composition rule; this arithmetic is not measured bank coverage. \citep{exec24_scpi_source,exec24_scpi_choice}
+
+The inspection identifies conditional asymmetric-bound forwarding and quantiles calculated after failed optimizations are removed. An exact hypothetical tail example shows why a 10 percent failure rate alone does not establish harmless omission. All perturbations, statuses, joint-coverage targets and resolved moment designs belong in the interface. Native adoption and a full port await release/rights resolution and preregistered public tests. \citep{exec24_scpi_source,exec24_scpi_choice}
+
+Illustrative spending of 4,200 USD over 210 attempted, 175 completed and 140 usable tasks gives 20, 24 and 30 USD per denominator. Scientific, adapter, rights/platform and evaluation owners must include failed solves, retries and maintenance. Public evidence can justify a bank experiment without establishing unknown bank assignment or counterfactual truth. \citep{exec24_scpi_choice}
