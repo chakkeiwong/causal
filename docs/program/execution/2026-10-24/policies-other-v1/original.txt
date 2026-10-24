@@ -1,0 +1,3103 @@
+                                             Off-Policy Evaluation in Partially Observed Markov
+                                              Decision Processes under Sequential Ignorability
+                                                         Yuchen Hu                                       Stefan Wager
+arXiv:2110.12343v4 [cs.LG] 9 May 2023
+
+
+
+
+                                                 Mgmt. Science & Engineering                      Graduate School of Business
+                                                    Stanford University                               Stanford University
+                                                  yuchenhu@stanford.edu                             swager@stanford.edu
+                                                                             Draft version May 2023
+
+
+                                                                                        Abstract
+                                                  We consider off-policy evaluation of dynamic treatment rules under sequential ignor-
+                                              ability, given an assumption that the underlying system can be modeled as a partially
+                                              observed Markov decision process (POMDP). We propose an estimator, partial his-
+                                              tory importance weighting, and show that it can consistently estimate the stationary
+                                              mean rewards of a target policy given long enough draws from the behavior policy.
+                                              We provide an upper bound on its error that decays polynomially in the number of
+                                              observations (i.e., the number of trajectories times their length), with an exponent that
+                                              depends on the overlap of the target and behavior policies, and on the mixing time of
+                                              the underlying system. Furthermore, we show that this rate of convergence is minimax
+                                              given only our assumptions on mixing and overlap. Our results establish that off-policy
+                                              evaluation in POMDPs is strictly harder than off-policy evaluation in (fully observed)
+                                              Markov decision processes, but strictly easier than model-free off-policy evaluation.
+
+
+                                        1     Introduction
+                                        Dynamic, data-driven treatment rules show considerable promise in a number of domains. In
+                                        the area of mobile health, the increased use of smartphone health apps presents a number
+                                        of opportunities to develop personalized and adaptive interventions [Nahum-Shani et al.,
+                                        2018]: Examples involve apps that support patients recovering from alcohol use disorders
+                                        by sending notifications when the patients are detected to be in situations with a high risk
+                                        of relapse [Gustafson et al., 2014], and apps that help office workers maintain healthy levels
+                                        of physical activity during the workday [Van Dantzig et al., 2013, Klasnja et al., 2019]. In
+                                        marketing, there is increased emphasis on taking a unified view of promotional campaigns
+                                        that considers both long- and short-term effects of a sequence of actions [Ataman et al.,
+                                        2010]. In education, there is interest in developing AI-based tutoring systems that learn
+                                        how to design a personalized curriculum for each student [Koedinger et al., 2013].
+                                            ∗ We are grateful for helpful comments and suggestions from Emma Brunskill, Ramesh Johari, Nathan
+
+                                        Kallus, Michael Kosorok, Johan Ugander, and seminar participants at a number of venues. We would also
+                                        like to thank the referees and editors at Annals of Statistics for their valuable feedback and constructive
+                                        comments that helped improve the quality of this manuscript.
+
+
+
+                                                                                            1
+    One central difficulty in evaluating and designing adaptive treatment strategies is that
+any specific action can have both an immediate effect and also a longer-term (lag) effect on
+the targeted unit. Furthermore the long-term effects of different actions may interact with
+each other. Accurate evaluation of the total impact of any candidate intervention requires
+specifying a statistical model that captures the short- and long-term effects of relevant
+actions and lets us reason about treatment dynamics, and the statistical complexity of
+working with adaptive treatment strategies depends on the specified model.
+    The two predominant approaches to linking actions with future observed states and
+outcomes are to either assume Markov dynamics, or to work in a model-free specification.
+Under Markov dynamics, we posit that the observed system forms a (stationary) Markov
+decision process governed by our actions, i.e., that conditional on our present observations,
+the future behavior of the system is independent of past observations. This Markov as-
+sumption imposes considerable structure on the problem, and enables tractable approaches
+to policy evaluation and learning using simple experimental designs [e.g., Antos et al., 2008,
+Kallus and Uehara, 2020, Liao et al., 2021, Luckett et al., 2019]. However, the assumption
+that the system is Markovian in terms of the observed state can be hard to justify in a
+number of application settings, including mobile health. For example, if a person’s mood
+exhibits temporal dependence and affects their response to the intervention, but mood is
+not explicitly measured by the health app, then the Markov assumption will generally not
+hold.
+    In contrast, the model-free approach allows the state of the system at a given time
+to have an arbitrary dependence on all earlier actions [e.g., Jiang and Li, 2016, Murphy,
+2003, 2005, Nie et al., 2021, Robins, 1986, 2004, Thomas and Brunskill, 2016, Zhang et al.,
+2013]. This approach is fully flexible, but suffers from a curse of dimensionality: The set
+of possible action sequences grows exponentially in the number of time periods, and the
+statistical performance of model-free approaches will reflect this fact as the number of time
+periods gets large [Guo et al., 2017, Kallus and Uehara, 2020].
+    In this paper, we propose partially observed Markov decision processes (POMDPs) as
+a promising best-of-both-worlds intermediate solution for modeling treatment dynamics in
+mobile health and other related applications. This model is considerably more flexible than
+the basic Markovian specification, because it allows for the existence of quantities (e.g., in
+our earlier example, mood) that play a key role in a unit’s behavior yet remain hidden from
+the policy maker. At the same time, we find that it retains sufficient structure to avoid the
+curse of dimensionality in horizon length experienced by model-free methods. POMDPs are
+widely used in the engineering literature on planning under uncertainty [Kaelbling et al.,
+1998, Smallwood and Sondik, 1973]. However, to the best of our knowledge, this paper is
+the first to consider POMDPs as a modeling framework enabling more precise off-policy
+evaluation of dynamic treatment rules under sequential ignorability. We discuss related
+work further in Section 1.2.
+
+1.1    Modeling Treatment Dynamics
+Suppose that, for units i = 1, . . . , n and epochs t = 1, . . . , T , we observe a state variable
+Xi,t ∈ X , an outcome Yi,t ∈ R and an action Wi,t ∈ {1, . . . , A}. For example, in the
+study of Klasnja et al. [2019] on smartphone apps that encourage healthy physical behavior,
+Wi,t is a tailored prompt delivered via the app, Yi,t is a measurement of anti-sedentary
+behavior (e.g., walking), and Xi,t measures a number of factors including availability of the
+subject (e.g., the app cannot send prompts when the subject is detected to be driving or
+
+
+                                                2
+  Treatment                Wi,1                  Wi,2                   ···                Wi,T
+
+
+                   π0 (Xi,1 )
+
+
+   Covariate               Xi,1         Pi (·)   Xi,2                                      Xi,T
+                                                                        ···
+ Latent State              Hi,1                  Hi,2                                      Hi,T
+
+
+
+
+   Outcome                  Yi,1                 Yi,2                   ···                Yi,T
+
+
+                Figure 1: An illustration of a length-T trajectory in a POMDP.
+
+
+already exercising). We assume that each unit follows (potentially different) dynamics, thus
+allowing for complex temporal dependence for observations collected from the same unit.
+In our formal analysis, we will both consider results that condition on the “types” of the
+units in our sample (i.e., their dynamics), and results that assume unit types to be sampled
+i.i.d. from a population.
+     A policy π is a (potentially random) mapping from currently observed state Xi,t to an
+action Wi,t ; these actions may then affect future outcomes and states. We write Eπ for
+expectations with actions taken according to π, e.g., Eπ [Yi,T ] is the expectation of the last
+outcome if the policy π is followed throughout. The value V (π) of a policy measures the
+expected welfare from following a policy; for convenience,
+                                                      PT       we will assume that the outcomes
+are direct proxies for welfare, and use V (π) = T −1 t=1 Eπ [Yi,t ]. When data is not collected
+according to π, the task of estimating V (π) is often referred to as off-policy evaluation.
+     Given this set of notations, we can formally spell out the different approaches to modeling
+treatment dymanics discussed above, i.e., model-free decision processes, Markov decision
+processes, and POMDPs. We note that both Model 2 and Model 3 implicitly assume that
+the state transitions are stationary (i.e., do not vary with time); see Kallus and Uehara [2022]
+for a comparison of results for off-policy evaluation in MDPs with and without stationarity
+assumptions. The POMDP assumption is illustrated in Figure 1.1
+Model 1 (Model-free decision process). The distribution of {Yi,t , Xi,t+1 } may have an arbi-
+trary dependence on Xi,1 , Wi,1 , Yi,1 , . . . , Yi,t−1 , Xi,t , Wi,t ; however, future actions cannot
+affect present observations.
+Model 2 (Markov decision process). The state transitions of each unit i = 1, . . . , n are
+governed by a family of distributions Pi† (x, w) such that, for all time points t,
+                                                             t−1
+                      {Yi,t , Xi,t+1 } ⊥
+                                       ⊥ {Xi,s , Wi,s , Yi,s }s=1   {Xi,t , Wi,t } ,
+  1 Without loss of generality, the measured X    capture any relevant information contained in Yi,t−1 ,
+                                              i,t
+which is why we do not have any outgoing arrows from the outcomes.
+
+
+                                                    3
+and, conditionally on the past, {Yi,t , Xi,t+1 } is drawn according to Pi† (Xi,t , Wi,t ).
+Model 3 (Partially observed Markov decision process). There exist unobserved (or hidden)
+state variables Hi,t ∈ H such that (Yi,t−1 , Xi,t , Hi,t ) forms a Markov decision process in
+the sense of Model 2: There exist Pi‡ (x, h, w) such that
+                                                                      t−1
+            {Yi,t , Xi,t+1 , Hi,t+1 } ⊥
+                                      ⊥ {Xi,s , Hi,s , Wi,s , Yi,s }s=1      {Xi,t , Hi,t , Wi,t } ,
+
+and {Yi,t , Xi,t+1 , Hi,t+1 } is drawn according to Pi‡ (Xi,t , Hi,t , Wi,t ).
+
+    We note that all three models allow for heterogeneity among the units. In Model 1,
+each unit is allowed to follow a different transition rule during all time periods. In Models
+2 and 3, heterogeneity is captured in the individual state transition functions Pi† and Pi‡ ,
+respectively. Alternatively, one may regard this heterogeneity as another part of the hidden
+state in a population where all units share the same transition function. For example, Model
+3 can be viewed as a Markov decision process with a hidden state (Hi,t , Hi0 ) with Hi0 being a
+fixed component encoding persistent unit-level characteristics that affect state transitions.
+    Kallus and Uehara [2020] refer to Models 1 and 2 as models M1 and M2 respectively,
+and compare the difficulty of off-policy evaluation in these settings. In the model-free
+specification (Model 1), evaluating dynamic treatment rules over a target horizon T requires
+observing length-T trajectories under the behavior policy; furthermore, the difficulty of off-
+policy evaluation over a horizon of length T scales exponentially in T [Guo et al., 2017,
+Kallus and Uehara, 2020]. In contrast, under the Markovian specification (Model 2), we
+can define the stationary long-term value of a target policy in a way that converges as
+T gets large, and it is possible to estimate this long-term value with a parametric error
+rate under
+      √      appropriate mixing and overlap assumptions,2 i.e., with errors on the order of
+O(1/ nT ) given n trajectories of length T [Liao et al., 2021, 2022, Kallus and Uehara,
+2022]. Thus, the gap between Models 1 and 2 becomes more and more acute as we consider
+longer trajectories. In a model-free setting, long trajectories simply increase the difficulty of
+the problem; whereas in the Markov specification, long trajectories give us more information
+that can be used to improve the precision with which we can estimate the stationary value
+of our target policy.
+    The goal of this paper is to map out the promise and challenges of off-policy evaluation
+under the POMDP model. At a high level, we find that—like in the Markovian Model
+2—the POMDP assumption gives rise to stationarity and enables us to use    √ long trajectories
+for improved precision. However, unlike in Model 2, we find that O(1/ nT ) errors are no
+longer possible. Instead, optimal errors scale as O(1/poly(nT )) with exponents that reflect
+both the mixing time of the POMDP and the overlap between the behavior and target
+policies.3
+    In this paper, we identify causal effects under a sequential ignorability (or unconfound-
+edness) assumption [Hernán and Robins, 2020]. Qualitatively, this assumption requires that
+    2 To achieve a parametric error rate, it is required that, in addition to the overlap between the target and
+
+behavior policies, there is also overlap between the stationary distributions under the two policies. When
+this assumption is not satisfied, a parametric rate is in general not attainable, but the rate we can achieve
+is still strictly faster than the rate we achieve under Model 3; see Section 3.2 for further discussion.
+    3 The rates of convergence discussed in this paragraph should be seen as bounds for estimating the average
+
+in-sample long-term off-policy value for a model with fundamental heterogeneity across units, or alternatively
+as a bound for population off-policy value in a model without fundamental heterogeneity. When estimating    √
+population value in a model with fundamental heterogeneity across units, there is an additional O(1/ n)
+error term arising from random sampling of units; see Remark 3 for a further discussion.
+
+
+
+                                                       4
+the realized treatment assignment Wi,t cannot depend on the unobserved state variables
+Hi,t .
+Assumption 1. Under the behavior policy, treatment Wi,t is randomly assigned according
+to probabilities π0 (·) that may depend on the observed state Xi,t (but nothing else),
+
+  Wi,t Xi,1 , Hi,1 , Yi,1 , , . . . , Xi,t , Hi,t ∼ Multinomial(π0 (Xi,t )),   π0 : X → [0, 1]A .   (1)
+
+    One notable setting where our exogeneity assumption holds is in micro-randomized trials,
+which are a flexible class of experimental designs used to study adaptive treatment rules
+[Klasnja et al., 2015]. Such trials are increasingly popular in mobile health; recent examples
+of micro-randomized studies in this context include Battalio et al. [2021] and Klasnja et al.
+[2019]. We note that a key flexibility of micro-randomized trials is that, because treatment
+randomization probabilities can depend on Xi,t , they can seamlessly integrate availability
+constraints. Such availability constraints are ubiquitous in mobile healthcare, e.g., a fitness
+app should not send notifications while the subject is detected to be driving. In addition, this
+type of assumption is also prevalent in longitudinal experiments involving online platform
+recommendation systems [Theocharous et al., 2015] and robotic manipulations [Wang et al.,
+2016, Levine et al., 2020].
+    Throughout this paper, we assume that the behavior policy, i.e., π0 (·) in (1), is known.
+This assumption is realistic in experimental settings, but does not cover observational studies
+where the behavior policy needs to be estimated. It would be an interesting topic for future
+work to consider in POMDPs for observational study settings where π0 (·) is unknown.
+Kallus and Uehara [2022] and Liao et al. [2022] consider this setting in the case of MDPs,
+and propose doubly robust estimators that are robust to errors in estimating π0 (·).
+    In Section 2, we consider a simple estimation strategy, partial-history importance weight-
+ing, and provide error bounds for it in Model 3 under assumptions on mixing and overlap
+between the behavior and target policies. In Section 3, we provide matching lower bounds
+for off-policy evaluation in POMDPs under the same assumptions on mixing and overlap,
+thus implying that partial-history importance weighting achieves the minimax rate of con-
+vergence in our setting. Section 4 considers tuning our proposed estimator via Lepski’s
+method, while Section 5 reports results from numerical experiments.
+
+1.2    Related Work
+The problem of off-policy evaluation of dynamic treatment rules goes back to early work
+from Robins [1986], who considered the problem in the model-free specification (Model 1).
+This problem setting has received considerable attention ever since, with notable contribu-
+tions from a number of authors [Hernán et al., 2001, Jiang and Li, 2016, Murphy, 2003,
+2005, Precup et al., 2000, Robins, 2004, Thomas and Brunskill, 2016, Van der Laan and
+Robins, 2003, Zhang et al., 2013]. Generally, model-free methods for off-policy evaluation
+are available, e.g., importance weighting (or inverse-propensity weighting) is one simple
+option [Hernán et al., 2001, Precup et al., 2000]; however, they suffer from a curse of dimen-
+sionality and their error bounds generally grow exponentially in T [Guo et al., 2017, Kallus
+and Uehara, 2020].
+    Markov decision processes have long been used as a model for actions taken by an agent
+(e.g., a robot) [Russell and Norvig, 2010]. More recently, this modeling assumption has
+also been used to power various estimators for off-policy evaluation of dynamic treatment
+rules; see, e.g., Antos et al. [2008] and Luckett et al. [2019]. Kallus and Uehara [2020]
+
+
+                                                    5
+emphasize that assuming Model 2 considerably improves available performance guarantees
+for off-policy evaluation, thus showing that working under Model 2 is desirable whenever
+the assumption is credible. Kallus and Uehara [2022], Liao et al. [2021] and Liao et al.
+[2022] provide estimators
+                    √         of the long-term value of a policy under Model 2 with errors that
+converge as O(1/ nT ), along with corresponding central limit theorems. However, there
+remain many settings—including in mobile health—where it is not realistic to assume that
+we observe the full relevant state, thus making methods justified by Model 2 inapplicable.
+    The POMDP assumption is a weaker alternative to assuming Markovian structure, in
+that POMDPs allow for some relevant state variables to remain unobserved by the agent.
+Like Markov decision processes, POMDPs were originally introduced as a model for decisions
+taken by an agent, but in a situation where the agent needs to operate under uncertainty
+[Russell and Norvig, 2010]. The earliest investigations of POMDPs were focused on optimal
+control under uncertainty [Monahan, 1982, Smallwood and Sondik, 1973, Sondik, 1978];
+later, these models were also used for planning-based artificial intelligence [Kaelbling et al.,
+1998] and single-agent dynamic discrete choice models [Connault, 2016].
+    There have also been a handful of recent papers that discuss POMDPs in the context of
+causal inference and off-policy evaluation but, unlike us, they did not study how assuming
+Model 3 enables more precise evaluation under sequential ignorability relative to the model-
+free specification. Mandel et al. [2014] consider POMDPs as a possible data-generative
+model in the context of off-policy evaluation; however, they do not exploit properties of
+the model for variance reduction, and instead used standard non-parametric methods (in
+particular importance sampling) for evaluation. Meanwhile, there is a growing literature
+studying confounding bias in the context of a POMDP model [Saghafian, 2018, Tennenholtz
+et al., 2020, Bennett and Kallus, 2021, Nair and Jiang, 2021, Uehara et al., 2022]. Their main
+interest is in settings where the unobserved state Hit is a source of unobserved confounding,
+and then build on the literature on causal identification with proxy variables [e.g., Miao
+et al., 2018] to correct for this confounding; and doing so requires making strong assumptions
+on the relationship between the observed and unobserved state variables. In contrast, we
+work in a setting where there are no confounding problems (Assumption 1) and so standard
+model-free methods like importance sampling would be unbiased but high variance; we then
+use (minimally structured) POMDP assumptions to enable improved precision.
+    We also note work by Thomas and Brunskill [2016] and Su et al. [2020] who consider off-
+policy evaluation under sequential ignorability in the non-parametric model via a method
+that first takes k steps of importance weighting and then uses an outcome regression to
+estimate remaining rewards. The motivation for doing so is that importance weighting is
+unbiased but, as discussed above, has a high variance when the evaluation horizon gets
+large; in contrast, outcome regression is often considered to be more stable but potentially
+biased. Thomas and Brunskill [2016] argue that combining both approaches to estimation
+can achieve a more desirable bias-variance trade-off than either method alone. While the
+modeling setup used in Thomas and Brunskill [2016] and Su et al. [2020] is completely
+different than ours, the main algorithmic idea—i.e., applying importance weighting only up
+to a finite horizon chosen by the analyst—is closely related to the partial history importance
+weighting algorithm we use to derive our upper bounds. Similar ideas can also be found in
+Farias et al. [2010, 2022], where the estimation bias is corrected up to a finite number of
+steps.
+    Finally, although in this paper we only consider off-policy evaluation under a POMDP
+assumption, this problem is closely related to the problem of policy learning from batched
+data. There is a large literature showing how, in the static case (i.e., with T = 1 and no
+
+
+                                               6
+long-term treatment effects) we can use off-policy evaluation as a means for policy learning
+[Athey and Wager, 2021, Kitagawa and Tetenov, 2018, Swaminathan and Joachims, 2015,
+Qian and Murphy, 2011, Zhao et al., 2012]. Recently, Nie et al. [2021] extended some of
+these ideas to a dynamic problem related to optimal stopping under Model 1. Applying
+our results to the setting of dynamic policy learning from batch data under a POMDP
+assumption would be a natural direction for future investigations.
+
+
+2     Off-Policy Evaluation via Partial History Weighting
+It is well known that the state distribution of an irreducible and aperiodic Markov chain
+converges to a stationary distribution over time, and its rate of convergence to this stationary
+distribution is captured by its mixing time. One of the main findings of our paper is that
+the difficulty of off-policy evaluation in POMDPs depends on mixing properties of relevant
+Markov chains, and the associated mixing times play a central role in our analysis. We
+formalize the notion of mixing time as follows; see Even-Dar et al. [2005], Liao et al. [2021]
+and Van Roy [1998, Chapter 7] for further discussion of this definition. Throughout this
+paper, all equalities and inequalities pertaining to random variables should be taken to hold
+almost surely.
+Assumption 2. Let π be any policy that maps current observed state to action probabilties
+such that, under Model 3,
+
+       π : X → [0, 1]A ,
+                                                                               
+                          Pπ Wi,t = a Xi,1 , Hi,1 , Yi,1 , , . . . , Xi,t , Hi,t = πa (Xi,t ). (2)
+
+Let Piπ denote the state transition operator on (Xi,t , Hi,t ) associated with π. We assume
+that, for all considered policies π, there is a mixing time tπi such that
+
+                         kf 0 Piπ − f Piπ kTV ≤ exp (−1/tπi ) kf 0 − f kTV ,                    (3)
+
+for any pair of distributions f and f 0 on (Xi,t , Hi,t ).
+Remark 1. It can be shown that Assumption 2 implies α-mixing [Rosenblatt, 1956]: If
+Assumption 2 holds, then for i = 1, . . . , n,
+
+                    α(h) =     sup        sup        |P (A ∩ B) − P (A)P (B)| ,                 (4)
+                             1≤t≤T −h A∈At ,B∈Bt+h
+
+
+goes to 0 as h → ∞ (and in fact decays exponentially fast with h), where At = σ (Xi,1:t , Hi,1:t , Wi,1:t ),
+and Bt = σ (Xi,t:T , Hi,t:T , Wi,t:T ). Assumption 2 is stronger than α-mixing with exponen-
+tial decay; in particular, it gives mixing guarantees that hold even for small h.
+   Our statistical estimand, i.e., the average long-term rewards of a policy, matches the one
+used in Liao et al. [2021], and we refer the reader to that paper for a longer discussion of
+(and motivation for) this estimand.
+Definition 1. Under Model 3 and given a policy π satisfying Assumption 2, let Lπi denote
+the stationary distribution of (Xi,t , Hi,t , Wi,t , Yi,t ) under π. For simplicity, we restrict the
+state space X × H to be finite. We define Vi (π), the long term reward for unit i under π,
+as the expectation of Yi,t under Lπi . If furthermore the units i = 1, . . . , n are randomly
+sampled from the same population, we define V (π) = E [Vi (π)] as the expected long-term
+reward of π.
+
+
+                                                 7
+    Our proposed method for policy evaluation, partial-history importance weighting, di-
+rectly exploits mixing properties of our model. The method starts by choosing a history-
+length k, chunking all available data into (overlapping) segments of length k+1, and applying
+importance weighting (or inverse-propensity weighting) to these segments:
+                                n            T     k
+                                                                           !
+                             1 X      1     X     Y    π Wi,t−s
+                                                                (X i,t−s )
+                 Vb (π; k) =                                                 Yi,t .       (5)
+                             n i=1 T − k              π
+                                                  s=0 0,Wi,t−s
+                                                                 (Xi,t−s )
+                                           t=k+1
+
+The qualitative insight motivating the method is as follows: In expectation, the importance-
+weighted outcome at time t is the same as the outcome that would have been observed had
+the units followed the target policy instead from time t − k to time t. If the system under
+policy π mixes in (on the order of) tπi steps, the policy followed before time t−tπi would have
+little impact on the outcome observed at time t. Then once we choose k ∼ tπi , the weighted
+outcome would resemble those from the stationary distribution of the target policy π.
+Remark 2. The estimator (5) can be easily generalized to the setting where each unit is
+followed for a different length of time, i.e., there exists T1 , . . . , Tn ∈ N+ such that unit i is
+followed from t = 1 to t = Ti , in which case we can use instead
+                           n            Ti     k
+                                                                         !
+                       1X 1            X      Y    πWi,t−s (Xi,t−s )
+                                                                           Yi,t .               (6)
+                       n i=1 Ti − k               π
+                                              s=0 0,Wi,t−s
+                                                            (Xi,t−s )
+                                      t=k+1
+
+For simplicity of notation, we will focus on the case where T1 = · · · = Tn = T , but one
+would expect our results to also extend to settings with different Ti (n).
+   In order to prove consistency of partial-history importance weighting, we need to further
+assume overlap of the behavior and target policies, i.e., we need an assumption guaranteeing
+that the behavior policy cannot systematically take different actions than the target policy.
+Assumption 3. Under the setting of Assumption 1 and using notation from (2) to describe
+action probabilities under policy π, we assume that there is an overlap constant ζπ > 0 such
+that πa (x) ≤ exp (ζπ ) π0,a (x) for all x ∈ X and a = 1, . . . , A.
+   Given bounds on mixing and overlap as above, the following result establishes a per-
+formance guarantee for partial history importance weighting. Merging notations from As-
+sumptions 1 and 2, we write Lπi 0 for the stationary distribution of the i-th unit under the
+behavior policy, and tπi 0 for the associated mixing time.
+Theorem 2.1. Given a target policy π and under Model 3, suppose we have a sequence of
+problems with units i = 1, . . . , n observed for T (n) time periods. Suppose additionally that
+the state transition distributions for each unit are all independently and identically sampled
+from a fixed population, Pi ∼ D, that the initial states (Xi,1 , Hi,1 , Wi,1 , Yi,1 ) for each unit
+are sampled from the corresponding stationary distribution Lπi 0 , that Assumptions 1 and 3
+hold, and that
+                                                      2                     
+              Eπ Yi,t Xi,t , Hi,t , Wi,t ≤ M1 ,     Eπ Yi,t  Xi,t , Hi,t , Wi,t ≤ M2 ,          (7)
+for all Xi,t ∈ X , Hi,t ∈ H, Wi,t = 1, . . . , A, with M2 > M12 . Finally, suppose that both
+the target policy π(·) and the behavior policy π0 (·) satisfy Assumption 2, and that there is
+a constant t0 for which tπi , tπi 0 ≤ t0 almost surely. Then, as n gets large and given any
+sequence satisfying
+       k(n) → ∞,       lim exp {ζπ k(n)} / {n(T (n) − k(n))} = 0,         k(n) + 1 ≤ T (n),     (8)
+                       n→∞
+
+
+                                                 8
+the partial history importance-weighted estimator Vb (π; k(n)) from (5) is consistent for the
+long-term policy value V (π) as given in Definition 1. Furthermore, the mean-squared error
+of Vb (π; k(n)) as an estimator for the average long-term in-sample value
+                                                    n
+                                               1X
+                                     V (π) =         Vi (π)                                  (9)
+                                               n i=1
+is bounded as
+                          2                    
+                                              2k(n)
+     E Vb (π; k(n)) − V (π)      ≤ 4M12 exp −
+                                                t0
+                                                                                            (10)
+                  exp (ζπ k(n))                      4M12        exp (−k(n)/t0 )
+                                   M2 + 2M12 +
+                                            
+              +                                                ·                 ,
+                n(T (n) − k(n))                 n(T (n) − k(n)) 1 − exp (−1/t0 )
+and its mean-squared error as an estimator for V (π) is bounded as
+                                                            M2
+                                              2 
+                         E Vb (π; k(n)) − V (π)      ≤ ... + 1 ,                            (11)
+                                                             n
+where . . . stands in for the right-hand side expression in (10).
+    The following corollary is immediate, and provides a concrete upper bound for the diffi-
+culty of off-policy evaluation of dynamic treatment rules under a POMDP assumption.
+Corollary 2.2. Under the conditions of Theorem 2.1, the choice
+                                       t0
+                           k(n) =            log (C0 nT (n))                                (12)
+                                   t0 ζπ + 2
+yields the error bounds
+                                     2                      2
+                                                           −
+                  E V (π; k(n)) − V (π)
+                       b                    ≤ C1 · (nT (n)) t0 ζπ +2 ,                      (13)
+
+                                                                       M2
+                                     2                      2
+                                                           −
+                  E V (π; k(n)) − V (π)
+                       b                    ≤ C1 · (nT (n)) t0 ζπ +2 + 1 ,                  (14)
+                                                                       n
+where
+                                                                  t0 ζπ /(t0 ζπ +2)
+                         4M12                              4M12
+                  C0 =           ,     and     C1 =                                     .   (15)
+                       M2 + 2M12                        (M2 + 2M12 )
+                                                                        −2/(t0 ζπ +2)
+
+
+Remark 3. The population mean-squared error bounds (11) and (14) reflect two sources
+of error: The error from estimating the average long-term off-policy rewards Vi (π) for the
+i = 1, . . . , n units in the study, and the error from generalizing from the n study units to
+the full population. The former error is captured by (10) and (13) respectively and gets
+smaller as the horizon length T grows, whereas the latter is simply due to sampling variation
+in Vi (π) and does not depend on the horizon length T (recall that, following Definition 1,
+the heterogeneity in Vi (π) results from fundamental heterogeneity in the state evolution of
+different units under the same policy). We view the error terms in (10) and (13) as the
+most relevant in understanding the difficulty of off-policy evaluation in POMDPs, as the
+excess factor M12 /n in (11) and (14) has nothing to do with dynamics; see (22). The bounds
+(10) and (13) can also be interpreted as error bounds in a model where there is no essential
+heterogeneity across units, i.e., Pi‡ (x, h, w) and thus also Vi (π) = V (π) are equal across
+units, in which case it would be possible to learn the population value V (π) from observing
+a long enough trajectory from a single unit.
+
+
+                                                9
+2.1    Proof of Theorem 2.1
+To keep everything concise, we start by studying the behavior of the following component
+of the proposed estimator for Vi (π), the stationary reward for the i-th unit (see Definition
+1):
+                                                T
+                                         1    X
+                          Vbi (π; k) =             ωi,t (π; k) · Yi,t ,                  (16)
+                                       T −k
+                                                t=k+1
+
+with the shorthand
+                                     
+                                     
+                                      1,    k = −1
+                                     
+                                        k
+                        ωi,t (π; k) = Y πWi,t−s (Xi,t−s )                                       (17)
+                                                           ,        k ≥ 0.
+                                          π0,W    (Xi,t−s )
+                                     
+                                     
+                                        s=0      i,t−s
+
+
+Experimental units may behave differently from each other as they may have different state
+transition operators Pi ; for this reason, we will sometimes informally refer to Pi as a unit’s
+“type”. All proofs of technical lemmas are given in the supplementary material.
+   We start by bounding the bias of Vbi (π; k) as an estimator for Vi (π) conditionally on a
+unit’s type Pi by exploiting mixing properties of our model. In a slight abuse of notation,
+we drop the dependence of k(n) and T (n) on n for notation simplicity.
+Lemma 2.3. Under the assumptions in Theorem 2.1,
+                         h            i                 
+                       E Vbi (π; k) Pi = E π0 ,πk Yi,t Pi ,                                     (18)
+                                                      Li
+             k
+where Lπi 0 ,π denotes the joint distribution of (Xi,t , Hi,t , Wi,t , Yi,t ) after k-step transition
+under Piπ when starting from Lπi 0 , the stationary distribution of the quadruplet associated
+with the state transition operator Piπ0 . Furthermore,
+                           h                     i
+                         E Vbi (π; k) − Vi (π) Pi ≤ 2M1 exp (−k/t0 ) .                           (19)
+
+   By exploiting the correlation structure of the underlying process, we can also bound the
+variance of Vbi (π; k) with the mixing time of the two policies and the overlap between them.
+Lemma 2.4. Under the assumptions stated in Theorem 2.1,
+           h            i exp (ζ k)
+                                π                 4M12    exp (−k/t0 )
+                                    M2 + 2M12 +
+                                               
+       Var Vbi (π; k) Pi ≤                              ·                .                      (20)
+                            T −k                  T − k 1 − exp (−1/t0 )
+
+     Now that we have established the bias and variance of the partial estimator Vbi (π; k)
+in estimating Vi (π), we can connect them to the task of estimating V (π) and V (π) with
+           Pn
+Vb (π; k) = i=1 Vbi (π; k)/n.
+Lemma 2.5. Under the assumptions stated in Theorem 2.1,
+             h         i
+           E Vb (π; k) − V (π) ≤ 2M1 exp (−k/t0 ) ,
+               h                        i exp (ζ k)
+                                                π
+                                                    M2 + 2M12
+                                                              
+           Var Vb (π; k) P1 , . . . , Pn ≤                                                      (21)
+                                           n(T − k)
+                                                  4M12     exp (−k/t0 )
+                                              +         ·                 .
+                                                n(T − k) 1 − exp (−1/t0 )
+
+                                                 10
+   Combining the bias and the variance we obtained from Lemma 2.5, we find that the mean-
+squared error of the estimator Vb (π; k) can be bounded as claimed in (10). Furthermore,
+(11) follows from (10) by noting that
+                              h                   2 i        1               M2
+                          E       V (π) − V (π)          =      Var [Vi (π)] ≤ 1 .        (22)
+                                                              n                n
+Furthermore, for any sequence k(n) satisfying (8), the bound in (11) converges to 0, and
+thus Vb (π; k(n)) is a consistent estimator of V (π).
+
+
+3     Lower Bounds for Policy Evaluation in POMDPs
+Above, we found that partial-history importance weighting enables consistent policy eval-
+uation under bounds on the overlap and the mixing time. However, the achieved rate on
+mean-squared error is slower than the parametric 1/(nT (n)) rate. This raises a natural
+question: Does this slower-than-parametric rate of convergence reflect the difficulty of the
+statistical problem, or could we do better using a different algorithm? To elucidate this ques-
+tion, in this section we provide lower bounds for the minimax risk for off-policy evaluation
+in POMDPs under the same assumptions on mixing and overlap as used above. Our lower
+bounds match the rate of convergence (13) established above, thus showing that one cannot
+in general improve over the error rate achieved by partial-history importance weighting.
+    For simplicity, we here focus on the case where we only observe data from a single
+trajectory (i.e., we have n = 1 with T → ∞), and seek lower bounds for estimating the long-
+term reward Vi (π) for that trajectory; in other words, we give lower bounds corresponding
+to the setting of (13) with n = 1. Throughout the rest of this section, we suppress the
+dependence of all values on i and n to avoid clutter.
+    Writing I(t0 , M1 , M2 ) for the class of all possible instances of POMDPs satisfying the
+conditions of Theorem 2.1, we seek a lower bound on the worst-case risk among all measur-
+able off-policy estimators V̂ for the value of a target policy π:
+                                                                             2 
+                                                                I
+               Rminimax (I(t0 , M1 , M2 )) = inf     sup       E     V̂ − V (I)     .      (23)
+                                                   V̂ I∈I(t0 , M1 , M2 )
+
+
+Here, the expectation is taken over the data generating distribution of the problem instance
+I and, with slight abuse of notation, we let V (I) denote the long-term value of π under I for
+the unit we are collecting data from. When there is no risk of confusion, we use shorthand
+I := I(t0 , M1 , M2 ) below.
+
+Theorem 3.1. Define M1 , M2 , t0 , ζπ as in Theorem 2.1. Then, there exist a pair of target
+and baseline policies π and π0 with
+(C1) πa (x)/π0,a (x) ≤ exp (ζπ ), ∀a = 1, . . . , A, x ∈ X ,
+and a constant Tl < ∞ such that, for all T > Tl , writing I(t0 , M1 , M2 ) for the set of all
+problems for which the following conditions are satisfied,
+
+(C2) kf 0 P π − f P π k1 ≤ 2 exp(−1/t0 ), kf 0 P π0 − f P π0 k1 ≤ 2 exp(−1/t0 ), ∀f, f 0 ;
+                                                      
+(C3) E Yt Wt , Xt , Ht ≤ M1 , E Yt2 Wt , Xt , Ht ≤ M2 , for all Wt = 1, . . . , A, Xt ∈ X ,
+     Ht ∈ H,
+
+
+                                                         11
+                                                 Wt = 0
+
+
+
+
+                                   Wt = 1, w.p. 1 − δ
+       h1                    h2                  ···                        hQ−1                  hQ
+
+                              Wt = 1, w.p. δ
+
+
+
+
+Figure 2: Transition model shared by I1 and I2 . The chain would never approach hQ at
+time t if Wt−Q+1:t are not all 1.
+
+
+the minimax risk of evaluating π from a single length-T trajectory over I(t0 , M1 , M2 ) is
+lower-bounded as
+                                                  2                   (M12 )t0 ζπ /(t0 ζπ +2)
+      Rminimax (I(t0 , M1 , M2 )) ≥ C2 · T − t0 ζπ +2 ,    C2 =                               .        (24)
+                                                                  16e(M2 − M12 )−2/(t0 ζπ +2)
+
+    The exponent on T in the lower bound (24) for the minimax risk matches the correspond-
+ing rate of convergence in (13), thus implying that partial-history importance weighting is
+rate-minimax for estimating the average long-term rewards of a unit from a single long tra-
+jectory. As discussed in √
+                         Remark 3, when generalizing from multiple heterogeneous agents
+there’s an additional 1/ n-scale error term; however, this term is a consequence of ran-
+domly sampling agent types and so is not reflected in Theorem 3.1 (which only considers a
+single long trajectory).
+
+3.1      Proof of Theorem 3.1
+Our proof follows Le Cam’s two point method, where we reduce the problem of lower-
+bounding minimax estimation error to a hypothesis testing problem, and ask the question
+of how large the sample size needs to be in order for us to distinguish between two specific
+instances. Since the minimax risk is the worst-case risk of all estimators among the entire
+class I, Rminimax is always lower bounded by the worst-case risk of all estimators among
+two specific instances I1 , I2 ∈ I, i.e.,
+                                          2                            2 
+          Rminimax = inf sup EI V̂ − V (I)       ≥ inf sup EI V̂ − V (I)          .
+                          V̂ I∈I                           V̂ I∈{I1 ,I2 }
+
+
+One can then make this lower bound large by identifying two instances that are similar
+in terms of the empirical distribution characterized by π0 (so they are hard to tell apart),
+but different in terms of V (·) characterized by π (so we pay a large price for incorrectly
+identifying the instance).
+    To establish our result, we consider a setting where there is only a binary treatment with
+no covariates, i.e., W ∈ {0, 1}, X = ∅, and the probability of being assigned to treatment
+is the same across all units for every π ∈ Π, where Π stands for the class of policies we
+
+
+                                                      12
+consider. In addition, we consider a hidden variable over H, with |H| = Q and states labeled
+as h1 , h2 , . . . , hQ . We consider two instances that share the same underlying transition rule
+as follows (see Figure 2 for a graphical representation):
+   • If Wt = 0, P [Ht+1 = h1 |Ht = hj ] = 1, ∀j;
+
+   • If Wt = 1, P [Ht+1 = h1 |Ht = hj ] = δ, and P Ht+1 = h(j+1)∧Q |Ht = hj = 1 − δ, ∀j.
+                                                                          
+
+We further define the target policy π to be always-treat, and the behavior policy π0 to be
+treat-with-probability-exp (−ζπ ). It is immediate that under π, it is much easier for the
+chain to get to hQ than under π0 . We set the data generating distributions of Y (h, w) under
+I1 and I2 as
+
+   • Under I1 , for all w ∈ {0, 1}, Y (h, w) ∼ N (0, M2 − M12 ), h 6= hQ , and Y (hQ , w) ∼
+     N (∆, M2 − M12 );
+   • Under I2 , for all w ∈ {0, 1}, Y (h, w) ∼ N (0, M2 − M12 ), h 6= hQ , and Y (hQ , w) ∼
+     N (−∆, M2 − M12 )
+
+for some ∆ ≥ 0. Note that E [Y (hQ , w)] is the only difference between I1 and I2 . To
+ease the notation, we drop the dependence on w and denote them as µ1 (hQ ) and µ2 (hQ ),
+respectively. Under this setting, we can calculate the closed-form solution of the stationary
+distribution dπ0 and dπ , where
+                                  Q−1                                                Q−1
+            dπ0 (hQ ) = (1 − δ)         exp{−(Q − 1)ζπ },       dπ (hQ ) = (1 − δ)         .   (25)
+
+Lemma 3.2. The above two instances, with the choices of 0 ≤ ∆ ≤ M1 and δ = 1 −
+exp(−1/t0 ), satisfy (C1)-(C3) outlined in Theorem 3.1, i.e., I1 , I2 ∈ I. As a result, we
+obtain a family of pairs of instances {I1 , I2 }, indexed by Q ∈ Z+ and ∆ ∈ [0, M1 ].
+    Now that we have constructed a family of hard instances, our next task it to study the
+difficulty of detecting whether data is generated from I1 or I2 . We first apply Le Cam’s
+lemma [Yu, 1997] to control the power with which we can distinguish I1 from I2 in terms of
+their Kullback–Leibler (KL) divergence. The specific version of the result we use is what is
+given in Theorem 5 of Wang et al. [2017]. For an i.i.d. sample of size n and any measurable
+function φ : R → {I1 , I2 },
+                                                      1 −nγIKL,I (Y1:T ,W1:T )
+                       inf   max PI [φ(V̂ ) 6= I] ≥     e   1 2                ,               (26)
+                       V̂ I∈{I1 ,I2 }                 8
+
+where γIKL
+        1 ,I2
+              (Y1:T , W1:T ) denotes the KL divergence between the distribution of (Y1:T , W1:T )
+under I1 and I2 , respectively, and n = 1 in the setting we consider. It remains to upper-
+bound the KL divergence between the observed data generated from the two instances.
+
+Lemma 3.3. There exists some Tl < ∞ such that, for all T > Tl , the KL divergence
+between the observed data generated by I1 and I2 is upper bounded as
+
+                                         2T ∆2
+                                                                        
+                                                                       2
+               γIKL
+                 1 ,I2
+                       (Y1:T , W1:T ) ≤          exp   −(Q − 1)  ζ π +       . (27)
+                                        M2 − M12                       t0
+
+
+
+
+                                                 13
+   Motivated by the form of (27), we consider the instance with
+                        (r                                              )
+                             M2 − M12
+                                                              
+                                              (Q − 1)         2
+               ∆ = min                  exp             ζπ +       , M1
+                                2T               2           t0
+                     r                                                                   (28)
+                       M2 − M12
+                                                        
+                                        (Q − 1)        2
+                  ≤               exp             ζπ +       .
+                          2T               2           t0
+Then, plugging the result from Lemma 3.3 into (26), for all T > Tl ,
+                                                                 1
+                                 inf    max PI [φ(V̂ ) 6= I] ≥      .                    (29)
+                                   V̂ I∈{I1 ,I2 }                8e
+
+It now remains to turn this result into a bound on the mean-squared error of V̂ . To this
+end, we note that, in our model, +V (I1 ) = −V (I2 ) = ∆Pπ [Ht = hQ ] (where the probability
+that Ht = hQ does not depend on the instance and follows from (25)). Thus,
+                   2                          2        h      i
+    I1                       I1                                                          2
+  Ee      V − V (I1 )
+          b               ≥ Ee 1 V < 0 V − V (I1 )
+                                    b      b               ≥ PIe1 Vb < 0 ∆2 Pπ [Ht = hQ ] ,
+                   2                          2        h      i
+    I2                       I2                                                          2
+  Ee      V − V (I2 )
+          b               ≥ Ee 1 V ≥ 0 V − V (I2 )
+                                    b      b               ≥ PIe2 Vb ≥ 0 ∆2 Pπ [Ht = hQ ] .
+
+Combining this with (25) and (29) and using the function φ(Vb ) = I1 if Vb ≥ 0 and φ(Vb ) = I2
+if Vb < 0 implies:
+                                           2 
+                                I
+                inf max Ee V − V (I) b
+                 V̂ I∈{I1 ,I2 }
+                                                                  h      i
+                                               2
+                            ≥ ∆2 Pπ [Ht = hQ ] inf max PIe φ(V̂ ) 6= I
+                                                 V̂ I∈{I1 ,I2 }
+                                                                                          (30)
+                                      M2 − M12
+                                                                          
+                                                                    2        2
+                            ≥ min               exp (Q − 1) ζπ +          , M1 ·
+                                         2T                         t0
+                                                      
+                                            2(Q − 1)         1
+                                      exp −               ·
+                                                 t0         8e
+for all T > Tl . We then choose Q that maximizes the lower bound in (30). With
+
+                                            t0         2T M12
+                                 Q=               log          + 1,                      (31)
+                                        t0 ζπ + 2     M2 − M12
+we obtain that, for all T > Tl ,
+                                              2  M 2  2T M 2 − t0 ζ2π +2
+                inf   max EIe         Vb − V (I)    ≥ 1 ·      1
+                                                                               ,         (32)
+                V̂ I∈{I1 ,I2 }                       8e   M2 − M12
+which yields the claimed bound (24).
+
+3.2    Comparison with MDP Bounds
+In the introduction, we discussed how many existing papers provide results on off-policy
+evaluation in MDPs that, when applied to a single trajectory, yield 1/T mean-squared
+
+
+                                                    14
+errors [Kallus and Uehara, 2022, Liao et al., 2021, 2022]. All of these papers, however, make
+assumptions that would rule out the MDP we could get by revealing the hidden state from
+the problem instance used in our lower bound. The reason for this discrepancy is that all
+these papers make assumptions that imply “distributional overlap,” i.e., that the ratio of
+the stationary distributions of the state variable under π and π0 in bounded;4 and of course
+in our lower bound instance this distributional overlap condition does not hold.
+    We note that distributional overlap is a natural assumption to make in MDPs (since
+the analyst can observe the state variable and assess overlap), whereas it is less natural in
+POMDPs (where a part of the state variable remains hidden). Nonetheless, to get a sharper
+understanding of the difficulty of off-policy evaluation in POMDPs, it is helpful to have
+side-by-side results for MDPs and POMDPs defined over the same probability distribution,
+where the only difference is whether or not the full state is observed.5
+    To this end, we restrict our analysis to the following subclass of MDPs that we call
+strongly regenerative MDP. In other words, we assume that there is a “reset” state x0 such
+that the chain can enter at any moment with a non-trivial probability. The main reason that
+we consider this class of MDPs is that, if we were to reveal the hidden state in the problem
+instances used to derive our lower bounds above, then they would be strongly regenerative
+MDPs. One can immediately verify that any MDP that satisfies the condition (33) also
+satisfies Assumption 2 with mixing time t0 .
+Definition 2. A strongly regenerative MDP is a class of MDP, as described in Model 2,
+that has a state x0 ∈ X and constant t0 > 0 such that, for all t = 1, . . . , T , x ∈ X , and
+a = 1, . . . , A,                             
+                    P Xt+1 = x0 Wt = a, Xt = x ≥ 1 − exp (−1/t0 ) .                       (33)
+    One important property of the regenerative MDPs is that the chain can be broken down
+into i.i.d. cycles of subchains. In particular, V (π), the expected long-term reward, is equal
+to the ratio between the expected accumulated reward per cycle and the expected length
+of a cycle. Denote the visit times to state x0 as τ1 , τ2 , . . .P
+                                                                 , τm , and the cumulative rewards
+                                                                    τj+1 −1
+between these visit times as R1 , R2 , . . . , Rm−1 , i.e., Rj = t=τ    j
+                                                                            Yt . The following lemma
+can be obtained immediately after applying the renewal reward theorem [e.g., Grimmett
+and Stirzaker, 2020, Chapter 10].
+Lemma 3.4. Consider a strongly regenerative MDP sequence drawn along policy π starting
+from its stationary distribution. Then V (π) = Eπ [R1 ] /Eπ [τ2 − τ1 ].
+
+   Lemma 3.4 motivates us to estimate V (π) with a ratio between an estimator of Eπ [R1 ]
+and an estimator of Eπ [τ2 − τ1 ]:
+                                                                                           
+                       τXm −1   κt (k)                       τXm −1   κt (k)
+                                 Y πWt−s (Xt−s )                        Y πWt−s (Xt−s )
+    Vb r (π, x0 ; k) =                                 Yt                                  , (34)
+                        t=τ      s=0
+                                       π0,Wt−s (Xt−s )         t=τ      s=0
+                                                                              π0,Wt−s (Xt−s )
+                          1                                       1
+
+
+
+where κt (k) = max {h ∈ [0, k] : Xt−h = x0 or h = k} is an importance weight trimmed to
+adjusting history for at most k steps.
+   4 Distributional overlap is not to be confused with the policy overlap condition we make (Assumption 3),
+
+whereby π0 sometimes takes the same action as π in any state.
+   5 It would also be interesting to consider whether one could create hard POMDP instances that yield the
+
+lower bound from Theorem 3.1, but using hidden states that satisfy distributional overlap; however, we do
+not investigate this question here.
+
+
+
+                                                    15
+   The following result establishes the minimax rate for off-policy evaluation in strongly
+regenerative MDPs without making assumptions that imply stationary overlap as in the
+papers cited above.
+Theorem 3.5. Define M1 , M2 , t0 , ζπ as in Theorem 2.1. Let IrMDP (t0 , M1 , M2 ) be the
+set of strongly regenerative MDPs, satisfying:
+
+     E Yt Wt , Xt ≤ M1 , E Yt2 Wt , Xt ≤ M2 , for all Wt = 1, . . . , A, Xt ∈ X . (35)
+                                        
+
+
+Then, there exist a pair of target and behavior policies π and π0 with πa (x)/π0,a (x) ≤
+exp (ζπ ) for all a = 1, . . . , A and x ∈ X such that, the minimax risk of evaluating π from a
+single length-T trajectory over IrMDP (t0 , M1 , M2 ) is lower bounded as
+                                                            n     2
+                                                                             o
+                 Rminimax (IrMDP (t0 , M1 , M2 )) = Ω max T − t0 ζπ +1 , T −1 .             (36)
+
+Furthermore, with the choice that k = t0 ζtπ0+1 log T if t0 ζπ > 1 and k = t20 log T if t0 ζπ ≤ 1,
+Vb r (π, x0 ; k) achieves the error bound
+                                                     2          n                   o
+                                                                              2
+                   E        Vb r (π, x0 ; k) − V (π)          = O max T − t0 ζπ +1 , T −1 .               (37)
+
+     The main value of this result stems from noticing that the minimax rate (36) is strictly
+faster than the lower bound in Theorem 3.1. Thus, the above result gives us a sharp quan-
+tification of the cost of missing information in the POMDP model.6 In other words, we have
+found that with strongly regenerative MDPs without distributional overlap, 1/T -rate mean-
+squared error cannot always be achieved anymore; however, there is still strict separation
+between optimal rates for off-policy evaluation in POMDPs relative to the corresponding
+MDPs.
+     Of course, the class of strongly regenerative MDPs is only a restricted class of problems,
+and so we do not view the above result as being of general interest for practical off-policy
+evaluation in MDPs. It is plausible that the rate (37) could be achieved in a wider class of
+MDP problems; however, doing so may require deriving novel estimators, and is beyond the
+scope of this paper.
+
+
+4     Adaptive Estimation via Lepski’s Method
+In order to make use of the results from Theorem 2.1 and Corollary 2.2 in practice, we
+need a way to choose the window length k such that the resulting estimator compromises
+   6 Revisiting the proof of Theorem 3.1, we note that KL divergence between the observed data generated
+
+by I1 and I2 under Model 3 is generally smaller than the KL divergence between the observed data generated
+by I1 and I2 under Model 2—and this is what gives rise to a slower rate in the lower bound under Model
+3. In fact, it can be verified that the former is strictly smaller than the latter, since
+                 γIKL
+                   1 ,I2
+                         (Y1:T , W1:T ) = γIKL
+                                            1 ,I2
+                                                  (Y1:T , H1:T , W1:T ) − γIKL
+                                                                            1 ,I2
+                                                                                  (H1:T Y1:T , W1:T )
+                                       < γIKL
+                                           1 ,I2
+                                                 (Y1:T , H1:T , W1:T )
+
+as long as γIKL
+             1 ,I2
+                   (H1:T Y1:T , W1:T ) > 0. Intuitively, this is because the KL divergence between the observed
+data generated under Model 2 accounts additionally for the distance between the conditional distributions
+of the hidden state, which is greater than 0 in our case since the outcomes generated under I1 and under I2
+have different implications on the distribution of the hidden state.
+
+
+                                                              16
+between the bias and the variance. One possible method for choosing between Vb (π; k)
+is to rely on domain knowledge [Clouse and Utgoff, 1992, Tenorio-Gonzalez et al., 2010,
+Gimelfarb et al., 2018], but in our setting getting access to bounds on the mixing time may
+be difficult, and Corollary 2.2 only gives guidance on the scaling of k(n) up to constants.
+Here, we explore a candidate data-driven method based on Lepski’s method [Lepskii, 1992,
+Birgé, 2001], a popular approach for adaptively choosing regularization parameters in non-
+parametric statistical problems. Particularly relevant to us, Lepski’s method was recently
+used by Su et al. [2020] to control a bias-variance tradeoff in a dynamic off-policy evaluation
+setting following Thomas and Brunskill [2016].
+    Lepski’s method relies on a method for generating confidence intervals I(π; k) for Vb (π; k)
+given any choice of k. Intuitively, the optimal choice of k needs to balance between the bias
+that decreases with increasing k and the variance that increases with increasing k. On the
+one hand, the confidence interval I(π; k) cannot be too wide, otherwise the variance would
+be too large. On the other hand, I(π; k) cannot be too different from I(π; k + 1), otherwise
+the bias would be too large. Algorithmically, given I(π; k) for k = −1, 0, . . . , K, Lepski’s
+method chooses k̂ ∗ as
+                               k̂ ∗ := min{k : ∩K
+                                                j=k I(π; j) 6= ∅},                         (38)
+
+i.e., we scan backward from the largest k and choose k̂ ∗ to be the last k such that I(π; k)
+still overlaps with ∩K j=k+1 I(π; j). This ensures that the bias and the standard deviation of
+Vb (π; k) are approximately on the same level. We refer the readers to Su et al. [2020] for
+a complete discussion on the theoretical properties of k̂ ∗ , where it is shown that, with a
+high probability, the estimator selected by Lepski’s method is competitive with the oracle
+estimator up to a constant factor.
+     In order to use Lepski’s method, we need to choose a construction for confidence intervals.
+Here, we proceed based on the following self-normalized central limit theorem.
+Theorem 4.1. Under the conditions of Theorem 2.1, assume moreover that there exists
+σ02 > 0 such that Var [Vi (π 0 )] ≥ σ02 for any policy π 0 that we consider. Then there exists a
+constant C3 (t0 , ζπ , M1 ) such that, given any sequence satisfying7
+
+                                                        n1−20 (T − k)
+                                                                               
+              k(n) ≤ T (n),        lim n exp −                                    → 0,      (39)
+                                  n→∞            C3 (t0 , ζπ , M1 ) exp {2kζπ }
+
+for some 0 > 0, as n → ∞,
+                                   h         i . p
+                                                                 d
+                       Vb (π; k) − E Vb (π; k)       σ̂ 2 (π; k) → N (0, 1),                             (40)
+
+where
+                                                  n                      2
+                                              1 X b
+                              σ̂ 2 (π; k) =    2
+                                                    Vi (π; k) − Vb (π; k) .                              (41)
+                                              n i=1
+
+   7 We caution that the choice of k(n) in Corollary 2.2 will only satisfy     (39) if t0 ζπ is small enough.
+Nevertheless, we note that in many applications, including the ones in Section 5, Lepski’s method maintains
+decent performance even if the above central limit theorem fails. It is also possible to obtain the confidence
+intervals with concentration inequalities or heavy-tailed distribution approximation; however, we will leave
+investigation of these approaches to future work.
+
+
+
+
+                                                      17
+  Given this result, we proceed by running Lepski’s method (38) based on the induced
+Gaussian intervals
+                         h                                                  i
+                 ˆ k) = Vb (π; k) − υ σ̂ 2 (π; k), Vb (π; k) + υ σ̂ 2 (π; k) ,
+                                     p                          p
+                I(π;                                                            (42)
+
+where υ is the threshold parameter (in our experiments, we use υ = 1 as a default choice).
+This choice of confidence function coincides with the intervals considered in Intersection
+Confidence Intervals (ICI) rule [Goldenshluger and Nemirovski, 1997, Katkovnik, 1999,
+Katkovnik and Spokoiny, 2008, Zhang et al., 2008, Katkovnik et al., 2010], a special version
+of Lepski’s method that is commonly implemented in signal processing applications.
+    Below, we also provide a Berry-Esseen type bound that sharpens the result in Theorem
+4.1. Its proof can be found in the Supplementary Material.
+Theorem 4.2. Under the conditions of Theorem 4.1, there exists a sequence σn2 and some
+N < ∞ such that, for all n > N ,
+                    "                         #
+                      Vb (π; k(n)) − V (π)
+             sup P            p            ≤ z − Ψ(z)
+             z∈R                σn2
+                                                                                   (43)
+                           3.3n−0                     n1−20 (T − k)
+                                                                              
+                        ≤           + 3n exp −                                   ,
+                              σ0                C3 (t0 , ζπ , M1 ) exp {2kζπ }
+and, for arbitrary σ > 0,
+               "                         #
+                  σ̂ 2 (π; k) − σn2
+             P                      ≥ σ
+                          σn2
+                                                                                             (44)
+                                                          n1−20 (T − k)
+                                                                                  
+                           = O n−1/2 + 3n exp −                                          .
+                                                   C3 (t0 , ζπ , M1 ) exp {2kζπ }
+where Ψ(·) is the cumulative distribution function of a standard normal distribution.
+
+4.1    Proof of Theorem 4.1
+We start by proving a concentration inequality on the partial estimator Vbi (π; k) via the Mar-
+tingale method. The following lemma is a consequence of the Azuma-Hoeffding inequality
+[Azuma, 1967, Hoeffding, 1963].
+Lemma 4.3. Under the assumptions in Theorem 4.1, there exists a constant C3 (t0 , ζπ , M1 )
+such that, for all r ≥ 0,
+                                                            r2 (T − k)
+     h               h         i   i                                            
+   P Vi (π; k) − E Vi (π; k) Pi ≤ r ≥ 1 − 2 exp −
+       b               b                                                           .   (45)
+                                                  C3 (t0 , ζπ , M1 ) exp {2kζπ }
+   We now define truncated residuals
+                     h    n           h             i          o         i
+           Zi = min max Vbi (π; k) − E Vbi (π; k) Pi , −n0.5−0 , n0.5−0 ,                  (46)
+
+and note that, under the condition (39), for arbitrary 0 > 0,
+                    " n             n
+                                                                       #
+                      1X         1 X b               h            i
+              lim P         Zi −        Vi (π; k) − E Vbi (π; k) Pi = 0 = 1                  (47)
+             n→∞      n i=1      n i=1
+
+
+                                              18
+by Lemma 4.3 applied with r = n0.5−0 . Moreover, define
+                                   h            i     h        i
+                      Z̃i = Zi + E Vbi (π; k) Pi − E Vbi (π; k) .                      (48)
+
+By (47),
+                         "  n
+                                                                #
+                         1X                      h         i
+                   lim P       Z̃i − Vb (π; k) − E Vb (π; k) = 0 = 1.                  (49)
+                  n→∞    n i=1
+
+Next, we prove a central limit theorem for the sequence Z̃i by showing that it satisfies the
+Lindeberg’s condition [Lindeberg, 1922].
+Lemma 4.4. Under the assumptions in Theorem 4.1, Z̃i satisfies the Lindeberg’s condition,
+i.e., for all  > 0,
+                                 n
+                             1 X h 2                   i
+                           lim2
+                                    E Z̃ i I Z̃ i > ψn    = 0,                        (50)
+                       n→∞ ψn
+                                i=1
+                   h i
+           Pn                         Pn         p    d
+where ψn2 = i=1 Var Z̃i . As a result, i=1 Z̃i / ψn2 → N (0, 1) as n → ∞.
+    Finally, we show that the moment estimator
+                                             n                      2
+                                         1 X b
+                         σ̂ 2 (π; k) =    2
+                                               Vi (π; k) − Vb (π; k) .
+                                         n i=1
+
+is consistent for ψn2 /n2 . It then follows immediately by Slutsky’s Lemma [van der Vaart,
+2000] that
+                                      h     i                     h     i
+                      Vb (π; k) − E Vb (π; k)     n Vb (π; k) − E Vb (π; k)
+                             p                  =        p
+                                σ̂ 2 (π; k)                 n2 σ̂ 2 (π; k)            (51)
+                                                 d
+                                                 → N (0, 1).
+Lemma 4.5. Under the conditions of Theorem 4.1, the estimator σ̂ 2 (π; k) in (41) is con-
+sistent for ψn2 /n2 . Furthermore, for arbitrary σ > 0,
+                  "                             #
+                     σ̂ 2 (π; k) − ψn2 /n2
+                P                          ≥ σ
+                             ψn2 /n2
+                                                                                        (52)
+                                                           n1−20 (T − k)
+                                                                                 
+                                       1
+                              = O √ + 3n exp −                                        .
+                                        n           C3 (t0 , ζπ , M1 ) exp {2kζπ }
+
+
+
+5     Numerical Experiments
+In this section, we examine the performance of the partial-history importance weighted
+estimator and compare it to the benchmark methods in both a set of simple synthetic data
+and a simplified version of data obtained from a mobile health study. Throughout, we will
+focus on the case where we fix the horizon T , and vary the sample size n from 100 to 900.
+The threshold parameter υ in (42) is set to 1. To obtain a stationary chain, we discard data
+generated during a burn-in period of 50 time steps.
+
+
+                                                 19
+                                              1 − p2
+
+
+             1 − p1          (0, 0)            (1, 0)              (1, 1)       p2
+                                      p1                  p2
+
+    Figure 3: Transition model used to generate the simulation example in Section 5.1.
+
+
+5.1     A Simple Example
+As prelude, we consider a simple example with binary observed and hidden covariates. Let
+Xi,t , Hi,t ∈ {0, 1} be the observed and hidden covariates of unit i at time t, respectively.
+Denote Si,t = (Xi,t , Hi,t ). At each time point, each unit is randomly assigned the treatment
+so that Wi,t = 1 with probability 0.5. Instead of this behavior policy, we are interested in
+a deterministic policy π that assigns the unit to control if Xi,t = 1, and to treatment if
+Xi,t = 0. In particular, we aim at estimating the stationary expected value of the outcome
+had the target policy been in place from the beginning.
+    We assume that there are two types of units in this population, determined by an un-
+observed factor Ui ∼ Bernoulli(0.5). Given Ui and Si,t , Yi,t is generated with the function
+Yi,t = Xi,t · Hi,t + 0.1ε, where ε ∼ N (0, 1), and Si,t+1 is generated as
+                  
+                  (0, 0),
+                              with probability 1 − p1 · I (Xi,t = 0) − p2 · I (Xi,t = 1) ,
+        Si,t+1 = (1, 0),       with probability p1 · I (Xi,t = 0) ,
+                  
+                    (1, 1),    with probability p2 · I (Xi,t = 1) ,
+                  
+
+where
+                          Ui + Hi,t + Wi,t             Ui + Hi,t + 1 − Wi,t
+                      p1 =                 ,     p2 =                       .
+                                  4                              4
+Throughout, we set T = 300, and carry out the simulation 10, 000 times. We calculate the
+MSE of estimating V (π) according to equation (5), varying k from 1 to 8. In addition, we
+compare it with two benchmark methods, where V (π) is estimated naively as the sample
+mean of Yi,t , or estimated according to equation (5) with k = 0.
+    Figure 4(a) displays how MSE changes with different choices of k and n. Here k = −1
+refers to estimating with sample mean, and k = 0 refers to the method adjusting for the
+distribution of the current treatment only. As can be seen from the plot, all MSE curves
+follow the pattern of first decreasing as k increases, reaching a low point, and rising again as
+k continues to increase. In the descending phase, errors are mostly due to bias and so using
+a larger n doesn’t help; whereas in the increasing phase, errors are dominated by variance.
+As n grows, the relative importance of variance decreases and so the optimal choice of k
+grows (here, we see it shift from k = 3 to 5 as sample size increases).
+    To verify that the central limit theorem holds for the optimal choice of k, we calculate
+the Kolmogorov–Smirnov statistic that measures the distance between the standardized
+empirical distribution of Vb (π; k) and a standard Gaussian distribution, and plot it versus
+different choices of k in Figure 4(b). We see that the empirical distribution of Vb (π; k) is
+approximately normal for the optimal choices of k (k = 3, 4, 5); however, for larger choices
+of k (i.e., cases with more extreme importance weights) the Gaussian approximation is less
+accurate—especially when n is small.
+    Finally, to test the performance of Lepski’s method in selecting appropriate window size,
+we apply it to the simulated dataset, with K = {−1, 0, . . . , 8}. We also compare it with the
+
+
+                                              20
+               (a) MSE Profile                    (b) Kolmogorov–Smirnov statistic
+
+Figure 4: (a) MSE as a function of k under different sample sizes n. The lightest orange
+corresponds to the case with n = 100, with a gradient to dark red representing n increases
+from n = 100 to n = 900 gradually. (b) Kolmogorov–Smirnov statistic as a function of k
+under different sample sizes n. The lightest orange corresponds to the case with n = 100,
+with a gradient to dark red representing n increases from n = 100 to n = 900 gradually.
+
+
+
+
+               (a) MSE Decay                            (b) Lepski’s Selections
+
+Figure 5: (a) MSE as a function of n under different horizon length k. The lightest orange
+corresponds to the case with k = −1, with a gradient to dark red representing k increases
+from k = −1 to k = 8 gradually, while the purple dashed line represents k chosen by Lepski’s
+method and the blue dash-dotted line represents k chosen according to (15) in Corollary
+2.2. (b) Percentages of each k ∈ K selected by Lepski’s method under different sample
+sizes n. The lightest red area corresponds to choosing k = −1, with a gradient to dark red
+representing choosing k = 8.
+
+
+performance obtained by choosing k according to (15) in Corollary 2.2. Figure 5(a) shows
+the MSE achieved using these two methods as a function of n. As hoped, we see that both
+the MSE of k chosen according to (15) and the MSE of k chosen by the Lepski’s method
+are close to the smallest MSE achieved with k ∈ {−1, . . . , 8}, with the former performing
+noticeably better than the latter in small samples. We note, though, that in general it
+will be difficult to get sharp bounds on the mixing time and so, unlike Lepski’s method,
+choosing k using (15) may not usually be practical. Figure 5(b) provides further insight on
+the mechanics of Lepski’s method, by showing the distribution of the value of k chosen for
+different n. For small n, the choice k = 2 is the most common; however, the choices k = 3
+and k = 4 become more common instead as n gets larger.
+
+
+                                            21
+   To test the performance of the estimator under random target policies, we repeat all the
+analyses above while setting the target policy to be assigning the unit to control if Xi,t = 1
+and assigning the unit to treatment randomly with probability 0.5 if Xi,t = 0. The results
+can be found in the Supplementary Material.
+
+5.2     A Mobile Health Study
+In order to test the performance of the partial history weighted estimator in a more realistic
+environment, we apply the method to synthetic datasets simulated to mimic data collected
+from a mobile health app that monitors the blood glucose level of type 1 diabetic patients.
+We follow the generative model in Luckett et al. [2019], where they design the model and
+estimate the parameters according to data collected from the mobile health study of Maahs
+et al. [2012]. In this study, each day is divided into 24 intervals of 60-minutes each. The
+patient is asked to upload their physical activities and blood glucose level every hour, and a
+treatment decision is assigned to the patient at the end of each time interval. The dataset
+contains the observations of a ten-day period (i.e., T = 240), and the data-generating process
+can be described as follows.
+    At each time point, each patient is randomly chosen to receive an insulin injection with
+P (Ini,t = 1) = 0.3, which is the treatment of interest in this application. The observed state
+at time t is consist of Exi,t , the total counts of physical activity, and Gli,t , the blood glucose
+level, while the hidden state at time t is consist of Dii,t , the (unobserved) total dietary
+intake. With a probability of 0.4, the patient will partake in mild physical activity, with
+Exi,t ∼ T N (31, 52 , 0, ∞), where T N (31, 52 , 0, ∞) denotes a normal distribution N (31, 52 )
+left-truncated at 0; With a probability of 0.2, the patient will partake in moderate physical
+activity, with Exi,t ∼ T N (819, 102 , 0, ∞) + T N (31, 52 , 0, ∞); With a probability of 0.4, the
+patient will not partake in physical activity, with Exi,t = 0. In addition, with a probability
+of 0.2, the patient will consume food, with Dii,t ∼ T N (78, 102 , 0, ∞), and eat nothing
+otherwise. The total counts of physical activity and the dietary intake at each time point
+are generated independently of the past. The blood glucose level is then generated according
+to the formula
+                  
+           †
+         Gli,t − νi = 10 + 0.9(Gli,t−1 − νi ) + 0.1Dii,t−1 + 0.1Dii,t−2 − 0.01Exi,t−1
+                                                                                                (53)
+                           − 0.01Exi,t−2 − 2Ini,t−1 − 4Ini,t−2 + εi,t ,
+with the individual-level offset νi ∼ N (0, 102 ), and the random noise εi,t ∼ N (0, 52 ). To
+prevent the simulated glucose level from going too high or too low, we follow Luckett et al.
+                                           †
+[2019] and truncate Gli,t = min(max(Gli,t    , 50), 250). Finally, the patient’s utility at time t
+is represented by the category Gli,t falls in, with
+        
+        
+         −3 if Gli,t ≤ 70 (hypoglycemic),
+        
+        −2 if Gl > 150 (hyperglycemic),
+                     i,t
+ Yi,t =
+        
+        
+         −1   if 70  < Gli,t ≤ 80 or 120 < Gli,t ≤ 150 (borderline hypo- or hyperglycemic),
+          −0 if 80 < Gli,t ≤ 120 (normal glycemia).
+        
+
+Given this sequentially randomized data collection policy, our goal is to evaluate the deter-
+ministic policy that assigns the patient an insulin injection if Gli,t ≥ 125, and does nothing
+otherwise.8
+  8 We chose this target policy as the optimal policy among the class of threshold-crossing policies of the
+
+form Ini,t = I(Gli,t ≥ θ) for some threshold θ ≥ 0.
+
+
+                                                      22
+                (a) MSE Profile                               (b) MSE Decay
+
+Figure 6: (a) MSE as a function of k under different sample sizes n. The lightest orange
+corresponds to the case with n = 100, with a gradient to dark red representing n increases
+from n = 100 to n = 900 gradually. (b) MSE as a function of n under different horizon
+length k. The lightest orange corresponds to the case with k = −1, with a gradient to dark
+red representing k increases from k = −1 to k = 12 gradually, while the purple dashed line
+represents k̂ ∗ chosen by Lepski’s method.
+
+
+    We employ partial-history importance weighted estimator, as defined in (5), with k
+varying from 1 to 12. Simulations result are aggregated across 100, 000 replications. As in
+the first experiment, we compare our method to the two benchmark methods denoted as
+k = −1 and k = 0 (i.e., no re-weighting and myopic re-weighting). To calculate the MSE, we
+compute the ground truth expected outcome under the target policy using a Monte Carlo
+approximation. The behavior of the estimates is represented in Figure 6.
+    In Figure 6(a), we observe a similar pattern as before, with a U-shape curve exhibiting
+a bias-variance trade-off in choosing k under all n. Moreover, as n grows, the optimal k
+moves gradually from k ∗ = 8 to k ∗ = 11. However, in contrast to the first setting, we need
+to weight a relatively long history to obtain the optimal estimator, which appears to reflect
+a longer mixing time induced by the data-generating mechanism of the blood glucose level.
+Finally, in Figure 6(b) we again see that the k selected by Lepski’s method still achieves a
+reasonable performance in practice across all sample sizes.
+
+
+6    Discussion
+In this paper, we considered POMDPs as a model for treatment dynamics in off-policy
+evaluation under sequential ignorability. We motivated the POMDP model as a way to
+avoid instability problems inherent in fully non-parametric off-policy evaluation without
+having to commit to an (often unrealistic) MDP specification. Our main results provide
+rate-matching upper and lower bounds that validate this tradeoff, and establish off-policy
+evaluation in POMDPs as a statistical task whose difficulty falls strictly between that of off-
+policy evaluation in the non-parametric and MDP models. Our upper bounds are achieved
+via a simple and practical algorithm, partial history importance weighting, that performs
+well in numerical experiments and can be tuned via Lepski’s method.
+    On a conceptual level, one interesting finding is that the key problem primitives that
+govern rates of convergence in both our upper and lower bounds are the mixing time t0
+and the overlap parameter ζπ . In particular, the rates of convergence in both our upper
+
+
+                                              23
+and lower bounds only depend on these quantities via their product t0 ζπ (and problems
+get harder as t0 ζπ gets larger). Thus, our results suggest that a practitioner interested in
+off-policy evaluation in a POMDP model should pay close attention to these quantities.
+    In this paper, we have taken a largely agnostic approach to modeling POMDPs, and
+make essentially no assumptions on the unobserved states beyond mixing. One interesting
+question left open is whether making further structural assumptions about the hidden states
+could enable faster rates of convergence. For example, if we were to assume the variable Hi,t
+to take values in a finite space with a bounded number of unique elements, would this affect
+minimax lower bounds for off-policy evaluation? Given the growing number of application
+areas in need of sample-efficient methods for evaluating dynamic treatment rules, it is likely
+that any results of this type would be of considerable interest. It would also be valuable to
+develop methods for off-policy evaluation in POMDPs that allow for cross-unit interference,
+and examine how such interference affects achievable rates of convergence.
+
+
+References
+András Antos, Csaba Szepesvári, and Rémi Munos. Learning near-optimal policies with
+ bellman-residual minimization based fitted policy iteration and a single sample path.
+ Machine Learning, 71(1):89–129, 2008.
+M Berk Ataman, Harald J Van Heerde, and Carl F Mela. The long-term effect of marketing
+ strategy on brand sales. Journal of Marketing Research, 47(5):866–882, 2010.
+
+Susan Athey and Stefan Wager. Policy learning with observational data. Econometrica, 89
+  (1):133–161, 2021.
+Kazuoki Azuma. Weighted sums of certain dependent random variables. Tohoku Mathe-
+ matical Journal, Second Series, 19(3):357–367, 1967.
+
+Samuel L Battalio, David E Conroy, Walter Dempsey, Peng Liao, Marianne Menictas, Su-
+  san Murphy, Inbal Nahum-Shani, Tianchen Qian, Santosh Kumar, and Bonnie Spring.
+  Sense2Stop: A micro-randomized trial using wearable sensors to optimize a just-in-time-
+  adaptive stress management intervention for smoking relapse prevention. Contemporary
+  Clinical Trials, page 106534, 2021.
+
+Andrew Bennett and Nathan Kallus. Proximal reinforcement learning: Efficient off-
+ policy evaluation in partially observed markov decision processes. arXiv preprint
+ arXiv:2110.15332, 2021.
+Lucien Birgé. An alternative point of view on Lepski’s method. Lecture Notes-Monograph
+  Series, pages 113–133, 2001.
+
+Louis HY Chen, Larry Goldstein, and Qi-Man Shao. Normal approximation by Stein’s
+  method, volume 2. Springer, 2011.
+Jeffery A Clouse and Paul E Utgoff. A teaching method for reinforcement learning. In
+  Machine learning proceedings 1992, pages 92–101. Elsevier, 1992.
+
+Benjamin Connault. Hidden rust models. Unpublished manuscript, Univ. Pa., Philadelphia
+  Google Scholar Article Location, 2016.
+
+
+                                             24
+Eyal Even-Dar, Sham M Kakade, and Yishay Mansour. Experts in a Markov decision
+  process. Advances in neural information processing systems, 17:401–408, 2005.
+Vivek F Farias, Ciamac C Moallemi, Benjamin Van Roy, and Tsachy Weissman. Univer-
+  sal reinforcement learning. IEEE Transactions on Information Theory, 56(5):2441–2454,
+  2010.
+
+Vivek F Farias, Andrew A Li, Tianyi Peng, and Andrew T Zheng. Markovian interference
+  in experiments. arXiv preprint arXiv:2206.02371, 2022.
+Michael Gimelfarb, Scott Sanner, and Chi-Guhn Lee. Reinforcement learning with multi-
+ ple experts: A bayesian model combination approach. Advances in Neural Information
+ Processing Systems, 31:9528–9538, 2018.
+Alexander Goldenshluger and Arkadi Nemirovski. On spatially adaptive estimation of non-
+  parametric regression. Mathematical methods of Statistics, 6(2):135–170, 1997.
+Geoffrey Grimmett and David Stirzaker. Probability and random processes. Oxford univer-
+ sity press, 2020.
+
+Zhaohan Guo, Philip S Thomas, and Emma Brunskill. Using options and covariance testing
+  for long horizon off-policy policy evaluation. Advances in Neural Information Processing
+  Systems, 30, 2017.
+David H Gustafson, Fiona M McTavish, Ming-Yuan Chih, Amy K Atwood, Roberta A
+  Johnson, Michael G Boyle, Michael S Levy, Hilary Driscoll, Steven M Chisholm, Lisa
+  Dillenburg, Andrew Isham, and Dhavan Shah. A smartphone application to support
+  recovery from alcoholism: a randomized clinical trial. JAMA psychiatry, 71(5):566–572,
+  2014.
+Miguel A Hernán and James M Robins. Causal Inference: What If. Chapman & Hall/CRC,
+ Boca Raton, 2020.
+Miguel A Hernán, Babette Brumback, and James M Robins. Marginal structural models to
+ estimate the joint causal effect of nonrandomized treatments. Journal of the American
+ Statistical Association, 96(454):440–448, 2001.
+Wassily Hoeffding. Probability inequalities for sums of bounded random variables. Journal
+ of the American Statistical Association, 58(301):13–30, 1963.
+Nan Jiang and Lihong Li. Doubly robust off-policy value evaluation for reinforcement
+  learning. In Proceedings of the 33rd International Conference on International Conference
+  on Machine Learning-Volume 48, pages 652–661. JMLR. org, 2016.
+
+Leslie Pack Kaelbling, Michael L Littman, and Anthony R Cassandra. Planning and acting
+  in partially observable stochastic domains. Artificial Intelligence, 101(1-2):99–134, 1998.
+Nathan Kallus and Masatoshi Uehara. Double reinforcement learning for efficient off-policy
+  evaluation in markov decision processes. J. Mach. Learn. Res., 21:167–1, 2020.
+Nathan Kallus and Masatoshi Uehara. Efficiently breaking the curse of horizon in off-policy
+  evaluation with double reinforcement learning. Operations Research, 2022.
+
+
+
+                                             25
+Vladimir Katkovnik. A new method for varying adaptive bandwidth selection. IEEE Trans-
+  actions on signal processing, 47(9):2567–2571, 1999.
+Vladimir Katkovnik and Vladimir Spokoiny. Spatially adaptive estimation via fitted local
+  likelihood techniques. IEEE Transactions on Signal Processing, 56(3):873–886, 2008.
+
+Vladimir Katkovnik, Alessandro Foi, Karen Egiazarian, and Jaakko Astola. From local
+  kernel to nonlocal multiple-model image denoising. International journal of computer
+  vision, 86(1):1–32, 2010.
+Toru Kitagawa and Aleksey Tetenov. Who should be treated? empirical welfare maximiza-
+  tion methods for treatment choice. Econometrica, 86(2):591–616, 2018.
+
+Predrag Klasnja, Eric B Hekler, Saul Shiffman, Audrey Boruvka, Daniel Almirall, Am-
+  buj Tewari, and Susan A Murphy. Microrandomized trials: An experimental design for
+  developing just-in-time adaptive interventions. Health Psychology, 34(S):1220, 2015.
+Predrag Klasnja, Shawna Smith, Nicholas J Seewald, Andy Lee, Kelly Hall, Brook Luers,
+  Eric B Hekler, and Susan A Murphy. Efficacy of contextually tailored suggestions for phys-
+  ical activity: a micro-randomized optimization trial of HeartSteps. Annals of Behavioral
+  Medicine, 53(6):573–582, 2019.
+Kenneth R Koedinger, Emma Brunskill, Ryan SJd Baker, Elizabeth A McLaughlin, and
+  John Stamper. New potentials for data-driven intelligent tutoring system development
+  and optimization. AI Magazine, 34(3):27–41, 2013.
+
+OV Lepskii. Asymptotically minimax adaptive estimation. I: Upper bounds. optimally
+ adaptive estimates. Theory of Probability & Its Applications, 36(4):682–697, 1992.
+Sergey Levine, Aviral Kumar, George Tucker, and Justin Fu. Offline reinforcement learning:
+  Tutorial, review, and perspectives on open problems. arXiv preprint arXiv:2005.01643,
+  2020.
+Peng Liao, Predrag Klasnja, and Susan Murphy. Off-policy estimation of long-term av-
+  erage outcomes with applications to mobile health. Journal of the American Statistical
+  Association, 116(533):382–391, 2021.
+Peng Liao, Zhengling Qi, Runzhe Wan, Predrag Klasnja, and Susan A Murphy. Batch policy
+  learning in average reward markov decision processes. The Annals of Statistics, 50(6):
+  3364–3387, 2022.
+Jarl Waldemar Lindeberg. Eine neue herleitung des exponentialgesetzes in der wahrschein-
+  lichkeitsrechnung. Mathematische Zeitschrift, 15(1):211–225, 1922.
+
+Daniel J Luckett, Eric B Laber, Anna R Kahkoska, David M Maahs, Elizabeth Mayer-Davis,
+ and Michael R Kosorok. Estimating dynamic treatment regimes in mobile health using
+ V-learning. Journal of the American Statistical Association, 2019.
+David M Maahs, Elizabeth Mayer-Davis, Franziska K Bishop, Lily Wang, Meg Mangan,
+  and Robert G McMurray. Outpatient assessment of determinants of glucose excursions
+  in adolescents with type 1 diabetes: proof of concept. Diabetes technology & therapeutics,
+  14(8):658–664, 2012.
+
+
+                                            26
+Travis Mandel, Yun-En Liu, Sergey Levine, Emma Brunskill, and Zoran Popovic. Offline
+  policy evaluation across representations with applications to educational games. In Pro-
+  ceedings of the International Conference on Autonomous Agents and Multiagent Systems,
+  2014.
+Wang Miao, Zhi Geng, and Eric J Tchetgen Tchetgen. Identifying causal effects with proxy
+ variables of an unmeasured confounder. Biometrika, 105(4):987–993, 2018.
+George E Monahan. A survey of partially observable Markov decision processes: Theory,
+ models, and algorithms. Management Science, 28(1):1–16, 1982.
+Susan A Murphy. Optimal dynamic treatment regimes. Journal of the Royal Statistical
+  Society: Series B (Statistical Methodology), 65(2):331–355, 2003.
+Susan A Murphy. A generalization error for q-learning. Journal of Machine Learning
+  Research, 6:1073–1097, 2005.
+Inbal Nahum-Shani, Shawna N Smith, Bonnie J Spring, Linda M Collins, Katie Witkiewitz,
+  Ambuj Tewari, and Susan A Murphy. Just-in-time adaptive interventions (JITAIs) in
+  mobile health: key components and design principles for ongoing health behavior support.
+  Annals of Behavioral Medicine, 52(6):446–462, 2018.
+Yash Nair and Nan Jiang. A spectral approach to off-policy evaluation for pomdps. arXiv
+  preprint arXiv:2109.10502, 2021.
+Xinkun Nie, Emma Brunskill, and Stefan Wager. Learning when-to-treat policies. Journal
+  of the American Statistical Association, 116(533):392–409, 2021.
+J. W. Pitman. On coupling of markov chains. Zeitschrift für Wahrscheinlichkeitstheorie
+  und Verwandte Gebiete, 35(4):315–322, 1976.
+Doina Precup, Richard S Sutton, and Satinder P Singh. Eligibility traces for off-policy
+ policy evaluation. In Proceedings of the Seventeenth International Conference on Machine
+ Learning, 2000.
+Min Qian and Susan A Murphy. Performance guarantees for individualized treatment rules.
+ Annals of Statistics, 39(2):1180, 2011.
+James Robins. A new approach to causal inference in mortality studies with a sustained ex-
+  posure period—application to control of the healthy worker survivor effect. Mathematical
+  modelling, 7(9-12):1393–1512, 1986.
+James M Robins. Optimal structural nested models for optimal sequential decisions. In
+  Proceedings of the second seattle Symposium in Biostatistics, pages 189–326. Springer,
+  2004.
+Murray Rosenblatt. A central limit theorem and a strong mixing condition. Proceedings of
+ the National Academy of Sciences of the United States of America, 42(1):43, 1956.
+Stuart Russell and Peter Norvig. Artificial Intelligence: A Modern Approach. Prentice Hall,
+  3rd edition, 2010.
+Soroush Saghafian. Ambiguous partially observable markov decision processes: Structural
+  results and applications. Journal of Economic Theory, 178:1–35, 2018.
+
+
+                                            27
+Richard D Smallwood and Edward J Sondik. The optimal control of partially observable
+  Markov processes over a finite horizon. Operations Research, 21(5):1071–1088, 1973.
+Edward J Sondik. The optimal control of partially observable Markov processes over the
+  infinite horizon: Discounted costs. Operations Research, 26(2):282–304, 1978.
+
+Yi Su, Pavithra Srinath, and Akshay Krishnamurthy. Adaptive estimator selection for off-
+  policy evaluation. In International Conference on Machine Learning, pages 9196–9205.
+  PMLR, 2020.
+Adith Swaminathan and Thorsten Joachims. Batch learning from logged bandit feedback
+ through counterfactual risk minimization. Journal of Machine Learning Research, 16:
+ 1731–1755, 2015.
+Guy Tennenholtz, Uri Shalit, and Shie Mannor. Off-policy evaluation in partially observ-
+ able environments. In Proceedings of the AAAI Conference on Artificial Intelligence,
+ volume 34, pages 10276–10283, 2020.
+Ana C Tenorio-Gonzalez, Eduardo F Morales, and Luis Villasenor-Pineda. Dynamic reward
+ shaping: training a robot by voice. In Ibero-American conference on artificial intelligence,
+ pages 483–492. Springer, 2010.
+Georgios Theocharous, Philip S Thomas, and Mohammad Ghavamzadeh. Personalized ad
+ recommendation systems for life-time value optimization with guarantees. In Twenty-
+ Fourth International Joint Conference on Artificial Intelligence, 2015.
+
+Philip Thomas and Emma Brunskill. Data-efficient off-policy policy evaluation for rein-
+  forcement learning. In International Conference on Machine Learning, pages 2139–2148,
+  2016.
+Alexandre B Tsybakov. Introduction to Nonparametric Estimation. Springer, New York,
+  NY, 2009.
+Masatoshi Uehara, Haruka Kiyohara, Andrew Bennett, Victor Chernozhukov, Nan Jiang,
+ Nathan Kallus, Chengchun Shi, and Wen Sun. Future-dependent value-based off-policy
+ evaluation in pomdps. arXiv preprint arXiv:2207.13081, 2022.
+Saskia Van Dantzig, Gijs Geleijnse, and Aart Tijmen Van Halteren. Toward a persuasive
+  mobile application to reduce sedentary behavior. Personal and Ubiquitous Computing, 17
+  (6):1237–1246, 2013.
+Mark J Van der Laan and James M Robins. Unified Methods for Censored Longitudinal
+ Data and Causality. Springer Science & Business Media, 2003.
+
+Aad W. van der Vaart. Asymptotic Statistics, volume 3. Cambridge Univ Pr, 2000.
+Benjamin Van Roy. Learning and Value Function Approximation in Complex Decision
+  Processes. PhD thesis, Massachusetts Institute of Technology, 1998.
+Pengcheng Wang, Jonathan Rowe, Bradford Mott, and James Lester. Decomposing drama
+  management in educational interactive narrative: A modular reinforcement learning ap-
+  proach. In International Conference on Interactive Digital Storytelling, pages 270–282.
+  Springer, 2016.
+
+
+                                             28
+Yu-Xiang Wang, Alekh Agarwal, and Miroslav Dudık. Optimal and adaptive off-policy
+  evaluation in contextual bandits. In International Conference on Machine Learning, pages
+  3589–3597. PMLR, 2017.
+Bin Yu. Assouad, Fano, and Le Cam. In Festschrift for Lucien Le Cam, pages 423–435.
+  Springer, 1997.
+
+Baqun Zhang, Anastasios A Tsiatis, Eric B Laber, and Marie Davidian. Robust estimation
+  of optimal dynamic treatment regimes for sequential treatment decisions. Biometrika, 100
+  (3):681–694, 2013.
+ZG Zhang, Shing-Chow Chan, Ka-Leung Ho, and KC Ho. On bandwidth selection in local
+ polynomial regression analysis and its application to multi-resolution analysis of non-
+ uniform data. Journal of Signal Processing Systems, 52(3):263–280, 2008.
+Yingqi Zhao, Donglin Zeng, A John Rush, and Michael R Kosorok. Estimating individual-
+  ized treatment rules using outcome weighted learning. Journal of the American Statistical
+  Association, 107(499):1106–1118, 2012.
+
+
+
+
+                                            29
+      Supplemental Materials: Off-Policy Evaluation in
+        Partially Observed Markov Decision Processes
+                        under Sequential Ignorability
+
+A       Proof of Theorems
+In this section, we give proof of Theorems 3.5 and 4.2.
+
+A.1     Proof of Theorem 3.5
+As in establishing the minimax rate for off-policy evaluation in POMDPs, we divide the
+proof into two parts: lower-bounding the minimax rate Rminimax (IrMDP (t0 , M1 , M2 )) by
+applying Le Cam’s two point method, and upper-bounding the error rate achieved by the
+proposed estimator Vb r (π, x0 ; k).
+
+A.1.1    A lower bound
+To prove the lower-bound part, we will reutilize the tools we developed in Section 3.1. In
+fact, one can check that the two instances I1 , I2 we created in Section 3.1 belong to IrMDP ,
+as long as the state variable Ht is made observable. To distinguish these instances from the
+POMDP instances considered in Section 3.1, we will refer to the instances where the state
+variable is observable as I1MDP and I2MDP , and denote the state variable in these instances
+as Xt to emphasize that it is observable.
+Lemma A.1. The two instances I1MDP and I2MDP , with the choices of 0 ≤ ∆ ≤ M1 and δ =
+1 − exp(−1/t0 ), satisfy the conditions outlined in Theorem 3.5, i.e., I1MDP , I2MDP ∈ IrMDP .
+
+
+   In order to apply Lecam’s two point method, we also need an upper bound on the KL
+divergence between the observed data generated by I1MDP and I2MDP .
+Lemma A.2. The KL divergence between the observed data generated by I1MDP and I2MDP
+can be upper bounded as
+                                                    2T ∆2
+            γIKL
+              MDP ,I MDP (Y1:T , W1:T , X1:T ) ≤            exp{−(Q − 1) (1/t0 + ζπ )}.   (S1)
+              1    2                               M2 − M12
+    Motivated by the form of (S1), we consider the instance with
+                         (r                                                  )
+                              M2 − M12
+                                                                   
+                                                          t 0 ζπ + 1
+                ∆ = min                 exp (Q − 1)                     , M1
+                                 2T                            2t0
+                     r                                                                    (S2)
+                        M2 − M12
+                                                            
+                                                 t 0 ζπ + 1
+                   ≤              exp (Q − 1)                      .
+                           2T                         2t0
+Then, plugging the result from Lemma A.2 into (26),
+                                                                             1
+                              inf        max            PI [φ(V̂ ) 6= I] ≥      .         (S3)
+                               V̂   I∈{I1MDP ,I2MDP }                        8e
+
+
+                                                        1
+Thus, using the function φ(Vb ) = I1MDP if Vb ≥ 0 and φ(Vb ) = I2MDP if Vb < 0 implies:
+                                              2 
+              inf     max       EIe Vb − V (I)
+                 V̂ I∈{I1MDP ,I2MDP }
+                                                                                      h            i
+                                                       2
+                           ≥ ∆2 Pπ [Ht = hQ ] inf                    max           PIe φ(V̂ ) 6= I
+                                                            V̂ I∈{I1MDP ,I2MDP }
+                                                                                                       (S4)
+                                        M2 − M12
+                                                                             
+                                                               t 0 ζπ + 1
+                           ≥ min                 exp (Q − 1)                 , M12 ·
+                                           2T                       t0
+                                                      
+                                              2(Q − 1)    1
+                                        exp −            · .
+                                                  t0      8e
+We then choose Q that maximizes the lower bound in (S4). With
+                       
+                        t0
+                                     2T M12
+                                 log          + 1,      if t0 ζπ > 1,
+                  Q = t0 ζπ + 1      M2 − M12                                                          (S5)
+                       
+                       1,     if t ζ ≤ 1,      0 π
+
+we obtain that
+                                                             2 
+                 inf       max           EIe        V − V (I2 )
+                                                    b
+                  V̂ I∈{I1MDP ,I2MDP }
+                               
+                                   2
+                                                   − t ζ2 +1
+                                          2T M12
+                                       
+                                M1
+                                                      0 π
+                                                                                                       (S6)
+                                    ·           2            ,                        if t0 ζπ > 1,
+                                 8e      M2 − M1
+                               
+                             ≥
+                                       M2 − M12 M12
+                                                    
+                                                                                       if t0 ζπ ≤ 1.
+                               
+                               min
+                                                ,       ,
+                                         16eT      8e
+   Finally, combining the two bounds in (S6) yields the claimed lower bound in (36).
+
+A.1.2    An upper bound
+For simplicity of notation, we write
+                                                           
+                              V (π, x0 ; k) = R (π, x0 ; k) τ̂ r (π, x0 ; k)
+                              b r             b r
+
+
+
+with                                                                          
+                                                m −1
+                                               τX           κt (k)
+                                                       Y πWt−s (Xt−s )
+                          br (π, x0 ; k) =
+                          R                                                    Yt ,
+                                              t=τ1     s=0
+                                                              π0,Wt−s (Xt−s )
+                                                                                
+                                               τXm −1   κt (k)
+                                                         Y πWt−s (Xt−s )
+                           τ̂ r (π, x0 ; k) =                                   .
+                                                t=τ      s=0
+                                                               π 0,W t−s (Xt−s )
+                                                       1
+
+
+By (33), Eπ0 [m] = O (T ), and Eπ0 [τh − τh−1 ] = O (1), for all π 0 ∈ Π, h = 2, . . . , m.
+   We start by upper-bounding the bias and variance for each of the estimators.
+Lemma A.3. Under the assumptions stated in Theorem 3.5,
+                                     "m−1 #
+                h              i      X
+                   r
+                  b (π, x0 ; k) − Eπ
+              E R                        Rh = O (T exp (−k/t0 )) ,                                     (S7)
+                                                           h=1
+
+
+                                                               2
+                                              k+1                                  !
+                 h               i
+                   br (π, x0 ; k) = O (T − k)
+                                              X         t0 ζπ − 1
+              Var R                               exp h                                  + O (exp (ζπ k)) ,    (S8)
+                                                            t0
+                                                           h=0
+                          |E [τ̂ r (π, x0 ; k)] − Eπ [τm − τ1 ]| = O (T exp (−k/t0 )) ,                        (S9)
+and
+                                                    k+1                       !
+                                                    X             t 0 ζπ − 1
+            Var [τ̂ r (π, x0 ; k)] = O (T − k)              exp h                   + O (exp (ζπ k)) .        (S10)
+                                                                       t0
+                                                    h=0
+                                                                                    hP            i
+                                                                                         m−1
+   By Wald’s identity (e.g., Grimmett and Stirzaker 2020), Eπ                      = Eπ [R1 ] Eπ [m − 1],
+                                                                                         h=1 Rh
+                                                                                                                             
+and Eπ [τm − τ1 ] = Eπ [τ2 − τ1 ] Eπ [m − 1]. Then, a multivariate Taylor expansion of R      br (π, x0 ; k), τ̂ r (π, x0 ; k)
+            hP               i                   
+                     m−1
+around Eπ            h=1  R m    , E  [τ
+                                    π m   −  τ 1 ]  gives that
+                                    
+  Vb r (π, x0 ; k) =Rbr (π, x0 ; k) τ̂ r (π, x0 ; k)
+                                                                                  "m−1 #!
+                       Eπ [R1 ]                      1           r
+                                                                                   X
+                   =                 +                         R (π, x0 ; k) − Eπ
+                                                               b                      Rh      −
+                     Eπ [τ2 − τ1 ] Eπ [m − 1] Eπ [τ2 − τ1 ]
+                                                                                                      h=1
+                                              Eπ [R1 ]            r
+                                                             2 (τ̂ (π, x0 ; k) − Eπ [τm − τ1 ]) +
+                                   Eπ [m − 1] (Eπ [τ2 − τ1 ])
+                                                         h            i                                 
+                                       br (π, x0 ; k) − Eπ Pm−1 Rh
+                                       R                                      r
+                                                              h=1          τ̂   (π, x0 ; k) − E [τ
+                                                                                               π m − τ ]
+                                                                                                      1 
+                                   O                                    ,                                 .
+                                                   Eπ [m − 1]                         Eπ [m − 1]
+
+Consequently,
+                                                           "m−1 #                                     !
+   h
+       br
+               i                    1 br                     X        1 r
+E V (π, x0 ; k) − V (π) =O             R (π, x0 ; k) − Eπ        Rh , |τ̂ (π, x0 ; k) − Eπ [τm − τ1 ]|
+                                    T                                 T
+                                                             h=1
+                                             
+                                            k
+                              =O exp −            ,
+                                            t0
+                                                                                     
+                  h
+                      r
+                                i        1      h
+                                                    r
+                                                              i 1
+                                                                         r
+               Var V (π, x0 ; k) =O
+                    b                       Var R (π, x0 ; k) , 2 Var [τ̂ (π, x0 ; k)]
+                                                  b
+                                        T2                       T
+                                           k+1                  !                 
+                                        1 X           t0 ζπ − 1          exp (ζπ k)
+                                  =O           exp h                +O                 ,
+                                        T                 t0                T2
+                                                   h=0
+and thus
+                                                        2           
+                                                                        
+                                                                    2k
+                      E        Vb r (π, x0 ; k) − V (π)= O exp −           +
+                                                                     t0
+                                           k+1                 !                                          (S11)
+                                         1 X         t0 ζπ − 1          exp (ζπ k)
+                                    O          exp h               +O                .
+                                         T               t0                T2
+                                            h=0
+
+   When t0 ζπ − 1 > 0, the summation term in (S11) grows with k, and
+                      k+1                 !                       
+                   1 X          t 0 ζπ − 1         1       t 0 ζπ − 1
+               O          exp h               =O     exp k               .                                    (S12)
+                   T                 t0            T            t0
+                                h=0
+
+
+                                                                 3
+Thus, with the choice that k = t0 ζtπ0+1 log T,
+                                              2                 
+                                                                 2
+                      E Vb r (π, x0 ; k) − V (π)     = O T − t0 ζπ +1 .                     (S13)
+
+Otherwise, when t0 ζπ − 1 ≤ 0, the second term in (S11) is simply of order O (1/T ) for
+any
+   choice of k. By taking        k = t20 log T , it can be verified that the estimation error
+                           2 
+E Vb r (π, x0 ; k) − V (π)      is also of order O (1/T ).
+
+
+A.2      Proof of Theorem 4.2
+                                 p
+First, notice that since Z̃i /    ψn2 are independent random variables with zero means satisfying
+                                          n
+                                          X        h     p i
+                                                Var Z̃i / ψn2 = 1,
+                                          i=1
+         p
+and Z̃i / ψn2 ≤ n−0 /σ0 , ∀i, then according to Chen et al. [2011],
+                            " n               #
+                             X        p
+                   sup P         Z̃i / ψn2 ≤ z − Ψ(z) ≤ 3.3n−0 /σ0 .                       (S14)
+                        z∈R         i=1
+
+From Lemma 4.3, there exists some N < ∞ such that, for all n > N ,
+                h                  h                i                 i
+              P Zi = Vbi (π; k) − E Vbi (π; k) Pi , ∀i = 1, . . . , n
+                                                                           n
+                                                   n1−20 (T − k)
+                                     
+                        ≥ 1 − 2 exp −                                                       (S15)
+                                            C3 (t0 , ζπ , M1 ) exp {2kζπ }
+                                                  n1−20 (T − k)
+                                                                         
+                        ≥ 1 − 3n exp −                                      .
+                                           C3 (t0 , ζπ , M1 ) exp {2kζπ }
+Thus, for all n > N ,
+                        "                         #
+                       Vb (π; k(n)) − V (π)
+                 sup P       p                ≤ z − Ψ(z)
+                 z∈R            ψn2 /n2
+                                                       h           i      
+                                      Xn Vbi (π; k) − E Vbi (π; k)
+                         = sup P                   p                  ≤ z  − Ψ(z)
+                            z∈R                       ψ 2
+                                      i=1               n
+
+                            3.3n−0                         n1−20 (T − k)
+                                                                                   
+                         ≤             + 3n exp −                                     ,
+                               σ0                    C3 (t0 , ζπ , M1 ) exp {2kζπ }
+which, combined with (52), gives rise to the claimed bounds in (43) and (44).
+
+
+B      Proof of Technical Lemmas
+To ease the notation, we denote (Xi,t , Hi,t ) =: Si,t ∈ S, and use the shorthand Fi,t to denote
+all the information observed for unit i up to time t, Zi,t:s to denote the set {Zi,t , ..., Zi,s }
+for any random variable and indexes t ≤ s. We use the notation Pi (s0 |s, a) to denote the
+probability of transiting from state s to state s0 under action a. Throughout, we will use
+the notation dπi to denote the stationary distribution of Si,t under any policy π.
+
+
+                                                      4
+B.1      Proof of Lemma 2.3
+To prove the first part of the lemma, note that
+                                                          T −k
+                        h             i               1 X                             
+                       E Vbi (π; k) Pi =                       E ωi,t+k (π; k)Yi,t+k Pi ,                     (S16)
+                                                    T − k t=1
+
+where for any t = 1, . . . , T − k,
+                               
+    E ωi,t+k (π; k)Yi,t+k Pi
+                                                             
+  =E Eπ0 ωi,t+k (π; k)Yi,t+k Wi,t:(t+k−1) , Si,t:(t+k) Pi
+                                                                                                              (S17)
+                                                                                         
+                                     πWi,t+k (Xi,t+k )
+  =E ωi,t+k−1 (π; k − 1)Eπ0                             Yi,t+k Wi,t:(t+k−1) , Si,t:(t+k) Pi
+                                    π0,Wi,t+k (Xi,t+k )
+                                                                    
+  =E ωi,t+k−1 (π; k − 1)Eπ Yi,t+k Wi,t:(t+k−1) , Si,t:(t+k) Pi .
+
+Now it suffices to show that
+                                                                              
+     E ωi,t+k−1 (π; k − 1)Eπ Yi,t+k Wi,t:(t+k−1) , Si,t:(t+k) Pi = E π0 ,πk Yi,t Pi .
+                                                                                        Li
+
+    Without loss of generality, consider the case where t = 1, then
+                                                           
+       E ωi,k (π; k − 1)Eπ Yi,k+1 Wi,1:k , Si,1:(1+k) Pi
+         " k                     !                                      #
+            Y πWi,h (Xi,h )                                      
+     =E                            Eπ Yi,k+1 Wi,1:k , Si,1:(1+k) Pi
+                 π0,Wi,h (Xi,h )
+            h=1
+                                !
+            k−1
+            Y πWi,h (Xi,h ) X X                                                                               (S18)
+     =E                                  Pi (si,k |Si,k−1 , Wi,k−1 )πwi,k (si,k )·
+                 π0,Wi,h (Xi,h ) s w
+                h=1                           i,k   i,k
+                                                                                                 
+                                          X                                                 
+                                                    Pi (si,k+1 |si,k , wi,k )Eπ Yi,k+1 si,k+1 Pi  ,
+                                         si,k+1
+
+
+which, after iteratively applying the importance weight, is the sum of the probability
+
+  diπ0 (si,1 )πwi,1 (si,1 )Pi (si,2 |si,1 , wi,1 ) · · · πwi,k (si,k )Pi (si,k+1 |si,k , wi,k )Eπ Yi,k+1 si,k+1
+                                                                                                               
+
+
+over all possible observations of trajectory (si,1 , wi,1 , si,2 , wi,2 , . . . , wi,k , si,k+1 ). Thus,
+                                                                                         
+                 E ωi,t+k−1 (π; k − 1)Eπ Yi,t+k Wi,t:(t+k−1) , Si,t:(t+k) Pi
+                                                                                        
+                             X                        π0 π k
+                      =E         Eπ Yi,k+1 si,k+1 di (Pi ) (si,k+1 ) Pi                                (S19)
+                                     si,k+1
+                                            
+                           = E π0 ,πk Yi,t Pi ,
+                                Li
+
+
+where dπi 0 (Piπ )k (s) denotes the probability of sampling s when starting from dπi 0 and tran-
+siting k times under Piπ .
+
+
+
+                                                             5
+   The proof of the second part of the Lemma follows directly from the assumptions on
+mixing time, where we have
+                 h                      i                              
+                E Vbi (π; k) − Vi (π) Pi = E π0 ,πk Yi,t Pi − ELπ Yi,t Pi
+                                                   Li
+
+                             X
+                                  Eπ Yi,t s dπi 0 (Piπ )k (s) − dπi (s)
+                                                                      
+                         ≤
+                              s
+                                                                                                      (S20)
+                             X
+                                  Eπ Yi,t s · dπi 0 (Piπ )k (s) − dπi (s)
+                                          
+                         ≤
+                             s
+                         ≤ M1 · kdπi 0 (Piπ )k − dπi (Piπ )k k1
+                         ≤ M1 · exp (−k/t0 ) kdπi 0 − dπi k1
+                         ≤ 2M1 · exp (−k/t0 ) ,
+
+and dπi = dπi (Piπ )k follows from the fact that dπi is the stationary distribution of transition
+under Piπ .
+
+B.2     Proof of Lemma 2.4
+To start with, we denote the centered weighted outcome as
+
+                             Ỹi,t = ωi,t (π; k)Yi,t − E [ωi,t (π; k)Yi,t ]                           (S21)
+
+for t = k + 1, . . . , T . Using basic properties of the variance operator,
+                                         −k
+                               "       T
+                                                                   #
+     h               i             1    X
+Var Vbi (π; k) Pi = Var                     ωi,t+k (π; k)Yi,t+k Pi
+                                 T − k t=1
+                             1     h
+                                      2
+                                               i        2        X      X                h                i
+                        =        E Ỹi,k+1  Pi +                                        E Ỹi,t Ỹi,t+j Pi .
+                           T −k                     (T − k)2
+                                                             t=k+1,...,T j=1,...,T −t
+                                                                                                      (S22)
+
+
+
+
+                                                   6
+                                        h          i
+                                            2
+   First, we derive an upper bound for E Ỹi,k+1 Pi , where
+          h          i
+              2
+                                                      
+         E Ỹi,k+1 Pi = Var ωi,k+1 (π; k)Yi,k+1 Pi
+                           h                             i
+                                                  2
+                       ≤ E {ωi,k+1 (π; k)Yi,k+1 } Pi
+                                (
+                                       k+1
+                                                           !        )2            
+                                       Y πWi,h (Xi,h )
+                       = E Eπ0                             Yi,k+1    S1:k+1  Pi 
+                                           π0,Wi,h (Xi,h )
+                                       h=1
+                           " k       "                  2        #   #
+                             Y            πWi,h (Xi,h )
+                       ≤E        Eπ0                         Si,1:h Pi M2
+                                         π0,Wi,h (Xi,h )
+                             h=1
+                           " k                                   #
+                             Y         πWi,h (Xi,h )
+                       =E        Eπ                    Si,1:h Pi M2
+                                      π0,Wi,h (Xi,h )
+                             h=1
+                                              k
+                                      πw (x)
+                       ≤      sup                 M2
+                           x∈X ,w∈W π0,w (x)
+
+                         = M2 exp (ζπ k) .
+                                  h                i
+   Now it remains to upper bound E Ỹi,t Ỹi,t+j Pi . We first consider the case where
+j ≥ k + 1, i.e., there is no overlapping weights in Ỹi,t and Ỹi,t+j . Without loss of generality,
+we take t = k + 1 for simplicity. It follows that
+  h                     i                                                        
+ E Ỹi,k+1 Ỹi,k+1+j Pi = Cov ωi,k+1 (π; k)Yi,k+1 , ωi,k+1+j (π; k)Yi,k+1+j Pi
+                                                                              
+                          =E ωi,k+1 (π; k)Yi,k+1 · ωi,k+1+j (π; k)Yi,k+1+j Pi −              (S23)
+                                                                                             
+                                     E ωi,k+1 (π; k)Yi,k+1 Pi E ωi,k+1+j (π; k)Yi,k+1+j Pi .
+                                                                                             (S24)
+
+From the proof of Lemma 2.3, we have
+
+                                                      2
+                                                     
+                                            
+                            (S24) = E π0 ,πk Yi,t Pi     .                                   (S25)
+                                             Li
+
+
+By the chain rule,
+                                                                              
+ (S23) = E ωi,k+1 (π; k)Yi,k+1 · E ωi,k+1+j (π; k)Yi,k+1+j W1:(k+1) , S1:(k+1) Pi , (S26)
+
+and
+                                                       
+      E ωi,k+1+j (π; k)Yi,k+1+j Wi,1:(k+1) , Si,1:(k+1)
+                                                                          
+                    = E E ωi,k+1+j (π; k)Yi,k+1+j Wi,j , Si,j Wi,k+1 , Si,k+1 .              (S27)
+
+Using the same technique as in (S19), the inner conditional expectation
+                                          
+     E ωi,k+1+j (π; k)Yi,k+1+j Wi,j , Si,j
+                   X
+                         Eπ Yi,k+1+j si,k+1+j Pi (· Si,j , Wi,j )(Piπ )k (si,k+1+j ),
+                                             
+              =                                                                              (S28)
+                   si,k+1+j
+
+
+
+                                                  7
+where Pi (· Si,j , Wi,j ) is a row vector denoting the next-step state distribution of transition-
+ing from state Si,j under Wi,j , and Pi (· Si,j , Wi,j )(Piπ )k (s) is the probability of landing at
+state s after k-step transition under policy π when starting from Pi (· Si,j , Wi,j ). Bringing
+it back to (S27),
+              X
+                    Eπ Yi,k+1+j si,k+1+j Pi (· Si,k+1 , Wi,k+1 )(Piπ0 )j−k−1 (Piπ )k (si,k+1+j ),
+                                           
+   (S27) =
+           si,k+1+j
+
+
+for that the data is generated under the logging policy π0 . Bringing this back into (S26)
+and applying again the technique used in (S19),
+             
+                X
+                      Eπ Yi,k+1+j si,k+1+j Pi (· Si,k+1 , Wi,k+1 )(Piπ0 )j−k−1
+                                          
+    (S23) =E 
+                si,k+1+j
+
+                          (Piπ )k (si,k+1+j ) · ωi,k+1 (π; k)Yi,k+1 Pi
+                                                                         
+              
+                  X                                                     X
+                         Eπ Yi,k+1 si,k+1 dπi 0 (Piπ )k (si,k+1 ) ·
+                                                                                                   
+          =E                                                                    Eπ Yi,k+1+j si,k+1+j
+                si,k+1                                                si,k+1+j
+
+                          Piπ (·   Si,k+1 )(Piπ0 )j−k−1 (Piπ )k (si,k+1+j )
+                                                                                
+                                                                              Pi .
+
+
+
+
+                                                       8
+Combining with (S25),
+   h                    i
+ E Ỹi,k+1 Ỹi,k+1+j Pi
+   
+     X
+          Eπ Yi,k+1 si,k+1 dπi 0 (Piπ )k (si,k+1 )·
+                         
+=E 
+     si,k+1
+          X
+                      Eπ Yi,k+1+j si,k+1+j Piπ (· si,k+1 )(Piπ0 )j−k−1 (Piπ )k (si,k+1+j )−
+                                         
+        si,k+1+j
+         X
+                 Eπ Yi,k+1 si,k+1 dπi 0 (Piπ )k (si,k+1 )·
+                                
+        si,k+1
+                                                                   
+          X                               π0 π k
+                      Eπ Yi,k+1+j si,k+1+j di (Pi ) (si,k+1+j ) Pi 
+        si,k+1+j
+    
+        X
+              Eπ Yi,k+1 si,k+1 dπi 0 (Piπ )k (si,k+1 )·
+                             
+=E 
+     si,k+1
+                                                                                                             
+    X
+                                                  Piπ (· si,k+1 )(Piπ0 )j−k−1 − dπi 0 (Piπ )k (si,k+1+j ) Pi 
+                                                                                   
+             Eπ Yi,k+1+j si,k+1+j
+  si,k+1+j
+                                                                                                                                   
+              X                                     X
+≤M12 E               dπi 0 (Piπ )k (si,k+1 ) ·              Piπ (· si,k+1 , )(Piπ0 )j−k−1 − dπi 0 (Piπ )k (si,k+1+j )
+                                                                                                  
+                                                                                                                                  Pi 
+             si,k+1                               si,k+1+j
+                                                                                                                          
+                   X                                                                X
+=M12 E                    dπi 0 (Piπ )k+1 (Piπ0 )j−k−1 (Piπ )k (si,k+1+j ) −              dπi 0 (Piπ )k (si,k+1 )       Pi 
+                 si,k+1+j                                                          si,k+1
+
+≤M12 E kdπi 0 (Piπ )k+1 (Piπ0 )j−k−1 (Piπ )k − dπi 0 (Piπ0 )j−k−1 (Piπ )k k1 Pi
+                                                                               
+                                 
+      2         j−k−1           k
+≤2M1 exp −                   −
+                     t0        t0
+                      
+                j −  1
+=2M12 exp −              .
+                  t0
+                             h               i
+Next, we upper bound E Ỹi,t Ỹi,t+j Pi under the case where j < k + 1. Similarly, without
+loss of generality, we take t = k + 1. It follows that
+  h                     i                                                           
+E Ỹi,k+1 Ỹi,k+1+j Pi = Cov ωi,k+1 (π; k)Yi,k+1 , ωi,k+1+j (π; k)Yi,k+1+j Pi
+                                                                
+      ≤ E ωi,k+1 (π; k)Yi,k+1 · ωi,k+1+j (π; k)Yi,k+1+j Pi
+                                                              2                                                 
+                j
+                                    !  k+1                                   k+1+j
+                                                                                                    !
+            Y πWi,h (Xi,h )  Y πWi,h (Xi,h )                                 Y πWi,h (Xi,h )
+      =E                                                          Yi,k+1 ·                           Yi,k+1+j Pi 
+                                                                                                                  
+                    π0,Wi,h (Xi,h )            π0,Wi,h (Xi,h )                      π0,Wi,h (Xi,h )
+                  h=1                              h=j+1                                     h=k+2
+
+                                                                        k+1+j
+                                         "                                                        !                    #
+                                                                         Y       πWi,h (Xi,h )
+     ≤ exp (ζπ (k − j + 1)) E ωi,k+1 (π; k)Yi,k+1 ·                                                   Yi,k+1+j Pi .
+                                                                                π0,Wi,h (Xi,h )
+                                                                        h=k+2
+
+
+
+                                                                9
+Note that the expectation in the bound above is just a special case of (S23). Therefore,
+        h                    i
+      E Ỹi,k+1 Ỹi,k+1+j Pi
+                                     
+                                       X
+                                         Eπ Yi,k+1 si,k+1 dπ0 (Piπ )k (si,k+1 )·
+                                                          
+            = exp (ζπ (k − j + 1)) E 
+                                              si,k+1
+                                                                                               
+                        X
+                                 Eπ Yi,k+1+j si,k+1+j Pi (· si,k+1 , )(Piπ )j−2 (si,k+1+j ) Pi 
+                                                     π
+                      si,k+1+j
+
+          ≤ M12 exp (ζπ (k − j + 1)) .
+                               h             i
+To summarize, we can bound E Ỹi,t Ỹi,t+j Pi as
+                                 
+                                      2
+             h               i   M1 exp (ζπ (k − j + 1)) ,
+                                                                                     if j < k + 1,
+           E Ỹi,t Ỹi,t+j Pi ≤                                                                              (S29)
+                                                   
+                                        2      j−1
+                                 2M1 exp −
+                                                     ,                               otherwise.
+                                                 t0
+It now remains to upper bound the sum of all pairwise correlation, with
+     X        X       h                i
+                    E Ỹi,t Ỹi,t+j Pi
+    t=k+1,...,T j=1,...,T −t
+                                                                                                            
+       X          X                                           X          X                             j−1
+≤                           M12 exp (ζπ (k − j + 1)) +                                2M12 exp       −
+                                                                                                        t0
+    t=k+1,...,T j=1,...,k                                t=k+1,...,T j=k+1,...,T −t
+                                                    
+          2          exp (ζπ k) − 1      2        k       X        1 − exp (−(T − k − 1 − t)) /t0
+=(T − k)M1 exp (ζπ )                + 2M1 exp −
+                      exp (ζπ ) − 1               t0                      1 − exp (−1/t0 )
+                                                       t=k+1,...,T
+                                       
+                                      k       T −k
+≤(T − k)M12 exp (ζπ k) + 2M12 exp −                       .
+                                      t0 1 − exp (−1/t0 )
+     Therefore, the variance of the estimator is upper bounded by
+                                  2M12                4M12
+                                                                   
+                 M2 exp (ζπ k)                                    k            1
+       (S22) ≤                 +        exp (ζπ k) +        exp −
+                     T −k         T −k               T −k         t0 1 − exp (−1/t0 )
+                                            4M12
+                                                            
+                 exp (ζπ k)                                k        1
+                            M2 + 2M12 +
+                                       
+              =                                    exp −                      .
+                   T −k                    T −k           t0 1 − exp (−1/t0 )
+
+B.3       Proof of Lemma 2.5
+Based on results from Lemma 2.3, the bias of the partial history importance-weighted esti-
+mator can be upper-bounded as
+                                                n                   n
+                        h         i          1 X hb           i 1X
+                       E Vb (π; k) − V (π) =       E Vi (π; k) −       Vi (π)
+                                             n i=1               n i=1
+                                                       n
+                                                    1 X hb                    i
+                                                ≤         E Vi (π; k) − Vi (π)
+                                                    n i=1
+                                                ≤ 2M1 exp (−k/t0 ) .                                         (S30)
+
+
+                                                         10
+   Similarly, based on results from Lemma 2.4, we can upper-bound the variance of Vb (π; k):
+                                      n
+       h                         i  1 X     h              i
+    Var Vb (π; k) P1 , . . . , Pn = 2    Var Vbi (π; k) Pi
+                                   n i=1
+                                         exp (ζπ k)               4M12     exp (−k/t0 )
+                                                    M2 + 2M12 +
+                                                             
+                                     ≤                                  ·
+                                         n(T − k)               n(T − k) 1 − exp (−1/t0 )
+
+B.4     Proof of Lemma 3.2
+We start by noting that π2 = 1, π1 = 0, π0,2 = exp (−ζπ ), π0,1 = 1 − exp (−ζπ ), where we
+use a = 2 to denote the treatment arm and a = 1 to denote the control arm. It follows
+immediate that πa /π0,a ∈ {exp (ζπ ) , 0} ∀a ∈ {1, 2}. Thus (C1) is satisfied.
+    To show (C3) is satisfied, from the data generating distributions of Y (h, w), we have
+
+                                                    E Yt2 Wt , Ht ≤ M2 − M12 + ∆2 .
+                                                              
+             E Yt Wt , Ht ∈ {0, ∆, −∆},
+                                                                                  
+Therefore, if 0 ≤ ∆ ≤ M1 , we will always have E Yt Wt , Ht ≤ M1 , E Yt2 Wt , Ht ≤ M2 ,
+for all t = 1, . . . , T , Wt ∈ {0, 1}, and Ht ∈ H.
+    Finally, to show (C2) is satisfied, consider the extreme case where
+
+                       f = (0, 1, 0, 0, 0, · · · , 0),    f 0 = (0, 0, 1, 0, 0, · · · , 0),
+
+and we have
+
+               f P π = (δ, 0, 1 − δ, 0, 0, · · · , 0),    f 0 P π = (δ, 0, 0, 1 − δ, 0, · · · , 0);
+
+                 f P π0 = (δ + 1 − exp (−ζπ ) , 0, (1 − δ) exp (−ζπ ) , 0, 0, · · · , 0),
+                f 0 P π0 = (δ + 1 − exp (−ζπ ) , 0, 0, (1 − δ) exp (−ζπ ) , 0, · · · , 0).
+Therefore, if we choose δ such that 1 − δ = exp(−1/t0 ), it is easy to check (C2) is always
+satisfied regardless of the choice of Q.
+
+B.5     Proof of Lemma 3.3
+To start with, we notice that the chain Y1:T resets (i.e., wipes out past information and
+goes back to h1 ) every time Wt = 0. Thus, conditionally on W1:T , it is possible to divide
+the length-T chain Y1:T into b independent blocks Y1:B1 , Y(B1 +1):B2 , . . . , Y(Bb−1 +1):Bb , where
+B1:b = {t : Wt+1 = 0, t ≥ 1}. Since the data generating distribution is the same under I1
+and I2 for states h1 , . . . , hQ−1 , Y(Bj−1 +1):(Bj−1 +Q−1) will never contain information that can
+be used to distinguish I1 from I2 and can thus be ignored, ∀j = 1, . . . , B. Moreover, since
+W1:T are always drawn from the same behavior policy, we can write the KL divergence
+between the observed data generated from the two instances as
+
+                   γIKL
+                     1 ,I2
+                           (Y1:T , W1:T ) = γIKL
+                                              1 ,I2
+                                                    (Y1:T W1:T ) + γIKL
+                                                                     1 ,I2
+                                                                           (W1:T )
+                                           = γIKL
+                                               1 ,I2
+                                                     (Y1:T W1:T )
+                                                     X                                                (S31)
+                                           =                 γIKL
+                                                                1 ,I2
+                                                                      (Y(Bj−1 +Q):Bj ).
+                                              j:Bj −Bj−1 >Q−1
+
+An example chain with Q = 3 can be found in Figure S1.
+
+
+                                                         11
+Figure S1: A demonstration of how a chain with Q = 3 can be divided into independent
+blocks with B1:b . The clear regions represent outcome observations that do not contain
+relevant information, while the shaded regions represent outcome observations that contain
+relevant information.
+
+
+    To upper bound γIKL 1 ,I2
+                              (Y(Bj−1 +Q):Bj ) for any fixed j such that Bj − Bj−1 > Q − 1,
+we first notice that Y(Bj−1 +Q):Bj is the same as the outcomes drawn from the stationary
+distribution of an always-treat chain, which can be shown through a standard coupling
+argument [Pitman, 1976]. As a result,
+                                                              Bj
+                                                                                (Yt† )
+                                                              X
+                               γIKL
+                                 1 ,I2
+                                       (Y(Bj−1 +Q):Bj ) =               γIKL
+                                                                          1 ,I2
+                                                                                                      (S32)
+                                                            t=Bj−1 +Q
+
+
+where Yt† ∼ dπ (hQ )N (∆, M2 − M12 ) + (1 − dπ (hQ )) N (0, M2 − M12 ) under I1 , and Yt† ∼
+dπ (hQ )N (−∆, M2 − M12 ) + (1 − dπ (hQ )) N (0, M2 − M12 ) under I2 . Since the KL divergence
+between two distributions can be upper bounded by the χ2 -divergence between the same
+two distributions [Tsybakov, 2009],
+                  2
+ γIKL
+   1 ,I2
+         (Yt† ) ≤ γIχ1 ,I2 (Yt† )
+                                                 2        2                        2        2
+                                                                                                   !2
+                                 dπ (hQ )e−(x+∆) /(2(M2 −M1 )) + (1 − dπ (hQ ))e−x /(2(M2 −M1 ))
+                         Z
+            1
+=p                                                                                               −1 ·
+    2π (M2 − M12 ) R dπ (hQ )e−(x−∆)2 /(2(M2 −M1 )) + (1 − dπ (hQ ))e−x2 /(2(M2 −M1 ))
+                                                          2                                 2
+
+               n                     2         2                      2          2
+                                                                                     o
+                dπ (h )e−(x−∆) /(2(M2 −M1 )) + (1 − dπ (h ))e−x /(2(M2 −M1 )) dx
+                   Q                                             Q
+                                      h            2            2                   2    2
+                                                                                             i2
+          1
+                       Z                  e(−2x∆−∆ )/(2(M2 −M1 )) − e(2x∆−∆ )/(2(M2 −M1 ))
+=p                      dπ (hQ )2                                                                 ·
+                                        dπ (hQ )e(2x∆−∆ )/(2(M2 −M1 )) + 1 − dπ (hQ )
+                                                                    2
+    2π (M2 − M12 ) R                                     2
+
+           n     2            2
+                                  o
+             e−x /(2(M2 −M1 )) dx
+         dπ (hQ )2
+                        Z
+                                        2          2    2         2
+  ≤  p
+                     2
+                            e(−2x∆−∆ )/(M2 −M1 ) e−x /(2(M2 −M1 )) dx+
+       2π (M2 − M1 ) R
+                dπ (hQ )2
+                                 Z
+                                             2         2    2          2
+           p
+                             2
+                                    e(2x∆−∆ )/(M2 −M1 ) e−x /(2(M2 −M1 )) dx−
+              2π (M2 − M1 ) R
+                 dπ (hQ )2
+                                  Z
+                                          2          2    2         2
+           2 p
+                               2
+                                     e−∆ /(M2 −M1 ) e−x /(2(M2 −M1 )) dx.
+               2π (M2 − M1 ) R
+
+By a second-order Taylor expansion of the exponential function,
+                           2          2           −2x∆ − ∆2     x 2 ∆2
+              e(−2x∆−∆ )/(M2 −M1 ) = 1 +                                   + O ∆3 ,
+                                                                                 
+                                                         2  +          2 2
+                                                   M2 − M1    (M2 − M1 )
+
+                                                       12
+                           2               2             2x∆ − ∆2     x2 ∆ 2
+                 e(2x∆−∆ )/(M2 −M1 ) = 1 +                                       + O ∆3 ,
+                                                                                       
+                                                                2 +          2 2
+                                                         M 2 − M1   (M2 − M1 )
+and
+                                       2            2               ∆2
+                                 e−∆ /(M2 −M1 ) = 1 −                     + O ∆3 ,
+                                                                                
+                                                                        2
+                                                                  M2 − M1
+Thus,
+
+                                                                  2dπ (hQ )2 ∆2
+                                               γIKL
+                                                 1 ,I2
+                                                       (Yt† ) ≤                 ,
+                                                                   M2 − M12
+
+and
+                                 B
+                                 X                                                               2dπ (hQ )2 ∆2
+      γIKL
+        1 ,I2
+              (Y1:T , W1:T ) ≤         I(Bj − Bj−1 > Q − 1) · (Bj − Bj−1 − Q − 1)                              ,
+                                 j=1
+                                                                                                  M2 − M12
+
+where I(Bj − Bj−1 > Q − 1) is an indicator that the block length is greater than Q − 1,
+and Bj − Bj−1 − Q − 1 is the length of the remaining part of the block excluding the first
+Q − 1 observations that contain no relevant information.
+    It now remains to study the terms I(Bj −Bj−1 > Q−1) and (Bj − Bj−1 − Q − 1). Since
+Wt ∼ Bernoulli(exp (−ζπ )), the length of the entire block Bj − Bj−1 follows a geometric
+distribution with parameter 1 − exp (−ζπ ). Therefore,
+
+                               P [Bj − Bj−1 > Q − 1] = exp {−(Q − 1)ζπ } .
+
+Moreover, since B1:b = {t : Wt+1 = 0, t ≥ 1}, in expectation, there are T (1 − exp {−ζπ })
+blocks in total, and T (1 − exp {−ζπ }) exp {−(Q − 1)ζπ } blocks with length greater than
+Q − 1. j = 1, . . . , B. Again, for any block with length greater than Q − 1, the number of
+relevant observations also follows a geometric distribution with parameter 1 − exp (−ζπ ).
+Thus,
+                                                                                        1
+                  E Bj − Bj−1 − Q − 1 Bj − Bj−1 > Q − 1 =                                          .
+                                                                                    1 − exp (−ζπ )
+
+Putting everything together,
+        B
+        X
+              I(Bj − Bj−1 > Q − 1) · (Bj − Bj−1 − Q − 1) = OP (T exp {−(Q − 1)ζπ }) ,
+        j=1
+
+and thus there exists some Tl ≤ ∞ such that, for all T > Tl ,
+
+                                                              2dπ (hQ )2 ∆2
+                   γIKL
+                      ,I (Y1:T , W1:T ) ≤ T exp {−(Q − 1)ζπ }
+                     1 2
+                                                               M2 − M12
+                                                 2
+                                                                             
+                                            2T ∆                            2
+                                        =          exp −(Q − 1) ζπ +              .
+                                          M2 − M12                          t0
+
+B.6       Proof of Lemma 3.4
+     c
+Let
+Pt Yt be the cumulative reward at t since the    last visit to x0 , i.e., for τs < t ≤ τs+1 , Ytc =
+                                               c                    c
+  h=τs +1 Yt . Define a new reward variable Ỹt = I(Xt = x0 ) · Yt . By (33), Eπ [τj − τj−1 ] =
+
+
+                                                              13
+O (1). It is not difficult to see that
+                                                   "           T
+                                                                       #
+                                                            1X
+                                      V (π) = Eπ        lim       Yt
+                                                       T →∞ T
+                                                              t=1
+                                                   "                 #                            (S33)
+                                                               T
+                                                            1X c
+                                           = Eπ         lim       Ỹt .
+                                                       T →∞ T
+                                                              t=1
+
+Invoking the renewal reward theorem [Grimmett and Stirzaker, 2020, Chapter 10] then gives
+directly the result in Lemma 3.4.
+
+B.7     Proof of Lemma 4.3
+To avoid clutter, we suppress the conditioning on Pi for all expectations in the proof of this
+lemma. We start by upper bounding the martingale differences Jh for all h ≥ k + 1, where
+                       h           i     h             i
+              Jh = E Vbi (π; k)|Fh − E Vbi (π; k)|Fh−1
+                                 T
+                         1  X
+                  =           {E [ωi,t (π; k)Yi,t |Fh ] − E [ωi,t (π; k)Yi,t |Fh−1 ]}
+                       T −k
+                                t=h
+                                T
+                         1 X
+                  ≤          |E [ωi,t (π; k)Yi,t |Fh ] − E [ωi,t (π; k)Yi,t |Fh−1 ]|              (S34)
+                       T −k
+                               t=h
+
+   To calculate (S34), we consider the following two cases:
+   1. When t ≥ h + k + 1, it follows directly from Assumption 2 and the derivation of (S27)
+      that
+
+                       |E [ωi,t (π; k)Yi,t |Fh ] − E [ωi,t (π; k)Yi,t |Fh−1 ]|
+                       X
+                             Eπ Yi,t st Pi (· Si,h , Wi,h )(Piπ0 )t−h−k−1 (Piπ )k (st )−
+                                      
+                   =                                                                              (S35)
+                        st
+
+                               Pi (· Si,h−1 , Wi,h−1 )(Piπ0 )t−h−k (Piπ )k (st )
+                                     
+                              t−h−1
+                   ≤2M1 exp −                                                                     (S36)
+                                t0
+
+   2. When h ≤ t ≤ h + k,
+
+                  |E [ωi,t (π; k)Yi,t |Fh ] − E [ωi,t (π; k)Yi,t |Fh−1 ]|
+                ≤ exp {(h − t + k + 1)ζπ } |E [ωi,t (π; t − h − 1)Yi,t |Fh ]| +
+                                          exp {(h − t + k)ζπ } |E [ωi,t (π; t − h)Yi,t |Fh−1 ]|
+                ≤2M1 exp {(h − t + k + 1)ζπ } ,                                                   (S37)
+
+      for that the conditional first moment of Yi,t is bounded by M1 .
+
+
+
+
+                                                       14
+   Combining (S36) and (S37),
+                              h+k                                  T                    !
+                2M1           X                                    X             t−h−1
+        (S34) =                     exp {(h − t + k + 1)ζπ } +             exp −
+                T −k                                                               t0
+                              t=h                                t=h+k+1
+                                                                    
+                 2M1          exp {(k + 1)ζπ }     exp {−k/t0 }
+               ≤                               +                                              (S38)
+                 T −k          1 − exp{−ζπ }     1 − exp{−1/t0 }
+
+Then there exists a constant C3 (t0 , ζπ , M1 ) such that
+               T              T                                                     2
+                                      4M12
+                                               
+               X              X                  exp {(k + 1)ζπ }     exp {−k/t0 }
+                      Jh2 ≤                                       +
+                                    (T − k)2      1 − exp{−ζπ }     1 − exp{−1/t0 }
+              h=k+1        h=k+1
+                                                                           2
+                            4M12 exp {(k + 1)ζπ }
+                                    
+                                                             exp {−k/t0 }
+                         ≤                               +
+                           T −k         1 − exp{−ζπ }      1 − exp{−1/t0 }
+                                              exp {2kζπ }
+                         ≤ C3 (t0 , ζπ , M1 )                                                 (S39)
+                                                T −k
+Finally, applying the Azuma-Hoeffding inequality [Azuma, 1967, Hoeffding, 1963] yields the
+claimed inequality.
+
+B.8     Proof of Lemma 4.4
+                            h             i
+First, we note that Zi and E Vbi (π; k) Pi are asymptotically uncorrelated, since
+              h               h          i h                ii
+         Cov Vbi (π; k) − E Vbi (π; k) Pi , E Vbi (π; k) Pi
+          h           h             ii    h h               i h          ii
+        =E Vbi (π; k)E Vbi (π; k) Pi − E E Vbi (π; k) Pi E Vbi (π; k) Pi
+          h h                i h            ii      h h          i h           ii
+        =E E Vbi (π; k) Pi E Vbi (π; k) Pi − E E Vbi (π; k) Pi E Vbi (π; k) Pi
+        =0,
+                  h             i
+and Vbi (π; k) − E Vbi (π; k) Pi − Zi →p 0. Therefore, for large enough n,
+                                          h i
+                              ψn2 /n = Var Z̃i
+                                                        h h             ii
+                                      = Var [Zi ] + Var E Vbi (π; k) Pi
+                                            h h             ii
+                                      ≥ Var E Vbi (π; k) Pi                                   (S40)
+                                                               
+                                                             
+                                      = Var E π0 ,πk Yi,t Pi
+                                                Li
+
+                                      ≥ σ02 ,
+
+where σ02 is the assumed lower bound on Var [Vi (π 0 )] for any policy 0
+                                                                  h π . Now,irecall thatcondi- 
+tional expected rewards are almost surely bounded and thus E Vbi (π; k) Pi = ELe,πk Yi,t Pi
+                                   h             i        h       i                 i
+
+is also, meaning that Z̃i = Zi + E Vbi (π; k) Pi − E Vbi (π; k) is almost surely bounded to
+
+
+                                                     15
+order n0.5−0 . Therefore, for all  > 0, there exists Nl < ∞ such that for all n > Nl ,
+                                                    
+                                      I Z̃i > ψn = 0.
+
+Moreover, limn→∞ Z̃i2 /ψn2 →a.s. 0. It then follows immediately that
+                                           n
+                                       1 X h 2                  i
+                                   lim  2
+                                              E Z̃i I Z̃ i > ψn    =0
+                                  n→∞ ψn
+                                          i=1
+
+for any  > 0.
+
+B.9     Proof of Lemma 4.5
+                    2   2   2
+                h iψn /n ≥ σ0 /n. Thus, we will be able prove Lemma 4.5 if we can show
+According to (S40),
+nσ̂ 2 (π; k) − Var Z̃i        → 0 in probability at the desired rate. Indeed,
+                        n                       2
+                     1 X b
+  nσ̂ 2 (π; k) =           Vi (π; k) − Vb (π; k)
+                     n i=1
+                        n                                                           2
+                     1 X b             h             i   h             i
+             =             Vi (π; k) − E Vbi (π; k) Pi + E Vbi (π; k) Pi − Vb (π; k)
+                     n i=1
+                        n                              i2 1 X n  h                          2
+                     1 X b             h                                        i
+             =             Vi (π; k) − E Vbi (π; k) Pi    +       E Vbi (π; k) Pi − Vb (π; k)
+                     n i=1                                  n i=1
+                             n
+                          2 X b             h              i  h             i           
+                      +         Vi (π; k) − E Vbi (π; k) Pi     E Vbi (π; k) Pi − Vb (π; k) .
+                          n i=1
+
+Notice that by (S15), for all n > N ,
+                    h                   h               i                 i
+                  P Zi = Vbi (π; k) − E Vbi (π; k) Pi , ∀i = 1, . . . , n
+                                                      n1−20 (T − k)
+                                                                              
+                             ≥ 1 − 3n exp −                                      ,
+                                               C3 (t0 , ζπ , M1 ) exp {2kζπ }
+              √
+and since Zi / n is bounded, for all σ > 0,
+                        "     n
+                                                             #            
+                          1X 2                      2                   1
+                      P         Z − Var [Zi ] ≥ σ0 σ /3 = O √               .
+                          n i=1 i                                        n
+
+Thus,
+                     "      n
+                                                                                         #
+                         1 X b               h             i2
+                                                                                   2
+                 P              Vi (π; k) − E Vbi (π; k) Pi       − Var [Zi ] ≥ σ0 σ /3
+                         n i=1
+                                    h                   h               i                i
+                               ≤ P Zi 6= Vbi (π; k) − E Vbi (π; k) Pi , ∃i = 1, . . . , n +
+                                           "    n
+                                                                                 #
+                                             1X 2                         2
+                                         P         Z − Var [Zi ] ≥ σ0 σ /3
+                                             n i=1 i
+                                                                n1−20 (T − k)
+                                                                                      
+                                        1
+                               = O √ + 3n exp −                                            .
+                                         n               C3 (t0 , ζπ , M1 ) exp {2kζπ }
+
+                                                      16
+Similarly,
+   "    n
+                                                                       #       
+     1 X  hb            i          2    h h             ii                 1
+                                                                2
+ P         E Vi (π; k) Pi − V (π; k) − Var E Vi (π; k) Pi
+                            b                 b              ≥ σ0 σ /3 = O √     .
+     n i=1                                                                    n
+
+and
+                   n
+                    "
+                2 X b              h                 i  h             i           
+                P      Vi (π; k) − E Vbi (π; k) Pi        E Vbi (π; k) Pi − Vb (π; k) −
+                n i=1
+                           h      h              ii               i
+                      Cov Zi , E Vbi (π; k) Pi         ≥ σ02 σ /3
+                                         n1−20 (T − k)
+                                                                 
+                 1
+            =O √ + 3n exp −                                           .
+                  n               C3 (t0 , ζπ , M1 ) exp {2kζπ }
+Pulling all results above together, we get
+      "                                #
+        σ̂ 2 (π; k) − ψn2 /n2
+   P                           ≥ σ
+                ψn2 /n2
+      h                     h i              i
+ ≤P nσ̂ 2 (π; k) − Var Z̃i ≥ σ02 σ
+      h                                    h h              ii    h h         ii          i
+ =P nσ̂ 2 (π; k) − Var [Zi ] − Var E Vbi (π; k) Pi − Cov Zi , E Vbi (π; k) Pi    ≥ σ02 σ
+                                     n1−20 (T − k)
+                                                           
+          1
+ =O √ + 3n exp −                                                .
+            n                 C3 (t0 , ζπ , M1 ) exp {2kζπ }
+for arbitrary σ > 0.
+
+B.10        Proof of Lemma A.1
+                                                                                        
+With δ = 1−exp(−1/t0 ), there is P Xt+1 = h1 Ht = h, Wt = w = P Xt+1 = h1 Wt = w ≥
+1 − exp(−1/t0 ), ∀h, w, by design. Thus, the two instances belong to the set of strongly re-
+generative MDPs. Combining this with the proof that the instances satisfy condition (C1)
+and (C3) in Lemma 3.2 gives rise to Lemma A.1.
+
+B.11        Proof of Lemma A.2
+By the properties of KL divergence,
+         γIKL
+           MDP ,I MDP (Y1:T , W1:T , X1:T )
+            1           2
+
+       =γIKL                            KL
+          MDP ,I MDP (Y1 , W1 , X1 ) + γI MDP ,I MDP (Y2 , W2 , X2 |Y1 , W1 , X1 ) + · · ·                 (S41)
+            1           2                           1   2
+
+                            + γIKL
+                                MDP ,I MDP (YT , WT , XT |YT −1 , WT −1 , XT −1 , . . . , Y1 , W1 , X1 )
+                                 1     2
+
+   Since the only difference between the data generating distributions of (Y1 , W1 , X1 ) under
+the two instances is the conditional distribution Y1 |W1 , X1 = hQ , by (25),
+γIKL                            KL                    KL                        KL
+  MDP ,I MDP (Y1 , W1 , X1 ) = γI MDP ,I MDP (X1 ) + γI MDP ,I MDP (W1 |X1 ) + γI MDP ,I MDP (Y1 |W1 , X1 )
+  1     2                                  1    2                1    2                    1      2
+
+                                     = γIKL                        e
+                                         MDP ,I MDP (Y1 |X1 = hQ )d (hQ )
+                                           1    2
+
+                                         2∆2
+                                     =          exp{−(Q − 1) (1/t0 + ζπ )}.
+                                       M2 − M12
+
+
+                                                            17
+Similarly, for all 2 ≤ j ≤ T , if Xj−1 ∼ de ,
+
+     γIKL
+       MDP ,I MDP (Yj , Wj , Xj |Yj−1 , Wj−1 , Xj−1 , . . . , Y1 , W1 , X1 )
+       1       2
+
+                   = γIKL
+                       MDP ,I MDP (Yj , Wj , Xj |Wj−1 , Xj−1 )
+                       1
+                         X2                                    Wj−1
+                   =            de (Xj−1 )Pe [Wj−1 |Xj−1 ] PXj−1       KL
+                                                                  ,hQ γI MDP ,I MDP (Yj |Xj = hQ )
+                                                                                     1       2
+                     Hj−1 ,Wj−1
+
+                   = γIKL                        e
+                       MDP ,I MDP (Yj |Xj = hQ )d (hQ )
+                       1         2
+
+                       2∆2
+                   =          exp{−(Q − 1) (1/t0 + ζπ )}.
+                     M2 − M12
+
+As a result,
+
+                                             2T ∆2
+                               (S41) =               exp{−(Q − 1) (1/t0 + ζπ )}
+                                            M2 − M12
+
+B.12       Proof of Lemma A.3
+We first consider the bias of
+                                                                                
+                                                    m −1
+                                                   τX          κt (k)
+                                                             Y πWt−s (Xt−s )
+                               br (π, x0 ; k) =
+                               R                                                 Yt
+                                                   t=τ1      s=0
+                                                                 π0,Wt−s (Xt−s )
+
+                    hP               i
+                        τm −1
+in estimating Eπ        t=τ1 Yt          . Note that for t = τh , . . . , min (τh+1 − 1, τh + k), ∀h = 1, . . . , m−
+1,
+                                             
+                           κt (k)                                       t−τ
+                                                                                             !
+                        Y πWt−s (Xt−s )                                  Yh πWt−s (Xt−s )
+                                              Yt =                                             Yt
+                        s=0
+                            π 0,W t−s
+                                      (Xt−s )                              π
+                                                                        s=0 0,Wt−s
+                                                                                   (Xt−s )
+
+is simply the unbiased importance-weighted estimator of Eπ [Yt ] that adjusts for the entire
+history. Thus, there is only bias if τh+1 − 1 > τh + k, and
+                                               
+                 τh+1 −1 κt (k)
+                   X       Y πWt−s (Xt−s )
+             E                                 Yt  − Eπ [Rh ]
+                  t=τ      s=0
+                                π0,Wt−s (Xt−s )
+                           h
+
+
+                               = O (P [τh+1 − 1 > τh + k] E [max (0, τh+1 − τh − 1 − k)])
+                               = O (exp (−k/t0 )) ,
+
+where the last equality follows from the fact that P [τh+1 − 1 > τh + k] = O (exp (−k/t0 ))
+and E [max (0, τh+1 − τh − 1 − k)] = O (1), as given by by (33). Finally, summing up the
+biases over all m = O (T ) cycles gives rise to the first result in Lemma A.3.
+   The second step is to bound the variance of R    br (π, x0 ; k). Note that
+                                                                  
+                                     T     κt (k)
+            h               i        X      Y πWt−s (Xt−s )
+        Var R br (π, x0 ; k) = Var                                Yt  + O (exp (ζπ k)) ,
+                                            s=0
+                                                  π0,Wt−s (Xt−s )
+                                              t=k+1
+
+
+
+                                                            18
+where
+                                          
+                   T          κt (k)
+                   X   Y πWt−s (Xt−s )                             h            i
+          Var                             Yt  = (T − k) Var Vbtr (π, x0 ; k) +
+                       s=0
+                           π0,Wt−s (Xt−s )
+               t=k+1                                                                           (S42)
+                      X         X           h                                i
+                  2                   Cov Vbtr (π, x0 ; k), Vbt+j
+                                                               r
+                                                                  (π, x0 ; k) ,
+                        t=k+1,...,T j=1,...,T −t
+
+and                                                                        
+                                                     κt (k)
+                                                        Y πWt−s (Xt−s )
+                                  Vbtr (π, x0 ; k) :=                       Yt .             (S43)
+                                                        s=0
+                                                            π0,Wt−s (Xt−s )
+
+   Define Et,h to be the event that Xt−h = x0 , Xt−h− 6= x0 , h− = 0, . . . , h − 1, h = 1, . . . , k
+and Eh,k+ to be the event that Xt−h 6= x0 , h = 0, . . . , k. We notice that Vbtr (π, x0 ; k) can be
+decomposed as
+                                  k               h
+                                                                      !
+                  r
+                                 X               Y    πWt−s (Xt−s )
+                Vt (π, x0 ; k) =
+                b                    I (Et,h ) ·                        Yt +
+                                                     π
+                                                 s=0 0,Wt−s
+                                                              (Xt−s )
+                                 h=0
+                                                         k
+                                                                             !
+                                                      Y      πWt−s (Xt−s )
+                                          I Et,k+ ·                            Yt .
+                                                             π
+                                                       s=0 0,Wt−s
+                                                                     (Xt−s )
+
+Thus,
+                            h            i                       2 
+                             r                        r
+                     Var Vt (π, x0 ; k) ≤ E Vt (π, x0 ; k)
+                           b                        b
+
+                      k
+                                       
+                                            h
+                                                                  !2            
+                     X                     Y    πWt−s (Xt−s )
+                   =     P [Et,h ] · E                               Yt2 Et,h  +
+                                               π 0,W t−s (X t−s )                              (S44)
+                     h=0                   s=0
+                                               
+                                                    k
+                                                                           !2           
+                                                   Y     πWt−s (Xt−s )
+                                                                              Yt2 Et,k+  .
+                                        
+                               P Et,k+ · E 
+                                                   s=0
+                                                        π 0,W t−s (Xt−s  )
+
+For h = 0, . . . , k,
+                  
+                        h
+                                              !2              
+                        Y πWt−s (Xt−s )
+               E                             Yt2 Et,h 
+                           π
+                        s=0 0,Wt−s
+                                   (Xt−s )
+                                 
+                                         h
+                                                              !2                         
+                                        Y    πWt−s (Xt−s )
+                            = E E                              Yt2 Xi,1:t , Et,h  Et,h 
+                                            π
+                                        s=0 0,Wt−s
+                                                     (Xt−s  )
+                                "h−1 "                     2                #      #
+                                 Y           πWi,h (Xi,h )
+                            ≤E        E                          Xi,1:s , Et,h Et,h M2
+                                 s=0
+                                            π0,Wi,h (Xi,h )
+                                "h−1                                           #
+                                 Y          πWi,h (Xi,h )
+                            =E        Eπ                    Xi,1:s , Et,h Et,h M2
+                                 s=0
+                                           π0,Wi,h (Xi,h )
+                              ≤ M2 exp (ζπ h) ,
+
+                                                        19
+Similarly,                   
+                                 k
+                                                       !2                 
+                                 Y πWt−s (Xt−s )
+                       E                                    Yt2 Et,k+  ≤ M2 exp (ζπ k) .
+                                    π
+                                 s=0 0,Wt−s
+                                            (Xt−s )
+                                                               
+By (33), P [Et,h ] ≤ exp (−h/t0 ), h = 0, . . . , k, and P Et,k+ ≤ exp (−(k + 1)/t0 ). Thus,
+
+                                h                i k+1
+                                                    X
+                             Var Vbtr (π, x0 ; k) ≤    M2 exp (−h/t0 ) exp (ζπ h)
+                                                       h=0
+                                                                                                       (S45)
+                                                       k+1                           
+                                                       X                  t 0 ζπ − 1
+                                                   =         M2 exp                  h .
+                                                                               t0
+                                                       h=0
+                                                                     Pk+1                        
+It remains to show that the second term in (S42) is of order O (T − k) h=0 exp {(t0 ζπ − 1) h/t0 } .
+By the decomposition of Vbtr (π, x0 ; k),
+           h                                   i
+        Cov Vbtr (π, x0 ; k), Vbt+j
+                                 r
+                                    (π, x0 ; k)
+        k X
+        X k                                h                                                  i
+    =               P [Et,h ∪ Et+j,h0 ] Cov Vbtr (π, x0 ; k), Vbt+j
+                                                                 r
+                                                                    (π, x0 ; k) Et,h , Et+j,h0 +
+        h=0 h0 =0
+                     k
+                     X                         h                                                  i
+                           P Et,h ∪ Et+j,k+ Cov Vbtr (π, x0 ; k), Vbt+j
+                                                                     r
+                                          
+                                                                        (π, x0 ; k) Et,h , Et+j,k+ +
+                     h=0
+                     k
+                     X                            h                                                    i
+                             P Et,k+ ∪ Et+j,h0 Cov Vbtr (π, x0 ; k), Vbt+j
+                                                                        r
+                                             
+                                                                           (π, x0 ; k) Et,k+ , Et+j,h0
+                     h0 =0
+
+As inh proof of Lemma 2.4, how to bound theiconditional covariance
+Cov Vbtr (π, x0 ; k), Vbt+j
+                         r
+                            (π, x0 ; k) Et,h , Et+j,h0 depends on whether there is an overlap be-
+tween the two weights (i.e., the relationship between t and t + j − h0 − 1). If t > t + j − h0 − 1
+and there is an overlap between the two weights,
+          h                                                i
+     Cov Vbtr (π, x0 ; k), Vbt+j
+                              r
+                                 (π, x0 ; k) Et,h , Et+j,h0 ≤ M12 exp {(h0 − j + 1) ζπ } .  (S46)
+
+
+
+
+                                                         20
+If, on the other hand, t ≤ t + j − h0 − 1,
+                      h                                                  i
+                  Cov Vbtr (π, x0 ; k), Vbt+j
+                                           r
+                                              (π, x0 ; k) Et,h , Et+j,h0
+                   "
+                    X
+                        Eπ Yt st dπi 0 (Piπ )h (st )·
+                                    
+               =E
+                          st
+                           X                                          0          0
+                                    Eπ Yt+j st+j Piπ (· st )(Piπ0 )j−h −1 (Piπ )h (st+j )−
+                                               
+                           st+j
+                           X
+                                    Eπ Yt st dπi 0 (Piπ )h (st )·
+                                           
+                               st                                                                                (S47)
+                                                                                    
+                           X                                  0
+                                    Eπ Yt+j st+j dπi 0 (Piπ )h (st+j ) Pi 
+                                               
+                           st+j
+
+                                j − h0 − 1 h0
+                                                            
+                   ≤2M12 exp  −            −
+                                     t0      t0
+                                      
+                                j−1
+                   =2M12 exp −           .
+                                  t0
+Combining (S46) and (S47),
+                        T
+                        X T
+                          X −t             h                                    i
+                                        Cov Vbtr (π, x0 ; k), Vbt+j
+                                                                 r
+                                                                    (π, x0 ; k)
+                       t=k+1 j=1
+                                           0
+                        T k+1 h                                           0
+                        X XX                                                h
+                   ≤                        M12 exp (ζπ (h0 − j + 1)) exp −    +
+                                                                            t0
+                       t=k+1 h0 =0      j=1
+                                        T k+1
+                                          X TX−t                  0
+                                        X                 j−1         h
+                                               2M12 exp −       exp −
+                                                           t0         t0
+                           t=k+1 h0 =0 j=h0 +1
+                              k+1                   !
+                              X           t0 ζπ − 1
+                   =O (T − k)     exp h                 .
+                                               t0
+                                          h=0
+
+Thus,
+                                        k+1                                           !
+               h
+                c
+                           i            X         t0 ζπ − 1
+          Var V (π, x0 ; k) = O (T − k)
+              b                             exp h                                           + O (exp (ζπ k)) .
+                                                      t0
+                                                          h=0
+
+   To upper bound the bias and variance of τ̂ r (π, x0 ; k) in estimating
+                                                    hP           i        Eπ [τm − τ1 ], simply
+                                                         m−1              r
+notice that this is a special case of estimating Eπ           Rh with R (π, x0 ; k) when the
+                                                                        b
+                                                                          h=1
+outcome is always one. Thus, they hPscale thei same order as bounds on the bias and variance
+     r                              m−1
+of R (π, x0 ; k) in estimating Eπ
+   b
+                                    h=1 Rh , as what we have calculated above.
+
+
+
+C       Additional Experiment Results
+In this section, we provide additional experiment results in evaluating the performance of
+the proposed estimator on the random policy in Section 5.1. We repeat the same analyses
+
+
+                                                             21
+Figure S2: MSE as a function of k under different sample sizes n. The lightest orange
+corresponds to the case with n = 100, with a gradient to dark red representing n increases
+from n = 100 to n = 900 gradually.
+
+
+conducted on the deterministic policy studied in Section 5.1, and find that the results are
+similar whether evaluating a random or deterministic policy.
+
+
+
+
+                                            22
+Figure S3: Kolmogorov–Smirnov statistic as a function of k under different sample sizes
+n. The lightest orange corresponds to the case with n = 100, with a gradient to dark red
+representing n increases from n = 100 to n = 900 gradually.
+
+
+
+
+Figure S4: MSE as a function of n under different horizon length k. The lightest orange
+corresponds to the case with k = −1, with a gradient to dark red representing k increases
+from k = −1 to k = 8 gradually, while the purple dashed line represents k chosen by Lepski’s
+method and the blue dash-dotted line represents k chosen according to (15) in Corollary
+2.2.
+
+
+
+                                            23
+Figure S5: Percentages of each k ∈ K selected by Lepski’s method under different sample
+sizes n. The lightest red area corresponds to choosing k = −1, with a gradient to dark red
+representing choosing k = 8.
+
+
+
+
+                                           24
+

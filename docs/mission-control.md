@@ -4,15 +4,15 @@
 
 Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**255 / 376 proposal operations have recorded outcomes; 98 are ready.** Next: **LL.CENSUS**.
+**258 / 376 proposal operations have recorded outcomes; 95 are ready.** Next: **SW.DECISION.seed_059**.
 
-Continue the 33 unread originals and four crosscutting tasks. Candidate163 exact conference source is outside the fixed collector allowlist; its related affordance preprint is already delivered and does not close the original gap. Resolve candidate165 journal original separately from its inspected preprint; candidate217 access/date and candidate27 metadata limits remain local. Prioritize a permitted original for causal-workflow,energy-cost or temporal-discovery evaluation; inspect methods and adverse findings before any claim. Do not repeat completed affordance/fuzzing,CSS/knowledge,scientific-method,Python/Java,Ray or Splink publication. Independent C++policy,commercial and reuse tasks remain eligible.
+Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_bnlearn_reviewed_2026-10-24.pdf) — 1435 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_policies_other_v2_reviewed_2026-10-24.pdf) — 1447 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

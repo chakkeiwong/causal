@@ -1,0 +1,1132 @@
+                                             CausalGPS: An R Package for Causal Inference
+                                                     With Continuous Exposures
+
+                                              Naeem Khoshnevis                         Xiao Wu                       Danielle Braun
+                                                Harvard University               Columbia University                 Harvard University
+
+
+
+                                                                                       Abstract
+                                                   Quantifying the causal effects of continuous exposures on outcomes of interest is crit-
+arXiv:2310.00561v1 [stat.CO] 1 Oct 2023
+
+
+
+
+                                               ical for social, economic, health, and medical research. However, most existing software
+                                               packages focus on binary exposures. We develop the CausalGPS R package that imple-
+                                               ments a collection of algorithms to provide algorithmic solutions for causal inference with
+                                               continuous exposures. CausalGPS implements a causal inference workflow, with algo-
+                                               rithms based on generalized propensity scores (GPS) as the core, extending propensity
+                                               scores (the probability of a unit being exposed given pre-exposure covariates) from binary
+                                               to continuous exposures. As the first step, the package implements efficient and flexible
+                                               estimations of the GPS, allowing multiple user-specified modeling options. As the second
+                                               step, the package provides two ways to adjust for confounding: weighting and matching,
+                                               generating weighted and matched data sets, respectively. Lastly, the package provides
+                                               built-in functions to fit flexible parametric, semi-parametric, or non-parametric regression
+                                               models on the weighted or matched data to estimate the exposure-response function relat-
+                                               ing the outcome with the exposures. The computationally intensive tasks are implemented
+                                               in C++, and efficient shared-memory parallelization is achieved by OpenMP API. This
+                                               paper outlines the main components of the CausalGPS R package and demonstrates its
+                                               application to assess the effect of long-term exposure to PM2.5 on educational attainment
+                                               using zip code-level data from the contiguous United States from 2000-2016.
+
+                                          Keywords: causal inference, covariate balance, generalized propensity score, matching, OpenMP,
+                                          parallel, R, weighting.
+
+
+
+
+                                                                                1. Introduction
+                                          Studying causal relationships between a continuous exposure and an outcome of interest is
+                                          a central consideration for scientists and policymakers in many disciplines. Robins, Hernan,
+                                          and Brumback (2000) and Wu, Mealli, Kioumourtzoglou, Dominici, and Braun (2022) have
+                                          proposed new weighting and matching approaches, respectively, to handle continuous expo-
+                                          sures in causal inference applications with observational data. While both authors provide
+                                          tailored code for implementing the proposed approaches to their specific data applications, the
+                                          barrier still exists for researchers to implement these generic statistical approaches for causal
+                                          inference to broader data applications. Several other R packages currently exist, including
+                                          ctseff (Kennedy, Ma, McHugh, and Small 2017), independenceWeights (Huling and Greifer
+                                          2022), CBPS (Fong, Ratkovic, and Imai 2022), twangContinous (Coffman and Vegetabile
+                                          2021). However, they tend to focus on individual weighting algorithms, offering limited op-
+                                          tions for user customization. In addition, none of these packages provide a unified workflow
+2                       Weighting/Matching with Continuous Exposures
+
+
+for implementing both weighting and matching approaches.
+In this paper, we present generic and scalable statistical software for weighting and matching
+based on Robins et al. (2000) and Wu et al. (2022). Operationally, we develop the CausalGPS
+R package, implementing two sophisticated causal inference approaches, providing a handful
+of functionality that allows user specifications. When developing the package, we adhered to
+software engineering best practices to ensure efficiency, reliability, and modularity. This pack-
+age’s repository is hosted on GitHub, encouraging community contributions and transparent
+development.
+Software requirements: CausalGPS works in conjunction with the R programming lan-
+guage and statistical software (R Core Team 2023) and will run on any platform where R is
+installed (Windows, Unix, or Mac OS X). CausalGPS is available from the Comprehensive R
+Archive Network (CRAN) at https://CRAN.R-project.org/package=CausalGPS. Causal-
+GPS has been tested on the most recent version of R.
+
+
+                          2. Background and methods
+
+2.1. Basic concepts and notations
+Randomized controlled experiments are frequently regarded as the gold standard for evalu-
+ating causality (Harder, Stuart, and Anthony 2010; Imbens and Rubin 2015). Nevertheless,
+there are numerous situations where it is impractical, unfeasible, or unethical to facilitate
+such randomized experiments. Consequently, scientists regularly rely on data from non-
+randomized, observational studies to address scientific questions. However, these studies are
+prone to confounding bias, a challenge not present in randomized experiments where the ex-
+posure assignment is randomized. In observational studies, the exposure assignment is not
+only unknown but often influenced by extraneous factors (i.e., potential confounders). Rubin
+(1974) introduced confounding controls in observational studies within a potential outcomes
+framework.
+We describe the potential outcomes framework in the context of continuous exposures. For-
+mally, we use the following mathematical notation: Let N denote the study sample size.
+For each unit, let X denote the pre-exposure covariates; E denote the observed continuous
+exposure; Y denote the observed outcome.
+
+Definition 1 The potential outcomes are defined as a set of random variables, Y (e), ∀ e ∈
+[e0 , e1 ], in which Y = Y (E), ∀ E ∈ [e0 , e1 ].
+
+Definition 2 The generalized propensity score (GPS) is the conditional density function of
+the exposure given potential confounders : q(x) = {fE|X (e | x), ∀e ∈ [e0 , e1 ]}. The single
+scores q(e, x) = fE|X (e | x) are realizations of q(x) at exposure level e.
+
+A key property of GPS is the covariate balancing property, that is, conditional on the GPS,
+the probability of receiving any level of exposure is independent of X (Rosenbaum and Rubin
+1983). By ensuring covariate balance, a pseudo-population can be created that mimics a
+randomized experiment (Desai and Franklin 2019). Note that covariate balance is achieved
+by design for both measured and unmeasured covariates in randomized experiments, whereas
+                        Naeem Khoshnevis, Xiao Wu, Danielle Braun                               3
+
+
+the pseudo-population created by using GPS approaches in observational studies can achieve
+covariate balance only for measured covariates.
+The potential outcomes framework allows us to 1) describe causal estimands of interests and
+their corresponding target population and 2) state causal identification assumptions trans-
+parently and explicitly. We follow the large body of literature on causal inference to state the
+following assumptions for causal identification.
+
+Assumption 1 (Consistency) E = e implies Y = Y (e) for all units.
+
+Assumption 2 (Overlap) For all values of potential confounders x, the density function of
+receiving any possible exposure level e ∈ [e0 , e1 ] is positive: f (e | x) > 0 for all e, x.
+
+Assumption 3 (Weak Unconfoundedness) For any possible exposure level e, in which e
+is continuous in the range [e0 , e1 ]; E Y (e) | X.
+                                       |=
+
+
+
+
+The three causal assumptions stated above, along with the mild smoothness conditions, al-
+low us to identify and estimate the following causal estimand: the average causal exposure-
+response function (ERF) or also called the exposure-response curve (ERC) (Hirano and Im-
+bens 2004; Kennedy et al. 2017; Wu et al. 2022).
+
+Definition 3 The average causal ERF is µ(e) = E[Y (e)], for all e ∈ [e0 , e1 ].
+
+Compared to other regression approaches, the main advantage of causal inference approaches
+is the separation of the design and analysis stages (Rubin 2001; Rubin et al. 2008; Stuart and
+Rubin 2008; Imbens and Rubin 2015). In the design stage, investigators design the study: 1)
+define the causal estimands and the target population, 2) implement a design-based method
+such as matching or weighting to construct a matched or weighted dataset, and 3) assess the
+quality of the design using metrics such as covariate balance. At the end of the design stage,
+investigators create a pseudo-population that mimics a randomized experiment without using
+the outcome information. The analysis stage proceeds only after the completion of the design
+stage, during which outcome analysis is conducted on the pseudo-population.
+
+2.2. Causal inference workflow
+We describe the causal inference workflow that follows the principle of separating the design
+and analysis stages. In summary, the workflow contains four steps: 1) estimation of the
+GPS, where exposure is regressed on the potential confounders; 2) implementation of the
+GPS weighting or matching approach to create a pseudo-population; 3) assessment of the
+quality of the pseudo-population in terms of covariate balance; 4) outcome analysis on the
+pseudo-population if covariate balance is achieved (Harder et al. 2010). Steps 1-3 belong to
+the design stage, and step 4 belongs to the analysis stage. An overview of the workflow is
+presented in Figure 1. The primary focus of this paper is to introduce an R software package
+designed for implementing causal inference methods with continuous exposures. Therefore,
+we have chosen not to delve into the technical details of the different causal inference methods;
+however, we encourage readers seeking a deeper understanding of these methodologies to see
+Robins et al. (2000); Zhu, Coffman, and Ghosh (2015); Austin (2018); Wu et al. (2022).
+4                           Weighting/Matching with Continuous Exposures
+
+
+
+
+    •   Specify a “causal estimand”, the qauntity                                Collect observational data
+        that answers the scientific question.
+
+    •   Specify a “balance criteria” for the study                  • Exposure
+                                                                                                      • Outcome
+        design.                                                     • Potential confouder
+
+
+
+
+                                         Estimate generalized propensity scores.
+
+
+
+
+                           Implements algorithms using estimated generalized propensity
+                           score (i.e., matching or weighting to create a pseudo population )
+
+
+
+
+                                            Do the covariates achieve balance
+                                                                                            No
+                                            criteria in the pseudo population?
+
+
+                                                          Yes
+
+
+                                           Conduct outcome analyses on the
+                                           pseudo population as-if randomized.
+
+
+
+
+                     Figure 1: A Overview of the Causal Inference Workflow.
+
+
+
+
+                                       3. Package overview
+Following the workflow described in Section 2, the CausalGPS package’s functionality can
+be divided into four major components: 1) estimating GPS values, 2) weighting/matching
+by GPS values to generate pseudo-populations, 3) assessing covariate balance on the pseudo-
+populations, and 4) outcome modeling on the pseudo-populations. To estimate GPS values,
+two methods are incorporated: a) a regression approach that assumes normally distributed
+residuals, hereafter referred to as normal, and b) a kernel-based density estimation approach,
+hereafter referred to as kernel. The GPS estimation depends on the internal hyperparameters
+used in the models. After obtaining estimated GPS values, the GPS weighting or matching
+algorithms are implemented to generate pseudo-populations. A covariate balance assessment
+based on absolute correlations between the exposure and observed pre-exposure covariates is
+applied to the generated pseudo-populations. The objective of assessing covariate balance is
+to determine how closely the distribution of observed pre-exposure covariates aligns across all
+levels of exposure. When covariate balance is not achieved, a stochastic search approach is
+implemented to tune different hyperparameters for the GPS model in a data-driven procedure
+                        Naeem Khoshnevis, Xiao Wu, Danielle Braun                                5
+
+
+and to operate covariate transforms to ensure covariate balance. For outcome modeling,
+parametric, semi-parametric, and non-parametric approaches can be used to estimate the
+ERF on the generated pseudo-populations. The package is designed for optimal performance
+on shared memory systems. Parallelism at each stage is facilitated either by R’s parallel
+package (R Core Team 2023) or by Rcpp’s OpenMP integration (Eddelbuettel and François
+2011; Eddelbuettel 2013; Eddelbuettel and Balamuta 2018). In the following, we discuss each
+step in more detail.
+
+3.1. Estimating GPS values
+Both normal and kernel approaches for conditional density estimation of fE|X (e|x) are im-
+plemented through the estimate_gps() function to estimate GPS values (gps_density =
+normal or kernel). The modeling assumptions for the normal and kernel approaches are
+different. Specifically, the normal approach assumes that the conditional density of E|X = x
+follows a normal distribution, whereas the kernel approach does not make parametric distri-
+butional assumptions on the conditional density and uses a non-parametric kernel smoother
+to estimate the conditional density of E|X = x. In either normal or kernel approaches, the
+SuperLearner (Polley, LeDell, Kennedy, and van der Laan 2021) package is used for generat-
+ing an ensemble of machine learning models to estimate both the mean function E[E|C] and
+the variance function V[E|C]. Figure 2 represents the workflow for estimating GPS values.
+A general syntax to run the function is:
+
+R> library("CausalGPS")
+R> gps_obj <- estimate_gps(w,
+                           c,
+                           gps_density = "normal",
+                           params = list(),
+                           sl_lib = c("m_xgboost"),
+                           nthread = 1,
+                           ...) {
+
+where w requires inputs of a data frame containing observed continuous exposures, c requires
+inputs of a data frame containing observed (pre-exposure) covariates, and gps_density de-
+termines the model specifications and takes one of two options: normal or kernel. Hyper-
+parameters to control internal libraries are passed through params input parameter. The
+sl_lib input parameters include the list of internal libraries that SuperLearner package uses
+in ensemble models. A wrapper function is generated to modify default parameters for these
+libraries. The supported modified libraries are prefixed with m_, and their supported hyper-
+parameters are prefixed with predefined names. Table 1 shows supported modified wrappers.
+The wrappers can select hyperparameters randomly if a range of parameters is provided. The
+nthread parameter designates the number of cores the function can use in parallel process-
+ing. According to R (R Core Team 2023) conventions, the ellipsis "..." is used to pass an
+arbitrary number of additional arguments.
+
+3.2. Generating pseudo-population
+The pseudo-population refers to a data set that was either weighted or matched to make the
+distribution of pre-exposure covariates align across different exposure levels, that is, achieving
+6                          Weighting/Matching with Continuous Exposures
+
+
+                                     gps_model
+                                         ==           Yes
+                                                            Compute GPS Values
+                                      “normal”                Parametrically
+            Start
+
+                                        No
+
+
+          load data
+                                     gps_model
+                                          ==          Yes    Compute GPS Values
+                                       “kernel”               Non-parametrically
+       check arguments                                                             create S3 object
+                                        No
+
+
+                                                                                   return S3 object
+                                 Invalide GPS model
+     Generate SL Wrapper
+
+                                       End                                              End
+
+
+
+
+Figure 2: Workflow to estimate GPS values. Refer to the text for the input data and param-
+eters. We generate a wrapper function, based on input hyperparameters, to be used by the
+SuperLearner package. The function returns an S3 R object.
+
+
+             Table 1: Available modified libraries for the SuperLearner package.
+    Package name sl_lib name Parameter Prefix Supported Hyperparameters
+      XGBoost       m_xgboost           xgb_           nrounds,      eta,       max_depth,
+                                                       min_child_weight, verbose
+       ranger        m_ranger           rgr_           num.trees, write.forest, replace, ver-
+                                                       bose, family
+
+
+covariate balance. A more in-depth explanation of covariate balance can be found in Wu
+et al. (2022). It is noteworthy that ensuring covariate balance across all exposure levels in
+observational data can be intricate, and imbalances might still arise even after the data has
+been weighted or matched.
+Firstly, the degree to which we can achieve covariate balance is heavily influenced by the es-
+timated GPS values. Another strategy to improve covariate balance involves trimming data
+points with extreme exposure values, thereby focusing on data regions with substantial over-
+lapping exposures. This process is visualized in Figure 3, illustrating the iterative method to
+create a pseudo-population. Our generate_pseudo_pop function integrates hyperparameter
+tuning, covariate transformations, and exposure (and GPS) trimming to optimize the balance
+in the pseudo-populations.
+A general syntax to run the function is:
+
+R> library("CausalGPS")
+R> pspop_obj <- generate_pseudo_pop(w,
+                                    c,
+                                    ci_appr,
+                                    gps_density = "normal",
+                                    use_cov_transform = FALSE,
+                              Naeem Khoshnevis, Xiao Wu, Danielle Braun                        7
+
+
+
+                                                         is
+                                                  i < max_attempt    No
+                Start                                     ?
+
+                                                       Yes
+
+                                                                             pick the best
+             load data                            estimate gps             pseudo population
+
+                                         drop the transformed column
+           log system info                                                 create S3 object
+
+                                          compile pseudo population
+                                                                            return S3 object
+          check arguments
+                                           trim pseudo population               End
+
+         estimate quantiles
+                                           check covariate balance
+
+
+       check covariate balance            keep population with the
+                                           best covariate balance
+
+
+                                               covariate transform
+
+
+                                                         is
+                                          No     covariate balance   Yes
+                                                     passed?
+
+
+
+
+Figure 3: Workflow to generate pseudo-population. Refer to the text for the input data and
+parameters. The function attempts to achieve covariate balance by tuning hyperparameters,
+transforming covariates, and trimming data. The function returns an S3 R object.
+
+                                                   transformers = list("pow2","pow3"),
+                                                   bin_seq = NULL,
+                                                   exposure_trim_qtls = c(0.01, 0.99),
+                                                   gps_trim_qtls = c(0.0, 1.0),
+                                                   params = list(),
+                                                   sl_lib = c("m_xgboost"),
+                                                   nthread = 1,
+                                                   include_original_data = FALSE,
+                                                   gps_obj = NULL,
+                                                   ...){
+
+
+where w, c, and gps_density correspond to the parameters found in the function estimate_gps()
+detailed in Section 3.1. ci_appr, stands for the causal inference approach. The currently
+available options are weighting and matching. bin_seq represents the sequence of exposure
+points at which the ERF will be evaluated. exposure_trim_qtls is used to trim out the data
+samples near the support boundaries of the exposure distribution, and gps_trim_qtls is used
+to trim out the data samples based on the GPS values. Since the input data might undergo
+8                      Weighting/Matching with Continuous Exposures
+
+
+various trimming procedures, each row is assigned a distinct ID column (id) to facilitate any
+necessary data merge.
+Setting use_cov_transform = TRUE activates an iterative approach to obtain GPS values
+under different hyperparameters and covariates transformations, and choose the generated
+pseudo-population that achieves acceptable covariate balance. At each iteration, we apply a
+transformer to the covariate with the highest absolute correlation with the exposure (i.e., the
+most imbalanced covariate). Each transformer is a univariate function and can be defined by
+the user. We implement two transformers, pow2 and pow3, which represent the power of two
+and three transformations (transforming X into X 2 and X 3 , respectively). Additional trans-
+formers can be given as a list of univariate functions to the input parameter transformers.
+In every subsequent iteration, the corresponding transformer from the transformers list will
+be applied to the most imbalanced covariate from the previous iteration. Within a single
+iteration, only one covariate will be subject to transformation. Note that the covariate trans-
+formation is only used to estimate GPS values, whereas the covariate balance, represented as
+absolute correlations, is still computed between the exposure and the untransformed scale of
+the covariates. This iterative approach for choosing the pseudo-population with minimized
+absolute correlations can be time-consuming. Users can limit the total number of iterations
+using the input parameter max_attempt. Since hyperparameters of a GPS model (in estimat-
+ing GPS values) are based on the list of values provided by users, the parameters used in each
+new iteration are different, and not necessarily better than, the prior iteration, resulting in
+different degrees of covariate balance. The resulting covariate balance from each iteration will
+be automatically compared to a user-specified threshold to determine whether the covariate
+balance is acceptable. The covariate balance threshold (covar_bl_trs) can be applied to the
+"maximal", "median", and "mean" values of the absolute correlations of each covariate with
+the exposure variable. The search process concludes either upon achieving acceptable covari-
+ate balance or upon reaching the maximum number of iterations (max_attempt), whichever
+comes first. The input parameter include_original_data = TRUE is used to include origi-
+nal data (without any trimming or transformation) in the output object. If the user provides
+pre-trained GPS models via the input parameter gps_object, the derived GPS values will be
+used in weighting or matching to generate the pseudo-population, and the GPS estimation
+step will be skipped.
+The following parameters are specific to the implemented causal inference approach. For the
+matching approach, the following parameters are required:
+
+    • dist_measure: Distance measure to identify the neighborhood of units. The available
+      option is l1 for Manhattan distance.
+    • delta_n: Caliper size on the continuous exposure.
+    • scale: A scale parameter to control the relative weight attributed to the distance
+      measures of the exposure values versus GPS values.
+    • covar_balance_method: The covariate balance method. The available option is absolute,
+      which calculates the absolute correlations.
+    • covar_balance_trs: The covariate balance threshold value (suggested value is 0.1).
+    • covar_balance_trs_type: The covariate balance type.            Available options include
+      "mean", "median", and "maximal".
+                       Naeem Khoshnevis, Xiao Wu, Danielle Braun                              9
+
+
+For the weighting approach, only the last three parameters are required.
+
+3.3. Modeling outcomes for causal inference
+After generating the balanced pseudo-population, the next step is to fit outcome models and
+then estimate the ERF. In the CausalGPS package, three outcome models are provided to
+estimate the ERF, allowing parametric, semi-parametric, and non-parametric models.
+
+  1. The function estimate_pmetric_erf() estimates the coefficient between the outcome
+     and the exposure, using a parametric regression model. By default, the function calls
+     the gnm library to implement generalized nonlinear models.
+
+  2. The function estimate_semipmetric_erf() estimates the smoothed ERF using a gen-
+     eralized additive model with splines. By default, the function calls the gam library to
+     implement generalized additive models.
+
+  3. The function estimate_npmetric_erf() estimates the smoothed ERF using a non-
+     parametric kernel smoothing approach. By default, the function calls the locpol library
+     to implement local polynomial regression models. We use a data-driven bandwidth
+     selection for kernels.
+
+
+3.4. Setting up logger
+The package uses logger R package as a logging infrastructure (Daróczi 2022). Users can select
+different log levels, including TRACE, DEBUG, and INFO (default). The following command can
+be used to set up logging parameters.
+
+R> set_logger(logger_file_path = "CausalGPS.log", logger_level = "INFO")
+
+where logger_file_path is the file path of the log file and logger_level changes the logging
+level. Use the get_logger() function to see the current parameters.
+
+3.5. Efficiency, reliability, and modularity
+We emphasized the orthogonality of each component, allowing for modular design and en-
+suring each component operates independently. To ensure robustness and reliability, com-
+prehensive unit testing was performed on each function. We supplemented unit testing with
+functional testing to evaluate the package’s end-to-end functionality in real-world scenarios.
+For the user’s benefit, we have incorporated detailed documentation for each function, and
+for developers, a comprehensive guide is available, facilitating seamless collaboration within
+the open-source community. Continuous integration is crucial in our development workflow,
+promoting regular code integration and ensuring consistent quality. Performance optimiza-
+tion was a key focus; computationally intensive modules were implemented in C++ to boost
+execution speed. To ensure efficient scalability, the package can leverage multiple cores when
+available. The package is available on CRAN for user access and on GitHub for developers
+seeking to collaborate or extend its functionalities. Proactive maintenance ensures the pack-
+age remains updated and relevant. To enhance user experience, all input parameters undergo
+checks, and informative messages guide the user throughout the processes. Additionally, we
+10                      Weighting/Matching with Continuous Exposures
+
+
+have implemented a logging mechanism to record essential internal operations, parameter val-
+ues, and any randomized values. To ensure reproducibility across runs, users can set a seed
+value, ensuring consistent results. Furthermore, we have adhered to a predefined styling guide
+for consistent code presentation, and we have prioritized efficient implementation throughout
+the package’s development.
+
+
+                       4. Application and illustrations
+The implemented weighting and matching approaches in the CausalGPS package can be
+applied to a wide range of observational studies with continuous exposures. As highlighted
+in Section 3, the CausalGPS package distinguishes between the design and analysis stages.
+In the design stage, where we initially identify causal estimands and the target population,
+followed by applying a design-based technique like weighting or matching, only exposures and
+pre-exposure covariates are needed for the input. Subsequently, we assess the design quality
+by checking the covariate balance. In the analysis stage, the outcome data is required.
+We illustrate and discuss the main functionality and performance of the CausalGPS package
+using an air pollution data application. Before digging into the data set:
+The following command installs the CausalGPS package.
+
+R> install.packages("CausalGPS")
+
+The following command loads the CausalGPS package in the working space.
+
+R> library("CausalGPS")
+
+
+4.1. Data
+For illustrative purposes, we use publicly available air pollution data for each zip code across
+the contiguous United States from 2000 to 2016. The data set includes 580,244 zip code-
+years for 34,928 zip codes (Khoshnevis, Wu, and Braun 2023). The goal is to evaluate the
+causal relationship between long-term exposure to PM2.5 and educational attainment. It is
+important to note that the entire example is intended solely to demonstrate the package’s
+functionality; thus, the results should not be used for alternative objectives.
+Table 2 summarizes a list of variables collected for this study. The unit of this study is zip
+code-year. The Education rate refers to the percentage of people over 65 years old who did
+not finish high school in each zip code-year. Socio-economic determinants, such as median
+household income, median house value, and poverty, offer insight into the economic conditions
+of the regions. Demographic information, such as the percentage of Hispanic and Black
+populations, provides a glimpse into the ethnic composition of each area. Meteorological
+variables, such as summer and winter min/max temperatures and relative humidity, are also
+included. Behavior risk factors include the smoke rate, corresponding to the fraction of the
+population who has ever smoked.
+
+4.2. Illustrative Example
+Examples for running each function individually are provided in the CausalGPS package (see
+the vignettes, functions’ documentation, and unit tests for more details). In this section,
+                       Naeem Khoshnevis, Xiao Wu, Danielle Braun                              11
+
+
+   Table 2: Baseline characteristics of the data illustration by zip code across 2000-2016.
+  Variables                                                 min       median         max
+  Di, Wei, Shtein et al. (2021)
+    PM2.5 (µg/m3 )                                          0.0078     9.7364      30.9249
+  Walker and Herman (2021)
+    Poverty                                                 0          0.0810         1.0
+    Race/ethnicity (%)
+       Hispanic                                             0          0.2688         1.0
+       Black                                                0          0.0141         1.0
+    Education rate                                          0          0.2552         1.0
+    Household Income ($)                                    0          44380       250001
+    Median House Value ($)                                  0        118300.00 2000001.00
+    Population Density                                      0           139.7     153867.7
+  Centers for Disease Control and Prevention (2021)
+    Mean Body Mass Index (kg/m2 )                           20.70       27.51        43.07
+    Smoke rate (%)                                          0            0.47          1
+  Abatzoglou (2013)
+    Mean Temperature (K)
+       Summer time                                          287.96    302.43        317.07
+       Winter time                                          260.12     279.70       300.64
+    Relative Humidity (%)
+       Summer time                                          22.35      91.37          100
+       Winter time                                          35.79       87.23         100
+
+
+we choose one example that covers frequently used functionality throughout three different
+parameter specifications. We also discuss the parameter selection process and its associated
+results.
+In this example, we estimate the ERF to quantify the effect of exposure to annual PM2.5
+on educational attainment by implementing the GPS matching approach. In estimating the
+GPS, we apply the normal approach for conditional density estimation and search available
+parameters to attain acceptable covariate balance. The primary parameters for this search are
+the scale and delta_n. The scale indicates the emphasis placed on the GPS when selecting
+the nearest neighbor, while delta_n represents the caliper size. In this demonstration, we set
+scale = 1 (allocating the full emphasis to the GPS) and execute the iterative approach for
+searching optimal delta_n. Based on Wu et al. (2022), we choose a search range of [0.1, 2.4]
+with grids of 0.1. To help achieve improved covariate balance, the following four additional
+strategies were built into the package and can be deployed individually or jointly.
+
+
+  1. Limit the analyses to the common support of exposure range using exposure_trim_qtls.
+
+  2. Limit the analyses to the common support range of GPS values, as specified by gps_trim_qtls.
+
+  3. Adjust the hyperparameters for ensemble machine learning models, using params.
+
+  4. Opt for covariate transformations, using transformers.
+12                       Weighting/Matching with Continuous Exposures
+
+
+We showcase three distinct specifications of the parameter exposure_trim_qtls, varying the
+exposure trimming to the 1st and 99th percentiles, 5th and 95th percentiles, and 10th and
+90th percentiles, respectively, out of concern for the positivity assumption. Figure 4 represents
+the density of PM2.5 and trim quantiles.
+
+
+
+
+          0.10
+density
+
+
+
+
+          0.05
+
+
+
+
+          0.00
+                 0                    10                      20                       30
+                                       PM2.5 (µg m3)
+
+Figure 4: Density plot of PM2.5 shows quantiles at (1st, 99th), (5th, 95th), and (10th, 90th).
+These quantiles are depicted using red dashed, green dot-dashed, and orange long-dashed
+lines, respectively.
+
+The following code shows the function call and parameters for generating the pseudo-population.
+
+R> set.seed(249)
+R> ps_pop_obj <- generate_pseudo_pop(data[, c("id", "pm25")],
+                                     data[, c("id", confounders)],
+                                     ci_appr = "matching",
+                                     gps_density = "normal",
+                                     bin_seq = NULL,
+                                     exposure_trim_qtls = c(p_q1,
+                                                            p_q2),
+                                     use_cov_transform = TRUE,
+                        Naeem Khoshnevis, Xiao Wu, Danielle Braun                              13
+
+
+                                              params = list(xgb_max_depth = c(3,4,5),
+                                                            xgb_nrounds = seq(10, 40, 1)),
+                                              sl_lib = c("m_xgboost"),
+                                              nthread = 10,
+                                              covar_bl_method = "absolute",
+                                              covar_bl_trs = 0.1,
+                                              covar_bl_trs_type= "maximal",
+                                              max_attempt = 10,
+                                              dist_measure = "l1",
+                                              delta_n = delta_n,
+                                              scale = 1)
+
+When bin_seq = NULL, the default values for bin_seq will be used, which is
+
+R> seq(min(w)+delta_n/2,max(w), by=delta_n)
+
+We limit the maximum number of iterations to 10 for each execution (see the running time
+of each execution in Table 3). Increasing the maximum number of iterations would allow a
+search for a larger parametric space of GPS models yet could potentially increase running
+time substantially.
+Table 3 presents the results under three specifications of exposure trimming, highlighting
+the resulting optimal caliper size, the maximal absolute covariate balance, the number of
+iterations, and the time taken for each execution. The results indicate that achieving covariate
+balance becomes more feasible upon excluding data points near the boundary of the exposure
+range. This can be attributed to the propensity of data points with extreme exposure values
+to be non-overlapped with other data points, thus complicating the process of identifying
+the nearest neighbor match. An alternative strategy to resolve the data non-overlapping
+issue is to exclude data points with extreme GPS values, which was built into the function
+generate_pseudo_pop() by the input parameter gps_trim_qtls. However, excluding data
+points from the analyses deviates the data distribution of the pseudo-population from the
+original population, thereby altering the definition of the causal estimand. It is imperative
+for users to interpret their results in the context of the target population, bearing in mind
+the specific causal estimand of interest.
+
+                               Table 3: Computational Results
+       Example          Trimming       Optimal Covariate Number of          Wall Clock
+         Name        c(p_q1,p_q2) delta_n Balance           Iterations       Time (s)
+      matching_1       (1th, 99th)       1.7      0.198         10           1219.37
+      matching_2       (5th, 95th)       0.9      0.123         10           1264.66
+      matching_3      (10th, 90th)       1.9      0.094          3            287.32
+
+The output of generate_pseudo_pop(), ps_pop_obj, is a S3 object that includes parameters
+and data to understand the process. Some of the main fields are:
+  • params: A list of input parameters.
+  • pseudo_pop: The matched pseudo-population.
+  • adjusted_corr_results: Covariate balance scores for the matched data.
+14                        Weighting/Matching with Continuous Exposures
+
+
+     • original_corr_results: Covariate balance scores for the original data.
+     • passed_covar_test: A logical variable that represents if the covariate balance require-
+       ments are satisfied.
+     • best_gps_used_params: Hyperparameters that are used for generating the selected
+       pseudo-population.
+
+For a full list of items in the S3 object ps_pop_obj, refer to the function help.
+
+
+
+R> ?CausalGPS::generate_pseudo_pop
+
+
+
+A summary of the covariate balance before and after matching can be obtained using the
+following function summary().
+
+
+
+R> summary(ps_pop_obj)
+
+
+
+The package also provides a visualization tool for the S3 object ps_pop_obj, allowing users
+to get a quick diagnosis of the matched data set. The plotting function offers an additional
+parameter, include_details. Setting this to TRUE will incorporate all essential details about
+the S3 object ps_pop_obj on the resulting figure.
+
+
+
+R> plot(ps_pop_obj, include_details = TRUE)
+
+
+
+Figures 5-7 show outputs of the function plot() under three specifications of exposure_trim_qtls
+(i.e., matching_1, matching_2, and matching_3, respectively). Details of all parameters and
+diagnoses under each specification are presented on the right-hand side of the figure. By set-
+ting the covariate balance threshold covar_balance_trs = 0.1, and covar_balance_trs_type
+= "maximal", we require every single covariate maintain an absolute correlation < 0.1 with
+the exposure after matching. Only matching_3 achieves the acceptable covariate balance.
+In general, setting covar_balance_trs_type = "maximal" gives a more stringent constraint
+to covariate balance compared to covar_balance_trs_type = "mean", since the latter one
+only requires the mean value of absolute correlations for the matched data to be < 0.1, while
+certain covariates can be correlated with the exposure with an absolute correlation ≥ 0.1, a
+condition that is satisfied by matching_2. Nevertheless, achieving more controls on covariate
+balance might require searching through a larger parameter space of GPS models, which could
+be time-consuming, and trimming more data points. Decisions regarding the covariate bal-
+ance threshold, data trimming, and allowed running time will be left to users, who will make
+these determinations based on practical considerations specific to their data applications.
+                                      Naeem Khoshnevis, Xiao Wu, Danielle Braun                                                 15
+
+
+                                          Covariate Balance Test
+                                                                                        Object Summary
+                                                                                        −−−−−−−−−−−−−−
+                             year
+                                                                                        Approach: matching
+                                                                                         scale: 1
+                                                                                         delta: 1.7
+                       popdensity                                                        dist measure: l1
+                                                                                        exposure trim qtls: 0.01, 0.99)
+                                                                                        gps trim qtls: (0, 1)
+                          pct_blk                                                       # sample (trimmed/org): 568638/580244
+                                                                                        −−−−−−−−−−−−−−
+                                                                                        Covar balance method: absolute
+                    summer_rmax                                                          Threshhold type: maximal
+                                                                                         Threshhold value: 0.1
+                                                                                         Passed covariate test: FALSE
+                medianhousevalue                                                         Maximal abs. cov.: 0.198
+                                                                                         Median abs. cov.: 0.116
+                                                                                         Mean abs. cov.: 0.107
+                   summer_tmmx                                                           Number of attemtps: 10/10
+                                                                                         Use cov transform: TRUE
+                                                                                        −−−−−−−−−−−−−−
+ Covariates
+
+
+
+
+              medhouseholdincome                                                        Kolmogorov Smirnov Test
+                                                                                         ess: 888.699
+                                                                                         ess (min recomennded):56863.8
+                                                                                        −−−−−−−−−−−−−−
+                          poverty
+                                                                                        SL params
+                                                                                          xgb_nrounds: 38
+                                                                                          xgb_max_depth: 4
+                     winter_tmmx                                                          xgb_eta: 0.3
+                                                                                          xgb_min_child_weight: 1
+                                                                                          xgb_verbose: 0
+                         hispanic
+
+
+                      smoke_rate
+
+
+                   pct_owner_occ
+                                                                   variable
+                     winter_rmax
+                                                                       original
+                                                                       adjusted
+                       mean_bmi
+
+
+                                    0.0   0.1        0.2     0.3       0.4        0.5
+                                                Absolute Correlation
+
+
+
+Figure 5: Covariate balance plot for matching_1. The covariates are sorted according to their
+covariate balance score in the original data. The solid vertical line represents the covariate
+balance threshold (covar_bl_trs), and the dashed vertical line is the mean absolute corre-
+lation value for the matched data. The object summary is included on the right side.
+16                                        Weighting/Matching with Continuous Exposures
+
+
+                                             Covariate Balance Test
+                                                                                           Object Summary
+                                                                                           −−−−−−−−−−−−−−
+                             year
+                                                                                           Approach: matching
+                                                                                            scale: 1
+                                                                                            delta: 0.9
+                          pct_blk                                                           dist measure: l1
+                                                                                           exposure trim qtls: 0.05, 0.95)
+                                                                                           gps trim qtls: (0, 1)
+                       popdensity                                                          # sample (trimmed/org): 522218/580244
+                                                                                           −−−−−−−−−−−−−−
+                                                                                           Covar balance method: absolute
+                medianhousevalue                                                            Threshhold type: maximal
+                                                                                            Threshhold value: 0.1
+                                                                                            Passed covariate test: FALSE
+                    summer_rmax                                                             Maximal abs. cov.: 0.123
+                                                                                            Median abs. cov.: 0.095
+                                                                                            Mean abs. cov.: 0.082
+              medhouseholdincome                                                            Number of attemtps: 10/10
+                                                                                            Use cov transform: TRUE
+                                                                                           −−−−−−−−−−−−−−
+ Covariates
+
+
+
+
+                   summer_tmmx                                                             Kolmogorov Smirnov Test
+                                                                                            ess: 1970.195
+                                                                                            ess (min recomennded):52221.8
+                                                                                           −−−−−−−−−−−−−−
+                          poverty
+                                                                                           SL params
+                                                                                             xgb_nrounds: 32
+                                                                                             xgb_max_depth: 5
+                     winter_tmmx                                                             xgb_eta: 0.3
+                                                                                             xgb_min_child_weight: 1
+                                                                                             xgb_verbose: 0
+                      smoke_rate
+
+
+                     winter_rmax
+
+
+                         hispanic
+                                                                      variable
+                   pct_owner_occ
+                                                                          original
+                                                                          adjusted
+                       mean_bmi
+
+
+                                    0.0      0.1       0.2      0.3       0.4        0.5
+                                                   Absolute Correlation
+
+
+
+Figure 6: Covariate balance plot for matching_2. The covariates are sorted according to their
+covariate balance score in the original data. The solid vertical line represents the covariate
+balance threshold (covar_bl_trs), and the dashed vertical line is the mean absolute corre-
+lation value for the matched data. The object summary is included on the right side.
+                                          Naeem Khoshnevis, Xiao Wu, Danielle Braun                                            17
+
+
+                                              Covariate Balance Test
+                                                                                       Object Summary
+                                                                                       −−−−−−−−−−−−−−
+                             year
+                                                                                       Approach: matching
+                                                                                        scale: 1
+                                                                                        delta: 1.9
+                          pct_blk                                                       dist measure: l1
+                                                                                       exposure trim qtls: 0.1, 0.9)
+                                                                                       gps trim qtls: (0, 1)
+                medianhousevalue                                                       # sample (trimmed/org): 464194/580244
+                                                                                       −−−−−−−−−−−−−−
+                                                                                       Covar balance method: absolute
+                    summer_rmax                                                         Threshhold type: maximal
+                                                                                        Threshhold value: 0.1
+                                                                                        Passed covariate test: TRUE
+              medhouseholdincome                                                        Maximal abs. cov.: 0.094
+                                                                                        Median abs. cov.: 0.052
+                                                                                        Mean abs. cov.: 0.05
+                       popdensity                                                       Number of attemtps: 3/10
+                                                                                        Use cov transform: TRUE
+                                                                                       −−−−−−−−−−−−−−
+ Covariates
+
+
+
+
+                   summer_tmmx                                                         Kolmogorov Smirnov Test
+                                                                                        ess: 7635.243
+                                                                                        ess (min recomennded):46419.4
+                                                                                       −−−−−−−−−−−−−−
+                          poverty
+                                                                                       SL params
+                                                                                         xgb_nrounds: 25
+                                                                                         xgb_max_depth: 5
+                      smoke_rate                                                         xgb_eta: 0.3
+                                                                                         xgb_min_child_weight: 1
+                                                                                         xgb_verbose: 0
+                     winter_rmax
+
+
+                     winter_tmmx
+
+
+                         hispanic
+                                                                        variable
+                   pct_owner_occ
+                                                                            original
+                                                                            adjusted
+                       mean_bmi
+
+
+                                    0.0       0.1        0.2      0.3        0.4
+                                                    Absolute Correlation
+
+
+
+Figure 7: Covariate balance plot for for matching_3. The covariates are sorted according
+to their covariate balance score in the original data. The solid vertical line represents the
+covariate balance threshold (covar_bl_trs), and the dashed vertical line is the mean absolute
+correlation value for the matched data. The object summary is included on the right side.
+
+
+After achieving the acceptable covariate balance for matching_3, the matched data set will be
+used to estimate the ERF. We use a non-parametric approach (estimate_npmetric_erf())
+to fit the outcome model. The confidence intervals of the ERF can be obtained by a m-out-of-
+n bootstrap procedure proposed by Wu et al. (2022), which requires repeated implementation
+of the function estimate_npmetric_erf() on bootstrapped data sets. We omit the details
+of the confidence interval calculation, given the procedure is relatively straightforward yet
+time-consuming, while referring interested readers to see Wu et al. (2022) for a real data
+18                        Weighting/Matching with Continuous Exposures
+
+
+example. Figure 8 shows the ERF obtained from the matched data set for matching_3.
+
+R> quant <- quantile(data$pm25, probs = c(0.1, 0.90))
+R> set.seed(290)
+R> erf_obj <- estimate_npmetric_erf(data$education,
+                                    data$pm25,
+                                    data$counter_weight,
+                                    bw_seq = bw_seq=c(0.2, 1, 0.1),
+                                    w_vals = seq(quant[1], quant[2], 0.1),
+                                    nthread = 10,
+                                    kernel_appr = "kernsmooth")
+R> plot(erf_obj)
+
+
+                                    Exposure Response Curve
+
+
+
+                0.31
+ Outcome Rate
+
+
+
+
+                0.30
+
+
+
+                0.29
+
+
+
+                0.28
+
+
+
+                0.27
+
+                              7.5                10.0                    12.5
+                                          Exposure Level
+
+
+
+Figure 8: The causal ERF relating the percentage of people over 65 years old who did not
+finish high school to long-term PM2.5 exposure estimated by a local polynomial regression
+model. Note that the results are just for illustration purposes.
+
+
+
+                       5. Conclusion and future development
+We have introduced the CausalGPS R package as a generic solution for causal inference with
+continuous exposures. Causal inference with continuous exposure has extended the research
+                       Naeem Khoshnevis, Xiao Wu, Danielle Braun                             19
+
+
+horizons of many scientific applications in social, economic, health, and medical research.
+Many studies in these scientific domains focus on understanding the causal effects of the
+duration of the exposure, the intensity of the exposure, or the dosage of the treatment,
+which is regarded as a continuous variable in nature. The CausalGPS package provides
+an essential causal inference tool for answering these scientific questions. We also briefly
+summarized the causal inference workflow, which serves as the central backbone for our
+software development. The main advantage of the causal inference workflow implemented
+by the CausalGPS package is the separation of the design and analysis phases, improving the
+objectiveness of causal inference. We have illustrated the matching approach using synthetic
+data, while the weighting approach can be implemented analogously.
+The package is computationally optimized for shared memory systems using R’s parallel pack-
+age or Rcpp’s OpenMP support. The package can be extended in several future directions
+from implementation perspectives. In future software development, we plan to implement
+features to provide additional user specifications of the matching algorithm. This includes
+expanding the currently available nearest-neighbor matching (selecting the best-matched sam-
+ple) to the k-nearest-neighbor matching (selecting the k best-matched samples), increasing the
+robustness of the matching algorithm to outliers. In addition, we may add new features, such
+as giving priority to match data samples from preferred groups, called preferential matching,
+which is helpful for analyzing clustered observational data (Arpino and Cannas 2016). From
+a computational standpoint, to accommodate big data, we intend to transition intensive com-
+putations to distributed memory systems and incorporate features that enable the exploration
+of parameter domains using optimization algorithms, such as genetic algorithms.
+The package is available on CRAN and GitHub. Contributions from the open-source com-
+munity, whether through opening issues, participating in discussions, or adding new features,
+are warmly encouraged.
+
+
+                            6. Computational details
+The computations were executed on a macOS system with the following specifications: a 2.6
+GHz 6-core Intel Core i7 processor and 16GB of RAM, running on macOS Ventura 13.5.2.
+Docker was employed with an image built upon the rocker/verse:4.2.3 base. The Docker dae-
+mon was configured to utilize a substantial portion of the system’s resources: 10 CPUs, 12GB
+of RAM, and a swap space of 4GB. A Docker image of our software is readily accessible on
+Docker Hub under the name nsaphsoftware/causalgps_paper. It can be fetched directly or
+viewed online at https://hub.docker.com/r/nsaphsoftware/causalgps_paper. For those inter-
+ested in reproducing the results, the necessary code is available at https://github.com/NSAPH-
+Software/CausalGPS/tree/master/functional_tests in the functional_tests folder of the
+CausalGPS GitHub repository.
+
+
+                                 Acknowledgments
+Funding was provided by the HEI grant 4953-RFA14-3/16-4, US EPA grant 83587201-0, NIH
+grants R01 ES026217, R01 MD012769, R01 ES028033, R01 ES028033-S1, 1R01 ES030616,
+1R01 AG066793-01R01, 3R01 AG066793-02S1, 1R01 ES029950, 1RF1 AG071024, 1RF1 AG074372-
+01A1, 2P30 ES009089-25, Alfred P. Sloan Foundation grant G-2020-13946, Harvard University
+20                      Weighting/Matching with Continuous Exposures
+
+
+Climate Change Solutions Fund, and Fernholz Foundation. The authors report there are no
+competing interests to declare.
+
+
+                                      References
+
+Abatzoglou JT (2013). “Development of gridded surface meteorological data for ecological
+ applications and modelling.” International Journal of Climatology, 33(1), 121–131. doi:
+ 10.1002/joc.3413.
+Arpino B, Cannas M (2016). “Propensity score matching with clustered data. An application
+  to the estimation of the impact of caesarean section on the Apgar score.” Statistics in
+  medicine, 35(12), 2074–2091.
+Austin PC (2018). “Assessing covariate balance when using the generalized propensity score
+  with quantitative or continuous exposures.” Statistical Methods in Medical Research, p.
+  0962280218756159.
+Centers for Disease Control and Prevention (2021). “Behavioral Risk Factor Surveillance
+  System.” URL https://www.cdc.gov/brfss/annual_data/annual_2010.htm.
+Coffman D, Vegetabile B (2021). twangContinuous: Toolkit for Weighting and Analysis of
+  Nonequivalent Groups - Continuous Exposures. R package version 1.0.0, URL https:
+  //CRAN.R-project.org/package=twangContinuous.
+Daróczi G (2022). logger: A Lightweight, Modern and Flexible Logging Utility. R package
+ version 0.2.2, URL https://daroczig.github.io/logger/.
+Desai RJ, Franklin JM (2019). “Alternative approaches for confounding adjustment in obser-
+  vational studies using weighting based on the propensity score: a primer for practitioners.”
+  BMJ, 367, l5657.
+Di Q, Wei Y, Shtein A, et al. (2021). “Daily and Annual PM2.5 Concentrations for the
+  Contiguous United States, 1-km Grids, v1 (2000 - 2016).” URL https://doi.org/10.
+  7927/0rvr-4538.
+Eddelbuettel D (2013). Seamless R and C++ Integration with Rcpp. Springer, New York.
+  doi:10.1007/978-1-4614-6868-4. ISBN 978-1-4614-6867-7.
+Eddelbuettel D, Balamuta JJ (2018). “Extending extitR with extitC++: A Brief Introduction
+  to extitRcpp.” The American Statistician, 72(1), 28–36. doi:10.1080/00031305.2017.
+  1375990.
+Eddelbuettel D, François R (2011). “Rcpp: Seamless R and C++ Integration.” Journal of
+  Statistical Software, 40(8), 1–18. doi:10.18637/jss.v040.i08.
+Fong C, Ratkovic M, Imai K (2022). CBPS: Covariate Balancing Propensity Score. R package
+  version 0.23, URL https://CRAN.R-project.org/package=CBPS.
+Harder VS, Stuart EA, Anthony JC (2010). “Propensity score techniques and the assess-
+ ment of measured covariate balance to test causal associations in psychological research.”
+ Psychological methods, 15(3), 234.
+                       Naeem Khoshnevis, Xiao Wu, Danielle Braun                                21
+
+
+Hirano K, Imbens GW (2004). “The propensity score with continuous treatments.” Applied
+  Bayesian modeling and causal inference from incomplete-data perspectives, 226164, 73–84.
+Huling J, Greifer N (2022). independenceWeights: Estimates Weights for Confounding Con-
+ trol for Continuous-Valued Exposures. R package version 0.0.1, URL https://CRAN.
+ R-project.org/package=independenceWeights.
+Imbens GW, Rubin DB (2015). Causal inference in statistics, social, and biomedical sciences.
+  Cambridge University Press.
+Kennedy EH, Ma Z, McHugh MD, Small DS (2017). “Non-parametric methods for doubly
+ robust estimation of continuous treatment effects.” Journal of the Royal Statistical Society:
+ Series B (Statistical Methodology), 79(4), 1229–1245.
+Khoshnevis N, Wu X, Braun D (2023). “Multifactorial Zip Code-Year Dataset: Socio-
+ Economic, Demographic, and Environmental Variables in the Contiguous United States
+ (2000-2016).” doi:10.7910/DVN/5XBJBM. URL https://doi.org/10.7910/DVN/5XBJBM.
+Polley E, LeDell E, Kennedy C, van der Laan M (2021). SuperLearner: Super Learner
+  Prediction. R package version 2.0-28, URL https://CRAN.R-project.org/package=
+  SuperLearner.
+R Core Team (2023). R: A Language and Environment for Statistical Computing. R Founda-
+  tion for Statistical Computing, Vienna, Austria. URL https://www.R-project.org.
+Robins JM, Hernan MA, Brumback B (2000). “Marginal structural models and causal infer-
+  ence in epidemiology.” Epidemiology, pp. 550–560.
+Rosenbaum PR, Rubin DB (1983). “The central role of the propensity score in observational
+  studies for causal effects.” Biometrika, 70(1), 41–55.
+Rubin DB (1974). “Estimating causal effects of treatments in randomized and nonrandomized
+  studies.” Journal of educational Psychology, 66(5), 688.
+Rubin DB (2001). “Using propensity scores to help design observational studies: application
+  to the tobacco litigation.” Health Services and Outcomes Research Methodology, 2(3-4),
+  169–188.
+Rubin DB, et al. (2008). “For objective causal inference, design trumps analysis.” The Annals
+  of Applied Statistics, 2(3), 808–840.
+Stuart EA, Rubin DB (2008). “Best practices in quasi-experimental designs.” Best practices
+  in quantitative methods, pp. 155–176.
+Walker K, Herman M (2021). tidycensus: Load US Census Boundary and Attribute Data
+ as ’tidyverse’ and ’sf’-Ready Data Frames. R package version 1.1, URL https://CRAN.
+ R-project.org/package=tidycensus.
+Wu X, Mealli F, Kioumourtzoglou MA, Dominici F, Braun D (2022). “Matching on gener-
+ alized propensity scores with continuous exposures.” Journal of the American Statistical
+ Association, (just-accepted), 1–28.
+Zhu Y, Coffman DL, Ghosh D (2015). “A boosting algorithm for estimating generalized
+  propensity scores with continuous treatments.” Journal of Causal Inference, 3(1), 25–40.
+22                    Weighting/Matching with Continuous Exposures
+
+
+Affiliation:
+Naeem Khoshnevis
+Research Computing and Data Services
+Harvard University
+1430 Massachusetts Ave, Cambridge, MA 02138
+E-mail: nkhoshnevis@g.harvard.edu
+
+Xiao Wu
+Department of Biostatistics
+Columbia University Mailman School of Public Health
+722 West 168th St., New York, NY 10032
+E-mail: xw2892@cumc.columbia.edu
+
+Danielle Braun
+Department of Biostatistics
+Harvard T.H. Chan School of Public Health
+Department of Data Science
+Dana-Farber Cancer Institute
+E-mail: dbraun@mail.havard.edu
+
