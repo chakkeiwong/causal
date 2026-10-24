@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-backend-census-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-backend-census-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-interference-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-interference-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-backend-census-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-interference-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,48 +12,48 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_backend_census_reviewed_2026-10-24.pdf) has 1,546 pages,
-1,186 audited citation records and 257 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_backend_census_reviewed_2026-10-24.pdf) has 120 pages and 730 citations.
-All 1,180 predecessor records, citation contexts and 368 compiled content inputs survive.
+The [monograph](../../causal_proposal_interference_reuse_reviewed_2026-10-24.pdf) has 1,549 pages,
+1,189 audited citation records and 257 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_interference_reuse_reviewed_2026-10-24.pdf) has 122 pages and 735 citations.
+All 1,186 predecessor records, citation contexts and 369 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**294 recorded outcomes of 376; 59 ready; 160 nonpassing obligations.**
+**296 recorded outcomes of 376; 57 ready; 158 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 99 | 3 | 13 | 115 |
+| reuse | 101 | 3 | 11 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving monograph adds five pinned backend profiles: Anthropic, Google
-GenAI, Ollama, vLLM and llama.cpp. Forty-five authentic files are acquired;
-32 receive substantive inspection, and 13 remain inventory only. The exact
-comparison separates schema parsing, local tools, scientific validity, native
-stop states, deadlines, retries and complete costs. Six new audit records
-produce 1,186 total records while all 1,180 predecessor records survive.
+The preserving monograph adds a connected comparison of MossSpider 0.0.3 and
+inferference 1.0.3 from 18 authenticated and inspected source,notice,dependency
+and test files. Three new audit records produce 1,189 records while all 1,186
+predecessor records and every prior content input survive. The sponsor retains
+730 prior records and adds five, producing 735.
 
-The exact sponsor preserves 722 predecessor records and adds eight, producing
-730. Software, reuse and census outcome counts remain unchanged. Source
-inspection and stipulated arithmetic do not establish native measurements.
-OpenAI guide originals remain unavailable after bounded retries; additional
-hosted services, model rights, service contracts and native public trials
-remain open. L6 retains its inconclusive review with a specific continuation.
+Exact examples distinguish equal-group and equal-person targets, directed
+exposure maps, excluded-node policies, allocation mass and derivatives,
+missing-group denominators, variance expressions and complete costs. Source
+inspection follows the full argument chain and records documentation/body
+and forwarding discrepancies without claiming an executed package failure.
 
-The blocked commercial discovery row now follows its later block receipt,
-which requests missing HUGIN/MathWorks/SAS evidence. Its old instruction to
-finish the already delivered 414-page build is preserved only as history.
-This repairs navigation without resuming or clearing the source blocker.
+Both decisions are reference-only. A native worker, whole-library port,
+scientific uncertainty qualification and installed-distribution rights are not
+approved. The two individual decision receipts increase recorded outcomes to
+296 and passing reuse decisions to 101; three are inconclusive and 11 open.
+Software and frontier census counts remain unchanged. The earlier backend
+source limits and corrected local-block continuation remain preserved.
 
 ## Remaining gaps and routes
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 13 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 11 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 32 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
