@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-tetrad-bridge-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-tetrad-bridge-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-weka-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-weka-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-tetrad-bridge-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-weka-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,38 +12,37 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_tetrad_bridge_reuse_reviewed_2026-10-24.pdf) has 1,495 pages,
-1,146 audited citation records and 254 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_tetrad_bridge_reuse_reviewed_2026-10-24.pdf) has 112 pages and 666 citations.
-All 1,143 predecessor records, citation contexts and 355 compiled content inputs survive.
+The [monograph](../../causal_proposal_weka_reuse_reviewed_2026-10-24.pdf) has 1,499 pages,
+1,148 audited citation records and 254 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_weka_reuse_reviewed_2026-10-24.pdf) has 113 pages and 670 citations.
+All 1,146 predecessor records, citation contexts and 356 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**271 recorded outcomes of 376; 82 ready; 183 nonpassing obligations.**
+**272 recorded outcomes of 376; 81 ready; 182 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 76 | 3 | 36 | 115 |
+| reuse | 77 | 3 | 35 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates the separate Tetrad bridge reference decision.
-Eleven selected Python/R originals authenticate to the pinned 7 October 2026
-tree, and the genuine twelve-page 2023 publisher paper is saved and inspected.
-The inherited Java decision is preserved. Binary/source equality, full rights
-and native qualification remain separate from selected source identity.
+The successor integrates a historical Weka reference and predictive-comparator
+decision. Eighteen selected originals authenticate to the discontinued mirror's
+10 August 2022 revision and 3.8.7-SNAPSHOT declaration. Official successor
+cutoff identity remains unresolved because the fixed collector does not allow
+that host; the failure and the historical-source boundary are preserved.
 
-The connected argument explains typed categories, missing masks, endpoint
-graphs, adjacency direction, request generations and failed-search state.
-Authored exact graph and Gaussian examples plus a base-R type witness
-reproduce. No downloaded package code was executed and no causal capability
-is admitted. Public fixture contracts name the unresolved native boundaries.
+The connected argument distinguishes prediction, intervention, label selection,
+supervised preprocessing, prior strength, weights and graph-name mapping.
+Authored exact confounding, selection, smoothing, weight and import witnesses
+reproduce. No downloaded code was executed and no causal capability is admitted.
 
-All 1,143 predecessor records and contexts survive, producing 1,146 records.
-The paired sponsor preserves all 661 prior citations and adds five.
+All 1,146 predecessor records and contexts survive, producing 1,148 records.
+The paired sponsor preserves all 666 prior citations and adds four.
 Panel continuation still references its completed specific source inspection;
 the original Python coverage receipt remains inconclusive. Source, arithmetic
 and text/bounds checks do not establish visual or final acceptance.
@@ -52,7 +51,7 @@ and text/bounds checks do not establish visual or final acceptance.
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 36 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 35 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
