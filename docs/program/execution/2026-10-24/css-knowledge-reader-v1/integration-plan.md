@@ -1,0 +1,1 @@
+Preserve all1083 prior source records, citation contexts and content inputs. Add one pinned CSS and knowledge-mechanism record and one authored reference/contract record; two genuine scholarly papers. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-splink-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-splink-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-css-knowledge-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-css-knowledge-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-splink-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-css-knowledge-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_splink_reviewed_2026-10-24.pdf) has 1,417 pages,
-1,083 audited citation records and 242 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_splink_reviewed_2026-10-24.pdf) has 96 pages and 565 citations.
-All 1,081 predecessor records, citation contexts and 334 compiled content inputs survive.
+The [monograph](../../causal_proposal_css_knowledge_reviewed_2026-10-24.pdf) has 1,421 pages,
+1,086 audited citation records and 244 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_css_knowledge_reviewed_2026-10-24.pdf) has 97 pages and 570 citations.
+All 1,083 predecessor records, citation contexts and 335 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,38 +30,29 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-Splink now has a cutoff-pinned source profile and a reference disposition.
-The 6 October 2026 revision declares version 5.0.0. Twenty technical files
-are inspected among 24 authenticated source files; source version and installed
-PyPI distribution remain distinct identities. No package or database worker ran.
+The computational-social-science study and knowledge-mechanism survey now have
+inspected genuine author originals, explicit version limits and traced claims.
+The literature census advances to 79 inspected and 34 unread originals, plus
+four crosscutting obligations. Publisher-byte equality remains unasserted.
 
-The connected banking argument distinguishes candidate recall from full recall,
-pair scores from graph components and a joint linkage law, and accurate retained
-matches from an unbiased observation mechanism. It documents EM session-prior
-semantics and the iteration-cap path that still emits convergence wording.
-These are static source observations, not observed native failures.
+The connected banking argument separates text measurement, graph proposals,
+model-internal interventions and external causal identification. Exact authored
+examples show equal 90 percent accuracy with observed prevalences 0.26 and 0.18,
+80 USD stipulated loss distortion, correlated-prompt mean variance 0.84,
+and identical observational laws with intervention effects one versus zero.
+The complete-cost fixture distinguishes 2.40 USD per request from cost per
+answer and correct artifact. No model, benchmark or bank experiment was run.
 
-Exact authored examples give candidate/full recall 90/54 percent, a zero contrast
-changed to 100 USD by selective observation, a joint transitivity lower bound
-of 0.92 incompatible with a pair score of 0.10, and joint-map variance 304 rather
-than conditional variance 4. Stipulated full costs give 80/120/160 USD per
-attempt/request/accepted artifact. No empirical calibration or prices are asserted.
-
-Conditional adoption requires a selected distribution and rights, comparison and
-backend semantics, feature clocks, blocking and convergence diagnostics, joint
-identity uncertainty, public fault/selection oracles and complete costs. The
-completed Ray, Java/Python policy, scientific-method and earlier arguments remain.
-Census stays 77/36 plus four crosscutting obligations.
-
-The census continuation is refreshed after detecting an obsolete instruction to
-republish already delivered scientific-method/Python work. Independent obligations
-remain eligible; durable progress notes now name unfinished sources and limits.
+All previous software, reuse and scientific-method arguments remain. The two
+new source reviews advance LL.CENSUS without fabricating an operation closure.
+The continuation note names unfinished originals and crosscutting work; it does
+not repeat the completed CSS/knowledge publication. Independent branches remain eligible.
 
 ## Remaining gaps and routes
 
 1. Software:50open and49inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
 2. Reuse:50open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
-3. Frontier census:36unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
+3. Frontier census:34unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister justified task/version splits, semantic/refusal/fault oracles and full costs before broader native or bank claims.
 6. Manuscript acceptance: finish mandatory coverage/depth, Q1/Q5 and fresh visual review; text bounds alone are not visual acceptance.
