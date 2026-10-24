@@ -1,0 +1,1 @@
+Preserve all1155 prior source records, citation contexts and content inputs. Add authenticated OpenGM model, algebra and visitor originals plus genuine library paper and authored reference decision; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-libdai-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-libdai-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-agrum-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-agrum-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-libdai-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-agrum-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,38 +12,39 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_libdai_reuse_reviewed_2026-10-24.pdf) has 1,506 pages,
-1,153 audited citation records and 255 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_libdai_reuse_reviewed_2026-10-24.pdf) has 114 pages and 679 citations.
-All 1,150 predecessor records, citation contexts and 358 compiled content inputs survive.
+The [monograph](../../causal_proposal_agrum_reuse_reviewed_2026-10-24.pdf) has 1,510 pages,
+1,155 audited citation records and 255 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_agrum_reuse_reviewed_2026-10-24.pdf) has 115 pages and 683 citations.
+All 1,153 predecessor records, citation contexts and 359 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**274 recorded outcomes of 376; 79 ready; 180 nonpassing obligations.**
+**275 recorded outcomes of 376; 78 ready; 179 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 79 | 3 | 33 | 115 |
+| reuse | 80 | 3 | 32 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates a historical libDAI numerical-reference decision.
-Nineteen selected originals authenticate to the 16 May 2012 mirror, and the
-genuine five-page 2010 JMLR paper is retained and inspected. The paper's
-0.2.7/GPL scope differs from the selected 0.3.0/BSD source declaration.
-Official provenance, complete binary rights and native qualification remain open.
+The successor integrates an aGrUM/pyAgrum layered reference decision.
+Nineteen selected originals authenticate to version 3.2.0 at the 6 October
+2026 revision, and five earlier discovery/identification source reviews remain
+preserved. Selected LGPL-or-MIT declarations do not clear all binary dependencies.
 
-The connected argument develops factor labels and axis order, evidence versus
-intervention, zero support, numerical underflow, exact-enumeration resources,
-and the distinction between a message residual and approximation error.
-An exact triangle example has zero message residual but edge-probability error
-of one twelfth. These are authored witnesses;no downloaded code was run.
+The connected argument distinguishes symbolic identification from numerical
+support, zero normalization from CPT refusal, and joint counterfactual
+abduction from separate root posteriors. Exact authored examples yield an
+intervention mean set [1/4,3/4], counterfactual success 1 versus 1/2, and
+50,000 versus 10,000 USD hypothetical net value. Pointer/domain identity and
+Python/CLI/MCP typed responses are explicit public qualification contracts.
+No downloaded code was executed and no native capability is admitted.
 
-All 1,150 predecessor records and contexts survive, producing 1,153 records.
-The paired sponsor preserves all 674 prior citations and adds five.
+All 1,153 predecessor records and contexts survive, producing 1,155 records.
+The paired sponsor preserves all 679 prior citations and adds four.
 Panel continuation still references its completed specific source inspection;
 the original Python coverage receipt remains inconclusive. Source, arithmetic
 and text/bounds checks do not establish visual or final acceptance.
@@ -52,7 +53,7 @@ and text/bounds checks do not establish visual or final acceptance.
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 33 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 32 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
