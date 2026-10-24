@@ -1,0 +1,423 @@
+{
+  "anchors": [
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_0.txt",
+        "sha256": "f426c5cd7458effc3a48c9690d75bd51106812cccc2b5860129bcde4742f5560",
+        "anchor": "Lines 65-118: Structural mask encoding and default identity restrictions."
+      },
+      "first_line": 65,
+      "last_line": 118,
+      "text": "\n    def __init__(\n        self, endog, svar_type, dates=None, freq=None, A=None, B=None, missing=\"none\"\n    ):\n        super().__init__(endog, None, dates, freq, missing=missing)\n        # (self.endog, self.names,\n        # self.dates) = data_util.interpret_data(endog, names, dates)\n\n        self.neqs = self.endog.shape[1]\n\n        svar_type = string_like(\n            svar_type, \"svar_type\", options=(\"A\", \"B\", \"AB\"), lower=False\n        )\n        self.svar_type = svar_type\n\n        svar_ckerr(svar_type, A, B)\n\n        self.A_original = A\n        self.B_original = B\n\n        # Set by fit()/_estimate_svar(), once the lag order is known\n        self.nobs = None\n        self.sigma_u = None\n\n        # initialize A, B as I if not given\n        # Initialize SVAR masks\n        if A is None:\n            A = np.identity(self.neqs)\n            self.A_mask = A_mask = np.zeros(A.shape, dtype=bool)\n        else:\n            A = A.astype(\"U\")\n            A_mask = np.logical_or(A == \"E\", A == \"e\")\n            self.A_mask = A_mask\n        if B is None:\n            B = np.identity(self.neqs)\n            self.B_mask = B_mask = np.zeros(B.shape, dtype=bool)\n        else:\n            B = B.astype(\"U\")\n            B_mask = np.logical_or(B == \"E\", B == \"e\")\n            self.B_mask = B_mask\n\n        # convert A and B to numeric\n        # TODO: change this when masked support is better or with formula\n        # integration\n        Anum = np.zeros(A.shape, dtype=float)\n        Anum[~A_mask] = A[~A_mask]\n        Anum[A_mask] = np.nan\n        self.A = Anum\n\n        Bnum = np.zeros(B.shape, dtype=float)\n        Bnum[~B_mask] = B[~B_mask]\n        Bnum[B_mask] = np.nan\n        self.B = Bnum\n"
+    },
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_0.txt",
+        "sha256": "f426c5cd7458effc3a48c9690d75bd51106812cccc2b5860129bcde4742f5560",
+        "anchor": "Lines 188-212: Lag selection and starting-parameter lifecycle."
+      },
+      "first_line": 188,
+      "last_line": 212,
+      "text": "        Hamilton pp. 324-336\n        \"\"\"\n        lags = maxlags\n        if ic is not None:\n            selections = self.select_order(maxlags=maxlags, verbose=verbose)\n            if ic not in selections:\n                raise ValueError(\n                    f\"{ic} not recognized, must be among {sorted(selections)}\"\n                )\n            lags = selections[ic]\n            if verbose:\n                print(f\"Using {lags:d} based on {ic} criterion\")\n        elif lags is None:\n            lags = 1\n\n        self.nobs = len(self.endog) - lags\n\n        # initialize starting parameters\n        start_params = self._get_init_params(A_guess, B_guess)\n\n        return self._estimate_svar(\n            start_params,\n            lags,\n            trend=trend,\n            solver=solver,"
+    },
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_0.txt",
+        "sha256": "f426c5cd7458effc3a48c9690d75bd51106812cccc2b5860129bcde4742f5560",
+        "anchor": "Lines 343-372: Selected likelihood uses elementwise-square determinant expression."
+      },
+      "first_line": 343,
+      "last_line": 372,
+      "text": "        A_mask = self.A_mask\n        B_mask = self.B_mask\n        A_len = len(A[A_mask])\n        B_len = len(B[B_mask])\n\n        if A is not None:\n            A[A_mask] = params[:A_len]\n        if B is not None:\n            B[B_mask] = params[A_len : A_len + B_len]\n\n        nobs = self.nobs\n        neqs = self.neqs\n        sigma_u = self.sigma_u\n\n        W = np.dot(npl.inv(B), A)\n        trc_in = np.dot(np.dot(W.T, W), sigma_u)\n        sign, b_logdet = slogdet(B**2)  # numpy 1.4 compat\n        b_slogdet = sign * b_logdet\n\n        likl = (\n            -nobs\n            / 2.0\n            * (\n                neqs * np.log(2 * np.pi)\n                - np.log(npl.det(A) ** 2)\n                + b_slogdet\n                + np.trace(trc_in)\n            )\n        )\n"
+    },
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_0.txt",
+        "sha256": "f426c5cd7458effc3a48c9690d75bd51106812cccc2b5860129bcde4742f5560",
+        "anchor": "Lines 412-480: Optional local order/rank checks and optimizer-parameter-only return."
+      },
+      "first_line": 412,
+      "last_line": 480,
+      "text": "    def _solve_AB(self, start_params, maxiter, override=False, solver=\"bfgs\"):\n        \"\"\"\n        Solves for MLE estimate of structural parameters\n\n        Parameters\n        ----------\n        start_params : array_like\n            Starting values for the parameters to be estimated.\n        maxiter : int\n            The maximum number of iterations.\n        override : bool, optional\n            If True, returns estimates of A and B without checking\n            order or rank condition\n        solver : str, optional\n            Solver to be used. The default is 'bfgs'. Other\n            choices are 'nm' (Nelder-Mead), 'newton' (Newton-Raphson), 'cg'\n            conjugate, 'ncg' (non-conjugate gradient), and 'powell'.\n\n        Returns\n        -------\n        A_solve : ndarray\n            ML solution for the A matrix.\n        B_solve : ndarray\n            ML solution for the B matrix.\n        \"\"\"\n        # TODO: this could stand a refactor\n        A_mask = self.A_mask\n        B_mask = self.B_mask\n        A = self.A\n        B = self.B\n        A_len = len(A[A_mask])\n\n        A[A_mask] = start_params[:A_len]\n        B[B_mask] = start_params[A_len:]\n\n        if not override:\n            J = self._compute_J(A, B)\n            self.check_order(J)\n            self.check_rank(J)\n        else:  # TODO: change to a warning?\n            print(\"Order/rank conditions have not been checked\")\n\n        if solver == \"bfgs\":\n            kwargs = {\"gtol\": 1e-5}\n        else:\n            kwargs = {}\n        retvals = (\n            super()\n            .fit(\n                start_params=start_params,\n                method=solver,\n                maxiter=maxiter,\n                disp=False,\n                **kwargs,\n            )\n            .params\n        )\n\n        if retvals.ndim > 1:\n            retvals = retvals.ravel()\n        A[A_mask] = retvals[:A_len]\n        B[B_mask] = retvals[A_len:]\n\n        return A, B\n\n    def _compute_J(self, A_solve, B_solve):\n\n        # first compute appropriate duplication matrix\n        # taken from Magnus and Neudecker (1980),"
+    },
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_0.txt",
+        "sha256": "f426c5cd7458effc3a48c9690d75bd51106812cccc2b5860129bcde4742f5560",
+        "anchor": "Lines 537-547: Order/rank predicate scope."
+      },
+      "first_line": 537,
+      "last_line": 547,
+      "text": "    def check_order(self, J):\n        if np.size(J, axis=0) < np.size(J, axis=1):\n            raise ValueError(\"Order condition not met: solution may not be unique\")\n\n    def check_rank(self, J):\n        rank = np.linalg.matrix_rank(J)\n        if rank < np.size(J, axis=1):\n            raise ValueError(\"Rank condition not met: solution may not be unique.\")\n\n\nclass SVARProcess(VARProcess):"
+    },
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_0.txt",
+        "sha256": "f426c5cd7458effc3a48c9690d75bd51106812cccc2b5860129bcde4742f5560",
+        "anchor": "Lines 580-610: Structural moving-average impact mapping."
+      },
+      "first_line": 580,
+      "last_line": 610,
+      "text": "    def svar_ma_rep(self, maxn=10, P=None):\n        \"\"\"\n        Compute Structural MA coefficient matrices using MLE of A, B\n\n        Parameters\n        ----------\n        maxn : int, optional\n            Number of MA matrices to compute.\n        P : ndarray, optional\n            Solved A^{-1}B coefficient matrix used to orthogonalize the MA\n            representation. If not provided, it is computed from the\n            estimated A and B matrices.\n\n        Returns\n        -------\n        ndarray\n            The structural MA coefficient matrices.\n        \"\"\"\n        if P is None:\n            A_solve = self.A_solve\n            B_solve = self.B_solve\n            P = np.dot(npl.inv(A_solve), B_solve)\n\n        ma_mats = self.ma_rep(maxn=maxn)\n        return np.array([np.dot(coefs, P) for coefs in ma_mats])\n\n\nclass SVARResults(SVARProcess, VARResults):\n    \"\"\"\n    Estimate VAR(p) process with fixed number of lags\n"
+    },
+    {
+      "group": "statsmodels",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_stats_src_1.txt",
+        "sha256": "8391e2b85e14942de90fff743f7afb092cff2d57f23333fe02156785fdb5504f",
+        "anchor": "Lines 437-461: Ordinary VAR orthogonalization uses Cholesky by default."
+      },
+      "first_line": 437,
+      "last_line": 461,
+      "text": "def orth_ma_rep(results, maxn=10, P=None):\n    r\"\"\"\n    Compute Orthogonalized MA coefficient matrices using P matrix such\n    that :math:`\\Sigma_u = PP^\\prime`. P defaults to the Cholesky\n    decomposition of :math:`\\Sigma_u`\n\n    Parameters\n    ----------\n    results : VARResults or VECMResults\n    maxn : int, optional\n        Number of coefficient matrices to compute\n    P : ndarray (neqs x neqs), optional\n        Matrix such that Sigma_u = PP', defaults to the Cholesky decomposition.\n\n    Returns\n    -------\n    coefs : ndarray (maxn x neqs x neqs)\n    \"\"\"\n    if P is None:\n        P = results._chol_sigma_u\n\n    ma_mats = results.ma_rep(maxn=maxn)\n    return np.array([np.dot(coefs, P) for coefs in ma_mats])\n\n"
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_0.txt",
+        "sha256": "07cb82b423e0ffad1ae7c5c2b130b8899566e63d7261def7a017fbd0ff4a1f60",
+        "anchor": "Lines 1-21: Original MIT notice."
+      },
+      "first_line": 1,
+      "last_line": 21,
+      "text": "MIT License\n\nCopyright (c) 2026 Frederick Kahindo\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE."
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_2.txt",
+        "sha256": "91a510ef00cb480763afa2ec5ff9426f1d3e30fc116c68ff04e9a98e426bdd9c",
+        "anchor": "Lines 1-15: Package version/runtime metadata."
+      },
+      "first_line": 1,
+      "last_line": 15,
+      "text": "[build-system]\nrequires = [\"setuptools>=61\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"pyxtabond2\"\nversion = \"0.0.4\"\ndescription = \"Dynamic panel GMM estimation replicating Stata's xtabond2\"\nreadme = \"README.md\"\nlicense = {text = \"MIT\"}\nauthors = [{ name = \"Frederick Kahindo\", email = \"frederickahindo048@gmail.com\" }]\nrequires-python = \">=3.9\"\ndependencies = [\n    \"numpy>=1.21\",\n    \"pandas>=1.3\","
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_3.txt",
+        "sha256": "9e887cac4e04c1d60b39ef8f17589d8b6e7e84fab7f64143b5ef1394bda97561",
+        "anchor": "Lines 85-132: Exact calendar-offset lag with contiguous fast path."
+      },
+      "first_line": 85,
+      "last_line": 132,
+      "text": "def scatter_to_grid(vals: np.ndarray, t_off: np.ndarray, T_span: int) -> np.ndarray:\n    \"\"\"Scatter a group's sparse values onto a dense length-``T_span`` array,\n    indexed by absolute time offset; unobserved cells are NaN. Mirrors\n    Stata xtabond2's internal ``Fill``/``tsfill``-replacement grid\n    (``xtabond2.mata:118-172``): position in the returned array always\n    equals absolute calendar time, gap or not.\n    \"\"\"\n    grid = np.full(T_span, np.nan, dtype=np.float64)\n    grid[t_off] = vals\n    return grid\n\n\ndef _lag_group(vals: np.ndarray, t_off: np.ndarray, lags: int) -> np.ndarray:\n    \"\"\"Lag by exactly `lags` calendar periods, wherever that source row sits\n    in this (possibly gapped) group's own row list -- not just `lags` rows\n    earlier positionally, which only equals true calendar adjacency when the\n    group has no gap before the target row. A plain fixed-offset shift would\n    miss a valid source that a gap has pushed further back in the row list\n    than `lags` positions (e.g. lags=2 with one interior gap before the\n    target); searchsorted finds it regardless of how many rows back it sits.\n    `t_off` is strictly increasing (PanelData sorts by time), so a single\n    per-group binary search suffices.\n\n    Fast path: if this group has no gap anywhere (t_off advances by exactly\n    1 every row, e.g. a balanced panel, or a group that starts late/ends\n    early but is contiguous in between), row position and calendar offset\n    move in lockstep, so a plain positional shift already *is* the exact\n    calendar-time lag -- mathematically identical to the general path below,\n    just without paying for a search. This is the common case (most panels\n    have no interior gaps), and it's what every IFE-GMM iteration re-triggers\n    for D_/L1_-style columns, so it's worth short-circuiting.\n    \"\"\"\n    n = len(t_off)\n    if n > 0 and t_off[-1] - t_off[0] == n - 1:\n        out = np.full_like(vals, np.nan, dtype=np.float64)\n        if lags < n:\n            out[lags:] = vals[:-lags]\n        return out\n    target = t_off - lags\n    idx = np.clip(np.searchsorted(t_off, target), 0, len(t_off) - 1)\n    found = t_off[idx] == target\n    out = np.full_like(vals, np.nan, dtype=np.float64)\n    out[found] = vals[idx[found]]\n    return out\n\n\ndef _diff_group(vals: np.ndarray, t_off: np.ndarray) -> np.ndarray:\n    return vals - _lag_group(vals, t_off, 1)"
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_3.txt",
+        "sha256": "9e887cac4e04c1d60b39ef8f17589d8b6e7e84fab7f64143b5ef1394bda97561",
+        "anchor": "Lines 176-213: Input sorting,row map and integer time offsets; full validation separate."
+      },
+      "first_line": 176,
+      "last_line": 213,
+      "text": "    def __init__(self, df: pd.DataFrame, id_col: str, time_col: str):\n        self.id_col = id_col\n        self.time_col = time_col\n\n        # Track each row's original position through sort/dropna/reindex so a\n        # later value-only mutated copy of the same dataframe can be rebuilt\n        # via rebuild_fast() without repeating this pandas processing.\n        df = df.copy()\n        df['__pyxtabond2_pos__'] = np.arange(len(df))\n\n        # Sort values strictly by group and time to prevent cross-contamination of lags\n        df = df.sort_values(by=[self.id_col, self.time_col])\n\n        # Clean data: Equivalent to Stata's \"count if `t' >= .\"\n        # Drops rows where the identifier or the time variable is missing\n        initial_obs = len(df)\n        df_clean = df.dropna(subset=[self.time_col, self.id_col]).copy()\n\n        if len(df_clean) == 0:\n            raise ValueError(\"No valid observations remain after filtering missing IDs and time periods.\")\n        elif len(df_clean) < initial_obs:\n            print(f\"Warning: {initial_obs - len(df_clean)} observations were dropped due to missing ID or time values.\")\n\n        # Create the MultiIndex (equivalent to 'tsset') and enforce strict sorting\n        df_clean.set_index([self.id_col, self.time_col], inplace=True)\n        df_clean.sort_index(level=[0, 1], inplace=True)\n\n        self._sort_perm = df_clean.pop('__pyxtabond2_pos__').to_numpy()\n        self.data = df_clean\n        self._init_group_slices()\n\n        # Absolute time offset of every row (0 = the panel's global t_min),\n        # used by _lag_group/_diff_group to verify true calendar adjacency\n        # instead of assuming a group's own rows are gap-free.\n        times = self.data.index.get_level_values(self.time_col).to_numpy()\n        self._time_offsets = (times - times.min()).astype(np.int64)\n\n    def __repr__(self) -> str:"
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_5.txt",
+        "sha256": "7d3dd800ae53264a330fb1c54513190571a671bc3681f71db204f04695efee94",
+        "anchor": "Lines 184-206: Instrument builder consumes a dense calendar grid."
+      },
+      "first_line": 184,
+      "last_line": 206,
+      "text": "    def __init__(self, panel: PanelData):\n        self.panel = panel\n        times = panel.data.index.get_level_values(panel.time_col).to_numpy()\n        self.t_min = int(times.min())\n        self.t_max = int(times.max())\n        self.T_span = self.t_max - self.t_min + 1\n        self._time_offsets = (times - self.t_min).astype(np.int64)\n        self._group_slices = panel._group_slices\n        # Skip columns that aren't numeric (e.g. a string cluster() variable\n        # riding along in the dataframe) -- they're never looked up by name\n        # below, so a failed conversion just means \"not used here\".\n        self._column_arrays = {}\n        for col in panel.data.columns:\n            try:\n                self._column_arrays[col] = panel.data[col].to_numpy(dtype=np.float64, copy=False)\n            except (ValueError, TypeError):\n                continue\n\n    def _time_grid(self, col_name: str, group_slice: slice) -> np.ndarray:\n        \"\"\"Map group observations onto the global time grid.\"\"\"\n        offsets = self._time_offsets[group_slice]\n        return scatter_to_grid(self._column_arrays[col_name][group_slice], offsets, self.T_span)\n"
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_4.txt",
+        "sha256": "b2419f1b1dbebaa65e400a6d48846e31fe04442f2d8f0988ca947f67a528c2d4",
+        "anchor": "Lines 231-247: Gram-rank diagnostic and disabled-check fallback."
+      },
+      "first_line": 231,
+      "last_line": 247,
+      "text": "        if check_rank:\n            # rank(Z) == rank(Z'Z); computing it via the (n_instruments x\n            # n_instruments) Gram matrix is far cheaper than SVD-ing the full\n            # (n_obs x n_instruments) Z when n_obs >> n_instruments (the\n            # common case -- this rank check dominated profiled runtime on\n            # large-T panels). hermitian=True uses eigh, faster and more\n            # numerically stable than a generic SVD for a symmetric PSD\n            # matrix. Empirically (synthetic sweep of the smallest singular\n            # value from 1 to 1e-16) the two computations disagree only in an\n            # extremely narrow band (~1e-7 to 1e-11 here), where the\n            # Gram-matrix version is always the more conservative one (flags\n            # rank-deficiency slightly earlier), never the more permissive one.\n            self.z_rank = np.linalg.matrix_rank(self.Z.T @ self.Z, hermitian=True)\n            if self.z_rank < self.k_vars:\n                raise ValueError(f\"Under-identified model: {self.z_rank} valid instruments for {self.k_vars} regressors.\")\n        else:\n            self.z_rank = self.n_instruments"
+    },
+    {
+      "group": "xtabond",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_xtabond_src_4.txt",
+        "sha256": "b2419f1b1dbebaa65e400a6d48846e31fe04442f2d8f0988ca947f67a528c2d4",
+        "anchor": "Lines 377-433: Selected GMM paths use pseudoinverses; moment validity separate."
+      },
+      "first_line": 377,
+      "last_line": 433,
+      "text": "    def estimate_one_step(self) -> np.ndarray:\n        \"\"\"\n        Performs the 1-step (One-Step) GMM estimation.\n        Saves vital matrices (W1, V1, e1) for step 2 and diagnostics.\n        \n        Returns\n        -------\n        np.ndarray\n            The estimated coefficient vector (beta1).\n        \"\"\"\n        XZ = self.X.T @ self.Z\n        Zy = self.Z.T @ self.y\n        \n        XZ_W_ZX = XZ @ self.W1 @ XZ.T\n        self.V1 = np.linalg.pinv((XZ_W_ZX + XZ_W_ZX.T) / 2.0)\n        \n        self.beta1 = self.V1 @ XZ @ self.W1 @ Zy\n        self.e1 = self.y - self.X @ self.beta1\n        \n        return self.beta1\n\n    def estimate_two_step_robust(self) -> tuple:\n        \"\"\"\n        Performs the 2-step GMM estimation with a robust weight matrix.\n        Applies the Windmeijer (2005) variance correction and the 'small' option.\n        \n        Returns\n        -------\n        tuple\n            A tuple containing (beta2, se2_robust, V2_robust).\n        \"\"\"\n        self.estimate_one_step()\n\n        S2 = _accumulate_ZeZe(self.Z, self.e1, self._cluster_masks)\n        # KNOWN LIMITATION: when instruments outnumber clusters (e.g. cluster()\n        # on a coarser grouping than the panel id, combined with many\n        # instruments), S2 is exactly rank-deficient (rank <= N_clusters) and\n        # Stata prints \"covariance matrix of moments is singular ... using a\n        # generalized inverse.\" Our Moore-Penrose pinv and Mata's `invsym`-based\n        # generalized inverse are both *valid* generalized inverses of a\n        # singular matrix, but not the *same* one in general (invsym drops\n        # specific pivoted coordinates rather than projecting via SVD), so\n        # point estimates -- not just SE -- can diverge from Stata in this\n        # regime. Confirmed empirically: away from this singular case (e.g.\n        # cluster() on the panel id itself, or any case where instruments <=\n        # clusters) results match Stata exactly (see stata_validation/). The\n        # mitigation is the same one Stata's own warning implies: collapse\n        # instruments or reduce their count relative to the number of clusters.\n        self.W2 = np.linalg.pinv(S2)\n\n        XZ = self.X.T @ self.Z\n        Zy = self.Z.T @ self.y\n        \n        XZ_W2_ZX = XZ @ self.W2 @ XZ.T\n        self.V2 = np.linalg.pinv((XZ_W2_ZX + XZ_W2_ZX.T) / 2.0)\n        self.beta2 = self.V2 @ XZ @ self.W2 @ Zy\n        self.e2 = self.y - self.X @ self.beta2"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_0.txt",
+        "sha256": "6d08ac5a600a30834539affebbea74e5c05b4f1b957eea95b4e9b807deffe54e",
+        "anchor": "Lines 1-21: Original MIT notice."
+      },
+      "first_line": 1,
+      "last_line": 21,
+      "text": "MIT License\n\nCopyright (c) 2026 Hatef Tabbakhian\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE."
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_2.txt",
+        "sha256": "bdcb1eefc82cc093e3d415f2fcc8240e17c6c704f5bfee198d22478924b58c79",
+        "anchor": "Lines 1-15: Package version and runtime metadata."
+      },
+      "first_line": 1,
+      "last_line": 15,
+      "text": "[build-system]\nrequires = [\"hatchling\"]\nbuild-backend = \"hatchling.build\"\n\n[project]\nname = \"dynapanel\"\nversion = \"0.1.1\"\ndescription = \"Modern dynamic panel data models for Python: Arellano-Bond, Blundell-Bond, system & difference GMM.\"\nreadme = \"README.md\"\nrequires-python = \">=3.10\"\nlicense = { text = \"MIT\" }\nauthors = [{ name = \"Hatef Tabbakhian\", email = \"tabbakhianhatef@gmail.com\" }]\nmaintainers = [{ name = \"Hatef Tabbakhian\", email = \"tabbakhianhatef@gmail.com\" }]\nkeywords = [\n    \"econometrics\","
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_3.txt",
+        "sha256": "ae68a42dfd68b3900c8e99e9a1f39c0ef41666be1f8cbf34d9c970b6085d700a",
+        "anchor": "Lines 70-95: Duplicate check precedes optional integer conversion."
+      },
+      "first_line": 70,
+      "last_line": 95,
+      "text": "            f\"the following columns are not in your data: {missing}.\\n\"\n            f\"Available columns: {df.columns}\"\n        )\n\n    n_unique = df.select([panel_var, time_var]).unique().height\n    if n_unique != df.height:\n        n_dups = df.height - n_unique\n        raise ValueError(\n            f\"({panel_var!r}, {time_var!r}) does not uniquely identify rows: \"\n            f\"found {n_dups} duplicate (id, time) pair(s). Dynamic panel \"\n            f\"estimators require a unique panel index.\"\n        )\n\n    t_dtype = df.schema[time_var]\n    if not t_dtype.is_integer():\n        try:\n            df = df.with_columns(pl.col(time_var).cast(pl.Int64))\n        except Exception as e:\n            raise ValueError(\n                f\"time_var {time_var!r} must be an integer (year, quarter index, etc.). \"\n                f\"Got dtype {t_dtype}. Cast it yourself before passing it in — we \"\n                f\"won't guess your calendar convention.\"\n            ) from e\n\n    return df.sort([panel_var, time_var])\n"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_3.txt",
+        "sha256": "ae68a42dfd68b3900c8e99e9a1f39c0ef41666be1f8cbf34d9c970b6085d700a",
+        "anchor": "Lines 114-140: Positional lag and difference semantics."
+      },
+      "first_line": 114,
+      "last_line": 140,
+      "text": "    def lag(self, var: str, k: int) -> np.ndarray:\n        \"\"\"Return the k-lagged series for `var`, with NaN where unavailable.\n\n        Time-aware: we shift by k *positions in the sorted-times array*, NOT\n        by k literal time units. If the data has gaps (e.g., a missing year),\n        L(1) means \"the previous observed period\", not \"exactly one year ago\".\n\n        TODO: add a strict mode that requires consecutive time, since for\n        some moment conditions the difference between these is meaningful.\n        \"\"\"\n        if k == 0:\n            return self.values[var]\n        v = self.values[var]\n        out = np.full_like(v, np.nan, dtype=float)\n        if k > 0:\n            out[k:] = v[:-k]\n        else:\n            out[:k] = v[-k:]\n        return out\n\n    def diff(self, var: str) -> np.ndarray:\n        \"\"\"First difference of `var`: v_t - v_{t-1}, NaN at the start.\"\"\"\n        v = self.values[var]\n        out = np.full_like(v, np.nan, dtype=float)\n        out[1:] = v[1:] - v[:-1]\n        return out\n"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_5.txt",
+        "sha256": "0aaa8c505347475f8599d624193e63847fda0530e8399f2b5a4df0677bcd1fc4",
+        "anchor": "Lines 76-98: Actual regressor assembly uses positions."
+      },
+      "first_line": 76,
+      "last_line": 98,
+      "text": "    rows_position: np.ndarray\n\n\ndef _xrow_levels(ind: Individual, term, p: int) -> float:\n    \"\"\"Regressor in level form for row at position p.\"\"\"\n    src = p - term.lag\n    if src < 0:\n        return np.nan\n    return ind.values[term.var][src]\n\n\ndef _xrow_diff(ind: Individual, term, p: int) -> float:\n    \"\"\"Regressor for the differenced equation at position p.\n\n    Δ(L(k).var)_t = var[p-k] - var[p-k-1].\n    \"\"\"\n    a = p - term.lag\n    b = p - term.lag - 1\n    if a < 0 or b < 0:\n        return np.nan\n    return ind.values[term.var][a] - ind.values[term.var][b]\n\n"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_5.txt",
+        "sha256": "0aaa8c505347475f8599d624193e63847fda0530e8399f2b5a4df0677bcd1fc4",
+        "anchor": "Lines 190-219: Instrument values use positions while labels carry calendar times."
+      },
+      "first_line": 190,
+      "last_line": 219,
+      "text": "        if collapse:\n            # One column per s, key = (block_id, \"gmm\", w, s).\n            # We use block_id=\"diff\" so diff and level cols never collide.\n            for s in range(minlag, s_cap + 1):\n                col = np.zeros(n_rows, dtype=float)\n                for r, p in enumerate(positions):\n                    src = p - s\n                    if src >= 0:\n                        col[r] = w_arr[src]\n                Z_cols[(\"diff\", \"gmm\", w, s)] = col\n        else:\n            # Standard \"GMM-style\" block-diagonal: one column per (calendar t, s).\n            # The column has the lagged value at the row where the moment\n            # applies, and zero everywhere else for this individual.\n            for r, p in enumerate(positions):\n                t = int(ind.times[p])\n                for s in range(minlag, min(s_cap, p) + 1):\n                    src = p - s\n                    if src < 0:\n                        continue\n                    key = (\"diff\", \"gmm\", w, t, s)\n                    col = Z_cols.get(key)\n                    if col is None:\n                        col = np.zeros(n_rows, dtype=float)\n                        Z_cols[key] = col\n                    col[r] = w_arr[src]\n\n    # IV-style (exogenous) instruments enter as their own differences.\n    # One column per IV variable; same column shape across individuals.\n    for z in iv_instruments:"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_4.txt",
+        "sha256": "cfb888d37583f4c2ef11e29ceee14a16cf87bf7e088cd166481c4da274590a8c",
+        "anchor": "Lines 319-348: Instrument-count guards and warnings."
+      },
+      "first_line": 319,
+      "last_line": 348,
+      "text": "        n_inst = mats.Z.shape[1]\n        if n_inst < n_reg:\n            raise ValueError(\n                f\"underidentified: {n_inst} instruments < {n_reg} regressors. \"\n                f\"Either add more lags / IVs, or lower the model order.\"\n            )\n\n        # Instrument proliferation warning. Hansen tests lose power and\n        # the two-step weight matrix gets ill-conditioned when the\n        # instrument count is large relative to the cross section.\n        # Thresholds follow common practitioner advice (Roodman 2009 and\n        # others suggest keeping L < N as a soft cap).\n        N = len(self._individuals)\n        if n_inst >= N:\n            warnings.warn(\n                f\"instrument count ({n_inst}) is >= number of panel units \"\n                f\"({N}). Hansen tests are likely to be unreliable; consider \"\n                f\"setting collapse=True or reducing maxlag.\",\n                stacklevel=2,\n            )\n        elif n_inst > N / 2:\n            warnings.warn(\n                f\"instrument count ({n_inst}) is large relative to the \"\n                f\"number of panel units ({N}). Consider collapse=True or \"\n                f\"reducing maxlag if Hansen / Windmeijer look off.\",\n                stacklevel=2,\n            )\n\n        # ---- compute the one-step weight matrix --------------------------\n        W1 = self._one_step_weight(mats)"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_4.txt",
+        "sha256": "cfb888d37583f4c2ef11e29ceee14a16cf87bf7e088cd166481c4da274590a8c",
+        "anchor": "Lines 588-604: Inverse fallback and clipped variance square root."
+      },
+      "first_line": 588,
+      "last_line": 604,
+      "text": "def _safe_inv(A: np.ndarray) -> np.ndarray:\n    \"\"\"Invert A, falling back to pseudo-inverse when near-singular.\n\n    Near-singular moment matrices are *extremely* common when you forget\n    ``collapse=True`` and have a tall instrument matrix. This mirrors\n    the practical behavior of GMM software that has to gracefully\n    handle singular moment covariances rather than crash.\n    \"\"\"\n    try:\n        return linalg.inv(A)\n    except linalg.LinAlgError:\n        return linalg.pinv(A)\n\n\ndef _safe_sqrt(v: np.ndarray) -> np.ndarray:\n    \"\"\"sqrt of array, clipping tiny negatives that come from numerical noise.\"\"\"\n    return np.sqrt(np.clip(v, 0.0, None))"
+    },
+    {
+      "group": "dynapanel",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_dynapanel_src_1.txt",
+        "sha256": "094840ccc3c5af58b747c8f4e5a285dbb8548cdad39789acdc1bce29a8d7b181",
+        "anchor": "Lines 20-29: Retained experimental status, not a general rejection."
+      },
+      "first_line": 20,
+      "last_line": 29,
+      "text": "<p align=\"center\"><sub>System GMM on a simulated panel (N=300, T=8, true α=0.6, β=0.5).<br/>Tables render via <a href=\"https://github.com/posit-dev/great-tables\">great_tables</a>; a clean text fallback is built in.</sub></p>\n\n> **Status: experimental v0.1.** The code paths described below all\n> run, the unit tests all pass, and the estimator recovers known\n> coefficients on simulated data. What v0.1 does *not* yet have is a\n> full cross-check of point estimates and standard errors against\n> Stata's `xtabond2` on canonical datasets. Until those replication\n> tests land in CI (v0.2 milestone), please treat results as\n> preliminary and report any discrepancies with a minimal reproducible\n> example."
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_0.txt",
+        "sha256": "60206e49d2687b0775475ccbe02de396a8d9f8ac78b87207716ffd940a4b1c90",
+        "anchor": "Lines 1-21: Original MIT notice."
+      },
+      "first_line": 1,
+      "last_line": 21,
+      "text": "MIT License\n\nCopyright (c) 2026 Patricio\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE."
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_2.txt",
+        "sha256": "78e704c7799dc3f82876dc4ac505255553d384c9370013809ef4c8d283a61d98",
+        "anchor": "Lines 109-145: Public input conversion and multiple-instrument shape."
+      },
+      "first_line": 109,
+      "last_line": 145,
+      "text": "        # plain arrays: the instrument column(s) first (needs the original\n        # DataFrame with column names still available), then the endogenous\n        # variables (overwrites self.data, so this must happen last).\n        if isinstance(data, pd.DataFrame):\n            if self.method=='IV':\n                self.iv=self.data[self.iv].values\n            self.data=self.data[self.variables].values\n        if data_exogenous is not None:\n            if isinstance(data_exogenous, pd.DataFrame):\n                self.data_exogenous=self.data_exogenous[self.variables_exogenous].values\n                self.n_obsex,self.n_ex=self.data_exogenous.shape\n        else:\n            self.n_ex=0\n            if self.variables_exogenous is None:\n                self.variables_exogenous=['Exog'+f\"{i+1}\" for i in range(self.n_ex)]\n        # Apply the requested per-variable transformation (difference,\n        # log-difference, log level, or none) and rescaling multiplier.\n        # 'diff'/'logdiff' shorten the series by one observation, so if any\n        # variable used them the whole sample is trimmed by one row below\n        # to keep all columns aligned.\n        for i in range(len(self.transformation)):\n            if self.transformation[i]==\"diff\":\n                self.data[1:,i]=np.diff(self.data[:, i])*self.rescaling[i]\n            elif self.transformation[i]==\"logdiff\":\n                self.data[1:,i]=np.diff(np.log(self.data[:,i]))*self.rescaling[i]\n            elif self.transformation[i]==\"log\":\n                self.data[:,i]=np.log(self.data[:,i])*self.rescaling[i]\n            else:\n                self.data[:,i] = self.data[:,i]*self.rescaling[i]\n        if 'diff' in self.transformation or 'logdiff' in self.transformation:\n            self.data=self.data[1:]\n        self.structural=False\n        if self.method=='IV':\n            if self.iv.ndim == 1:\n                self.iv = self.iv.reshape(-1, 1)\n            self.n_obsi,self.n_iv=self.iv.shape\n    "
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_2.txt",
+        "sha256": "78e704c7799dc3f82876dc4ac505255553d384c9370013809ef4c8d283a61d98",
+        "anchor": "Lines 269-286: Public path delegates arrays to inspected proxy helper."
+      },
+      "first_line": 269,
+      "last_line": 286,
+      "text": "        # IV + sign restrictions\n        elif self.method == \"IV\":\n            # self.data at this point should already be the ndarray of endogenous vars\n            struct = identify_iv(\n                sigma_u=self.sigma_u,\n                resid=self.resid,\n                iv=self.iv,\n                data_array=self.data,\n            )\n            self.B = struct.B\n            self.n = struct.n_rejected\n            self.corr = struct.corr\n            self.z = struct.extra[\"z\"]\n            self.varz = struct.extra[\"varz\"]\n\n        self.structural = True\n\n                #--------------------------------------------------------------"
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_3.txt",
+        "sha256": "7ac14782ec3534c25d60c0ec0da41c848350e7589fd7987e34dca467d5a100bc",
+        "anchor": "Lines 523-567: Missing instruments select residual suffix and reset impact matrix within instrument loop."
+      },
+      "first_line": 523,
+      "last_line": 567,
+      "text": "    B = np.zeros((n_vars, n_vars))\n\n    for j in range(n_iv):\n        # replace sentinel 123456789 with NaN\n        iv_col = iv[:, j].copy()\n        iv_col[iv_col == 123456789] = np.nan\n\n        # keep non-NaN instruments\n        mask = ~np.isnan(iv_col)\n        instrument = iv_col[mask]\n        z_list.append(instrument)\n\n        # correlate with the corresponding variable j in data_array (last len(instrument) obs)\n        y_for_corr = data_array[-len(instrument) :, j]\n        corr_j = abs(np.corrcoef(instrument, y_for_corr)[0, 1])\n        corr_list.append(float(corr_j))\n        varz_list.append(float(np.var(instrument)))\n\n        # First stage\n        XX_invfs = (np.var(instrument)) ** (-1)\n        u_j = resid[-len(instrument) :, j]\n        betafs = XX_invfs * (instrument.T @ u_j)\n        ujhat = instrument * betafs\n\n        # Initialize column j of B\n        B[:, :] = 0.0\n        B[j, j] = 1.0\n\n        # Second stage: other entries in column j\n        XX_invss = (np.var(ujhat)) ** (-1)\n        for i in range(n_vars):\n            if i != j:\n                u_i = resid[-len(instrument) :, i]\n                betass = XX_invss * (ujhat.T @ u_i)\n                B[i, j] = betass\n\n        C = np.linalg.cholesky(sigma_u)\n        q = solve_triangular(C, B[:, j], lower=True)\n        v = np.linalg.norm(q)\n        B[:, j] = B[:, j] / v\n\n    extra = {\n        \"z\": z_list,\n        \"varz\": varz_list,\n        \"corr\": corr_list,"
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_4.txt",
+        "sha256": "d1bb5dd4b51e1b3186a3c71f21f7a2541d2d1df994d8bfaa4250449b1d8ea1bd",
+        "anchor": "Lines 9-43: Impulse scaling is own-variable impact normalization."
+      },
+      "first_line": 9,
+      "last_line": 43,
+      "text": "def impulse_response(\n    B: np.ndarray,\n    F: np.ndarray,\n    shock: int,\n    impact: float = 1.0,\n    steps: int = 10,\n) -> np.ndarray:\n    \"\"\"\n    Compute impulse responses for a given structural matrix B and companion matrix F.\n\n    Returns an array of shape (steps, n_vars).\n    \"\"\"\n    # Algorithm: IR(h) = Psi_h @ B @ e_shock, where Psi_h is the top-left\n    # n_vars x n_vars block of F^h (the companion matrix raised to the h-th\n    # power). e_shock is a unit impulse (scaled by `impact`) hitting only\n    # the chosen structural shock at h=0.\n    B = np.asarray(B, dtype=float)\n    F = np.asarray(F, dtype=float)\n\n    n_vars = B.shape[0]\n    total_dim = F.shape[0]\n    lags = total_dim // n_vars\n\n    ir = np.zeros((steps, n_vars))\n    impulse = np.zeros((n_vars, 1))\n    impulse[shock - 1, 0] = impact / B[shock - 1,shock - 1]\n\n    # Accumulate F^h incrementally (F^h = F^(h-1) @ F) instead of calling\n    # np.linalg.matrix_power(F, h) from scratch at every horizon.\n    F_power = np.eye(n_vars * lags)  # F^0\n    for h in range(steps):\n        Psi_h = F_power[:n_vars, :n_vars]\n        response = Psi_h @ B @ impulse\n        ir[h, :] = response[:, 0]\n        F_power = F_power @ F  # advance to F^(h+1) for the next iteration"
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_5.txt",
+        "sha256": "f36a366e82475993c837c68de4332f36baa4298e4e795d71ff67159d59d05d3c",
+        "anchor": "Lines 40-84: Bootstrap progress boundary,normal resampling and wild in-place alias."
+      },
+      "first_line": 40,
+      "last_line": 84,
+      "text": "    if model.method == 'signs':\n        raise ValueError(\"No bootstrap in sign restriction SVAR\")\n    \n    \n    # BEGIN BOOTSTRAP\n    b = 0\n\n    # Pre-allocate the output array: one row per successful replication,\n    # one column per horizon (IR/VD) or per past+horizon period (FC).\n    if typ == \"IR\":\n        draws = {var: np.zeros((reps, steps)) for var in model.variables}\n    elif typ == \"FC\":\n        draws = {var: np.zeros((reps, past + horizon)) for var in model.variables}\n    elif typ == \"VD\":\n        draws = {var: np.zeros((reps, steps)) for var in model.variables}\n    else:\n        raise ValueError(\"typ must be 'IR', 'FC' or 'VD'.\")\n\n    while True:\n        # progreso\n        if b in list(\n            range(int(reps / 10) - 1, reps, int(reps / 10))\n        ):\n            print(str(b + 1) + \"/\" + str(reps))\n\n        # ---------- tipo de remuestreo ----------\n        # Algorithm: normal bootstrap draws each period's residual vector\n        # with replacement (i.i.d. resampling across time); wild bootstrap\n        # instead keeps every residual's magnitude but flips its sign with\n        # probability 1/2 per period (Rademacher multipliers) -- this\n        # preserves any heteroskedasticity pattern in the residuals that\n        # i.i.d. resampling would average away.\n        if model.resampling == 1:  # normal\n            resampled_resid = model.resid.copy()\n            for i in range(model.n_obs):\n                rnd = np.random.randint(0, model.n_obs)\n                resampled_resid[i] = model.resid[rnd]\n        elif model.resampling == 2:  # wild\n            rsigns = np.random.choice([-1, 1], size=model.resid.shape[0])\n            # Nota: igual que el código original, esto modifica model.resid en sitio\n            resampled_resid = model.resid\n            for i in range(model.resid.shape[0]):\n                resampled_resid[i, :] = model.resid[i, :] * rsigns[i]\n        else:\n            raise ValueError(\"resampling must be 1 (normal) or 2 (wild).\")"
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_5.txt",
+        "sha256": "f36a366e82475993c837c68de4332f36baa4298e4e795d71ff67159d59d05d3c",
+        "anchor": "Lines 274-334: Proxy bootstrap reset and successful-draw stopping without separate attempt cap."
+      },
+      "first_line": 274,
+      "last_line": 334,
+      "text": "            # residual, then normalizes the resulting column so it is a\n            # valid orthonormal-rotation column of Chol(Sigma_u) -- same\n            # derivation as identification.py::identify_iv.\n            usim = residsim\n            for j in range(model.n_iv):\n                XX_invfssim = (np.var(iv[j])) ** (-1)\n                betafssim = XX_invfssim * (iv[j].T @ usim[-len(iv[j]) :, j])\n                ujhatsim = iv[j] * betafssim\n                Bsim = np.zeros((model.n_vars, model.n_vars))\n                Bsim[j, j] = 1\n                for i in range(model.n_vars):\n                    XX_invsssim = (np.var(ujhatsim)) ** (-1)\n                    if i != j:\n                        betasssim = XX_invsssim * (\n                            ujhatsim.T.T @ usim[-len(iv[j]) :, i]\n                        )\n                        Bsim[i, j] = betasssim\n                Csim = np.linalg.cholesky(sigma_usim)\n                q = solve_triangular(Csim, Bsim[:, j], lower=True)\n                vsim = np.linalg.norm(q)\n                # vsim = np.linalg.norm(Csim[:,j])\n                Bsim[:, j] = Bsim[:, j] / vsim\n\n        # ---------- almacenar draws ----------\n        # Compute the requested statistic (IRF / forecast / FEVD) from\n        # (Bsim, Fsim) and store one row per successful replication. Only\n        # counted (b += 1) if Bsim is non-degenerate and the method is one\n        # of the ones actually identified above.\n        if typ == \"IR\":\n            ir_b = impulse_response(Bsim, Fsim, shock, steps=steps, impact=impact)\n        \n            if np.any(Bsim != 0):\n                if model.method in (\"short\", \"long\", \"IV\"):\n                    for k in range(model.n_vars):\n                        draws[model.variables[k]][b, :] = ir_b[:, k]\n                    b += 1\n\n        if typ == \"FC\":\n            fc_b = compute_forecast(model, Fsim)\n            if np.any(Bsim != 0):\n                if model.method in (\"short\", \"long\", \"IV\"):\n                    for k in range(model.n_vars):\n                        draws[model.variables[k]][b, :] = fc_b[:, k]\n                    b += 1\n        \n        if typ == \"VD\":\n            vd_dict = forecast_error_variance_decomposition(\n                Bsim, Fsim, steps=steps\n            )\n            if np.any(Bsim != 0):\n                if model.method in (\"short\", \"long\", \"IV\"):\n                    for k in range(model.n_vars):\n                        # vd_dict[k + 1] gets the (steps, n_vars) FEVD matrix for variable k+1.\n                        # [:, shock - 1] isolates the proportion of variance explained by 'shock'.\n                        draws[model.variables[k]][b, :] = vd_dict[k + 1][:, shock - 1]\n                    b += 1\n\n        if b >= reps:\n            break\n\n    return draws"
+    },
+    {
+      "group": "macroshock",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_macroshock_src_3.txt",
+        "sha256": "7ac14782ec3534c25d60c0ec0da41c848350e7589fd7987e34dca467d5a100bc",
+        "anchor": "Lines 295-335: Separate sign-search rejection cap and zero-filled abort summaries."
+      },
+      "first_line": 295,
+      "last_line": 335,
+      "text": "                    m_accepted += 1\n                    if m_accepted in list(range(0+reps//10, reps + 1, reps//10)):\n                        print(f\"{m_accepted}/{reps}\")\n        else:\n            n_rejected += 1\n\n        if m_accepted >= reps:\n            break\n\n        if n_rejected >= 100000:\n            print(\n                \"==============================\\n\"\n                \"Number of total draws exceeded\\n\"\n                \"==============================\"\n            )\n            B_zero = np.zeros((n_vars, n_vars))\n\n            # Same key set as the successful path below (ir_* and vd_*,\n            # zero-filled with the right shape) so SVAR.S() can always\n            # unpack 'extra' the same way, whether or not sampling aborted.\n            ir_stats = _zero_stat_dicts(steps, n_vars, extra_percentiles=True)\n            vd_stats = _zero_stat_dicts(steps, n_vars, extra_percentiles=False)\n\n            extra = {\n                \"IRL\": IRL,\n                \"MB\": MB,\n                \"ir_median\": ir_stats[\"median\"],\n                \"ir_mean\": ir_stats[\"mean\"],\n                \"ir_high\": ir_stats[\"high\"],\n                \"ir_low\": ir_stats[\"low\"],\n                \"ir_00\": ir_stats[\"00\"],\n                \"ir_99\": ir_stats[\"99\"],\n                \"ir_02\": ir_stats[\"02\"],\n                \"ir_97\": ir_stats[\"97\"],\n                \"ir_05\": ir_stats[\"05\"],\n                \"ir_95\": ir_stats[\"95\"],\n                \"ir_10\": ir_stats[\"10\"],\n                \"ir_90\": ir_stats[\"90\"],\n                \"ir_16\": ir_stats[\"16\"],\n                \"ir_84\": ir_stats[\"84\"],\n                \"ir_25\": ir_stats[\"25\"],"
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_0.txt",
+        "sha256": "a97c9668e6a9ab312f976bde24984e5520b80b0be010f3366bbfe0a7d83369f4",
+        "anchor": "Lines 1-24: Original BSD-style notice."
+      },
+      "first_line": 1,
+      "last_line": 24,
+      "text": "Copyright (c) 2017, Xiangyu Wang (wwrechard@gmail.com)\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n    * Redistributions of source code must retain the above copyright\n      notice, this list of conditions and the following disclaimer.\n    * Redistributions in binary form must reproduce the above copyright\n      notice, this list of conditions and the following disclaimer in the\n      documentation and/or other materials provided with the distribution.\n    * Neither the name of the <organization> nor the\n      names of its contributors may be used to endorse or promote products\n      derived from this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\nANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\nWARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\nDISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDER BE LIABLE FOR ANY\nDIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES\n(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;\nLOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND\nON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\nSOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_2.txt",
+        "sha256": "4f49a35db6afd5e565246c438f5f07f07ad7a194d7f5b9fb810aa5f54f3a6d24",
+        "anchor": "Lines 8-43: Setup runtime,license and alpha-status declarations."
+      },
+      "first_line": 8,
+      "last_line": 43,
+      "text": "setup(\n    name=\"pydlm\",\n    author=\"Xiangyu Wang\",\n    author_email=\"wwrechard@gmail.com\",\n    description=(\n        \"A python library for the Bayesian dynamic linear \"\n        + \"model for time series modeling\"\n    ),\n    long_description=long_description,\n    long_description_content_type=\"text/markdown\",\n    license=\"BSD\",\n    keywords=\"dlm bayes bayesian kalman filter smoothing dynamic model\",\n    url=\"https://github.com/wwrechard/pydlm\",\n    packages=find_packages(),\n    zip_safe=False,\n    classifiers=[\n        \"Development Status :: 3 - Alpha\",\n        \"Intended Audience :: Science/Research\",\n        \"License :: OSI Approved :: BSD License\",\n        \"Operating System :: OS Independent\",\n        \"Programming Language :: Python\",\n        \"Programming Language :: Python :: 3\",\n        \"Topic :: Scientific/Engineering :: Artificial Intelligence\",\n    ],\n    include_package_data=False,\n    install_requires=[\n        \"numpy\",\n        \"matplotlib\",\n    ],\n    tests_require=[],\n    extras_require={\n        \"docs\": [\n            \"Sphinx\",\n        ],\n    },\n)"
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_5.txt",
+        "sha256": "c31089e82be009be1a83ce653dcb23125aced2620a24e882fbefa6e69e39e1c8",
+        "anchor": "Lines 42-53: Discount validation precedes reciprocal-root initialization."
+      },
+      "first_line": 42,
+      "last_line": 53,
+      "text": "    def __init__(self, discount=[0.99], updateInnovation=\"whole\", index=None):\n        \"\"\"Initializing the kalmanFilter class\n\n        Args:\n            discount: the discounting factor, could be a vector\n            updateInnovation: the indicator for whether updating innovation matrix\n\n        \"\"\"\n\n        self.__checkDiscount__(discount)\n        self.discount = np.diag(1 / np.sqrt(np.array(discount)))\n        self.updateInnovation = updateInnovation"
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_5.txt",
+        "sha256": "c31089e82be009be1a83ce653dcb23125aced2620a24e882fbefa6e69e39e1c8",
+        "anchor": "Lines 73-113: First and subsequent prediction branches use different innovation conventions."
+      },
+      "first_line": 73,
+      "last_line": 113,
+      "text": "        if model.prediction.step == 0:\n            model.prediction.state = np.dot(model.transition, model.state)\n            model.prediction.obs = np.dot(model.evaluation, model.prediction.state)\n            model.prediction.sysVar = np.dot(\n                np.dot(model.transition, model.sysVar), model.transition.T\n            )\n\n            # update the innovation\n            if self.updateInnovation == \"whole\":\n                self.__updateInnovation__(model)\n            elif self.updateInnovation == \"component\":\n                self.__updateInnovation2__(model)\n\n            # add the innovation to the system variance\n            model.prediction.sysVar += model.innovation\n\n            model.prediction.obsVar = (\n                np.dot(\n                    np.dot(model.evaluation, model.prediction.sysVar),\n                    model.evaluation.T,\n                )\n                + model.noiseVar\n            )\n            model.prediction.step = 1\n\n        # otherwise, we use previous result to predict next time stamp\n        else:\n            model.prediction.state = np.dot(model.transition, model.prediction.state)\n            model.prediction.obs = np.dot(model.evaluation, model.prediction.state)\n            model.prediction.sysVar = np.dot(\n                np.dot(model.transition, model.prediction.sysVar), model.transition.T\n            )\n            model.prediction.obsVar = (\n                np.dot(\n                    np.dot(model.evaluation, model.prediction.sysVar),\n                    model.evaluation.T,\n                )\n                + model.noiseVar\n            )\n            model.prediction.step += 1\n"
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_5.txt",
+        "sha256": "c31089e82be009be1a83ce653dcb23125aced2620a24e882fbefa6e69e39e1c8",
+        "anchor": "Lines 133-194: Observed-data correction and missing-state update lifecycle."
+      },
+      "first_line": 133,
+      "last_line": 194,
+      "text": "        # since we have delt with the missing value, we don't need to double treat it.\n        self.predict(model, dealWithMissingEvaluation=False)\n\n        # when y is not a missing data\n        if y is not None:\n            # first obtain the predicted status\n            # we make the prediction step equal to 0 to ensure the prediction\n            # is based on the model state and innovation is updated correctlly\n            # model.prediction.step = 0\n            model.prediction.step = 0\n\n            # the prediction error and the correction matrix\n            err = y - model.prediction.obs\n            correction = (\n                np.dot(model.prediction.sysVar, model.evaluation.T)\n                / model.prediction.obsVar\n            )\n\n            # update new states\n            model.df += 1\n            lastNoiseVar = model.noiseVar  # for updating model.sysVar\n            model.noiseVar = model.noiseVar * (\n                1.0 - 1.0 / model.df + err * err / model.df / model.prediction.obsVar\n            )\n\n            model.state = model.prediction.state + correction * err\n\n            model.sysVar = (\n                model.noiseVar[0, 0]\n                / lastNoiseVar[0, 0]\n                * (\n                    model.prediction.sysVar\n                    - np.dot(correction, correction.T) * model.prediction.obsVar[0, 0]\n                )\n            )\n\n            model.obs = np.dot(model.evaluation, model.state)\n            model.obsVar = (\n                np.dot(np.dot(model.evaluation, model.sysVar), model.evaluation.T)\n                + model.noiseVar\n            )\n\n            # update the innovation using discount\n            # model.innovation = model.sysVar * (1 / self.discount - 1)\n\n        # when y is missing, then we update the status by the predicted results\n        else:\n            # we do not update the model.predict.step because we need to take of the case\n            # [5, None, None, None]. In such case, we do not add more innovation, because\n            # no information is comming in.\n            # This is correct because\n            # 1. for the first 'None', the step starts from 0 because '5' appears before\n            # 2. for the second 'None', the step starts from 1, but the prediction.state\n            #    is correct, because now model.state = model.prediciton.state\n            # 3. The last 'None' follows the same\n\n            model.state = model.prediction.state\n            model.sysVar = model.prediction.sysVar\n            model.obs = model.prediction.obs\n            model.obsVar = model.prediction.obsVar\n\n        # recover the evaluation and the transition matrix"
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_5.txt",
+        "sha256": "c31089e82be009be1a83ce653dcb23125aced2620a24e882fbefa6e69e39e1c8",
+        "anchor": "Lines 308-324: Local inclusive endpoint guard and innovation formula."
+      },
+      "first_line": 308,
+      "last_line": 324,
+      "text": "    def __checkDiscount__(self, discount):\n        \"\"\"Check whether the discount fact is within (0, 1)\"\"\"\n\n        for i in range(len(discount)):\n            if discount[i] < 0 or discount[i] > 1:\n                raise tl.matrixErrors(\"discount factor must be between 0 and 1\")\n\n    # update the innovation\n    def __updateInnovation__(self, model):\n        \"\"\"update the innovation matrix of the model\"\"\"\n\n        model.innovation = (\n            np.dot(np.dot(self.discount, model.prediction.sysVar), self.discount)\n            - model.prediction.sysVar\n        )\n\n    # update the innovation"
+    },
+    {
+      "group": "pydlm",
+      "source": {
+        "path": "docs/literature/raw/exec25_pydyn_pydlm_src_7.txt",
+        "sha256": "4bd02497d83194e959cac3e9396a46f840e840a2d709073bedaa16122dee6419",
+        "anchor": "Lines 68-86: Dynamic feature input; forecast availability remains an external contract."
+      },
+      "first_line": 68,
+      "last_line": 86,
+      "text": "    def __init__(self, features=None, discount=0.99, name=\"dynamic\", w=100):\n        if tl.isPandasObject(features):\n            from pandas import DataFrame, Series\n\n            if isinstance(features, Series):\n                features = [[value] for value in features.tolist()]\n            elif isinstance(features, DataFrame):\n                features = features.to_numpy().tolist()\n        self.n = len(features)\n        self.d = len(features[0])\n\n        if self.hasMissingData(features):\n            raise ValueError(\n                \"The current version does not support missing data\" + \"in the features.\"\n            )\n\n        self.features = deepcopy(features)\n        if isinstance(features, np.matrix) or isinstance(features, np.ndarray):\n            self.features = self.features.tolist()"
+    }
+  ],
+  "count": 38
+}

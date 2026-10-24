@@ -1,0 +1,7 @@
+## Python dynamic models: buy a defined shock and calendar contract
+
+Dynamic-panel estimates, structural time-series shocks and state forecasts answer different banking questions. The retained pydynpd review is supplemented by PyXtabond2 and dynapanel calendar and instrument contracts, statsmodels VAR/SVAR restrictions, macroshock proxy and resampling paths, and PyDLM innovation conventions. A well-fitting forecast or a numerical rank check does not establish the meaning of a policy shock. [@exec25_pydyn_statsmodels; @exec25_pydyn_xtabond; @exec25_pydyn_dynapanel; @exec25_pydyn_pydlm]
+
+Selected primary sources reveal concrete qualification work: calendar versus previous-observation lags; a dense structural likelihood expression requiring independent verification; proxy instruments paired by suffix after missing-value removal; an impact-matrix reset within a multi-instrument loop; shock normalization; and resampling that mutates stored residuals. These are source findings and exact authored witnesses, not observed installed-package failures. [@exec25_pydyn_macroshock; @exec25_pydyn_choice]
+
+Fund known-law public tests of target restrictions, information clocks, failures, uncertainty and full costs before expensive bank experiments. A hypothetical 24,000 USD trial with 600 requests, 400 completed fits and 300 accepted outputs costs 40, 60 and 80 USD on the corresponding denominators. Broad ecosystem coverage, complete artifact/dependency rights, native qualification and final acceptance remain open. [@exec25_pydyn_choice]
