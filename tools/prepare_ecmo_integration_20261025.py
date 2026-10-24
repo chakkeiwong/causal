@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""Integrate the reviewed author original without promoting source inspection to capability."""
+import json
+from pathlib import Path
+import ecmo_graph_reference_v2_20261025 as exact
+from publish_latent_r_review_v2_20261013 import ref, write, verify_bindings
+ROOT = Path(__file__).resolve().parents[1]
+PRIOR = ROOT / 'docs/program/execution/2026-10-24/census-ecmo-v1'
+BASE = ROOT / 'docs/program/execution/2026-10-25/ecmo-integration-v1'
+read = lambda p: json.loads(p.read_text())
+
+DEVELOPMENT = r'''
+\section{Clinical graph refinement as a test of business-to-causal translation}
+\label{sec:exec25-ecmo}
+A bank translating a servicing problem into a causal diagram must distinguish
+an informed graph proposal from an identified intervention. The clinical study
+of Mathur and collaborators is useful because it combines approximate language-model
+knowledge, expert constraints and a small observational dataset in a concrete
+workflow. Its value for this proposal lies in the questions it exposes: what is
+the time of each observation, which edges are forbidden by substantive knowledge,
+which graph differences matter for the decision, and what constitutes independent
+evidence that refinement helped? The inspected source is the five-page author
+original in a dated repository, not an asserted byte-equivalent copy of the
+six-page publisher layout. The empirical results below are the authors' reports;
+the banking examples and acceptance requirements are project constructions.
+\citep{exec24_ecmo_original,exec24_ecmo_reference}
+
+\subsection{What the hybrid procedure contributes}
+The study uses 71 patients from one center and eight Boolean variables. Seven
+risk indicators summarize the first 24 hours of extracorporeal membrane
+oxygenation, while neurological injury is determined using tests at the end of
+the run. Experts select the variables and forbidden directions; four named
+language-model families supply approximate initial graph knowledge. The workflow
+first deletes edges and then permits full refinement through local score search.
+It evaluates proposed graphs against an expert graph using spurious directed
+edges, structural Hamming distance (SHD) and structural intervention distance
+(SID). These are comparisons with the selected reference graph. They do not
+turn the reference into observed intervention truth. The paper itself notes
+the small single-center sample, possible lack of causal sufficiency and the need
+to extend the method across time.\citep{exec24_ecmo_original}
+
+For a bank, the corresponding task is to translate a question such as whether
+an early hardship offer reduces later delinquency into a variable dictionary,
+an intervention, a population and a measurement clock. A proposed node must say
+whether it is a pre-offer condition, the offer, uptake, a later response or a
+selection event. The expert's prohibition against a later event causing an
+earlier measurement is useful information. It cannot, by itself, resolve
+unmeasured common causes, selection into the dataset or the direction between
+two events collapsed into the same interval. We therefore retain the hybrid
+procedure as a reference for elicitation and constrained hypothesis generation,
+with a separate identification decision for each proposed banking query.
+\citep{exec24_ecmo_reference}
+
+Let the admissible diagram set be $\mathcal{G}(K)$, where $K$ records timed
+expert restrictions and their provenance. A proposed local refinement can be
+written as $\widehat G=\operatorname{LocalSearch}_{G\in\mathcal{G}(K)}
+S(D,G;G_0)$, with data $D$, initial graph $G_0$ and score $S$. This notation
+describes a search output, not a proof that $\widehat G$ identifies the effect
+of an offer. A public test must hold out both cases and the expert material used
+for evaluation from the elicitation step. Otherwise agreement can reflect
+reused constraints. If several admissible graphs imply different answers, the
+interface should retain the ambiguity or refuse the requested point estimate.
+The scientific oracle must judge that behavior separately from whether the
+agent returns a syntactically valid graph.\citep{exec24_ecmo_reference}
+
+\subsection{Refinement does not uniformly improve the reported comparisons}
+Table 1 of the author original reports the following union-graph means. Lower
+values represent fewer disagreements under the stated reference comparison.
+\citep{exec24_ecmo_original}
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Stage & Spurious edges & SHD & SID \\
+\midrule
+Initial union & 9 & 9 & 5 \\
+Deletion only & 3 & 5.4 & 5.1 \\
+Full refinement & 4.8 & 6.6 & 6.2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Thus full refinement raises the three reported means relative to deletion only
+by $1.8$, $1.2$ and $1.1$, respectively. Deletion reduces the union's edge and
+SHD comparisons but does not reduce its SID mean from the initial value.
+For LLaMA in Table 2, SHD is $5$ initially, $6.1$ after deletion and $8.1$
+after full refinement. The authors discuss plausibility of some added edges
+following expert inspection. This is a distinct observation from improved
+reference-graph scores. These descriptive differences neither establish a
+paired significance result nor show that every refined edge is causally wrong.
+They do rule out presenting the reported table as uniform metric improvement.
+\citep{exec24_ecmo_original,exec24_ecmo_reference}
+
+The product comparison should therefore expose initial, deletion-only and full
+outputs with the same cases, constraints and scorer. The banking choice among
+them should depend on a preregistered intervention query and asymmetric costs
+of an unsupported edge, an omitted edge and an appropriate refusal. A method
+that improves one structural distance can still change a decision-relevant
+adjustment set adversely. A better in-sample score is evidence about the search
+criterion; causal utility requires the separately defined oracle. These are
+requirements for the proposed public prototype, not reported clinical or bank
+experimental findings.\citep{exec24_ecmo_reference}
+
+\subsection{A measurement clock that the diagram cannot recover}
+Consider two events $A$ and $B$ in the first day of a servicing case. Define
+$A^*=\mathbf{1}\{A\text{ occurs within 24 hours}\}$ and define $B^*$
+similarly. One constructed history has $A$ at hour 2 and $B$ at hour 20; a
+second reverses those times. Both map to $(A^*,B^*)=(1,1)$. The map from
+histories to summaries is many-to-one, so these indicators alone cannot
+recover the within-window ordering. This example establishes an information
+loss, not an impossibility theorem for every causal effect that might be
+identified with further assumptions or additional information.
+\citep{exec24_ecmo_reference}
+
+In a bank, an indicator for both a missed payment and a hardship contact during
+one month could conceal whether the contact preceded the missed payment. The
+translator should ask for event time, observation time, action eligibility and
+the decision deadline before proposing a causal ordering. If only summaries
+exist, it should record which directions depend on external knowledge and
+carry that uncertainty into the query. A later outcome cannot be promoted
+to a pre-action adjustment variable merely because all columns occupy one
+table. The clinical paper's early-window construction motivates this design
+question; it does not validate a specific bank's event chronology.
+\citep{exec24_ecmo_original,exec24_ecmo_reference}
+
+\subsection{Source semantics and complete experimental denominators}
+The pinned implementation provides concrete inspection targets. The selected
+commit contains deletion-only and full search routes, acyclicity and forbidden
+edge checks, and a structured score that compares a tabular score with fitted
+tree alternatives using the supplied data. The inspected tree-fitting path
+does not supply a held-out validation claim. The metric routine computes
+directed spurious edges by set difference and calls SHD and SID against the
+expert graph; selected score variants and graph conversions must remain part
+of a reproducible profile. Root GPLv3 text and declared requirements were
+inspected, but this does not clear the rights or compatibility of an entire
+installed distribution. No acquired code was executed.
+\citep{exec24_ecmo_code}
+
+The metrics routine initializes ten slots to zero, fills slots from filenames
+and later takes their mean and population standard deviation. The inspected
+path contains no seen-file completeness test. A conditional arithmetic example
+shows why a trial harness needs one: if six files each have score 8 while four
+slots retain zero, averaging ten slots gives $48/10=4.8$, while averaging the
+six observed scores gives $48/6=8$. Neither rule should be silently substituted
+for a complete trial. The example does not assert that any actual result file
+was missing: the archived result contents were not inspected. A prototype
+must distinguish absent, failed, refused and successfully scored cases, report
+all their counts, and prevent a default zero from being interpreted as perfect
+agreement.\citep{exec24_ecmo_code,exec24_ecmo_reference}
+
+The filename parser also takes one character from the sample identifier.
+Constructed names containing sample IDs 1 and 10 collide under that rule.
+The source explicitly limits its supported configuration to ten bootstrap
+samples; the collision example is a warning against extending that profile
+without changing and testing identity handling, not an observed failure within
+the stated configuration. A reusable worker should use explicit case and
+replicate IDs, reject duplicates, validate the expected inventory and test
+edge orientation, variable ordering and empty outputs. Native conversion of
+FCI endpoint representations and the installed metric dependencies remain
+separate test obligations.\citep{exec24_ecmo_code,exec24_ecmo_reference}
+
+\subsection{Public qualification and a bounded reuse decision}
+The next defensible experiment uses public or generated cases with known
+structural mechanisms, timed observations and held-out intervention answers.
+The case inventory should vary measured and hidden common causes, selection,
+measurement aggregation and supported graph classes. Freeze the model and
+prompt identities, initial constraints, search settings, metric definitions
+and train/test split before comparing expert-only, data-only, LLM-only,
+deletion-only and full-refinement routes. Report graph agreement, identified
+query correctness, calibrated uncertainty where justified, refusal behavior
+and complete execution costs separately. A public test can assess these
+proposed behaviors without access to the omitted patient dataset. It cannot
+reproduce the clinical findings or establish performance on authentic bank
+assignment mechanisms.\citep{exec24_ecmo_reference}
+
+For budgeting, an explicitly illustrative total of USD 1,800 across 100
+submitted requests is USD 18 per submission. If only 60 produce scientifically
+usable results, the same total is USD 30 per usable result. The numerator
+must include expert work, unsuccessful attempts, model calls, infrastructure,
+licensing and adjudication attributable to that experiment. These are exact
+cost-denominator witnesses, not observed prices or an investment return.
+Value requires a separately specified decision loss and matched comparator.
+\citep{exec24_ecmo_reference}
+
+Our present decision is to use the inspected work as a methodological reference
+for constrained graph elicitation and as a source of explicit prototype tests.
+Direct adoption or a whole-library port awaits a supported public profile,
+dependency and rights review, conversion tests and independent scientific
+evaluation. The final publisher layout, supplementary prompts and model
+versions, and archived result contents remain uninspected. The author
+original, pinned source and exact project examples support the limited
+comparison above; they do not establish an implemented or accepted banking
+capability.\citep{exec24_ecmo_original,exec24_ecmo_code,exec24_ecmo_reference}
+'''
+SPONSOR = '''## Graph refinement needs a decision and measurement clock
+
+The pediatric ECMO study offers a concrete hybrid pattern: experts select
+variables and forbidden directions, language models propose a graph, and
+data guide deletion-only and full refinement. The inspected five-page author
+original reports 71 patients and eight Boolean variables. It also reports
+adverse comparisons: the union graph's mean SHD rises from 5.4 after deletion
+to 6.6 after full refinement. Agreement with an expert graph and plausible
+added edges are useful observations, but neither supplies independent causal
+truth or bank decision value. [@exec24_ecmo_original]
+
+Our proposal adopts this as a reference for elicitation, with a separate
+decision on identification. A monthly table can hide whether a hardship
+contact preceded a missed payment. The prototype must preserve event and
+observation times, distinguish constraints from evidence, and refuse an
+unsupported causal answer. Public or generated cases with known mechanisms
+can compare expert-only, data-only, LLM-only, deletion and full-refinement
+routes before expensive bank experiments. [@exec24_ecmo_reference]
+
+Static inspection of ten pinned source files adds test requirements for
+case identity, graph conversion and complete denominators. In a conditional
+example, six score-8 files in ten zero-initialized slots yield a mean of 4.8
+instead of the observed-only mean of 8; no actual missing archive file was
+observed. The repository states a ten-bootstrap profile and omits patient
+data. Native execution, installed-distribution rights, supplementary prompt
+and model identities, and the final publisher layout remain separate work.
+[@exec24_ecmo_code; @exec24_ecmo_reference]
+
+An illustrative USD 1,800 total for 100 submissions costs USD 18 per
+submission, but USD 30 per usable result if only 60 pass the scientific
+criteria. This motivates a complete cost and failure ledger; it supplies
+neither measured pricing nor a return forecast. Direct adoption or a port
+requires a qualified public profile and independent evaluation.
+[@exec24_ecmo_reference]
+'''
+
+def main():
+    assert not BASE.exists()
+    for name in ['review.json', 'source-audit.json', 'serialization-repair-v3.json']:
+        verify_bindings(read(PRIOR / name))
+    assert exact.calculate() == read(PRIOR / 'exact-results.json')
+    BASE.mkdir(parents=True)
+    for name in ['review.json', 'source-audit.json', 'mathematical-review.json',
+                 'exact-results.json', 'omissions-register.json', 'census-register.json']:
+        (BASE / name).write_bytes((PRIOR / name).read_bytes())
+    (BASE / 'development.tex').write_text(DEVELOPMENT)
+    (BASE / 'sponsor-addition.md').write_text(SPONSOR)
+    evidence = [ref(PRIOR / 'review.json', 'Original and source review'),
+        ref(PRIOR / 'serialization-repair-v3.json', 'Preserving resumed review'),
+        ref(Path(exact.original.__file__), 'Original exact calculation dependency'),
+        ref(Path(exact.__file__), 'JSON-stable successor'),
+        ref(BASE / 'development.tex', 'Connected manuscript argument'),
+        ref(BASE / 'sponsor-addition.md', 'Paired sponsor argument'),
+        ref(Path(__file__), 'Integration preparation')]
+    write(BASE / 'copyedit-review.json', dict(status='pass', reviewed_on='2026-10-25',
+        evidence=evidence, findings=[
+        'Reported findings, exact project witnesses and proposed public trials are distinguished.',
+        'Adverse means are retained without significance or causal-truth claims.',
+        'No clinical advice, observed missing-file claim, native admission or rights clearance.',
+        'Dates, author version and unresolved original/supplement boundaries are explicit.',
+        'Connected bank decision, time loss, source semantics and cost argument; process remains outside narrative.'],
+        rendered_review=False, visual_acceptance=False))
+    write(BASE / 'plan-review.json', dict(status='pass', reviewed_on='2026-10-25',
+        evidence=evidence, steps=[
+        'Preserve and repair tuple/list review mismatch without changing arithmetic or original bytes.',
+        'Integrate primary adverse findings, timing and code limits with public prototype requirements.',
+        'Preserve all 1189 prior citations, contexts and compiled inputs; add three records and one PDF.',
+        'Compile and inspect text/bounds; retain exhausted image allowance and acceptance limits.',
+        'Publish exact paired sponsor, renew Q2-Q4, reconcile all 376 obligations, check, commit and push.',
+        'Continue independent ready obligations; this candidate does not close the whole frontier census.'],
+        rejected_shortcuts=['No fabricated publisher equivalence, clinical reproduction, graph truth or native capability.',
+            'No omissions replaced by summaries; no aggregate operation falsely closed.'],
+        expected_census={'inspected':82,'unread':31,'crosscutting':4},
+        final_acceptance=False))
+    print(json.dumps({'prepared':str(BASE.relative_to(ROOT)), 'census':[82,31], 'records':3}))
+
+if __name__ == '__main__':
+    main()

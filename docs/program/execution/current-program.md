@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-interference-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-interference-reuse-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-ecmo-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-ecmo-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-interference-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-ecmo-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_interference_reuse_reviewed_2026-10-24.pdf) has 1,549 pages,
-1,189 audited citation records and 257 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_interference_reuse_reviewed_2026-10-24.pdf) has 122 pages and 735 citations.
-All 1,186 predecessor records, citation contexts and 369 compiled content inputs survive.
+The [monograph](../../causal_proposal_ecmo_reviewed_2026-10-25.pdf) has 1,553 pages,
+1,192 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_ecmo_reviewed_2026-10-25.pdf) has 122 pages and 740 citations.
+All 1,189 predecessor records, citation contexts and 370 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,24 +30,24 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-The preserving monograph adds a connected comparison of MossSpider 0.0.3 and
-inferference 1.0.3 from 18 authenticated and inspected source,notice,dependency
-and test files. Three new audit records produce 1,189 records while all 1,186
-predecessor records and every prior content input survive. The sponsor retains
-730 prior records and adds five, producing 735.
+The preserving successor integrates the five-page ECMO author original and ten
+authenticated implementation files. All 1,189 predecessor records and their
+citation contexts remain intact, yielding 1,192 citation records and 258 genuine
+scholarly PDFs. The sponsor preserves 735 records and adds five, yielding 740.
 
-Exact examples distinguish equal-group and equal-person targets, directed
-exposure maps, excluded-node policies, allocation mass and derivatives,
-missing-group denominators, variance expressions and complete costs. Source
-inspection follows the full argument chain and records documentation/body
-and forwarding discrepancies without claiming an executed package failure.
+The connected argument distinguishes expert graph agreement from causal truth,
+retains adverse reported refinement results, and explains loss of within-window
+time ordering. Exact examples address missing-file denominators, sample identity
+and complete costs. No patient data, downloaded code or model was executed.
+Final publisher bytes, supplementary prompt/model identities and archived result
+contents remain separate omissions. Public/generated fixtures provide a route
+for testing the proposed behavior without making private data a global blocker.
 
-Both decisions are reference-only. A native worker, whole-library port,
-scientific uncertainty qualification and installed-distribution rights are not
-approved. The two individual decision receipts increase recorded outcomes to
-296 and passing reuse decisions to 101; three are inconclusive and 11 open.
-Software and frontier census counts remain unchanged. The earlier backend
-source limits and corrected local-block continuation remain preserved.
+A tuple/list serialization mismatch in an authored review was repaired through
+a successor, with original code, arithmetic and failure log preserved. Only
+candidate 214 advances: 82 originals inspected, 31 unread and four crosscutting
+obligations. Operation counts remain 296 recorded, 57 ready and 158 nonpassing;
+this candidate does not close the whole frontier-census obligation.
 
 ## Remaining gaps and routes
 
@@ -55,11 +55,13 @@ source limits and corrected local-block continuation remain preserved.
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: 11 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
-3. Frontier census: 32 unread originals and four crosscutting tasks. Candidate
+3. Frontier census: 31 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata
    limits remain local. Clinical 125/207/277 client challenges and workflow 136
    and energy 218 original access limits are preserved; candidate225 final conference
-   bytes remain a separate omission after the selected preprint review. Independent work continues.
+   bytes remain a separate omission after the selected preprint review. Candidate 214 final
+   publisher layout, supplementary text and native reproduction remain separate from
+   the inspected author original. Independent work continues.
 4. Commercial qualification: resolve named supported server/API profiles,
    entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister task/version splits, scientific and refusal
