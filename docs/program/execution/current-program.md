@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-delicatessen-reuse-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-delicatessen-reuse-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-gcm-reuse-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-gcm-reuse-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-delicatessen-reuse-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-gcm-reuse-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,38 +12,39 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_delicatessen_reuse_reviewed_2026-10-24.pdf) has 1,488 pages,
-1,141 audited citation records and 253 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_delicatessen_reuse_reviewed_2026-10-24.pdf) has 110 pages and 657 citations.
-All 1,139 predecessor records, citation contexts and 353 compiled content inputs survive.
+The [monograph](../../causal_proposal_gcm_reuse_reviewed_2026-10-24.pdf) has 1,492 pages,
+1,143 audited citation records and 253 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_gcm_reuse_reviewed_2026-10-24.pdf) has 112 pages and 661 citations.
+All 1,141 predecessor records, citation contexts and 354 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**269 recorded outcomes of 376; 84 ready; 185 nonpassing obligations.**
+**270 recorded outcomes of 376; 83 ready; 184 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 53 | 46 | 102 |
-| reuse | 74 | 3 | 38 | 115 |
+| reuse | 75 | 3 | 37 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The successor integrates the Delicatessen 4.3 reference-only decision.
-Seven selected original files authenticate to the pinned 11 August 2026
-repository tree, including three newly acquired setup, initializer and version texts.
-Selected source identity is distinct from installed-wheel, rights and native
-scientific qualification.
+The successor integrates a DoWhy GCM reference-only decision distinct from
+the inherited DoWhy identification review. Twelve selected originals
+authenticate to the pinned 4 October 2026 tree. Dynamic release identity,
+full dependencies and rights remain separate from selected source identity.
+The failed obsolete source path is preserved and corrected from the tree.
 
-The argument distinguishes numerical roots, identification, nuisance scores,
-rank, independent sampling units and covariance normalization. A selected
-standalone one-parameter shape branch has a conditional scaling disagreement;
-authored root, rank, cluster, clipping and banking-cost witnesses reproduce.
+The argument distinguishes supplied graphs and mechanisms, population
+intervention sampling and individual abduction. Query repetition, without-
+replacement refitting, fixed output schemas and graph-falsification states
+have separate contracts. Authored structural, cross-world, subsampling,
+alignment and banking-cost witnesses reproduce.
 Downloaded package code was not executed and no causal capability is admitted.
 
-All 1,139 predecessor records and contexts survive, producing 1,141 records.
-The paired sponsor preserves all 653 prior citations and adds four.
+All 1,141 predecessor records and contexts survive, producing 1,143 records.
+The paired sponsor preserves all 657 prior citations and adds four.
 Panel continuation still references its completed specific source inspection;
 the original Python coverage receipt remains inconclusive. Source, arithmetic
 and text/bounds checks do not establish visual or final acceptance.
@@ -52,7 +53,7 @@ and text/bounds checks do not establish visual or final acceptance.
 
 1. Software: 46 open and 53 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: 38 open and three inconclusive decisions. Resolve concrete candidates,
+2. Reuse: 37 open and three inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
 3. Frontier census: 33 unread originals and four crosscutting tasks. Candidate
    163 original access, 165 final-original access, 217 access/date and 27 metadata

@@ -1,0 +1,1421 @@
+## Provides a simple wrapper for many of the Tetrad searches that can be used
+## either from Python or from R. The inputs are all pandas data frames
+## and the outputs are endpoint-matrix-formatted graphs, also data frames. (In a
+## future version, we may allow the outputs to be given other formats.)
+from networkx.algorithms.structuralholes import effective_size
+
+# import importlib.resources as importlib_resources
+# import jpype.imports
+# print('cwd = ', os.getcwd())
+# jar_path = importlib_resources.files('pytetrad').joinpath('resources', 'tetrad-current.jar')
+# jar_path = str(jar_path)
+# if not jpype.isJVMStarted():
+#     try:
+#         jpype.startJVM(jpype.getDefaultJVMPath(), classpath=[jar_path])
+#     except OSError:
+#         print("can't load jvm")
+#         pass
+
+import pytetrad.tools.translate as tr
+import pytetrad.tools.gregression as gregression
+import edu.cmu.tetrad.search as ts
+import java.util as jutil
+import edu.cmu.tetrad.data as td
+import edu.cmu.tetrad.graph as gr
+import edu.cmu.tetrad.graph.GraphSaveLoadUtils as gp
+import java.lang as lang
+import java.util as util
+import edu.cmu.tetrad.algcomparison.algorithm.oracle.cpdag as cpdag
+import edu.cmu.tetrad.algcomparison.algorithm.oracle.pag as pag
+import edu.cmu.tetrad.algcomparison.algorithm.continuous.dag as dag
+import edu.cmu.tetrad.algcomparison.score as score_
+import edu.cmu.tetrad.algcomparison.independence as ind_
+import edu.cmu.tetrad.search.utils as search_utils
+import edu.cmu.tetrad.algcomparison.algorithm.other as alg_other
+
+import java.io as io
+
+from edu.cmu.tetrad.util import Params, Parameters
+
+
+def recommended_penalty_discount(p, n, expected_degree=5.0, fdr=0.01, min_effect=0.0):
+    """Penalty discount c for SEM BIC that holds the expected number of spurious edges at `fdr` times the
+    expected number of true edges (p * expected_degree / 2), for p variables and sample size n, optionally
+    raised so that partial correlations below `min_effect` are ignored. Returns (c, r_min) where r_min is
+    the smallest |partial correlation| the BIC sign rule then accepts.
+
+    Derivation: adding a null parent is accepted when a chi-square(1) statistic exceeds c ln n, which
+    happens with probability alpha(c); with ~p^2/2 non-adjacent pairs the expected spurious-edge count
+    is p^2/2 * alpha(c). Invert to hit the budget. At p=100, n=1000, fdr=0.01, degree=6 this returns
+    the conventional c = 2.0; at p=5000 it returns about 2.8.
+
+    The FDR discount shrinks like 1/ln n, so at large n it admits any real dependence however small
+    (about r = 0.02 at n = 20000), and real data then gives near-complete graphs. `min_effect` sets an
+    effect-size floor instead, c = -n ln(1 - r^2) / ln n, which grows like n / ln n; the larger of the
+    two is returned. Values of 0.03 to 0.1 are reasonable starting points.
+    """
+    import edu.cmu.tetrad.search.score as score_impl
+    c = float(score_impl.SemBicScore.penaltyDiscountForFalseDiscoveryRate(int(p), int(n), float(expected_degree), float(fdr)))
+    if min_effect and min_effect > 0:
+        c = max(c, float(score_impl.PenaltyDiscountCalibration.penaltyDiscountForMinPartialCorrelation(float(min_effect), int(n))))
+    r_min = float(score_impl.SemBicScore.minDetectablePartialCorrelation(c, int(n)))
+    return c, r_min
+
+
+def recommended_penalty_discount_bf(df, truncation_limit=3, rank_transform=True, adaptive_basis_selection=True,
+                                    expected_degree=5.0, fdr=0.01, min_effect=0.0, null_samples=500, seed=0):
+    """Penalty discount for BF-BIC on a pandas DataFrame, computed the way the Tetrad interface's
+    Alpha/Penalty Discount Calculator computes it: from the per-variable embedding block sizes (adding a parent x to y costs size[y] * size[x] degrees of
+    freedom, so the chi-square tail is much thinner than SEM BIC's and the calibrated c much smaller).
+
+    With rank_transform=True the score's null is chi-square on its nominal df and the exact calibration
+    is used. With rank_transform=False the min-max embedding's null has a power-law tail; a permutation
+    -fitted scaled chi-square (`null_samples` draws per df class) is used instead, and the result should be
+    read as a floor -- prefer rank_transform=True. `min_effect` is applied as in recommended_penalty_discount.
+
+    Returns (c, block_sizes, df_histogram) so the inputs to the calculation can be inspected.
+    """
+    import edu.cmu.tetrad.search.score as score_impl
+    data = tr.pandas_data_to_tetrad(df)
+    score = score_impl.BasisFunctionBicScore(data, int(truncation_limit), 0.0, bool(adaptive_basis_selection),
+                                             bool(rank_transform))
+    sizes = [int(x) for x in score.embeddingBlockSizes()]
+    n, p = data.getNumRows(), len(sizes)
+    hist = score_impl.PenaltyDiscountCalibration.pairDofHistogram(score.embeddingBlockSizes())
+    if rank_transform:
+        c = float(score_impl.PenaltyDiscountCalibration.penaltyDiscountForFalseDiscoveryRate(
+            hist, n, p, float(expected_degree), float(fdr)))
+    else:
+        fits = score.fitNullsByPermutation(data, int(null_samples), int(seed))
+        c = float(score_impl.PenaltyDiscountCalibration.penaltyDiscountForFalseDiscoveryRateFitted(
+            fits, n, p, float(expected_degree), float(fdr)))
+    if min_effect and min_effect > 0:
+        c = max(c, float(score_impl.PenaltyDiscountCalibration.penaltyDiscountForMinPartialCorrelation(float(min_effect), n)))
+    return c, sizes, {int(e.getKey()): int(e.getValue()) for e in hist.entrySet()}
+
+
+class TetradSearch:
+    """
+    Represents a Tetrad-based search class for structure learning and related statistical scoring and testing 
+    functionalities.
+
+    This class initializes and manages various scoring and independence test mechanisms based on configurations
+    passed via methods. It adapts Tetrad functionalities while offering Pythonic interaction. The usage entails
+    interacting with the attributes and methods to configure the scoring or testing criteria for causal discovery
+    and structure learning.
+
+    :ivar data: Data used for analysis, converted to Tetrad-compatible format.
+    :type data: object
+    :ivar score: The current scoring function in use.
+    :type score: object or None
+    :ivar TEST: The current independence test in use.
+    :type TEST: object or None
+    :ivar java: Accessor or object for Java-based dependencies, if any.
+    :type java: object or None
+    :ivar knowledge: Object to manage and store prior knowledge constraints.
+    :type knowledge: Knowledge
+    :ivar params: Parameters object for controlling scoring or testing properties.
+    :type params: Parameters
+    :ivar bootstrap_graphs: Stores results of any bootstrapped graph estimation run.
+    :type bootstrap_graphs: object or None
+    """
+    def __init__(self, df):
+        self.data = tr.pandas_data_to_tetrad(df)
+        self.SCORE = None
+        self.TEST = None
+        self.MC_TEST = None
+        self.java = None
+        self.knowledge = td.Knowledge()
+        self.mc_knowledge = None
+        self.params = Parameters()
+        self.bootstrap_graphs = None
+
+        # Additional data sets registered for pooling (IMaGES-style for a score-based search, Fisher/Tippett
+        # p-value combination for a test-based search); see add_data_set and set_pool_data_sets. All pooled data
+        # sets, including the primary one passed to the constructor, must have the same variables.
+        self.pooled_data_sets = []
+        self.pool_data_sets = False
+
+    def __str__(self):
+        display = [self.SCORE, self.TEST, self.knowledge, self.java]
+        return "\n\n".join([str(item) for item in display])
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def set_missing_data_policy(self, policy="default", num_imputations=10, em_ridge=0.0,
+                                em_tolerance=1e-6, em_max_iterations=1000, ess_mode="fullN"):
+        """Sets the missing-data policy: "default", "fail", "listwise", "testwise", "em"
+        (EM covariance; MAR-valid, continuous data), or "mi" (use tools.missing.imputation_search).
+        Requires a tetrad-current.jar built from development on or after 2026-08-05."""
+        if not hasattr(Params, "MISSING_DATA_POLICY"):
+            raise RuntimeError("This tetrad-current.jar predates the missing-data policies; "
+                               "update to a jar built from development on or after 2026-08-05.")
+        self.params.set(Params.MISSING_DATA_POLICY, policy)
+        self.params.set(Params.MISSING_NUM_IMPUTATIONS, num_imputations)
+        self.params.set(Params.MISSING_EM_RIDGE, em_ridge)
+        self.params.set(Params.MISSING_EM_TOLERANCE, em_tolerance)
+        self.params.set(Params.MISSING_EM_MAX_ITERATIONS, em_max_iterations)
+        self.params.set(Params.MISSING_ESS_MODE, ess_mode)
+
+    def use_sem_bic(self, penalty_discount=2, structurePrior=0, sem_bic_rule=1, singularity_lambda=0.0):
+        """SEM BIC score. To choose penalty_discount from a false-edge budget rather than by convention,
+        call recommended_penalty_discount(p, n, ...) first and pass its value here; the choice is made
+        explicitly on purpose, so that it is looked at rather than defaulted."""
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.SEM_BIC_STRUCTURE_PRIOR, structurePrior)
+        self.params.set(Params.SEM_BIC_RULE, sem_bic_rule)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.SCORE = score_.SemBicScore()
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def use_ebic(self, gamma=0.8, precompute_covariances=True, singularity_lambda=0.0):
+        self.params.set(Params.EBIC_GAMMA, gamma)
+        self.params.set(Params.PRECOMPUTE_COVARIANCES, precompute_covariances)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.SCORE = score_.EbicScore()
+
+    def use_gic_score(self, penalty_discount=1, sem_gic_rule=4):
+        self.params.set(Params.SEM_GIC_RULE, sem_gic_rule)
+        self.params.set(Params.PENALTY_DISCOUNT_ZS, penalty_discount)
+        self.SCORE = score_.KimEtAlScores()
+
+    def use_mixed_variable_polynomial(self, structure_prior=0, f_degree=0, discretize=False):
+        self.params.set(Params.STRUCTURE_PRIOR, structure_prior)
+        self.params.set("fDegree", f_degree)
+        self.params.set(Params.DISCRETIZE), discretize
+        self.SCORE = score_.MVPBicScore()
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def use_poisson_prior_score(self, poisson_lambda=2, precompute_covariances=True, singularity_lambda=0.0):
+        self.params.set(Params.PRECOMPUTE_COVARIANCES, precompute_covariances)
+        self.params.set(Params.POISSON_LAMBDA, poisson_lambda)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.SCORE = score_.PoissonPriorScore()
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def use_zhang_shen_bound(self, risk_bound=0.2, singularity_lambda=0.0):
+        self.params.set(Params.ZS_RISK_BOUND, risk_bound)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.SCORE = score_.ZhangShenBoundScore()
+
+    def use_bdeu(self, sample_prior=10, structure_prior=0):
+        self.params.set(Params.PRIOR_EQUIVALENT_SAMPLE_SIZE, sample_prior)
+        self.params.set(Params.STRUCTURE_PRIOR, structure_prior)
+        self.SCORE = score_.BdeuScore()
+
+    # effective_sample_size: -1 to use the actual row count. Otherwise the score behaves as if the data
+    # consisted of that many independent rows (likelihood scaled by nEff / N, penalty uses nEff); use when rows
+    # are serially dependent, clustered, or interpolated. Requires a tetrad jar dated 2026-8-25 or later; earlier
+    # jars ignore it. min_sample_size_per_cell: smallest discrete cell the CG likelihood will fit (default 4).
+    def use_conditional_gaussian_score(self, penalty_discount=1, discretize=True, num_categories_to_discretize=3,
+                                       structure_prior=0, min_sample_size_per_cell=4, effective_sample_size=-1):
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.STRUCTURE_PRIOR, structure_prior)
+        self.params.set(Params.DISCRETIZE, discretize)
+        self.params.set(Params.NUM_CATEGORIES_TO_DISCRETIZE, num_categories_to_discretize)
+        self.params.set(Params.MIN_SAMPLE_SIZE_PER_CELL, min_sample_size_per_cell)
+        self.params.set(Params.EFFECTIVE_SAMPLE_SIZE, effective_sample_size)
+        self.SCORE = score_.ConditionalGaussianBicScore()
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def use_degenerate_gaussian_score(self, penalty_discount=1, structure_prior=0, singularity_lambda=0.0):
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.STRUCTURE_PRIOR, structure_prior)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.SCORE = score_.DegenerateGaussianBicScore()
+
+    # Uses covariance as a sufficient statistic
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    # Note: singularity_lambda and do_one_equation_only require a tetrad-current.jar that
+    # includes the 2026-8 wrapper wiring fix; older jars silently ignored both.
+    def use_basis_function_bic(self, truncation_limit=3, penalty_discount=2, singularity_lambda=0.0,
+                               do_one_equation_only=False, adaptive_basis_selection=True, rank_transform=False):
+        """BF-BIC score.
+
+        rank_transform: rank-transform continuous variables to [-1, 1] before the Legendre embedding. Gives
+            every row the same leverage and makes the score's null chi-square on its nominal df; the default
+            min-max scaling has a power-law null tail so a few extreme rows can create spurious nonlinear
+            edges at any penalty. Recommended.
+        penalty_discount: a parent costs size[y] * size[x] parameters here, so a discount calibrated to a
+            false-edge budget is much smaller than SEM BIC's. To choose it that way, call
+            recommended_penalty_discount_bf(df, ...) first and pass its value; the choice is made explicitly
+            on purpose, so that it is looked at rather than defaulted.
+        """
+        self.params.set(Params.TRUNCATION_LIMIT, truncation_limit)
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.params.set(Params.DO_ONE_EQUATION_ONLY, do_one_equation_only)
+        self.params.set(Params.ADAPTIVE_BASIS_SELECTION, adaptive_basis_selection)
+        self.params.set(Params.BASIS_RANK_TRANSFORM, rank_transform)
+        self.SCORE = score_.BasisFunctionBicScore()
+
+    # Full sample.
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    # Note: requires a tetrad-current.jar that includes the 2026-8 BasisFunctionBicScoreTabular
+    # wrapper; the wrapper had been removed from Tetrad, which broke this hook.
+    def use_basis_function_bic_fs(self, truncation_limit=3, penalty_discount=2, singularity_lambda=0.0,
+                                  do_one_equation_only=False):
+        self.params.set(Params.TRUNCATION_LIMIT, truncation_limit)
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+        self.params.set(Params.DO_ONE_EQUATION_ONLY, do_one_equation_only)
+        self.SCORE = score_.BasisFunctionBicScoreTabular()
+
+    def use_ffml(self, ffml_ridge=1.0, bw_max_rows=100, ffml_ff_features=50, cat_rho=0.5, effective_sample_size=-1):
+        self.params.set(Params.FFML_RIDGE, ffml_ridge)
+        self.params.set(Params.BW_MAX_ROWS, bw_max_rows)
+        self.params.set(Params.FFML_FF_FEATURES, ffml_ff_features)
+        self.params.set(Params.CAT_RHO, cat_rho)
+        self.params.set(Params.EFFECTIVE_SAMPLE_SIZE, effective_sample_size)
+        self.SCORE = score_.FfMl()
+
+    def use_trff_bic(self, trff_ridge=0.001, ffml_ff_features=100, penalty_discount=1, trff_nu=5.0):
+        self.params.set(Params.TRFF_RIDGE, trff_ridge)
+        self.params.set(Params.NUM_FF_FEATURES, ffml_ff_features)
+        self.params.set(Params.PENALTY_DISCOUNT_DEFAULT_1, penalty_discount)
+        self.params.set(Params.TRFF_NU, trff_nu)
+        self.SCORE = score_.TRffBicScore()
+
+    # BF-LRT. As of 2026-8 the Java-side BF-LRT wrapper delegates to the Wilks-lambda /
+    # Bartlett block test over the basis-embedded blocks (df = |X-block| x |Y-block|); the
+    # previous trace-averaged LRT was miscalibrated and is deprecated. The Wilks path handles
+    # near-singularity via rank-aware whitening internally, so singularity_lambda no longer
+    # applies, and do_one_equation_only is not supported; both are kept as arguments for
+    # backward compatibility and warn if set.
+    def use_basis_function_lrt(self, truncation_limit=3, alpha=0.01, effective_sample_size=-1,
+                               singularity_lambda=None, do_one_equation_only=None,
+                               use_for_mc=False):
+        import warnings
+        if singularity_lambda is not None:
+            warnings.warn("singularity_lambda is ignored by the Wilks-based BF-LRT "
+                          "(near-singularity is handled internally by rank-aware whitening)",
+                          DeprecationWarning, stacklevel=2)
+        if do_one_equation_only is not None:
+            warnings.warn("do_one_equation_only is not supported by the Wilks-based BF-LRT "
+                          "and is ignored", DeprecationWarning, stacklevel=2)
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.TRUNCATION_LIMIT, truncation_limit)
+        self.params.set(Params.EFFECTIVE_SAMPLE_SIZE, effective_sample_size)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.BasisFunctionLrt()
+        else:
+            self.TEST = ind_.BasisFunctionLrt()
+
+    def use_ffci(self, alpha=0.01, permutations=500, num_features_xy=10, num_features_z=100, lambda_=1, bandwidth_multiplier=1
+                 , approx=1, use_for_mc=False):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.RCIT_PERMUTATIONS, permutations)
+        self.params.set(Params.RCIT_NUM_FEATURES_XY, num_features_xy)
+        self.params.set(Params.RCIT_NUM_FEATURES_Z, num_features_z)
+        self.params.set(Params.KML_LAMBDA, lambda_)
+        self.params.set(Params.KML_BANDWIDTH_MULTIPLIER, bandwidth_multiplier)
+        self.params.set(Params.RCIT_APPROX, approx)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.FfCi()
+        else:
+            self.TEST = ind_.FfCi()
+
+    def use_rcit(self, seed=-1, alpha=0.01, lambda_=0.0011, mode=True, approx=1, num_features_xy=10, num_features_z=100, use_for_mc=False):
+        self.params.set(Params.SEED, seed)
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.RCIT_LAMBDA, lambda_)
+        self.params.set(Params.RCIT_MODE, mode)
+        self.params.set(Params.RCIT_APPROX, approx)
+        self.params.set(Params.RCIT_NUM_FEATURES_XY, num_features_xy)
+        self.params.set(Params.RCIT_NUM_FEATURES_Z, num_features_z)
+
+        # Fixed 2026-8: this previously bound ind_.FfCi() (a copy-paste from use_ffci), so
+        # "RCIT" runs were actually running FfCi.
+        if use_for_mc:
+            self.MC_TEST = ind_.Rcit()
+        else:
+            self.TEST = ind_.Rcit()
+
+    # Full-sample BF-LRT. The backing Java wrapper (BasisFunctionLrtFullSample) has been
+    # removed from Tetrad, and the underlying trace-averaged LRT statistic is deprecated and
+    # miscalibrated; use use_basis_function_lrt (Wilks-based) instead.
+    def use_basis_function_lrt_fs(self, truncation_limit=3, alpha=0.01, use_for_mc=False, singularity_lambda=0.0,
+                                  do_one_equation_only=False):
+        raise NotImplementedError(
+            "use_basis_function_lrt_fs is no longer available: its Java wrapper was removed and "
+            "the underlying trace-averaged LRT statistic was miscalibrated. Use "
+            "use_basis_function_lrt, which delegates to the Wilks/Bartlett block test.")
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def use_fisher_z(self, alpha=0.01, use_for_mc=False, singularity_lambda=0.0):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.FisherZ()
+        else:
+            self.TEST = ind_.FisherZ()
+
+
+    # The supplied test should implement edu.cmu.tetrad.algcomparison.independence.IndependenceWrapper in Tetrad.
+    def use_test(self, test, use_for_mc=False):
+        if use_for_mc:
+            self.MC_TEST = test
+        else:
+            self.TEST = test
+
+    # cell table type is 1 = AD Tree, 2 = Count Sample. (Optimization.)
+    def use_chi_square(self, min_count=1, alpha=0.01, cell_table_type=1, use_for_mc=False):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.MIN_COUNT_PER_CELL, min_count)
+        self.params.set(Params.CELL_TABLE_TYPE, cell_table_type)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.ChiSquare()
+        else:
+            self.TEST = ind_.ChiSquare()
+
+    # cell table type is 1 = AD Tree, 2 = Count Sample. (Optimization)
+    def use_g_square(self, min_count=1, alpha=0.01, cell_table_type=1, use_for_mc=False):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.MIN_COUNT_PER_CELL, min_count)
+        self.params.set(Params.CELL_TABLE_TYPE, cell_table_type)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.GSquare()
+        else:
+            self.TEST = ind_.GSquare()
+
+    # effective_sample_size: -1 to use the actual row count; otherwise the LRT statistic is scaled by nEff / N
+    # (see use_conditional_gaussian_score). Requires a tetrad jar dated 2026-8-25 or later; earlier jars ignore it.
+    # Before 2026-8-25 this method also set self.TEST unconditionally, so use_for_mc=True silently replaced a
+    # search test chosen earlier; it now sets only the test the caller asked for.
+    def use_conditional_gaussian_test(self, alpha=0.01, discretize=True,
+                                      num_categories_to_discretize=3, use_for_mc=False,
+                                      min_sample_size_per_cell=4, effective_sample_size=-1):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.DISCRETIZE, discretize)
+        self.params.set(Params.NUM_CATEGORIES_TO_DISCRETIZE, num_categories_to_discretize)
+        self.params.set(Params.MIN_SAMPLE_SIZE_PER_CELL, min_sample_size_per_cell)
+        self.params.set(Params.EFFECTIVE_SAMPLE_SIZE, effective_sample_size)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.ConditionalGaussianLrt()
+        else:
+            self.TEST = ind_.ConditionalGaussianLrt()
+
+    # singularity_lambda: >= 0 Add lambda to matrix diagonals, < 0 Use pseudoinverse
+    def use_degenerate_gaussian_test(self, alpha=0.01, use_for_mc=False, singularity_lambda=0.0):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.SINGULARITY_LAMBDA, singularity_lambda)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.DegenerateGaussianLrt()
+        else:
+            self.TEST = ind_.DegenerateGaussianLrt()
+
+    def use_probabilistic_test(self, threshold=False, cutoff=0.5, prior_ess=10, use_for_mc=False):
+        self.params.set(Params.NO_RANDOMLY_DETERMINED_INDEPENDENCE, threshold)
+        self.params.set(Params.CUTOFF_IND_TEST, cutoff)
+        self.params.set(Params.PRIOR_EQUIVALENT_SAMPLE_SIZE, prior_ess)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.ProbabilisticTest()
+        else:
+            self.TEST = ind_.ProbabilisticTest()
+
+    def use_kci(self, alpha=0.01, approximate=True, scaling_factor=1, num_bootstraps=5000, threshold=1e-3,
+                epsilon=1e-3, kernel_type=1, polyd=5, polyc=1, use_for_mc=False):
+        self.params.set(Params.KCI_USE_APPROXIMATION, approximate)
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.SCALING_FACTOR, scaling_factor)
+        self.params.set(Params.KCI_NUM_BOOTSTRAPS, num_bootstraps)
+        self.params.set(Params.THRESHOLD_FOR_NUM_EIGENVALUES, threshold)
+        self.params.set(Params.KCI_EPSILON, epsilon)
+        self.params.set(Params.KERNEL_TYPE, kernel_type)
+        self.params.set(Params.POLYNOMIAL_DEGREE, polyd)
+        self.params.set(Params.POLYNOMIAL_CONSTANT, polyc)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.Kci()
+        else:
+            self.TEST = ind_.Kci()
+
+    def use_trff_lr_test(self, alpha=0.01, trff_ridge=0.001, trff_ff_features=100, penalty_discount=1,
+                         symmetrized=True, effective_sample_size=-1, use_for_mc=False):
+        """Likelihood-ratio CI test on nested TRffBicScore local fits (TRFF-LR-Test, 2026-8).
+
+        The reduced (Y ~ Z) and full (Y ~ Z + X) models are fit on a shared design in which
+        the reduced columns are a prefix of the full columns, so the models are nested and
+        the LR statistic is nonnegative. Continuous targets are referred to an F
+        distribution (the chi-square reference fails under per-model scale profiling when
+        the added block is not small relative to n); discrete targets use the chi-square on
+        the deviance. symmetrized=True (the default) computes both directions and reports
+        the more conservative p-value, so results do not depend on argument order;
+        symmetrized=False halves the cost but makes the test asymmetric. Note trff_ridge
+        both regularizes the fits and controls the effective-dof charge, so it materially
+        affects power; the test's calibration was established at trff_ridge=0.001.
+        Experimental; heavy inside constraint-based searches at large trff_ff_features."""
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.MINIMAX_RIDGE, trff_ridge)
+        self.params.set(Params.MINIMAX_FF_FEATURES, trff_ff_features)
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.TRFF_SYMMETRIZED, symmetrized)
+        self.params.set(Params.EFFECTIVE_SAMPLE_SIZE, effective_sample_size)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.TRffLrTest()
+        else:
+            self.TEST = ind_.TRffLrTest()
+
+    def use_minimax_ci_test(self, alpha=0.01, use_adaptive_z_bins=True, bins_per_cont_z=16,
+                            bins_per_cont_xy=8, min_stratum_size=20, minimax_permutations=200,
+                            use_for_mc=False):
+        """Stratified permutation CI test (Minimax Conditional Independence Test, 2026-8).
+
+        Continuous conditioning variables are binned and X is permuted within each stratum,
+        so no functional-form assumptions are made about the dependence on Z. With
+        use_adaptive_z_bins=True (the default, recommended) the bin count per continuous Z
+        grows at the n^(2/5) rate of Neykov, Balakrishnan & Wasserman (2021), which is
+        required for level control; bins_per_cont_z applies only when adaptive binning is
+        off. Intended scope: |Z| of at most about two continuous variables, n >= ~1000,
+        spot checks of individual facts rather than use inside a search."""
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.USE_ADAPTIVE_Z_BINS, use_adaptive_z_bins)
+        self.params.set(Params.BINS_PER_CONT_Z, bins_per_cont_z)
+        self.params.set(Params.BINS_PER_CONT_XY, bins_per_cont_xy)
+        self.params.set(Params.MIN_STRATUM_SIZE, min_stratum_size)
+        self.params.set(Params.MINIMAX_PERMUTATIONS, minimax_permutations)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.MinimaxCITest()
+        else:
+            self.TEST = ind_.MinimaxCITest()
+
+    def use_cci(self, alpha=0.01, scaling_factor=2, num_basis_functions=3, basis_type=4,
+                basis_scale=0.0, use_for_mc=False):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.SCALING_FACTOR, scaling_factor)
+        self.params.set(Params.NUM_BASIS_FUNCTIONS, num_basis_functions)
+        self.params.set(Params.BASIS_TYPE, basis_type)
+        self.params.set(Params.BASIS_SCALE, basis_scale)
+
+        if use_for_mc:
+            self.MC_TEST = ind_.CciTest()
+        else:
+            self.TEST = ind_.CciTest()
+
+    def add_to_tier(self, tier, var_name):
+        self.knowledge.addToTier(lang.Integer(tier), lang.String(var_name))
+
+    def set_tier_forbidden_within(self, tier, forbiddenWithin=True):
+        self.knowledge.setTierForbiddenWithin(lang.Integer(tier), forbiddenWithin)
+
+    def set_forbidden(self, var_name_1, var_name_2):
+        self.knowledge.setForbidden(lang.String(var_name_1), lang.String(var_name_2))
+
+    def set_required(self, var_name_1, var_name_2):
+        self.knowledge.setRequired(lang.String(var_name_1), lang.String(var_name_2))
+
+    def set_knowledge(self, knowledge):
+        self.knowledge = knowledge
+
+    def clear_knowledge(self):
+        self.knowledge.clear()
+
+    def load_knowledge(self, path, use_for_mc=False):
+        """
+        Loads knowledge from the specified file and sets it in the appropriate knowledge object (either
+        the main knowledge or the Monte Carlo (MC) knowledge) depending on the use_for_mc flag.
+
+        Note that knowledge for the algorithm is a different type of knowledge from what you use for the Markov checker.
+        Here is the doc for Markov checker knowledge: "Sets the knowledge object for the Markov checker. The knowledge
+        object should contain the tier knowledge for the Markov checker. The last tier contains the possible X and Y for
+        X _||_ Y | Z1,...,Zn, and the previous tiers contain the possible Z1,...,Zn for X _||_ Y | Z1,...,Zn.
+        Additional forbidden or required edges are ignored.
+    
+        :param path: The file path to the knowledge file that contains prior constraints.
+        :type path: str
+        :param use_for_mc: If True, loads the knowledge into the Monte Carlo (MC) knowledge object;
+                           otherwise, loads it into the main knowledge object.
+        :type use_for_mc: bool
+        :return: None
+        """
+        if use_for_mc:
+            know_file = io.File(path)
+            know_delim = td.DelimiterType.WHITESPACE
+            self.mc_knowledge = td.SimpleDataLoader.loadKnowledge(know_file, know_delim, "#")
+        else:
+            know_file = io.File(path)
+            know_delim = td.DelimiterType.WHITESPACE
+            self.knowledge = td.SimpleDataLoader.loadKnowledge(know_file, know_delim, "#")
+
+    def check_knowledge(self):
+        X = [str(x) for x in self.knowledge.getVariables()]
+        Y = [str(y) for y in self.data.getVariableNames()]
+        return [x for x in X if x not in Y]
+
+    def print_knowledge(self):
+        print(self.knowledge)
+
+    def _require_test(self, method):
+        """Raises a friendly error if no search test has been set. The algorithm wrappers
+        dereference the test deep inside the Java bootstrap machinery, so a missing test
+        otherwise surfaces as a bare NullPointerException (or, for some algorithms, a
+        misleading data-type error) long after the actual mistake."""
+        if self.TEST is None:
+            raise Exception(f"{method} requires a search test, but none has been set. Please call a "
+                            "use_* test method first (e.g. use_fisher_z(alpha=0.01)). Note that "
+                            "use_for_mc=True sets only the Markov-check test; to set both the search "
+                            "test and the Markov-check test, call the use_* test method twice, once "
+                            "without use_for_mc and once with use_for_mc=True.")
+
+    def _require_score(self, method):
+        """Raises a friendly error if no score has been set; see _require_test."""
+        if self.SCORE is None:
+            raise Exception(f"{method} requires a score, but none has been set. Please call a "
+                            "use_* score method first (e.g. use_sem_bic()).")
+
+    def run_fges(self, symmetric_first_step=False, max_degree=-1, parallelized=False,
+                 faithfulness_assumed=False):
+        self._require_score("run_fges")
+        alg = cpdag.Fges(self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.params.set(Params.SYMMETRIC_FIRST_STEP, symmetric_first_step)
+        self.params.set(Params.MAX_DEGREE, max_degree)
+        self.params.set(Params.PARALLELIZED, parallelized)
+        self.params.set(Params.FAITHFULNESS_ASSUMED, faithfulness_assumed)
+
+        self.java = alg.search(self._search_data(), self.params)
+
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_fges_mb(self, targets="", max_degree=-1, trimming_style=3,
+                    number_of_expansions=2, faithfulness_assumed=False):
+        self._require_score("run_fges_mb")
+        alg = cpdag.FgesMb(self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.params.set(Params.TARGETS, targets)
+        self.params.set(Params.FAITHFULNESS_ASSUMED, faithfulness_assumed)
+        self.params.set(Params.MAX_DEGREE, max_degree)
+        self.params.set(Params.TRIMMING_STYLE, trimming_style)
+        self.params.set(Params.NUMBER_OF_EXPANSIONS, number_of_expansions)
+
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_boss(self, num_starts=1, use_bes=False, time_lag=0, use_data_order=True,
+                 output_cpdag=True, use_ils_restarts=False):
+        """Runs BOSS (Best Order Score Search).
+
+        use_ils_restarts: if True, restarts after the first perturb the best order found so far with about
+        ln(m) random transpositions and rerun the search from there (iterated local search), in the style of
+        FLOP, rather than starting from a fresh random order. This has no effect unless num_starts > 1.
+        """
+        self.params.set(Params.USE_BES, use_bes)
+        self.params.set(Params.NUM_STARTS, num_starts)
+        self.params.set(Params.USE_ILS_RESTARTS, use_ils_restarts)
+        self.params.set(Params.TIME_LAG, time_lag)
+        self.params.set(Params.USE_DATA_ORDER, use_data_order)
+        self.params.set(Params.OUTPUT_CPDAG, output_cpdag)
+        self._require_score("run_boss")
+        alg = cpdag.Boss(self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_restricted_boss(self, targets="", use_bes=False, num_starts=1,
+                            trimming_style = 3):
+        self.params.set(Params.TARGETS, targets)
+        self.params.set(Params.USE_BES, use_bes)
+        self.params.set(Params.NUM_STARTS, num_starts)
+        self.params.set(Params.TRIMMING_STYLE, trimming_style)
+
+        self._require_score("run_restricted_boss")
+        alg = cpdag.RestrictedBoss(self.SCORE)
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    # Algorithm. This is the algorithm to use to calculate bootstrapped CPDAGs.
+    # Current options are PC Stable, FGES, BOSS, or Restricted BOSS. For large
+    # datasets, we recommend Restricted BOSS, which calculates variables with
+    # marginal effect on one of the targets and then runs BOSS over this restricted
+    # set.
+    # Results Output Path. A default is “cstar-out”, which will place result-files
+    # in a subdirectory of the current directory named path = “cstar-out”.[n], where
+    # n is the first index for which no such directory exists. If a directory already
+    # exists at the path, then any information available in path directory will be
+    # used to generate results in the path-.[n] directory.
+    # Number of Subsamples. CStaR finds CPDAGs over subsampled data of size n / 2; this
+    # specifies how many subsamples to use.
+    # Minimum effect size. This allows a shorter table to be produced. It this is set
+    # to a value m > 0, then only records with PI > m will be displayed.
+    # Target Names. A list of names of variables (comma or space separated) can be
+    # given that are considered possible effects. These will be excluded from the list
+    # of possible causes, which will be all other variables in the dataset.
+    # Top Bracket. The CStaR algorithm tries to find possible causes that regularly sort
+    # into the top set of variables by minimum IDA effect. This gives the number q of
+    # variables to include in the top bracket, where 1 <= q <= # possible causes.
+    # Parallelized. Yes, if the search should be parallelized, no if not. Default no.
+    def run_cstar(self, targets="", file_out_path="cstar-out", selection_min_effect=0.0,
+                  num_subsamples=50, top_bracket=10, parallelized=False, cpdag_algorithm=4,
+                  remove_effect_nodes=True, sample_style=1):
+        self.params.set(Params.SELECTION_MIN_EFFECT, selection_min_effect)
+        self.params.set(Params.NUM_SUBSAMPLES, num_subsamples)
+        self.params.set(Params.TARGETS, targets)
+        self.params.set(Params.TOP_BRACKET, top_bracket)
+        self.params.set(Params.PARALLELIZED, parallelized)
+        self.params.set(Params.CSTAR_CPDAG_ALGORITHM, cpdag_algorithm)
+        self.params.set(Params.FILE_OUT_PATH, file_out_path)
+        self.params.set(Params.REMOVE_EFFECT_NODES, remove_effect_nodes)
+        self.params.set(Params.SAMPLE_STYLE, sample_style)
+
+        self._require_test("run_cstar")
+        self._require_score("run_cstar")
+        alg = cpdag.Cstar(self.TEST, self.SCORE)
+        self.java = alg.search(self.data, self.params)
+
+    def run_sp(self):
+        self._require_score("run_sp")
+        alg = cpdag.Sp(self.SCORE)
+        alg.setKnowledge(self.knowledge)
+        self.java = alg.search(self._search_data(), self.params)
+        alg.setKnowledge(self.knowledge)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_grasp(self, covered_depth=4, singular_depth=1,
+                  nonsingular_depth=1, ordered_alg=False,
+                  raskutti_uhler=False, use_data_order=True,
+                  num_starts=1):
+        self.params.set(Params.GRASP_DEPTH, covered_depth)
+        self.params.set(Params.GRASP_SINGULAR_DEPTH, singular_depth)
+        self.params.set(Params.GRASP_NONSINGULAR_DEPTH, nonsingular_depth)
+        self.params.set(Params.GRASP_ORDERED_ALG, ordered_alg)
+        self.params.set(Params.GRASP_USE_RASKUTTI_UHLER, raskutti_uhler)
+        self.params.set(Params.USE_DATA_ORDER, use_data_order)
+        self.params.set(Params.NUM_STARTS, num_starts)
+
+        self._require_test("run_grasp")
+        self._require_score("run_grasp")
+        alg = cpdag.Grasp(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_flop(self, num_restarts=20, penalty_discount=2, seed=-1):
+        """Runs FLOP (Fast Learning of Order and Parents), the permutation search of Wienobst, Henckel, and
+        Weichwald (2026). Like BOSS it searches over topological orders by repeatedly reinserting each variable
+        at its best-scoring position, but it chooses parent sets by a randomized non-greedy grow-shrink, warm
+        starts those parent sets as the order changes, and restarts by iterated local search rather than from
+        fresh random orders.
+
+        Unlike the other score-based searches here, FLOP does not take a score object: it is specialized to the
+        linear Gaussian BIC internally, so it requires continuous data (or a covariance matrix) and there is no
+        need to call a use_* score method first. Knowledge is not supported and this method raises if any has
+        been set, rather than silently ignoring it. For an arbitrary score, or for knowledge, use run_boss with
+        use_ils_restarts=True, which applies the same iterated local search on the BOSS engine.
+
+        num_restarts: the number of iterated local search restarts. Note that this differs in meaning from
+        BOSS's num_starts: 0 gives one search, from FLOP's pivoted-Cholesky initial order, rather than no
+        search. More restarts can never return a worse-scoring graph, so this trades runtime against score.
+
+        penalty_discount: the multiplier on the ln(N) * |parents| BIC penalty term, lambda in the paper.
+        Note that this writes the shared PENALTY_DISCOUNT parameter, so it will also apply to a subsequently
+        run score-based search unless that search's own penalty discount is set again.
+
+        seed: the random seed, or -1 for a nondeterministic one. FLOP's local search is randomized, so results
+        are reproducible only when this is set. Note that this writes the shared SEED parameter, which is also
+        used for bootstrap resampling.
+        """
+        if not self.knowledge.isEmpty():
+            raise Exception("run_flop does not support knowledge, but knowledge has been set. Use run_boss "
+                            "with use_ils_restarts=True instead, which supports knowledge and uses the same "
+                            "iterated local search.")
+
+        self.params.set(Params.FLOP_NUM_RESTARTS, num_restarts)
+        self.params.set(Params.PENALTY_DISCOUNT, penalty_discount)
+        self.params.set(Params.SEED, seed)
+
+        alg = cpdag.Flop()
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_pc(self, depth=-1, stable_fas=True, allow_bidirected=False, collider_orientation_style=3):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.STABLE_FAS, stable_fas)
+        self.params.set(Params.ALLOW_BIDIRECTED, allow_bidirected)
+        self.params.set(Params.COLLIDER_ORIENTATION_STYLE, collider_orientation_style)
+
+        self._require_test("run_pc")
+        alg = cpdag.Pc(self.TEST)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_pc_max(self, depth=-1, stable_fas=True, allow_bidirected=False):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.STABLE_FAS, stable_fas)
+        self.params.set(Params.ALLOW_BIDIRECTED, allow_bidirected)
+        self.params.set(Params.COLLIDER_ORIENTATION_STYLE, 2)
+
+        self._require_test("run_pc_max")
+        alg = cpdag.Pc(self.TEST)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_cpc(self, depth=-1, stable_fas=True, allow_bidirected=False):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.STABLE_FAS, stable_fas)
+        self.params.set(Params.ALLOW_BIDIRECTED, allow_bidirected)
+        self.params.set(Params.COLLIDER_ORIENTATION_STYLE, 3)
+
+        self._require_test("run_cpc")
+        alg = cpdag.Pc(self.TEST)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_fci(self, depth=-1, stable_fas=True, max_disc_path_length=-1, complete_rule_set_used=True,
+                guarantee_pag=False):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.STABLE_FAS, stable_fas)
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        self._require_test("run_fci")
+        alg = pag.Fci(self.TEST)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_rfci(self, depth=-1, stable_fas=True, max_disc_path_length=-1, complete_rule_set_used=True, ):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.STABLE_FAS, stable_fas)
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used)
+
+        self._require_test("run_rfci")
+        alg = pag.Rfci(self.TEST)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    # This is GFCI with the possible d-sep step.
+    def run_gfci(self, depth=-1, max_degree=-1, max_disc_path_length=-1, complete_rule_set_used=True,
+                 guarantee_pag=False):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.MAX_DEGREE, max_degree)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used),
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        self._require_test("run_gfci")
+        self._require_score("run_gfci")
+        alg = pag.Gfci(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    # This is GFCI without the possible d-sep step
+    def run_fges_fci(self, depth=-1, max_degree=-1, max_disc_path_length=-1, complete_rule_set_used=True,
+                 guarantee_pag=False):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.MAX_DEGREE, max_degree)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used),
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        self._require_test("run_fges_fci")
+        self._require_score("run_fges_fci")
+        alg = pag.Gfci(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_bfci(self, depth=-1, max_disc_path_length=-1, complete_rule_set_used=True,
+                 guarantee_pag=False):
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used),
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        self._require_test("run_bfci")
+        self._require_score("run_bfci")
+        alg = pag.Bfci(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_lv_heuristic(self, num_starts=1, use_bes=False, time_lag=0, use_data_order=True,
+                         output_cpdag=True, complete_rule_set_used=True):
+        self.params.set(Params.USE_BES, use_bes)
+        self.params.set(Params.NUM_STARTS, num_starts)
+        self.params.set(Params.TIME_LAG, time_lag)
+        self.params.set(Params.USE_DATA_ORDER, use_data_order)
+        self.params.set(Params.OUTPUT_CPDAG, output_cpdag)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used),
+
+        self._require_score("run_lv_heuristic")
+        alg = pag.LvHeuristic(self.SCORE)
+
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_fcit(self, num_starts=1, max_blocking_path_length=5, depth=5, max_disc_path_length=5,
+                    guarantee_pag=True):
+        # BOSS
+        self.params.set(Params.NUM_STARTS, num_starts)
+
+        # FCIT
+        self.params.set(Params.MAX_BLOCKING_PATH_LENGTH, max_blocking_path_length)
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        self._require_test("run_fcit")
+        self._require_score("run_fcit")
+        alg = pag.Fcit(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_grasp_fci(self, depth=-1, stable_fas=True,
+                      max_disc_path_length=-1,
+                      complete_rule_set_used=True,
+                      covered_depth=4, singular_depth=1,
+                      nonsingular_depth=1, ordered_alg=False,
+                      raskutti_uhler=False, use_data_order=True,
+                      num_starts=1, guarantee_pag=False):
+        # GRaSP
+        self.params.set(Params.GRASP_DEPTH, covered_depth)
+        self.params.set(Params.GRASP_SINGULAR_DEPTH, singular_depth)
+        self.params.set(Params.GRASP_NONSINGULAR_DEPTH, nonsingular_depth)
+        self.params.set(Params.GRASP_ORDERED_ALG, ordered_alg)
+        self.params.set(Params.GRASP_USE_RASKUTTI_UHLER, raskutti_uhler)
+        self.params.set(Params.USE_DATA_ORDER, use_data_order)
+        self.params.set(Params.NUM_STARTS, num_starts)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        # FCI
+        self.params.set(Params.DEPTH, depth)
+        # self.params.set(Params.FAS_HEURISTIC, fas_heuristic)
+        self.params.set(Params.STABLE_FAS, stable_fas)
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used)
+
+        self._require_test("run_grasp_fci")
+        self._require_score("run_grasp_fci")
+        alg = pag.GraspFci(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_sp_fci(self, max_disc_path_length=-1, complete_rule_set_used=True, depth=-1,
+                   guarantee_pag=False):
+        self.params.set(Params.MAX_DISCRIMINATING_PATH_LENGTH, max_disc_path_length)
+        self.params.set(Params.COMPLETE_RULE_SET_USED, complete_rule_set_used)
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.GUARANTEE_PAG, guarantee_pag)
+
+        self._require_test("run_sp_fci")
+        self._require_score("run_sp_fci")
+        alg = pag.SpFci(self.TEST, self.SCORE)
+        alg.setKnowledge(self.knowledge)
+
+        self.java = alg.search(self._search_data(), self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_lingam(self, ica_a=1.1, ica_max_iter=5000, ica_tolerance=1e-8, threshold_b=0.1):
+        self.params.set(Params.FAST_ICA_A, ica_a)
+        self.params.set(Params.FAST_ICA_MAX_ITER, ica_max_iter)
+        self.params.set(Params.FAST_ICA_TOLERANCE, ica_tolerance)
+        self.params.set(Params.THRESHOLD_B, threshold_b)
+
+        alg = dag.Lingam()
+        self.java = alg.search(self.data, self.params)
+        self.bhat = alg.getBHat()
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    ## Returns the b-hat from the ICA-LiNGAM algorithm as a numpy array.
+    def get_bhat(self):
+        return tr.tetrad_matrix_to_pandas(self.bhat, self.data.getVariableNames())
+
+    def run_lingd(self, ica_a=1.1, ica_max_iter=5000, ica_tolerance=1e-8, threshold_b=0.1, threshold_w=0.1):
+        self.params.set(Params.FAST_ICA_A, ica_a)
+        self.params.set(Params.FAST_ICA_MAX_ITER, ica_max_iter)
+        self.params.set(Params.FAST_ICA_TOLERANCE, ica_tolerance)
+        self.params.set(Params.THRESHOLD_B, threshold_b)
+        self.params.set(Params.THRESHOLD_W, threshold_w)
+
+        alg = dag.LingD()
+        self.java = alg.search(self.data, self.params)
+        self.unstable_bhats = alg.getUnstableBHats()
+        self.stable_bhats = alg.getStableBHats()
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_fask(self, alpha=0.05, depth=-1, fask_delta=-0.3, left_right_rule=1, skew_edge_threshold=0.3):
+        self.params.set(Params.ALPHA, alpha)
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.FASK_DELTA, fask_delta)
+        self.params.set(Params.FASK_LEFT_RIGHT_RULE, left_right_rule)
+        self.params.set(Params.SKEW_EDGE_THRESHOLD, skew_edge_threshold)
+
+        self._require_score("run_fask")
+        alg = dag.Fask(self.SCORE)
+        alg.setKnowledge(self.knowledge)
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_factor_analysis(self, fa_threshold=0.001, num_factors=2.0, use_varimax=True,
+                convergence_threshold=0.001):
+        """
+        Run factor analysis using specified parameters and a predefined dataset.
+
+        This method initializes and configures the factor analysis algorithm with the
+        provided parameter values and executes it using the given data and parameter
+        configuration. Factor analysis is used to identify potential underlying
+        factors that may explain the observed relationships among variables.
+
+        :param fa_threshold: Threshold for factor analysis convergence criterion.
+        :param num_factors: The number of factors to extract during analysis.
+        :param use_varimax: Flag indicating whether to apply Varimax rotation to the
+            extracted factors.
+        :param convergence_threshold: Minimum threshold for algorithm convergence.
+        :return: None
+        """
+        # Set algorithm parameters in the Params object
+        self.params.set("fa_threshold", fa_threshold)
+        self.params.set("numFactors", num_factors)
+        self.params.set("useVarimax", use_varimax)
+        self.params.set("convergenceThreshold", convergence_threshold)
+
+        # Initialize the BPC clustering algorithm
+        alg = alg_other.FactorAnalysis()
+
+        # Run the search algorithm using the data and specified parameters
+        self.java = alg.search(self.data, self.params)
+
+    ## Returns the unstable b-hats from the ICA-LiNG-D algorithm as a list of numpy arrays.
+    def get_unstable_bhats(self):
+        list_of_matrices = []
+
+        for i in range(self.unstable_bhats.size()):
+            array = self.unstable_bhats.get(i)
+            m = tr.tetrad_matrix_to_pandas(array, self.data.getVariableNames())
+            list_of_matrices.append(m)
+
+        return list_of_matrices
+
+    ## Returns the stable b-hats from the ICA-LiNG-D algorithm as a list of numpy arrays.
+    def get_stable_bhats(self):
+        list_of_matrices = []
+
+        for i in range(self.stable_bhats.size()):
+            array = self.stable_bhats.get(i)
+            m = tr.tetrad_matrix_to_pandas(array, self.data.getVariableNames())
+            list_of_matrices.append(m)
+
+        return list_of_matrices
+
+    def run_ccd(self, depth=-1, apply_r1=True):
+        if not self.knowledge.isEmpty():
+            print("CCD does not use knowledge.")
+            return
+
+        self.params.set(Params.DEPTH, depth)
+        self.params.set(Params.APPLY_R1, apply_r1)
+
+        self._require_test("run_ccd")
+        alg = pag.Ccd(self.TEST)
+        alg.setKnowledge(self.knowledge)
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_svar_fci(self, penalty_discount=2):
+        num_lags = 2
+        lagged_data = ts.TimeSeriesUtils.createLagData(self.data, num_lags)
+        ts_test = ts.IndTestFisherZ(lagged_data, 0.01)
+        ts_score = ts.SemBicScore(lagged_data)
+        ts_score.setPenaltyDiscount(penalty_discount)
+        svar_fci = ts.SvarFci(ts_test)
+        svar_fci.setKnowledge(lagged_data.getKnowledge())
+        self.java = svar_fci.search()
+        # self.bootstrap_graphs = svar_fci.getBootstrapGraphs()
+
+    def run_direct_lingam(self):
+        self._require_score("run_direct_lingam")
+        alg = dag.DirectLingam(self.SCORE)
+
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_dagma(self, dagma_lambda=0.05, w_threshold=0.1, cpdag=True):
+        alg = dag.Dagma()
+
+        self.params.set(Params.LAMBDA1, dagma_lambda)
+        self.params.set(Params.W_THRESHOLD, w_threshold)
+        self.params.set(Params.CPDAG, cpdag)
+
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_pc_lingam(self):
+        alg = dag.PcLingam()
+        self.java = alg.search(self.data, self.params)
+        self.bootstrap_graphs = alg.getBootstrapGraphs()
+
+    def run_gango(self, score, data):
+        fges_graph = TetradSearch.run_fges(score)
+        datasets = util.ArrayList()
+        datasets.add(data)
+        rskew = ts.Lofs2(fges_graph, datasets)
+        rskew.setKnowledge(self.knowledge)
+        rskew.setRule(ts.Lofs2.Rule.RSkew)
+        gango_graph = rskew.orient()
+        return gango_graph
+
+    # Set numberResampling to 0 to turn off bootstrapping.
+    # For resampling ensemble, 1 = "preserved" which means the graph will summarize the edge
+    # bootstrap information by keeping all information in the graph, 2 = "highest", which will
+    # only keep the edge for each node pair <x, y> that occurred with the highest frequency, and
+    # 3 = "majority", which will keep all edges that occurred in the bootstraps with
+    # probability > 0.5. This affects which node pairs <x, y> are given in the bootstrapping
+    # ensemble graph; only one edge will appear for each node pair, and this will be the pair
+    # with the highest frequency.
+    def set_bootstrapping(self, numberResampling=0, percent_resample_size=100, add_original=True,
+                          with_replacement=True, resampling_ensemble=1, seed=-1):
+        self.params.set(Params.NUMBER_RESAMPLING, numberResampling)
+        self.params.set(Params.PERCENT_RESAMPLE_SIZE, percent_resample_size)
+        self.params.set(Params.ADD_ORIGINAL_DATASET, add_original)
+        self.params.set(Params.RESAMPLING_WITH_REPLACEMENT, with_replacement)
+        self.params.set(Params.RESAMPLING_ENSEMBLE, resampling_ensemble)
+        self.params.set(Params.SEED, seed)
+
+    def set_data(self, data):
+        self.data = tr.pandas_data_to_tetrad(data)
+
+    def add_data_set(self, df):
+        """
+        Registers an additional data set to pool with the primary one on the next run_* call, if
+        set_pool_data_sets(True) has been called. All pooled data sets must have the same variables, in the same
+        order, as the primary data set (the one passed to the TetradSearch constructor or set via set_data).
+
+        Pooling replaces IMaGES as a general mechanism: for a score-based search (e.g. run_boss with use_sem_bic),
+        pooling sums the score across data sets, exactly reproducing what a dedicated IMaGES algorithm would have
+        done. For a test-based search (e.g. run_pc with use_fisher_z), pooling combines the per-data-set p-values
+        for each independence fact via set_pooled_test_method ("fisher", the default, or "tippett"). Time lag, if
+        set on the search method, is applied to each data set separately before pooling, so a lagged multi-region
+        analysis does not create a false transition at the seam between regions.
+
+        :param df: a pandas DataFrame with the same variables as the primary data set.
+        """
+        self.pooled_data_sets.append(tr.pandas_data_to_tetrad(df))
+
+    def clear_pooled_data_sets(self):
+        """Removes all data sets registered via add_data_set. Does not affect the primary data set."""
+        self.pooled_data_sets = []
+
+    def set_pool_data_sets(self, pool=True):
+        """
+        If True, and one or more additional data sets have been registered via add_data_set, the next run_* call
+        pools the primary data set together with all registered ones into a single search, instead of searching the
+        primary data set alone. Has no effect if no additional data sets have been registered. See add_data_set.
+
+        :param pool: whether to pool.
+        """
+        self.pool_data_sets = pool
+
+    def set_pooled_test_method(self, method="fisher"):
+        """
+        Selects how per-data-set p-values are combined for a pooled test-based search (see add_data_set,
+        set_pool_data_sets). "fisher" (the default) is the most powerful choice when a dependence, if present, is
+        present in all the pooled data sets, and its power increases with the number of data sets. "tippett" (the
+        minimum p-value, Sidak-adjusted for the number of data sets) is more powerful when a dependence is present
+        in only some of the data sets, at a small cost in power when it is present in all of them. Has no effect on
+        a score-based pooled search (e.g. run_boss with use_sem_bic), whose pooling is a sum of scores, not a
+        p-value combination.
+
+        :param method: "fisher" or "tippett".
+        """
+        self.params.set(Params.POOLED_TEST_METHOD, method)
+
+    def _search_data(self):
+        """
+        Internal. Returns the data model to hand to alg.search(...): the primary data set, unless pooling is
+        requested (set_pool_data_sets(True)) and one or more additional data sets are registered, in which case a
+        DataModelList of the primary data set followed by the registered ones is returned. Passing a DataModelList
+        with more than one element to an AbstractBootstrapAlgorithm's search method is itself the request to pool;
+        no other flag is required at that layer.
+        """
+        if self.pool_data_sets and len(self.pooled_data_sets) > 0:
+            data_model_list = td.DataModelList()
+            data_model_list.add(self.data)
+            for d in self.pooled_data_sets:
+                data_model_list.add(d)
+            return data_model_list
+        return self.data
+
+    def set_verbose(self, verbose):
+        self.params.set(Params.VERBOSE, verbose)
+
+    def set_time_lag(self, time_lag=0):
+        self.params.set(Params.TIME_LAG, time_lag)
+
+    def get_data(self):
+        return self.data
+
+    def get_verbose(self):
+        return self.params.getBoolean(Params.VERBOSE)
+
+    def get_knowledge(self):
+        return self.knowledge
+
+    def get_java(self):
+        return self.java
+
+    def get_string(self, java=None):
+        if (java == None):
+            return lang.String @ self.java.toString()
+        else:
+            lang.String @ java.toString()
+
+    def get_dag_string(self, java=None):
+        if (java == None):
+            dag = gr.GraphTransforms.dagFromCpdag(self.java)
+            return lang.String @ dag.toString()
+        else:
+            dag = gr.GraphTransforms.dagFromCpdag(java)
+            return lang.String @ dag.toString()
+
+    def get_dag_java(self, java=None):
+        if (java == None):
+            dag = gr.GraphTransforms.dagFromCpdag(self.java)
+            return dag
+        else:
+            dag = gr.GraphTransforms.dagFromCpdag(java)
+            return dag
+
+    def get_causal_learn(self, java=None):
+        if (java == None):
+            return tr.tetrad_graph_to_causal_learn(self.java)
+        else:
+            tr.tetrad_graph_to_causal_learn(java)
+
+    def get_graph_to_matrix(self, java=None, nullEpt=0, circleEpt=1, arrowEpt=2, tailEpt=3):
+        if (java == None):
+            return tr.graph_to_matrix(self.java, nullEpt, circleEpt, arrowEpt, tailEpt)
+        else:
+            tr.graph_to_matrix(java)
+
+    def get_dot(self, java=None):
+        if (java == None):
+            return str(gp.graphToDot(self.java))
+        else:
+            return str(gp.graphToDot(java))
+
+    def get_xml(self, java=None):
+        if (java == None):
+            return str(gp.graphToXml(self.java))
+        else:
+            return str(gp.graphToXml(self.java))
+
+    def get_lavaan(self, java=None):
+        if (java == None):
+            return gp.graphToLavaan(self.java)
+        else:
+            return gp.graphToLavaan(java)
+
+    def get_json(self, java=None):
+        if (java == None):
+            return gp.graphToJson(self.java)
+        else:
+            return gp.graphToJson(java)
+
+    def bootstrap_graph(self, index):
+        i = lang.Integer(index).intValue()
+        if i < 0 or i > len(self.bootstrap_graphs):
+            raise ValueError("index out of bounds (0-indexed)")
+        return self.bootstrap_graphs[i]
+
+    def bootstrap_dot(self, index):
+        i = lang.Integer(index).intValue()
+        if i < 0 or i > len(self.bootstrap_graphs):
+            raise ValueError("index out of bounds")
+        java = self.bootstrap_graphs[i]
+        return str(gp.graphToDot(java))
+
+    def is_legal_pag(self, graph):
+        return search_utils.GraphSearchUtils.isLegalPag(graph).isLegalPag()
+
+    def is_legal_pag_reason(self, graph):
+        print(search_utils.GraphSearchUtils.isLegalPag(graph).getReason())
+
+    def all_subsets_independence_facts(self, graph):
+        self._require_test("all_subsets_independence_facts")
+        msep = (ts.MarkovCheck(graph, self.TEST.getTest(self.data, self.params), ts.ConditioningSetType.LOCAL_MARKOV)
+                .getAllSubsetsIndependenceFacts().getMsep())
+
+        facts = []
+
+        for i in range(0, msep.size()):
+            fact = msep.get(i)
+            x = fact.getX().toString()
+            y = fact.getY().toString()
+            zlist = util.ArrayList(fact.getZ())
+
+            _fact = []
+            _fact.append(x)
+            _fact.append(y)
+
+            for j in range(0, zlist.size()):
+                _fact.append(zlist.get(j).toString())
+
+            facts.append(_fact)
+
+        return facts
+
+    def all_subsets_dependence_facts(self, graph):
+        self._require_test("all_subsets_dependence_facts")
+        mconn = (ts.MarkovCheck(graph, self.TEST.getTest(self.data, self.params), ts.ConditioningSetType.LOCAL_MARKOV)
+                 .getAllSubsetsIndependenceFacts().getMconn())
+
+        facts = []
+
+        for i in range(0, mconn.size()):
+            fact = mconn.get(i)
+            x = fact.getX().toString()
+            y = fact.getY().toString()
+            zlist = util.ArrayList(fact.getZ())
+
+            _fact = []
+            _fact.append(x)
+            _fact.append(y)
+
+            for j in range(0, zlist.size()):
+                _fact.append(zlist.get(j).toString())
+
+            facts.append(_fact)
+
+        return facts
+
+    def markov_check(self, graph, fraction_resample=1, condition_set_type=ts.ConditioningSetType.ORDERED_LOCAL_MARKOV_PROPERTY,
+                     removeExtraneous=False, parallelized=True, effective_sample_size=-1,
+                     per_fact_ess=False, ess_block_columns=None):
+        if self.MC_TEST == None:
+            raise Exception("A test for the Markov Checker has not been set. Please call as use_{test name} method setting the parmaeter 'use_for_mc' to True")
+
+        mc = ts.MarkovCheck(graph, self.MC_TEST.getTest(self.data, self.params), condition_set_type)
+        mc.setFractionResample(fraction_resample)
+        mc.setFindSmallestSubset(removeExtraneous)
+        mc.setParallelized(parallelized)
+
+        if self.mc_knowledge is not None:
+            mc.setKnowledge(self.mc_knowledge)
+
+        # Set the effective sample size if specified. Fixed 2026-8: this was previously
+        # applied AFTER generateAllResults(), when all p-values had already been computed,
+        # so the parameter had no effect. MarkovCheck.setEffectiveSampleSize forwards to the
+        # independence test, which must therefore be EffectiveSampleSizeSettable. Note: honoring
+        # the value through the Markov Checker's row resampling also requires a
+        # tetrad-current.jar with the 2026-8 effective-sample-size persistence fix in
+        # IndTestBasisFunctionBlocks (earlier jars reset the value when rows are set).
+        if effective_sample_size != -1:
+            mc.setEffectiveSampleSize(effective_sample_size)
+
+        # Per-fact effective sample sizes from block structure (see
+        # edu.cmu.tetrad.search.utils.PerFactEss). Each implied fact is tested at an
+        # effective sample size computed from how its variables sit in the blocks defined
+        # by the distinct joint values of ess_block_columns; overrides
+        # effective_sample_size per fact, and forces sequential fact evaluation.
+        if per_fact_ess:
+            if not ess_block_columns:
+                raise Exception("per_fact_ess=True requires ess_block_columns, a list of "
+                                "column names whose distinct joint values define the blocks.")
+            cols = jutil.ArrayList()
+            for c in ess_block_columns:
+                cols.add(c)
+            mc.setEssBlockColumns(cols)
+            mc.setPerFactEss(True)
+
+        mc.generateAllResults()
+
+        self.mc_ind_results = mc.getResults(True)
+
+        ad_ind = mc.getAndersonDarlingP(True)
+        ad_dep = mc.getAndersonDarlingP(False)
+        ks_ind = mc.getKsPValue(True)
+        ks_dep = mc.getKsPValue(False)
+        bin_indep = mc.getBinomialPValue_(True)
+        bin_dep = mc.getBinomialPValue_(False)
+        frac_dep_ind = mc.getFractionDependent(True)
+        frac_dep_dep = mc.getFractionDependent(False)
+        num_tests_ind = mc.getNumTests(True)
+        num_tests_dep = mc.getNumTests(False)
+        return (ad_ind, ad_dep, ks_ind, ks_dep, bin_indep, bin_dep, frac_dep_ind, frac_dep_dep, num_tests_ind,
+                num_tests_dep, mc)
+
+    def get_mc_ind_pvalues(self):
+        pvalues = []
+        results = self.mc_ind_results
+
+        for i in range(results.size()):
+            r = results.get(i)
+            pvalues.append(r.getPValue())
+
+        return pvalues
+
+    # Returns a (tetrad-format) List of Sets of Nodes. Each set of nodes in the list is an adjustment set
+    # for the source/target pair.
+    # near_which_endpoint: The endpoint(s) to consider for adjustment; 1 = near the source, 2 = near the target, 3 = near either.
+    def get_adjustment_sets(self, graph, graph_type, source, target, max_num_sets=10, max_distance_from_point=5,
+                            near_which_endpoint=1, max_path_length=20, heckel_pruning=False, o_set_compatible=False):
+        return graph.paths().adjustmentSets(source, graph_type, target, max_num_sets, max_distance_from_point,
+                                             near_which_endpoint, max_path_length, heckel_pruning, o_set_compatible)
+
+    def get_gregression(self, graph=None, use_knowledge=False):
+        """
+        Returns a pytetrad.tools.gregression.GRegression estimator (Guo and Perkovic's efficient least
+        squares for total effects) over this search's data and the given graph, which defaults to the
+        graph from the last search and must be an MPDAG (a CPDAG or DAG qualifies). If use_knowledge is
+        True, the search's knowledge is imposed on the graph and Meek-closed first, so that, e.g., a CPDAG
+        from a search run without knowledge can be refined by orientations known from background.
+
+        Then, e.g., est.is_identified(["X3"], "X7"), est.total_effect(["X3"], "X7"), or
+        est.bootstrap(["X3", "X5"], "X7", num_bootstraps=200). See the gregression module for details.
+        """
+        if graph is None:
+            graph = self.java
+        if graph is None:
+            raise ValueError("No graph given and no search has been run.")
+        if use_knowledge:
+            graph = gregression.orient_with_knowledge(graph, self.knowledge)
+        return gregression.GRegression(graph, data=self.data)
+
+    def get_total_effect(self, treatments, outcome, graph=None, use_knowledge=False, num_bootstraps=0, seed=None):
+        """
+        The G-regression estimate of the total effect of treatments (a name or list of names) on outcome
+        in the given MPDAG (default: the last search result). With num_bootstraps > 0, returns a dict with
+        the estimate, bootstrap standard errors, and bootstrap covariance; otherwise a pandas Series indexed
+        by treatment (a float if a single treatment name is given). Raises ValueError if the effect is not
+        identified in the graph.
+        """
+        est = self.get_gregression(graph, use_knowledge)
+        if num_bootstraps > 0:
+            return est.bootstrap(treatments, outcome, num_bootstraps, seed)
+        return est.total_effect(treatments, outcome)
+
