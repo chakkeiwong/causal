@@ -2,7 +2,7 @@
 """Verify preserving sponsor sources, current counts and exact reader pairing."""
 import argparse,json
 from pathlib import Path
-import build_ananke_reuse_sponsor_20261024 as build
+import build_ananke_reuse_sponsor_v2_20261024 as build
 from publish_latent_r_review_v2_20261013 import ref,verify_bindings,write
 run,core,ROOT,BASE=build.run,build.core,build.ROOT,build.BASE;read=lambda p:json.loads(p.read_text())
 def review():

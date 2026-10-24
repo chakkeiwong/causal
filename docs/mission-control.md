@@ -4,7 +4,7 @@
 
 Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`, `check`. Use `start`, `progress`, `record`, `block`, `resume` and `register` for durable work; `reopen` preserves an earlier proposal acceptance review before reviewing a changed reader or repaired negative finding. The earlier controllers and numbered plans are historical views.
 
-**266 / 376 proposal operations have recorded outcomes; 87 are ready.** Next: **LL.CENSUS**.
+**267 / 376 proposal operations have recorded outcomes; 86 are ready.** Next: **LL.CENSUS**.
 
 Continue the33unread originals and4crosscutting tasks with permitted authentic originals;retain source limits163conference,165journal,217access/date,27metadata,136workflow,218energy and125/207/277client challenges. Mediation reuse is recorded and paired;other-language policy has a recorded inconclusive comparison and paired reader. Do not repeat their build or original receipt. Advance independent open software/reuse tasks or create reviewed successors for recorded gaps;no global blocker.
 
@@ -12,7 +12,7 @@ Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DE
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_linearmodels_panel_v2_reviewed_2026-10-24.pdf) — 1478 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_ananke_reuse_reviewed_2026-10-24.pdf) — 1481 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 

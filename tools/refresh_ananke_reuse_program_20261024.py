@@ -10,7 +10,7 @@ run=controller.base;core=run.core;ROOT=core.ROOT
 BASE=ROOT/'docs/program/execution/2026-10-24/program-refresh-ananke-reuse-v1'
 PRIOR=ROOT/'docs/program/execution/2026-10-24/program-refresh-linearmodels-panel-v2'
 PUB=ROOT/'docs/program/execution/2026-10-24/ananke-reuse-reader-v1'
-SPONSOR=ROOT/'docs/program/execution/2026-10-24/sponsor-ananke-reuse-v1'
+SPONSOR=ROOT/'docs/program/execution/2026-10-24/sponsor-ananke-reuse-v2'
 SOURCE=ROOT/'docs/program/execution/2026-10-24/ananke-reuse-v1'
 PANEL=ROOT/'docs/program/execution/2026-10-24/linearmodels-panel-v1'
 CXX=ROOT/'docs/program/execution/2026-10-24/policies-cxx-v3'
