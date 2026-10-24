@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-synthetic-crosslanguage-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-synthetic-crosslanguage-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-python-iv-rd-completion-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-python-iv-rd-completion-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-synthetic-crosslanguage-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-python-iv-rd-completion-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,33 +12,33 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_synthetic_crosslanguage_reviewed_2026-10-25.pdf) has 1,595 pages,
-1,235 audited citation records and 258 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_synthetic_crosslanguage_reviewed_2026-10-25.pdf) has 133 pages and 830 citations.
-All 1,228 predecessor records, citation contexts and 383 compiled content inputs survive.
+The [monograph](../../causal_proposal_python_iv_rd_completion_reviewed_2026-10-25.pdf) has 1,599 pages,
+1,241 audited citation records and 258 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_python_iv_rd_completion_reviewed_2026-10-25.pdf) has 134 pages and 838 citations.
+All 1,235 predecessor records, citation contexts and 384 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**313 recorded outcomes of 376; 38 ready; 150 nonpassing obligations.**
+**314 recorded outcomes of 376; 37 ready; 150 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 61 | 38 | 102 |
+| software | 3 | 62 | 37 | 102 |
 | reuse | 109 | 4 | 2 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor compares Java service boundaries, C++ components and Julia estimators for regional banking interventions. Forty-four originals authenticate SynthControl.jl, coresynth, SynthHelpers, nasc, bsynth and Tencent fast-causal-inference. Actual interfaces, solver routes, placebo populations, zero-effect lifecycle, network guards and conflicting file notices remain explicit. Three distinct software cells receive inconclusive outcomes; no native or standalone API capability is inferred.
+The preserving successor compares CausalPy IV/RD, rdrobust, rdd, ivmodels and pyfixest numerical delegates while preserving the inherited linearmodels and pyfixest comparisons. Twenty-four new originals and two inherited delegates authenticate finite-epsilon cutoff contrasts, Bayesian model choices, robust-row pairing, weak-first-stage ratios, confidence-set geometry and numerical rank. A named pyfixest permissions document is absent from the pinned tree and remains unresolved. Coverage is inconclusive; no native admission is inferred.
 
-All 1,228 predecessor records, contexts and content inputs survive; the reader has 1,235 records and 258 scholarly PDFs, with 830 in the paired sponsor. Coverage is inconclusive: bounded searches return 43 unique leads with uninspected candidates and ecosystem limits; conflicting artifact declarations, installed dependency rights, complete delegates and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
+All 1,235 predecessor records, contexts and content inputs survive; the reader has 1,241 records and 258 scholarly PDFs, with 838 in the paired sponsor. Coverage is inconclusive: bounded searches return 50 unique leads with uninspected candidates and ecosystem limits; conflicting artifact declarations, installed dependency rights, complete delegates and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
 
-There are 313 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 61 inconclusive / 38 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
+There are 314 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 62 inconclusive / 37 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
 ## Remaining gaps and routes
 
-1. Software: 38 open and 61 inconclusive cells. Complete explicit search tails,
+1. Software: 37 open and 62 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.

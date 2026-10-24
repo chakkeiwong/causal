@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Bind Python IV/RD source contracts, exact witnesses and remaining limits."""
+import argparse,json
+from pathlib import Path
+import python_iv_rd_completion_reference_20261025 as exact
+import run_program_checkpoint_v3 as controller
+from publish_latent_r_review_v2_20261013 import ref,write,verify_bindings
+run=controller.base;core=run.core;ROOT=core.ROOT
+BASE=ROOT/'docs/program/execution/2026-10-25/python-iv-rd-completion-v1'
+RAW=ROOT/'docs/literature/raw';OP='SW.CELL.iv_rd_design.Python'
+read=lambda p:json.loads(p.read_text())
+LIMITS=[
+ 'Selected source comparison and 50 discovery leads; search tails, nonlinear IV and complete technical delegates remain open.',
+ 'No downloaded package, installed environment or upstream tests executed; authored witnesses and source predicates are not observed native failures.',
+ 'Repository pins are not authenticated equivalents of every advertised release artifact; complete solver/covariance and dependency rights remain open.',
+ 'The pyfixest header asserts permission but its named primary document is absent from the pinned tree; no legal conclusion or permission clearance.',
+ 'Exclusion, continuity, assignment truth, weak-first-stage validity and general dependence require explicit assumptions or added evidence.',
+ 'No new scholarly guarantee imported from code comments; visual, independent, bank and final acceptance remain open.'
+]
+NEXT='Inspect remaining IV/RD search tails and nonlinear alternatives, complete bandwidth/covariance/solver delegates and authentic permission provenance. Preregister public tests for cutoff direction, epsilon, weighting/rank, weak treatment jumps, robust-row serialization, disconnected/empty/unbounded sets and numerical failure. Preserve all prior linearmodels/pyfixest findings; qualify only declared laws and exact installed artifacts.'
+
+def prepare():
+    assert not (BASE/'review.json').exists()
+    v=read(BASE/'git-byte-validation.json');assert v['status']=='pass' and v['count']==24;verify_bindings(v)
+    for row in v['originals']:assert core.sha(ROOT/row['local_path'])==row['sha256']
+    verify_bindings(read(BASE/'inherited-validation.json'));write(BASE/'exact-results.json',exact.calculate())
+    primary=[];sources=[]
+    for key,(title,repo,version,checks) in read(BASE/'source-spec.json').items():
+        evidence=[];anchors=[];claims=[]
+        for filename,lo,hi,tokens,finding in checks:
+            p=ROOT/filename if filename.startswith('docs/') else RAW/filename
+            fragment='\n'.join(p.read_text().splitlines()[lo-1:hi]);assert all(t in fragment for t in tokens),(filename,lo,hi)
+            binding=ref(p,f'Lines {lo}-{hi}: {finding}');evidence.append(binding);anchors.append(dict(path=binding['path'],line_spans=[[lo,hi]],finding=finding));claims.append(finding)
+        if key=='pyfixest':evidence.append(ref(BASE/'permission-source-omission.json','Named permission document unresolved'))
+        primary.append(dict(group=key,evidence=evidence,inspected_anchors=anchors,supported_claims=claims))
+        sources.append(dict(integrated_citation_key='exec25_pyrdiv_'+key,kind='software',title=title,author=repo+' contributors',year=int(version.split(';')[1][-4:]),source_identity='https://github.com/'+repo+'/tree/'+version.split(';')[-1],version_date=version,local_copy=evidence[0],evidence=evidence,inspected_anchors=anchors,supported_claims=claims,limitations=LIMITS,native_execution=False))
+    inherited=ROOT/'docs/program/execution/2026-10-22/python-iv-kernels-v1'
+    write(BASE/'primary-review.json',dict(status='pass_for_selected_anchors',groups=primary,evidence=[ref(BASE/'git-byte-validation.json','24 authenticated new originals'),ref(BASE/'inherited-validation.json','Exact inherited model delegates'),ref(inherited/'review.json','Preserved prior kernel findings')],native_execution=False))
+    write(BASE/'mathematical-review.json',dict(status='pass_for_authored_exact_witnesses',evidence=[ref(Path(exact.__file__),'Independent rational arithmetic'),ref(BASE/'exact-results.json','Exact replay')],checks=['Finite-epsilon contrast14 or10.008 differs from limiting jump10.','Fuzzy ratios10/100 retain first-stage sensitivity.','Three output-row ratios5,4,8/3 and hypothetical normal halfwidths reproduce.','Disconnected quadratic set excludeszero; convex hull adds unsupported values.','Absolute Gram threshold changes under unit scaling without rank change.','Cost denominators are hypothetical; no empirical or calibration claim.']))
+    write(BASE/'comparison-review.json',dict(operation=OP,status='inconclusive',target='Credit-score discontinuity and instrument-induced lending/servicing contrast',selected=['linearmodels inherited','pyfixest inherited and delegates','CausalPy IV/RD','rdrobust Python','rdd','ivmodels'],decisions=['Prefer supported exact-version Python workers as conditional reference integrations.','Retain rdd as an instructional/model-construction reference pending explicit fitting/window/covariance contract.','Defer numerical ports and redistribution until complete source provenance, rights and matched tests.','Preserve disconnected and unbounded inference outputs without interval-hull normalization.'],limitations=LIMITS,next_action=NEXT))
+    write(BASE/'dependency-license-review.json',dict(status='not_complete_clearance',evidence=[ref(BASE/'primary-review.json','Original terms and runtime paths'),ref(BASE/'permission-source-omission.json','Unresolved named permission document')],findings=['CausalPy inherited Apache identity and model delegates retained.','rdrobust GPL-3 notice and package declaration retained.','rdd MIT and statsmodels dependency retained.','ivmodels BSD-3 with NumPy/SciPy/glum/scikit-learn/numba dependencies.','pyfixest Rust header permission statement retained; named authentic document unavailable in pin.'],integration_allowed=False))
+    write(BASE/'qualification-plan.json',dict(status='proposed_not_executed',tests=['Assignment direction/cutoff inclusion and finite-epsilon score scaling','Bandwidth/donut filtering, local slopes, unique scores and complete-case populations','Robust-row coefficient/SE/null serialization and derivative units','Fuzzy and IV weak-first-stage scenarios under declared laws','Numerical rank/weight scaling, solver routes, nonfinite tolerance and diagnostic custody','Coefficient-null inversion including disconnected, empty, unbounded and singular cases','IV row/formula alignment, data-centered priors and posterior diagnostics','Full native artifact/dependency provenance and all requested cost denominators'],owners=['Scientific author','Adapter owner','Environment/rights owner','Evaluation reviewer'],native_execution=False))
+    write(BASE/'omissions-register.json',dict(global_blocker=False,evidence=[ref(BASE/'search-screening.json','50 leads and incomplete tails'),ref(BASE/'permission-source-omission.json','Exact local provenance limit')],known_routes=['Complete remaining candidate/technical sources and authentic permission evidence.','Preregister matched public native oracles and law-specific evaluation.','Preserve posterior, frequentist, diagnostic and set-geometry distinctions.'],unknown_universal_repairs=['Invalid exclusion/continuity and unknown assignment truth require information or restrictions.','Arbitrary dependence and weak identification have no automatic universal software repair.'],next_action=NEXT))
+    sources.append(dict(integrated_citation_key='exec25_pyrdiv_choice',kind='project_evidence_not_scholarly_paper',title='Authored Python IV/RD target, inference and integration comparison',author='Causal banking proposal project',year=2026,source_identity=str(BASE.relative_to(ROOT)),version_date='25 October 2026; cutoff7 October2026; no native execution',local_copy=ref(BASE/'mathematical-review.json','Authored exact witnesses'),evidence=[ref(BASE/n,'Reviewed comparison') for n in ['comparison-review.json','search-screening.json','dependency-license-review.json','qualification-plan.json','omissions-register.json']],inspected_anchors=[dict(anchor='IV null, cutoff target, robust rows, confidence-set geometry, numerical/provenance boundaries and costs',inspection='Author inspection')],supported_claims=['Selected comparison and exact authored witnesses','Incomplete coverage and concrete public qualification route'],limitations=LIMITS))
+    write(BASE/'source-audit.json',dict(sources=sources,new_records=6,new_scholarly_pdfs=0,native_execution=False));verify_bindings(read(BASE/'source-audit.json'))
+    write(BASE/'plan-review-v2.json',dict(status='pass_for_inconclusive_source_work',evidence=[ref(BASE/n,'Reviewed planned and actual evidence') for n in ['plan.md','plan-review.json','primary-review.json','mathematical-review.json','dependency-license-review.json','qualification-plan.json','omissions-register.json','anchor-preflight-failure.json']],checks=['Preserve inherited inspected findings; add missing IV/RD and inference-set delegates.','24 new originals, two authenticated inherited delegates,27 primary anchors.','50 discovery leads with uninspected tails; no coverage-pass or native claim.','Publish only after cross-language synthetic-control delivery.']))
+    write(BASE/'copyedit-review.json',dict(status='pass_for_connected_argument',evidence=[ref(BASE/'development.tex','Banking question, notation, alternative targets and limits'),ref(BASE/'sponsor-addition.md','Investment implications')],findings=['No theorem imported from code comments.','Finite contrast versus limit and coefficient-null versus diagnostics distinguished.','Source predicates versus authored arithmetic versus proposed native tests distinguished.'],visual_acceptance=False))
+    names=['git-byte-validation.json','inherited-validation.json','primary-review.json','comparison-review.json','mathematical-review.json','exact-results.json','source-audit.json','search-screening.json','dependency-license-review.json','qualification-plan.json','omissions-register.json','plan-review-v2.json','copyedit-review.json','development.tex','sponsor-addition.md']
+    review=dict(status='pass_for_selected_source_work',operation_outcome='inconclusive',evidence=[ref(BASE/n,'Reviewed bounded coverage') for n in names]+[ref(Path(__file__),'Review logic')],findings=['Five source collections and one authored comparison; all prior content retained.','Public tests and exact unresolved rights/coverage limits specified.'],limitations=LIMITS,native_execution=False)
+    verify_bindings(review);write(BASE/'review.json',review);print(json.dumps(dict(review='pass_for_selected_work',originals=24,new_records=6,outcome='inconclusive')))
+
+def receipt():
+    state=core.read(ROOT,core.STATE);assert state['execution_runtime']['active']['operation']==OP;verify_bindings(read(BASE/'review.json'))
+    graph,merged,_=run.combined(ROOT,state);node=run.ledger.operation(graph,OP);value=read(BASE/'comparison-review.json');value['evidence']=[ref(BASE/'review.json','Selected source review')];output=ROOT/node['outputs'][0];write(output,value)
+    evidence=[ref(BASE/n,'Reviewed coverage') for n in ['review.json','source-audit.json','search-screening.json','omissions-register.json']]
+    findings=['Declared candidates and selected additions identified; search/technical coverage incomplete.','Claims bind authentic dated bytes, hashes and inspected anchors; no new scholarly theorem.','Alternatives, exact provenance limit and public qualification route remain explicit.']
+    result=run.ledger.receipt_template(node);result.update(outcome='inconclusive',execution='performed',scope='Python IV/RD source comparison and public qualification contracts',reviewer=dict(name='Codex author/coordinator',kind='author'),outputs=[ref(output,'Bounded coverage')],criteria=[dict(index=i,verdict='inconclusive' if i==0 else 'pass',finding=f,evidence=evidence) for i,f in enumerate(findings)],limitations=LIMITS,capabilities=[],nonexecution_reason='',revisit_trigger=NEXT)
+    run.validate_receipt(ROOT,merged,node,result,len(state['execution_program']['turns']));verify_bindings(result);write(BASE/'operation-receipt.json',result);print('Python IV/RD inconclusive receipt prepared.')
+
+if __name__=='__main__':
+    p=argparse.ArgumentParser();p.add_argument('command',choices=['prepare','receipt']);globals()[p.parse_args().command]()

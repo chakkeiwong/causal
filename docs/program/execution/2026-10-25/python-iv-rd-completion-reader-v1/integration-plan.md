@@ -1,0 +1,1 @@
+Preserve all1235 prior source records,citation contexts and content inputs. Add Python IV/RD target,null,cutoff,solver,confidence-set geometry,rights and exact banking witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
