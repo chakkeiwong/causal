@@ -1,0 +1,2619 @@
+Journal of Machine Learning Research 4 (2003) 1107-1149                   Submitted 8/02; Published 12/03
+
+
+
+
+                           Least-Squares Policy Iteration
+
+Michail G. Lagoudakis                                                              mgl@cs.duke.edu
+Ronald Parr                                                                       parr@cs.duke.edu
+Department of Computer Science
+Duke University
+Durham, NC 27708, USA
+
+
+Editor: Peter L. Bartlett
+
+
+                                                Abstract
+      We propose a new approach to reinforcement learning for control problems which com-
+     bines value-function approximation with linear architectures and approximate policy iter-
+     ation. This new approach is motivated by the least-squares temporal-difference learning
+     algorithm (LSTD) for prediction problems, which is known for its efficient use of sample
+     experiences compared to pure temporal-difference algorithms. Heretofore, LSTD has not
+     had a straightforward application to control problems mainly because LSTD learns the
+     state value function of a fixed policy which cannot be used for action selection and control
+     without a model of the underlying process. Our new algorithm, least-squares policy itera-
+     tion (LSPI), learns the state-action value function which allows for action selection without
+     a model and for incremental policy improvement within a policy-iteration framework. LSPI
+     is a model-free, off-policy method which can use efficiently (and reuse in each iteration)
+     sample experiences collected in any manner. By separating the sample collection method,
+     the choice of the linear approximation architecture, and the solution method, LSPI allows
+     for focused attention on the distinct elements that contribute to practical reinforcement
+     learning. LSPI is tested on the simple task of balancing an inverted pendulum and the
+     harder task of balancing and riding a bicycle to a target location. In both cases, LSPI learns
+     to control the pendulum or the bicycle by merely observing a relatively small number of
+     trials where actions are selected randomly. LSPI is also compared against Q-learning (both
+     with and without experience replay) using the same value function architecture. While
+     LSPI achieves good performance fairly consistently on the difficult bicycle task, Q-learning
+     variants were rarely able to balance for more than a small fraction of the time needed to
+     reach the target location.
+     Keywords: Reinforcement Learning, Markov Decision Processes, Approximate Policy
+     Iteration, Value-Function Approximation, Least-Squares Methods
+
+
+1. Introduction
+
+Approximation methods lie in the heart of all successful applications of reinforcement-
+learning methods. Linear approximation architectures, in particular, have been widely used
+as they offer many advantages in the context of value-function approximation. While their
+ability to generalize may be less powerful than black-box methods such as neural networks,
+they have their virtues: they are easy to implement and use, and their behavior is fairly
+transparent, both from an analysis standpoint and from a debugging and feature-engineering
+
+c 2003 Michail G. Lagoudakis and Ronald Parr.
+                                       Lagoudakis and Parr
+
+
+
+
+standpoint. When linear methods fail, it is usually relatively easy to get some insight into
+why the failure has occurred.
+    Our enthusiasm for the approach presented in this paper is inspired by the least-squares
+temporal-difference learning algorithm (LSTD) (Bradtke and Barto, 1996). The LSTD algo-
+rithm is ideal for prediction problems, that is, problems where we are interested in learning
+the value function of a fixed policy. LSTD makes efficient use of data and converges faster
+than other conventional temporal-difference learning methods. However, LSTD heretofore
+has not had a straightforward application to control problems, that is, problems where we
+are interested in learning a good control policy to achieve a task. Although it is initially
+appealing to attempt to use LSTD in the evaluation step of a policy-iteration algorithm,
+this combination can be problematic. Koller and Parr (2000) present an example where the
+combination of LSTD-style function approximation and policy iteration oscillates between
+two very bad policies in an MDP with just 4 states (Figure 9). This behavior is explained
+by the fact that linear approximation methods such as LSTD compute an approximation
+that is weighted by the state visitation frequencies of the policy under evaluation.1 Further,
+even if this problem is overcome, a more serious difficulty is that the state value function
+that LSTD learns is of no use for policy improvement when a model of the process is not
+available, which is the case for most reinforcement-learning control problems.
+    This paper introduces the least-squares policy-iteration (LSPI) algorithm, which extends
+the benefits of LSTD to control problems. First, we introduce LSTDQ, an algorithm simi-
+lar to LSTD that learns the approximate state-action value function of a fixed policy, thus
+permitting action selection and policy improvement without a model. Then, we introduce
+LSPI which uses the results of LSTDQ to form an approximate policy-iteration algorithm.
+LSPI combines the policy-search efficiency of policy iteration with the data efficiency of
+LSTDQ. LSPI is a completely off-policy algorithm and can, in principle, use data col-
+lected arbitrarily from any reasonable sampling distribution. The same data are (re)used
+in each iteration of LSPI to evaluate the generated policies. LSPI enjoys the stability and
+soundness of approximate policy iteration and eliminates learning parameters, such as the
+learning rate, that need careful tuning. We evaluate LSPI experimentally on several con-
+trol problems. A simple chain walk problem is used to illustrate important aspects of the
+algorithm and the value-function approximation method. LSPI is tested on the simple task
+of balancing an inverted pendulum and the harder task of balancing and riding a bicycle
+to a target location. In both cases, LSPI learns to control the pendulum or the bicycle by
+merely observing a relatively small number of trials where actions are selected randomly.
+We also compare LSPI to Q-learning (Watkins, 1989), both with and without experience
+replay (Lin, 1993), using the same value function architecture. While LSPI achieves good
+performance fairly consistently on the difficult bicycle task, Q-learning variants were rarely
+able to balance the bicycle for more than a small fraction of the time needed to reach the
+target location.
+    The paper is organized as follows: first, we provide some background on Markov de-
+cision processes (Section 2) and approximate policy iteration (Section 3); after outlining
+the main idea behind LSPI (Section 4) and discussing value-function approximation with
+
+1. Recent work by Precup et al. (2001) addresses the question of learning a value function for one policy
+   while following another stochastic policy. It does not directly address the question of how the policies
+   are generated.
+
+
+                                                  1108
+                             Least-Squares Policy Iteration
+
+
+
+
+linear architectures (Section 5), we introduce LSTDQ (Section 6) and LSPI (Section 7);
+next, we compare LSPI to other reinforcement-learning methods (Section 8) and present an
+experimental evaluation and comparison (Section 9); finally, we discuss open questions and
+future directions of research (Section 10).
+
+2. Markov Decision Processes
+We assume that the underlying control problem is a Markov decision process (MDP). An
+MDP is defined as a 5-tuple (S, A, P, R, γ) where: S = {s1 , s2 , ..., sn } is a finite set of
+states; A = {a1 , a2 , ..., am } is a finite set of actions; P is a Markovian transition model,
+where P(s, a, s0 ) is the probability of making a transition to state s0 when taking action a
+               a
+in state s (s −→ s0 ); R : S × A × S 7→ IR is a reward (or cost) function, such that R(s, a, s0 )
+                                          a
+is the reward for the transition s −→ s0 ; and, γ ∈ [0, 1) is the discount factor for future
+rewards. For simplicity of notation, we define R : S × A 7→ IR, the expected reward for a
+state-action pair (s, a), as:
+                                            X
+                                R(s, a) =       P(s, a, s0 )R(s, a, s0 ) .
+                                          s0 ∈S
+
+We will be assuming that the MDP has an infinite horizon and that future rewards are
+discounted exponentially with the discount factor (assuming that all policies are proper, that
+is, they reach a terminal state with probability 1, our results generalize to the undiscounted
+case, γ = 1, as well).
+     A stationary policy π for an MDP is a mapping π : S 7→ Ω(A), where Ω(A) is the set of
+all probability distributions over A; π(a; s) stands for the probability that policy π chooses
+action a in state s. A stationary deterministic policy π is a policy that commits to a single
+action choice per state, that is, a mapping π : S 7→ A from states to actions; in this case,
+π(s) indicates the action that the agent takes in state s.
+     The state-action value function Qπ (s, a) of any policy π is defined over all possible
+combinations of states and actions and indicates the expected, discounted, total reward
+when taking action a in state s and following policy π thereafter:
+                                               ∞
+                                                                       !
+                                              X
+                      π                            t
+                    Q (s, a) = Eat ∼π ; st ∼P     γ rt s0 = s, a0 = a      .
+                                                    t=0
+
+The exact Qπ values for all state-action pairs can be found by solving the linear system of
+the Bellman equations:
+                                          X                      X
+                Qπ (s, a) = R(s, a) + γ           P(s, a, s0 )           π(a0 ; s0 )Qπ (s0 , a0 ) .
+                                          s0 ∈S                  a0 ∈A
+
+In matrix format, the system becomes
+
+                                    Qπ = R + γPΠπ Qπ ,
+
+where Qπ and R are vectors of size |S||A|, P is a stochastic matrix of size (|S||A| × |S|)
+that contains the transition model of the process,
+                                            
+                                P (s, a), s0 = P(s, a, s0 ) ,
+
+                                                   1109
+                                    Lagoudakis and Parr
+
+
+
+
+                    Figure 1: Policy Iteration (Actor-Critic Architecture)
+
+
+and Ππ is a stochastic matrix of size (|S| × |S||A|) that describes policy π,
+                                                 
+                               Ππ s0 , (s0 , a0 ) = π(a0 ; s0 ) .
+
+The resulting linear system,
+                                     (I − γPΠπ ) Qπ = R ,
+can be solved analytically or iteratively to obtain the exact Qπ values. The state-action
+value function Qπ is also the fixed point of the Bellman operator Tπ :
+                                         X                 X
+              (Tπ Q)(s, a) = R(s, a) + γ      P(s, a, s0 )   π(a0 ; s0 )Q(s0 , a0 ) .
+                                           s0 ∈S           a0 ∈A
+
+Tπ is a monotonic and quasi-linear operator and a contraction mapping in the L∞ norm
+with contraction rate γ (Bertsekas and Tsitsiklis, 1996). For any initial vector Q, successive
+applications of Tπ converge to the state-action value function Qπ of policy π.
+   For every MDP, there exists an optimal deterministic policy, π ∗ , which maximizes the
+expected, total, discounted reward from any initial state. It is, therefore, sufficient to restrict
+the search for the optimal policy only within the space of deterministic policies.
+
+3. Policy Iteration and Approximate Policy Iteration
+Policy iteration (Howard, 1960) is a method of discovering the optimal policy for any given
+MDP. Policy iteration is an iterative procedure in the space of deterministic policies; it
+discovers the optimal policy by generating a sequence of monotonically improving policies.
+Each iteration m consists of two phases: policy evaluation computes the state-action value
+function Qπm of the current policy πm by solving the linear system of the Bellman equations,
+and policy improvement defines the improved greedy policy πm+1 over Qπm as
+
+                                πm+1 (s) = arg max Qπm (s, a) .
+                                               a∈A
+
+Policy πm+1 is a deterministic policy which is at least as good as πm , if not better. These
+two steps (policy evaluation and policy improvement) are repeated until there is no change
+
+                                               1110
+                               Least-Squares Policy Iteration
+
+
+
+
+                            Figure 2: Approximate Policy Iteration
+
+in the policy in which case the iteration has converged to the optimal policy, often in a
+surprisingly small number of iterations. Policy improvement is also know as the actor
+and policy evaluation is known as the critic, because the actor is responsible for the way
+the agent acts and the critic is responsible for criticizing the way the agent acts. Hence,
+policy-iteration algorithms are also refered to as actor-critic architectures (Barto et al.,
+1983; Sutton, 1984). Figure 1 shows a block diagram of policy iteration (or an actor-critic
+architecture) and the dependencies among the various components.
+    The guaranteed convergence of policy iteration to the optimal policy relies heavily upon
+a tabular representation of the value function, exact solution of the Bellman equations,
+and tabular representation of each policy. Such exact representations and methods are
+impractical for large state and action spaces. In such cases, approximation methods are
+used. Approximations in the policy-iteration framework can be introduced at two places:2
+
+   • The representation of the value function: The tabular (exact) representation of the
+     real-valued function Qπ (s, a) is replaced by a generic parametric function approxima-
+     tor Qb π (s, a; w), where w are the adjustable parameters of the approximator.
+
+   • The representation of the policy: The tabular (exact) representation of the policy
+     π(s) is replaced by a parametric representation π
+                                                     b(s; θ), where θ are the adjustable
+     parameters of the representation.
+
+In either case, only the parameters of the representation need to be stored (along with a
+compact representation of the approximation architecture) and the storage requirements
+are much smaller than the tabular case. The crucial factor for a successful approximate
+algorithm is the choice of the parametric approximation architecture(s) and the choice of
+the projection (parameter adjustment) method(s). This form of policy iteration (depicted
+in Figure 2) is known as approximate policy iteration. Notice that policy evaluation and
+2. As a notational convention, an approximate representation is denoted with the b symbol.
+
+
+                                                 1111
+                                       Lagoudakis and Parr
+
+
+
+
+value-function projection are essentially blended into one procedure, because there is no in-
+termediate representation of a full value function that would facilitate their separation. The
+same also is true for policy improvement and policy projection, since there is no interme-
+diate representation for a complete policy. These facts demonstrate the difficulty involved
+in the use of approximate methods within policy iteration: off-the-self architectures and
+projection methods cannot be applied blindly; they have to be fully integrated into the
+policy-iteration framework.
+    A natural concern is whether the sequence of policies and value functions generated by
+an approximate policy-iteration algorithm converges to a policy and a value function that
+are not far from the optimal ones, if it converges at all. The answer to this question is given
+by the following generic theorem, adapted from Bertsekas and Tsitsiklis (1996), which shows
+that approximate policy iteration is a fundamentally sound algorithm: if the error in policy
+evaluation and projection and the error in policy improvement and projection are bounded,
+then approximate policy iteration generates policies whose performance is not far from the
+optimal performance. Further, this difference diminishes to zero as the errors decrease to
+zero.
+
+
+Theorem 3.1 Let π    b0 , π
+                          b1 , π
+                               b2 , ..., π
+                                         bm be the sequence of policies generated by an approx-
+imate policy-iteration algorithm and let Q    b πb0 , Q
+                                                      b πb1 , Q
+                                                              b πb2 , ..., Q
+                                                                           b πbm be the corresponding ap-
+proximate value functions. Let  and δ be positive scalars that bound the error in all ap-
+proximations (over all iterations) to value functions and policies respectively. If
+
+                                                  bπbm − Qπbm k∞ ≤  ,
+                             ∀ m = 0, 1, 2, ..., kQ
+
+and 3
+                                                     bπbm − T∗ Q
+                         ∀ m = 0, 1, 2, ..., kTπbm+1 Q         bπbm k∞ ≤ δ .
+
+Then, this sequence eventually produces policies whose performance is at most a constant
+multiple of  and δ away from the optimal performance:
+
+                                                                     δ + 2γ
+                                         bπbm − Q∗ k∞ ≤
+                                lim sup kQ                                    .
+                                 m→∞                                 (1 − γ)2
+
+    In addition to this L∞ -norm bound, Munos (2003) recently provided a stronger bound in
+terms of a weighted L2 -norm for a version of approximate policy iteration that involves exact
+representations of policies and approximate representations of their state value functions
+and uses the full model of the MDP in both policy evaluation and policy improvement. This
+recent result provides further evidence that approximate policy iteration is a fundamentally
+sound algorithm.
+
+3. T∗ is the Bellman optimality operator defined as:
+                                                        X
+                           (T∗ Q)(s, a) = R(s, a) + γ           P(s, a, s0 ) max
+                                                                             0
+                                                                                 Q(s0 , a0 ) .
+                                                                            a ∈A
+                                                        s0 ∈S
+
+
+
+
+                                                  1112
+                               Least-Squares Policy Iteration
+
+
+
+
+                            Figure 3: Least-squares policy iteration.
+
+4. Reinforcement Learning and Approximate Policy Iteration
+For many practical control problems, the underlying MDP model is not fully available.
+Typically, the state space, the action space, and the discount factor are available, whereas
+the transition model and the reward function are not known in advance. It is still desirable to
+be able to evaluate, or, even better, find good decision policies for such problems. However,
+in this case, algorithms have to rely on information that comes from interaction between
+the decision maker and the process itself or from a generative model of the process and
+includes observations of states, actions, and rewards.4 These observations are commonly
+organized in tuples known as samples:
+                                            (s, a, r, s0 ) ,
+meaning that at some time step the process was in state s, action a was taken by the agent,
+a reward r was received, and the resulting next state was s0 . The problem of evaluating a
+given policy or discovering a good policy from samples is know as reinforcement learning.
+    Samples can be collected from actual (sequential) episodes of interaction with the process
+or from queries to a generative model of the process. In the first case, the learning agent
+does not have much control on the distribution of samples over the state space, since the
+process cannot be reinitialized at will. In contrast, with a generative model the agent has
+full control on the distribution of samples over the state space as queries can be made for
+any arbitrary state. However, in both cases, the action choices of the learning agent are not
+restricted by the process, but only by the learning algorithm that is running. Samples may
+even come from stored experiences of other agents on the same MDP.
+    The proposed least-squares policy iteration (LSPI) algorithm is an approximate policy-
+iteration algorithm that learns decision policies from samples. Figure 3 shows a block
+4. A generative model of an MDP is a simulator of the process, that is, a “black box” that takes a state
+   s and an action a as inputs and generates a reward r and a next state s0 sampled according to the
+   dynamics of the MDP.
+
+
+                                                 1113
+                                   Lagoudakis and Parr
+
+
+
+
+diagram of LSPI that demonstrates how the algorithm fits within the approximate policy-
+iteration framework. The first observation is that the state-action value function is ap-
+proximated by a linear architecture and its actual representation consists of a compact
+description of the basis functions and a set of parameters. A key idea in the development
+of the algorithm was that the technique used by Q-learning of implicitly representing a
+policy as a state-action value function could be applied to an approximate policy-iteration
+algorithm. In fact, the policy is not physically stored anywhere, but is computed only on
+demand. More specifically, for any query state s, one can access the representation of the
+value function, compute all action values in that state, and perform the maximization to
+derive the greedy action choice at that state. As a result, all approximations and errors in
+policy improvement and representation are eliminated at the cost of some extra optimization
+for each query to the policy.
+    The missing part for closing the loop is a procedure that evaluates a policy using samples
+and produces its approximate value function. In LSPI, this step is performed by LSTDQ, an
+algorithm which is very similar to LSTD and learns efficiently the approximate state-action
+value function Qb π of a policy π when the approximation architecture is a linear architecture.
+    LSPI is only one particular instance of a family of reinforcement-learning algorithms
+for control based on approximate policy iteration. The two components that vary across
+instances of this family are the approximation architecture and the policy evaluation and
+projection procedure. For LSPI, these components were chosen to be linear architectures
+and LSTDQ, but, in principle, any other pair of choices would produce a reasonable learning
+algorithm for control. The choices made for LSPI offer significant advantages and opportu-
+nities for optimizing the overall efficiency of the algorithm.
+    The following three sections describe all the details of the LSPI algorithm. In Section 5
+we discuss linear approximation architectures and two projection methods for such archi-
+tectures in isolation of the learning problem. We also compare these projection methods
+and discuss their appropriateness in the context of learning. In Section 6, we describe in
+detail the LSTDQ algorithm for learning the least-squares fixed-point approximation of the
+state-action value function of a policy. We also cite a comparison of LSTDQ with LSTD
+and we present some optimized variants of LSTDQ. Finally, in Section 7 we formally state
+the LSPI algorithm and discuss its properties.
+
+5. Value-Function Approximation using Linear Architectures
+Let Qb π (s, a; w) be an approximation to Qπ (s, a) represented by a parametric approximation
+architecture with free parameters w. The main idea of value-function approximation is that
+the parameters w can be adjusted appropriately so that the approximate values are “close
+enough” to the original values, and, therefore, Q   b π can be used in place of the exact value
+function Qπ . The characterization “close enough” accepts a variety of interpretations in this
+context and it does not necessarily refer to a minimization of some norm. Value-function
+approximation should be regarded as a functional approximation rather than as a pure
+numerical approximation, where “functional” refers to the ability of the approximation to
+play closely the functional role of the original function within a decision making algorithm.
+    The difficulty associated with value-function approximation, beyond the loss in accuracy,
+is the choice of the projection method. This is the method of finding appropriate parameters
+
+                                             1114
+                                Least-Squares Policy Iteration
+
+
+
+
+that maximize the accuracy of the approximation according to certain criteria and with
+respect to the target function. Typically, for
+                                              ordinary    function approximation, this is done
+using a training set of examples of the form (s, a), Q (s, a) that provide the value Qπ (s, a)
+                                                         π
+
+of the target function at certain sample points (s, a), a problem known as supervised learning.
+Unfortunately, in the context of decision making, the target function (Qπ ) is not known in
+advance, and must be inferred from the observed system dynamics. The implication is
+that policy evaluation and projection to the approximation architecture must be blended
+together. This is usually achieved by trying to find values for the free parameters so that
+the approximate function has certain properties that are “similar” to those of the original
+value function.
+    A common class of approximators for value-function approximation is the so called linear
+architectures, where the Qπ values are approximated by a linear parametric combination of
+k basis functions (features):
+
+                                                     k
+                                                     X
+                                   b π (s, a; w) =
+                                   Q                       φj (s, a)wj ,
+                                                     j=1
+
+
+where the wj ’s are the parameters. The basis functions φj (s, a) are fixed, but arbitrary
+and, in general, non-linear, functions of s and a. We require that the basis functions φj are
+linearly independent to ensure that there are no redundant parameters and that the matrices
+involved in the computations are full rank.5 In general, k  |S||A| and the basis functions
+φj have compact descriptions. As a result, the storage requirements of a linear architecture
+are much smaller than those of the tabular representation. Typical linear approximation
+architectures are polynomials of any degree (each basis function is a polynomial term) and
+radial basis functions (each basis function is a Gaussian with fixed mean and variance).
+    Linear architectures have their own virtues: they are easy to implement and use, and
+their behavior is fairly transparent, both from an analysis standpoint and from a debugging
+and feature engineering standpoint. It is usually relatively easy to get some insight into the
+reasons for which a particular choice of features succeeds or fails. This is facilitated by the
+fact that the magnitude of each parameter is related to the importance of the corresponding
+feature in the approximation (assuming normalized features).
+    Let Qπ be the (unknown) value function of a policy π given as a column vector of size
+|S||A|. Let also Qbπ be the vector of the approximate state-action values as computed by a
+linear approximation architecture with parameters wj and basis functions φj , j = 1, 2, ..., k.
+Define φ(s, a) to be the column vector of size k where each entry j is the corresponding
+basis function φj computed at (s, a):
+                                                           
+                                                  φ1 (s, a)
+                                                    ...    
+                                                           
+                                      φ(s, a) =  φ2 (s, a) 
+                                                
+                                                             .
+                                                    ...    
+                                                  φk (s, a)
+
+5. This is not a very restrictive assumption. Linear dependencies, if present, result in singularities which
+   can be handled in most cases using singular value decomposition (SVD).
+
+
+                                                   1115
+                                  Lagoudakis and Parr
+
+
+
+
+     bπ can be expressed compactly as
+Now, Q
+
+                                        b π = Φwπ ,
+                                        Q
+
+where wπ is a column vector of length k with all parameters and Φ is a (|S||A| × k) matrix
+of the form                                             
+                                         φ(s1 , a1 )|
+                                            ...         
+                                                        
+                                Φ=      φ(s, a)  |      .
+                                                         
+                                            ...         
+                                        φ(s|S| , a|A| )|
+
+
+Each row of Φ contains the value of all basis functions for a certain pair (s, a) and each
+column of Φ contains the value of a certain basis function for all pairs (s, a). If the basis
+functions are linearly independent, then the columns of Φ are linearly independent as well.
+    We seek to find a combined policy evaluation and projection method that takes as input
+a policy π and the model of the process and outputs a set of parameters wπ such that Q    bπ
+is a “good” approximation to Q .π
+
+
+
+5.1 Bellman Residual Minimizing Approximation
+Recall that the state-action value function Qπ is the solution of the Bellman equation:
+
+                                   Qπ = R + γPΠπ Qπ .
+
+An obvious approach to deriving a good approximation is to require that the approximate
+value function satisfies the Bellman equation as closely as possible. Substituting the approx-
+imation Qb π in place of Qπ yields an overconstrained linear system over the k parameters
+wπ :
+
+                                         bπ ≈ R + γPΠπ Q
+                                         Q             bπ
+                                       Φwπ ≈ R + γPΠπ Φwπ
+                          (Φ − γPΠπ Φ)wπ ≈ R .
+
+Solving this overconstrained system in the least-squares sense yields a solution
+                                            −1
+               wπ = (Φ − γPΠπ Φ)|(Φ − γPΠπ Φ)    (Φ − γPΠπ Φ)|R ,
+
+that minimizes the L2 norm of the Bellman residual (the difference between the left-hand
+side and the right-hand side of the Bellman equation) and can be called the Bellman residual
+minimizing approximation to the true value function. Note that the solution wπ of the
+system is unique since the columns of Φ (the basis functions) are linearly independent
+by definition. Alternatively, it may be desirable to control the distribution of function
+approximation error. This can be achieved by solving the system above in a weighted
+least-squares sense. Let µ be a probability distribution over (s, a) such that the probability
+µ(s, a) indicates the importance of the approximation error at the point (s, a). Defining
+
+                                            1116
+                             Least-Squares Policy Iteration
+
+
+
+
+∆µ to be a diagonal matrix with entries µ(s, a), the weighted least-squares solution of the
+system would be:
+                                                   −1
+           wπ = (Φ − γPΠπ Φ)|∆µ (Φ − γPΠπ Φ)            (Φ − γPΠπ Φ)|∆µ R ,
+
+The Bellman residual minimizing approach has been proposed (Schweitzer and Seidmann,
+1985) as a means of computing approximate state value functions from the model of the
+process.
+
+5.2 Least-Squares Fixed-Point Approximation
+Recall that the state-action value function Qπ is also the fixed point of the Bellman operator:
+
+                                        Tπ Qπ = Qπ .
+
+Another way to go about finding a good approximation is to force the approximate value
+function to be a fixed point under the Bellman operator:
+                                           bπ ≈ Q
+                                        Tπ Q    bπ .
+
+For that to be possible, the fixed point has to lie in the space of approximate value functions
+which is the space spanned by the basis functions. Even though Q       bπ lies in that space by
+               b may, in general, be out of that space and must be projected. Considering
+definition, Tπ Q π
+
+the orthogonal projection (Φ(Φ|Φ)−1 Φ|) which minimizes the L2 norm, we seek an ap-
+proximate value function Q b π that is invariant under one application of the Bellman operator
+Tπ followed by orthogonal projection:
+                                                           
+                          Qb π = Φ(Φ|Φ)−1 Φ| Tπ Q       bπ
+                                                                    
+                                = Φ(Φ|Φ)−1 Φ| R + γPΠπ Q         bπ .
+
+Note that the orthogonal projection to the column space of Φ is well-defined because the
+columns of Φ (the basis functions) are linearly independent by definition. Manipulating the
+equation above, we derive an expression for the desired solution that amounts to solving a
+(k × k) linear system, where k is the number of basis functions:
+                                                  bπ ) = Q
+                             Φ(Φ|Φ)−1 Φ|(R + γPΠπ Q      bπ
+                        Φ(Φ|Φ)−1 Φ|(R + γPΠπ Φwπ ) = Φwπ
+                                                   
+                   Φ (Φ|Φ)−1 Φ|(R + γPΠπ Φwπ ) − wπ = 0
+                        (Φ|Φ)−1 Φ|(R + γPΠπ Φwπ ) − wπ = 0
+                              (Φ|Φ)−1 Φ|(R + γPΠπ Φwπ ) = wπ
+                                       Φ|(R + γPΠπ Φwπ ) = Φ|Φwπ
+                                       Φ|(Φ − γPΠπ Φ) wπ = Φ
+                                                           | {zR} .
+                                                             |
+                                       |     {z     }
+                                             (k×k)                 (k×1)
+
+For any Ππ , the solution of this system
+                                               −1
+                             wπ = Φ|(Φ − γPΠπ Φ)    Φ |R
+
+                                             1117
+                                   Lagoudakis and Parr
+
+
+
+
+                    Figure 4: Policy evaluation and projection methods.
+
+
+is guaranteed to exist for all, but finitely many, values of γ (Koller and Parr, 2000). Since
+the orthogonal projection minimizes the L2 norm, the solution wπ yields a value function Q  bπ
+which can be called the least-squares fixed-point approximation to the true value function.
+    Instead of using the orthogonal projection, it is possible to use a weighted projection to
+control the distribution of approximation error. If µ is a probability distribution over (s, a)
+and ∆µ is the diagonal matrix with the projection weights µ(s, a), the weighted least-squares
+fixed-point solution would be:
+                                                      −1
+                         wπ = Φ|∆µ (Φ − γPΠπ Φ)            Φ|∆µ R .
+
+The least-squares fixed-point approach has been used for computing (Koller and Parr, 2000)
+or learning (Bradtke and Barto, 1996) approximate state value functions from a factored
+model of the process and from samples respectively.
+
+5.3 Comparison of Projection Methods
+We presented above two intuitive ways to combine policy evaluation and value-function
+projection for finding a good approximate value function represented as a linear architecture.
+An obvious question at this point is whether one of them has some advantages over the other.
+    Figure 4 is a very simplified graphical representation of the situation. Let the three-
+dimensional space be the space of exact value functions Q and let the two-dimensional space
+marked by Φ be the space of approximate value functions. Consider the approximate value
+function Qb = Φw that lies on Φ. The application of the Bellman operator Tπ to Q    b yields a
+                    b
+value function Tπ Q which may be, in general, outside the Φ plane. Orthogonal projection
+(⊥) of Tπ Qb to the Φ plane yields some other approximate value function Q    b 0 = Φw0 . The
+                       π
+true value function Q of policy π may lie somewhere outside the Φ plane, in general, and
+its orthogonal projection to the Φ plane is marked by Q  b π = Φwπ .
+    The policy evaluation and projection methods considered here are trying to find a w,
+such that the approximate value function Q  b = Φw is a “good” approximation to the true
+value function Q . Since these methods do not have access to Qπ itself they have to rely on
+                  π
+
+information contained in the Bellman equation and the Bellman operator for policy π to find
+a “good” w. It is easy to see that the Bellman residual minimizing approximation minimizes
+
+                                             1118
+                             Least-Squares Policy Iteration
+
+
+
+
+the L2 distance between Q   b and Tπ Q,
+                                      b whereas the least-squares fixed-point approximation
+minimizes the projection of that distance, that is, the distance between Q b and Q b0 . In fact,
+the least-squares fixed-point approximation drives the distance between Q   b and Q b0 to zero
+                                        b   b 0
+since it is solving for the fixed point Q = Q . The solution found by the Bellman residual
+minimizing method will most likely not be a fixed point even within the Φ plane.
+    The Bellman operator Tπ is known to be a contraction in the L∞ norm. In our picture,
+that means that for any point Q in the three-dimensional space, the point Tπ Q will be closer
+to Qπ in the L∞ norm sense. Pictorially, imagine a cube aligned with the axes of the three-
+dimensional space and centered at Qπ with Q being a point on the surface of the cube; the
+point Tπ Q will have to be strictly contained inside this cube (except at Qπ where the cube
+degenerates to a single point). With this view in mind, the Bellman residual minimizing
+approximation finds the point on the Φ plane where the Bellman operator is making the
+least progress toward Qπ only in terms of magnitude (L2 distance), ignoring the direction of
+the change. The motivation for reducing the L2 norm of the Bellman residual comes from
+the well-known results bounding the distance to Qπ in terms of the L∞ norm (Williams
+and Baird, 1993).
+    On the other hand, the least-squares fixed-point approximation ignores the magnitude of
+the Bellman operator steps and focuses on the direction of the change. In particular, it solves
+for the unique point on the Φ plane where the Bellman operator becomes perpendicular to
+the plane. A motivation for choosing this approximation is that if subsequent applications
+of the Bellman operator point in a similar direction, the approximation should not be far
+from the projection of Qπ onto the Φ plane.
+    Clearly, the solutions found by these two methods will be different since their objectives
+are different, except in the case where the true value function Qπ lies in the Φ plane; in
+that case, both methods are in fact solving the Bellman equation and their solutions are
+identical. If Qπ does not lie in the Φ plane, there is no clear evidence that any of the two
+methods will find a good solution or even the solution wπ that corresponds to the orthogonal
+projection of Qπ to the plane.
+    Munos (2003) provides a theoretical comparison of the two approximation methods
+in the context of state value-function approximation when the model of the process is
+known. He concludes that the least-squares fixed point approximation is less stable and less
+predictable compared to the Bellman residual minimizing approximation depending on the
+value of the discount factor. This is expected, however, since the least-squares fixed-point
+linear system is singular for a finite number of discount-factor values. On the other hand,
+he states that the least-squares fixed-point method might be preferable in the context of
+learning.
+    From a practical point of view, there are two sources of evidence that the least-squares
+fixed-point method is preferable to the Bellman residual minimizing method:
+
+   • Learning the Bellman residual minimizing approximation requires “doubled” sam-
+     ples (Sutton and Barto, 1998) that can only be collected from a generative model of
+     the MDP.
+
+   • Experimentally, the least-squares fixed-point approximation often delivers policies
+     that are superior to the ones found using the Bellman residual minimizing approxi-
+     mation.
+
+                                             1119
+                                        Lagoudakis and Parr
+
+
+
+
+For the rest of the paper, we focus only on the least-squares fixed-point approximation with
+minimal reference to the Bellman residual minimizing approximation.
+
+6. LSTDQ: Least-Squares Temporal-Difference Learning for the
+  State-Action Value Function
+Consider the problem of learning the (weighted) least-squares fixed-point approximation
+Qb π to the state-action value function Qπ of a fixed policy π from samples. Assuming that
+there are k linearly independent basis functions in the linear architecture, this problem is
+equivalent to learning the parameters wπ of Q  b π = Φwπ . The exact values for wπ can be
+computed from the model by solving the (k × k) linear system
+
+                                                  Awπ = b ,
+
+where
+                     A = Φ|∆µ (Φ − γPΠπ Φ)                         and     b = Φ|∆µ R ,
+and µ is a probability distribution over (S × A) that defines the weights of the projection.
+For the learning problem, A and b cannot be determined a priori, either because the matrix
+P and the vector R are unknown, or because P and R are so large that they cannot be
+used in any practical computation. However, A and b can be learned using samples;6 the
+                                                                         eπ which, in turn,
+learned linear system can then be solved to yield the learned parameters w
+determine the learned value function. Taking a closer look at A and b:
+
+         A = Φ|∆µ (Φ − γPΠπ Φ)
+             XX                              X                          |
+           =       φ(s, a)µ(s, a) φ(s, a) − γ   P(s, a, s0 )φ s0 , π(s0 )
+                   s∈S a∈A                                         s0 ∈S
+                                                                            
+                XX         X                                              |
+              =    µ(s, a)   P(s, a, s0 ) φ(s, a) φ(s, a) − γφ s0 , π(s0 )      ,
+                   s∈S a∈A          s0 ∈S
+
+
+                   b = Φ |∆ µ R
+                       XX                     X
+                     =         φ(s, a)µ(s, a)   P(s, a, s0 )R(s, a, s0 )
+                             s∈S a∈A                       s0 ∈S
+                             XX                  X                   h                   i
+                       =               µ(s, a)           P(s, a, s0 ) φ(s, a)R(s, a, s0 ) .
+                             s∈S a∈A             s0 ∈S
+
+From these equations, it is clear that A and b have a special structure. A is the sum of
+many rank one matrices of the form:
+                                                           |
+                            φ(s, a) φ(s, a) − γφ s0 , π(s0 )    ,
+
+and b is the sum of many vectors of the form:
+
+                                            φ(s, a)R(s, a, s0 ) .
+6. As a notational convention, a learned estimate is denoted with the e symbol.
+
+
+                                                         1120
+                              Least-Squares Policy Iteration
+
+
+
+
+These summations are taken over s, a, and s0 and each summand is weighted by the projec-
+                                                                                              a
+tion weight µ(s, a) for the pair (s, a) and the probability P(s, a, s0 ) of the transition s −→ s0 .
+For large problems, it is impractical to compute this summation over all (s, a, s0 ) triplets. It
+is practical, however, to sample terms from this summation; for unbiased sampling, s and
+a must be drawn jointly from µ, and s0 must be drawn from P(s, a, s0 ). It is trivial to see
+that, in the limit, the process of sampling triplets (s, a, s0 ) from this distribution and adding
+the corresponding terms together, can be used to obtain arbitrarily close approximations
+to A and b.
+    The key observation here is that a sample (s, a, r, s0 ) drawn from the process along with
+the policy π in state s0 provide all the information needed to form one sample term of these
+summations. This is true because s0 is a sample transition for taking action a in state s,
+and r is sampled from R(s, a, s0 ). So, given any finite set of samples,7
+                                 n                                       o
+                           D = (si , ai , ri , s0i ) i = 1, 2, . . . , L   ,
+
+A and b can be learned as:
+                               L                                            
+                             1X                                           |
+                    e =
+                    A                                           0      0
+                                  φ(si , ai ) φ(si , ai ) − γφ si , π(si )      ,
+                             L
+                                i=1
+
+
+                                             L h              i
+                                   e       1X
+                                   b =           φ(si , ai )ri ,
+                                           L
+                                              i=1
+
+assuming that the distribution µD of the samples in D over (S × A) matches the desired
+                                                                          e PΠ
+distribution µ. The equations can also be written in matrix notation. Let Φ,  ^ π Φ, and
+e
+R be the following matrices:
+                                                          |              
+              φ(s1 , a1 )|                    φ s01 , π(s01 )               r1
+                  ..                               ..                 .. 
+                   .                                .                 . 
+                                                          |              
+      e    
+      Φ =  φ(si , ai )  ,
+                         |      ^                0
+                                PΠπ Φ =  φ si , π(si )   0       , e
+                                                                     R =  ri  .
+                                                                             
+                   ..                               ..                .. 
+                    .                                .                  . 
+                                                 0        0
+                                                              |
+              φ(sL , aL ) |                  φ sL , π(sL )                  rL
+
+      e and eb can be written as
+Then, A
+                           1 |                                    1 |
+                     e =
+                     A       e (Φ
+                             Φ        ^
+                                e − γ PΠ π Φ)          and      e
+                                                                b= Φe R
+                                                                      e .
+                           L                                      L
+                                                     e and eb to A and b. In the limit of an
+These two equations show clearly the relationship of A
+                            e     e
+infinite number of samples, A and b converge to the matrices of the least-squares fixed-point
+approximation weighted by µD :
+                  e = Φ|∆µ (Φ − γPΠπ Φ)
+              lim A                                    and         lim eb = Φ|∆µD R .
+                          D
+             L→∞                                                L→∞
+
+7. In describing the algorithms below, we assume an abstract source of samples D which can be a set of
+   precollected samples, a generative model, online experience from the actual process, etc.
+
+
+                                                1121
+                                      Lagoudakis and Parr
+
+
+
+
+As a result, the learned approximation is biased by the distribution µD of samples. In
+general, the distribution µD might be different from the desired distribution µ. A mismatch
+between µ and µD may be mitigated by using density estimation techniques to estimate µD
+and then using projection weights corresponding to the importance weights needed to shift
+the sampling distribution towards the target distribution. Also, the problem is resolved
+trivially when a generative model is available, since samples can be drawn so that µD = µ.
+For simplicity, this paper focuses only on learned approximations that are naturally biased
+by the distribution of samples whatever that might be.
+      In any practical computation of A      e and eb, L is finite and therefore the multiplicative
+factor (1/L) can be dropped without affecting the solution of the system, since it cancels
+out. Given that a single sample contributes to A        e and e
+                                                              b additively, it is easy to construct an
+                                     e     e      e (t)     e(t)
+incremental update rule for A and b. Let A and b be the current learned estimates of
+A and b for a fixed policy π, assuming that initially A       e (0) = 0 and eb(0) = 0. A new sample
+                 0
+(st , at , rt , st ) contributes to the approximation according to the following update equations:
+                                                                               |
+                    e (t+1) = A
+                    A         e (t) + φ(st , at ) φ(st , at ) − γφ s0t , π(s0t )    ,
+
+
+                                    e
+                                    b(t+1) = e
+                                             b(t) + φ(st , at )rt .
+
+It is straightforward now to construct an algorithm that learns the weighted least-squares
+fixed-point approximation of the state-action value function of a fixed policy π from samples
+in a batch or in an incremental way. We call this new algorithm LSTDQ (summarized in
+Figure 5) due to its similarity to LSTD. In fact, one can think of the LSTDQ algorithm as
+the LSTD algorithm applied on a Markov chain with states (s, a) in which transitions are
+influenced by both the dynamics of the original MDP and the policy π being evaluated.
+    Another feature of LSTDQ is that the same set of samples D can be used to learn the
+approximate value function Q   bπ of any policy π, as long as π(s0 ) is available for each s0 in
+                                                           
+the set. The policy merely determines which φ s0 , π(s0 ) is added to A     e for each sample.
+This feature is particularly important in the context of policy iteration since all policies
+produced during the iteration can be evaluated using a single sample set.
+    The approximate value function learned by LSTDQ is biased by the distribution of
+samples over (S × A). This distribution can be easily controlled when samples are drawn
+from a generative model, but it is a lot harder when samples are drawn from the actual
+process. A nice feature of LSTDQ is that it poses no restrictions on how actions are chosen
+during sample collection. Therefore, the freedom in action choices can be used to control
+the sample distribution to the extent this is possible. In contrast, action choices for LSTD
+must be made according to the policy under evaluation when samples are drawn from the
+actual process.
+    The differences between LSTD and LSTDQ are listed in Table 1. The last three items
+in the table apply only to the case where samples are drawn from the actual process, but
+there is no difference in the generative model case.
+    Notice that apart from storing the samples, LSTDQ requires only O(k2 ) space indepen-
+dently of the size of the state and the action space. For each sample in D, LSTDQ incurs a
+cost of O(k2 ) to update the matrices A e and eb. A one-time cost of O(k3 ) is paid for solving
+
+                                                 1122
+                               Least-Squares Policy Iteration
+
+
+
+
+         LSTDQ (D, k, φ, γ, π)                                     b π from samples
+                                                         // Learns Q
+
+              //    D    : Source of samples (s, a, r, s0 )
+              //    k    : Number of basis functions
+              //    φ    : Basis functions
+              //    γ    : Discount factor
+              //    π    : Policy whose value function is sought
+
+               e ←0
+               A              // (k × k) matrix
+              eb ← 0          // (k × 1) vector
+
+              for each (s, a, r, s0 ) ∈ D
+                                                            |
+                   e ←A
+                   A    e + φ(s, a) φ(s, a) − γφ s0 , π(s0 )
+                    eb ← eb + φ(s, a)r
+
+                   e −1eb
+              eπ ← A
+              w
+
+                     eπ
+              return w
+
+                                Figure 5: The LSTDQ algorithm.
+
+
+    LSTD                                             LSTDQ
+    Learns the state value function V π              Learns the state-action value function Qπ
+    Basis functions of state                         Basis functions of state and action
+    Samples cannot be reused                         Samples can be reused
+    Training samples collected by π                  Training samples collected arbitrarily
+    Sampling distribution cannot be controlled       Sampling distribution can be controlled
+    Bias by the stationary distribution of π         Bias by the sampling distribution
+
+
+                        Table 1: Differences between LSTD and LSTDQ.
+
+
+the system and finding the parameters. There is also a cost for determining π(s0 ) for each
+sample. This cost depends on the specific form of policy representation used.8
+    The LSTDQ algorithm in its simplest form involves the inversion of A      e for solving the
+linear system. However, A  e will not be full rank until a sufficient number of samples has
+been processed. One way to avoid such singularities is to initialize A  e to a multiple of the
+identity matrix δI for some small positive δ, instead of 0 (ridge regression, Dempster et al.,
+1977). The convergence properties of the algorithm are not affected by this change (Nedić
+and Bertsekas, 2003). Another possibility is to use singular value decomposition (SVD)
+                        e which also eliminates singularities due to linearly dependent basis
+for robust inversion of A
+functions. However, if the linear system must be solved frequently and efficiency is a concern,
+a more efficient implementation of LSTDQ would use recursive least-squares techiques to
+compute the inverse of A e recursively. Let B(t) be the inverse of Ae (t) at time t. Using the
+
+8. The explicit tabular representation of π that incurs only a constant O(1) cost per query is not an
+   applicable choice for the large problems we consider because of huge state-action spaces.
+
+
+                                                  1123
+                                     Lagoudakis and Parr
+
+
+
+
+         LSTDQ-OPT (D, k, φ, γ, π)                                        b π from samples
+                                                                // Learns Q
+
+              //   D    : Source of samples (s, a, r, s0 )
+              //   k    : Number of basis functions
+              //   φ    : Basis functions
+              //   γ    : Discount factor
+              //   π    : Policy whose value function is sought
+
+               e ← 1I
+               B              // (k × k) matrix
+                    δ
+              eb ← 0          // (k × 1) vector
+
+              for each (s, a, r, s0 ) ∈ D 
+                                                                  |
+                                B φ(s, a) φ(s, a) − γφ s0 , π(s0 )    B
+                    B←B−                                  |
+                               1 + φ(s, a) − γφ s0 , π(s0 )    B φ(s, a)
+                   eb ← eb + φ(s, a)r
+
+                   e eb
+              eπ ← B
+              w
+
+                     eπ
+              return w
+
+            Figure 6: An optimized implementation of the LSTDQ algorithm.
+
+
+
+Sherman-Morrison formula, we have:
+                                                                        |−1
+            B(t) =    Ae (t−1) + φ(st , at ) φ(st , at ) − γφ s0 , π(s0 )
+                                                                 t     t
+                                                                                | (t−1)
+                                B(t−1) φ(st , at ) φ(st , at ) − γφ s0t , π(s0t )   B
+                   = B(t−1) −                                       |
+                                 1 + φ(st , at ) − γφ s0t , π(s0t )      B(t−1) φ(st , at )
+
+This optimized version of LSTDQ is shown in Figure 6. Notice that the O(k3 ) cost for
+solving the system has been eliminated.
+    LSTDQ is also applicable in the case of infinite and continuous state and/or action spaces
+with no modification. States and actions are reflected only through the basis functions of the
+linear approximation and the resulting value function covers the entire state-action space
+with the appropriate choice of basis functions.
+    If there is a (compact) model of the MDP available, LSTDQ can use it to compute
+(instead of sampling) the summation over s0 . In that case, for any state-action pair (s, a),
+the update equations become:
+                                               X                              |
+                 Ae ←Ae + φ(s, a) φ(s, a) − γ        P(s, a, s0 )φ s0 , π(s0 )     ,
+                                                        s0 ∈S
+
+                                               X
+                           eb ← eb + φ(s, a)           P(s, a, s0 )R(s, a, s0 ) .
+                                               s0 ∈S
+
+
+                                                  1124
+                                          Least-Squares Policy Iteration
+
+
+
+
+          LSTDQ-Model (D, k, φ, γ, π, P, R)                                                           b π from samples
+                                                                                            // Learns Q
+
+               //      D       : Source of samples (s, a)
+               //      k       : Number of basis functions
+               //      φ       : Basis functions
+               //      γ       : Discount factor
+               //      π       : Policy whose value function is sought
+               //      P       : Transition model
+               //      R       : Reward function
+
+                e ←0
+                A                        // (k × k) matrix
+               eb ← 0                    // (k × 1) vector
+
+               for each (s, a) ∈ D 
+                                                 X                          |
+                    e ←A
+                    A    e + φ(s, a) φ(s, a) − γ   P(s, a, s0 )φ s0 , π(s0 )
+                                                     X                      s0 ∈S
+                       eb ← eb + φ(s, a)                  P(s, a, s )R(s, a, s0 )
+                                                                        0
+
+                                                 s0 ∈S
+
+                    e −1eb
+               eπ ← A
+               w
+
+                      eπ
+               return w
+
+                              Figure 7: The LSTDQ algorithm with a model.
+
+
+
+This is practical only if the set of possible next states s0 is fairly small for each (s, a) pair.
+Alternatively, only a few dominant terms of the summation can be computed. Clearly, in
+the presence of a model, there is no need for samples of the form (s, a, r, s0 ) at all; only
+samples (s, a) are needed which can be drawn at any desired distribution from (S × A).
+This version of LSTDQ that exploits a model is summarized in Figure 7.
+    It is also possible to extend LSTDQ to LSTDQ(λ) in a way that resembles closely
+LSTD(λ) (Boyan, 2002), but in that case it is necessary that the sample set consists of
+complete episodes generated using the policy under evaluation. This limits significantly the
+options for sample collection, and may also prevent the reuse of samples across different
+iterations of policy iteration. In addition, learned state-action value functions in this case
+may not be trusted for policy improvement as they will certainly be inaccurate for actions
+other than the ones the current policy takes.
+    LSTDQ learns the least-squares fixed-point approximation to the state-action value
+function Qπ of a fixed policy π. Suppose that it is desired to learn the Bellman residual
+minimizing approximation instead. Without going into details, the matrix A would be :
+
+  A   =   (Φ − γPΠπ Φ)| ∆µ (Φ − γPΠπ Φ)
+          X X                X                                                X                          |
+      =           φ(s, a) − γ    P(s, a, s00 )φ s00 , π(s00 ) µ(s, a) φ(s, a) − γ   P(s, a, s0 )φ s0 , π(s0 )
+          s∈S a∈A                     s00 ∈S                                                         s0 ∈S
+                                                                                                                                      
+          X X                 X                       X                                                                          |
+      =             µ(s, a)           P(s, a, s0 )            P(s, a, s00 ) φ(s, a) − γφ s00 , π(s00 )     φ(s, a) − γφ s0 , π(s0 )       .
+          s∈S a∈A             s0 ∈S                  s00 ∈S
+
+
+
+                                                                       1125
+                                     Lagoudakis and Parr
+
+
+
+
+ To form an unbiased estimate of A by sampling, s and a must be drawn jointly from µ,
+and s0 and s00 must be drawn from P(s, a, s0 ) independently. The implication is that a single
+sample (s, a, r, s0 ) is not sufficient to form a sample summand
+                                                                          |
+                         φ(s, a) − γφ s00 , π(s00 )   φ(s, a) − γφ s0 , π(s0 )    .
+
+It is necessary to have two samples (s, a, r, s0 ) and (s, a, r, s00 ) for the same state-action pair
+(s, a) and therefore all samples from the MDP have to be “doubled” (Sutton and Barto,
+1998). Obtaining such samples is trivial with a generative model, but virtually impossible
+when samples are drawn directly from the process. This fact makes the least-squares fixed-
+point approximation much more practical for learning.
+
+7. LSPI: Least-Squares Policy Iteration
+At this point, all ingredients are in place to state the policy evaluation and improvement
+steps of the LSPI algorithm. The state-action value function is approximated using a linear
+architecture:
+                                       X k
+                           b a; w) =
+                          Q(s,             φi (s, a)wi = φ(s, a)|w .
+                                            i=1
+The greedy policy π over this approximate value function at any given state s can be
+obtained through maximization of the approximate values over all actions in A:
+                                        b a) = arg max φ(s, a)|w .
+                         π(s) = arg max Q(s,
+                                      a∈A                 a∈A
+
+For finite action spaces this is straightforward, but for very large or continuous action spaces,
+explicit maximization over all actions in A may be impractical. In such cases, some sort of
+global optimization over the space of actions may be required to determine the best action.
+Depending on role of the action variables in the approximate state-action value function,
+a closed form solution may be possible as, for example, in the adaptive policy-iteration
+algorithm (Bradtke, 1993) for linear quadratic regulation.
+    Finally, any policy π (represented by the basis functions φ and a set of parameters
+w) is fed to LSTDQ along with a set of samples for evaluation. LSTDQ performs the
+maximization above as needed to determine policy π for each s0 of each sample (s, a, r, s0 )
+in the sample set. LSTDQ outputs the parameters wπ of the approximate value function
+of policy π and the iteration continues in the same manner.
+    The LSPI algorithm is summarized in Figure 8. Any source D of samples can be used in
+each iteration for the call to LSTDQ. If an initial set of samples that adequately covers the
+state-action space can be obtained, this single set may be reused in every iteration of LSPI.
+Alternatively, D may be updated between iterations. Notice also that since value functions
+and policies are represented through the parameters w of the approximation architecture,
+a metric on consecutive parameters is used as the stopping criterion. In this sense, LSPI
+can be thought of as an iteration in the space of parameters w. However, since LSPI is an
+approximate policy iteration algorithm, the generic bound on policy iteration applies. An
+important property of LSPI is that it does not require an approximate policy representation,
+thus removing any source of error in the actor part of the actor-critic architecture. Therefore,
+Theorem 3.1 can be stated as follows.
+
+                                                  1126
+                               Least-Squares Policy Iteration
+
+
+
+
+    LSPI (D, k, φ, γ, , π0 )                   // Learns a policy from samples
+
+         //   D     : Source of samples (s, a, r, s0 )
+         //   k     : Number of basis functions
+         //   φ     : Basis functions
+         //   γ     : Discount factor
+         //        : Stopping criterion
+         //   π0    : Initial policy, given as w0 (default: w0 = 0)
+
+         π 0 ← π0                                     // w0 ← w0
+
+         repeat
+              π ← π0                                  // w ← w0
+              π 0 ← LSTDQ (D, k, φ, γ, π)             // w0 ← LSTDQ (D, k, φ, γ, w)
+         until (π ≈ π 0 )                             // until (kw − w0 k < )
+
+         return π                                     // return w
+
+                                  Figure 8: The LSPI algorithm.
+
+
+
+Theorem 7.1 Let π0 , π1 , π2 , ..., πm be the sequence of policies generated by LSPI and
+    b π1 , Q
+let Q      b π2 , ..., Q
+                       b πm be the corresponding approximate value functions as computed by
+LSTDQ. Let  be a positive scalar that bounds the errors between the approximate and the
+true value functions over all iterations:
+                                                bπm − Qπm k∞ ≤  .
+                              ∀ m = 1, 2, ..., kQ
+
+Then, this sequence eventually produces policies whose performance is at most a constant
+multiple of  away from the optimal performance:
+
+                                                                2γ
+                                        bπm − Q∗ k∞ ≤
+                               lim sup kQ                             .
+                                m→∞                          (1 − γ)2
+
+    This theorem implies that LSPI is a stable algorithm. It will either converge or it
+will oscillate in an area of the policy space where policies have suboptimality bounded
+by the value-function approximation error . Reducing  is critical in obtaining quality
+guarantees for LSPI. The two factors that determine  are the choice of basis functions and
+the sample distribution. By separating the algorithm, the choice of basis, and the collection
+of samples, LSPI focuses attention more clearly on the distinct elements that contribute to
+reinforcement-learning performance.
+    LSPI provides great flexibility in addressing the questions of basis function selection
+and sample collection. First, it is not necessary that the set of basis functions remains
+the same throughout the LSPI iterations. At each iteration, a different policy is evaluated
+and certain sets of basis functions may be more appropriate than others for representing
+the state-action value function for each of these policies. This paper does not address the
+question of how to select a good set of basis functions. Feature selection and engineering
+issues occur in all areas of machine learning and LSPI is not unique in its decoupling of the
+
+                                                 1127
+                                   Lagoudakis and Parr
+
+
+
+
+approximation and feature selection problems. Second, LSPI allows for great flexibility in
+the collection of samples used in each iteration. Since LSPI approximates state-action value
+functions, it can use samples from any policy to estimate the state-action value function of
+another policy. This focuses attention more clearly on the issue of exploration since any
+policy can be followed while collecting samples.
+    LSPI exploits linear approximation architectures, but it should not be considered inferior
+to exact methods. In fact, the range of possible choices for representing the state-action
+value function allows everything from tabular and exact representations to concise and
+compact representations as long as the approximation architecture is linear in the parame-
+ters. Further, with a tabular representation, LSPI offers many advantages compared to any
+reinforcement-learning algorithm based on tabular representation and stochastic approxi-
+mation in terms of convergence, stability, and sample complexity.
+    LSPI would be best characterized as an off-line, off-policy learning algorithm since learn-
+ing is separated from execution and samples can be collected arbitrarily. On-line and on-
+policy versions of LSPI are also possible with minor modifications.
+
+8. Comparison to Other Methods
+LSPI is an approximate policy-iteration algorithm. Compared to other approximate policy-
+iteration algorithms in the actor-critic framework, LSPI eliminates the actor part of the
+architecture, thereby eliminating one potential source of error. The focus of the approxi-
+mation effort is solely in the value-function representation, thus reducing ambiguity about
+the source of approximation errors. LSPI is also a model-free algorithm in the sense that it
+needs no access to a model to perform policy iteration, nor does it need to learn one.
+    Traditional reinforcement-learning algorithms for control, such as SARSA learning (Rum-
+mery and Niranjan, 1994; Sutton, 1996) and Q-learning (Watkins, 1989), lack any stability
+or convergence guarantees when combined with most forms of value-function approxima-
+tion. In many cases, their learned approximations may even diverge to infinity. There are
+several factors that contribute to this phenomenon: the learning rate and its schedule, the
+exploration policy and its schedule, the initial value function, the distribution of samples,
+the order in which samples are presented, and the relative magnitude of the gradient-based
+adjustments to the parameters. LSPI on the other hand, enjoys the inherent soundness of
+approximate policy iteration.
+    A desirable property for a reinforcement-learning algorithm is a low sample complex-
+ity. This is particularly important when samples are “expensive”, for example, when there
+is no generative model available and samples must be collected from the actual process
+in real-time, or when there is a generative model available but it is computationally ex-
+pensive. Most traditional reinforcement-learning algorithms use some sort of stochastic
+approximation. Unfortunately, stochastic approximation is sample-inefficient. Each sample
+is processed once, contributes very small changes, and then is discarded. Given that the
+learning parameters of these algorithms operate on a very slow schedule to avoid insta-
+bilities, it is obvious that a huge number of samples is required. The experience replay
+technique (Lin, 1993), which stores samples and makes multiple passes over them, remedies
+this problem, but it does not really resolve it. In contrast, the approach taken by LSTD
+makes full use of all samples independently of their order.
+
+                                             1128
+                             Least-Squares Policy Iteration
+
+
+
+
+    Even in cases where convergence is guaranteed or obtained fortuitously, stochastic ap-
+proximation algorithms such as Q-learning, can also become problematic as they typically
+require careful tuning of the learning rate and its schedule which often results in slow and
+parameter-sensitive convergence behavior. The accuracy of the approximation at different
+states or state-action pairs is heavily dependent on the time, the order, and the frequency
+of visitation. In the context of linear value-function approximation, algorithms such as
+Q-learning can be even more sensitive to the learning rate and its schedule. The use of a
+single value for the learning rate across all parameters can become problematic when there
+are large differences in the magnitude of the basis functions. If the learning rate is high, the
+learning rule can make large changes for some parameters, risking oscillatory or divergent
+behavior. On the other hand, if the learning rate is kept small to prevent such behavior,
+the learning rule makes inconsequential changes to some parameters and learning becomes
+extremely slow. While this can be mitigated by scaling the basis functions, the problem
+remains since many natural choices (polynomials, for example) produce values that vary
+widely over the state space. In contrast, LSPI has no parameters to tune and does not take
+gradient steps, which means there is no risk of overshooting, oscillation, or divergence. LSPI
+is also insensitive to the scale or relative magnitudes of the basis functions as it finds the
+unique solution to a linear system in the span of the basis functions, which is not affected
+by scaling.
+    Compared to λ−policy iteration (Bertsekas and Tsitsiklis, 1996), there are some major
+differences. λ−policy iteration collects new samples in each iteration to learn the state value
+function and, as a consequence, access to a model for greedy action selection is necessary.
+LSPI may collect samples only once and may reuse them at each iteration to learn the
+state-action value function. LSPI does not need a model for action selection. However,
+if there is a model available, it can be used in the context of LSTDQ to eliminate errors
+attributable to sampling.
+    The adaptive policy-iteration (ADP) algorithm suggested by Bradtke (1993) for linear
+quadratic regulation (LQR) is probably the algorithm that is closest to LSPI. Bradtke
+suggests the use of recursive least-squares methods for estimating the state-action value
+function of an LQR controller without a model and then a policy improvement step that
+uses the value function to derive an improved controller in closed form. There are separate
+representations for value functions and policies in ADP and the emphasis is on exploiting
+the structure of an LQR problem to derive closed form solutions. Even though ADP is not
+applicable to general MDPs, it shares some common themes with LSPI.
+    In comparison to the memory-based approach of Ormoneit and Sen (2002), LSPI makes
+a better use of function approximation. Rather than trying to construct implicitly an
+approximate model using kernels and smoothness assumptions, LSPI operates directly in
+value-function space, performing the Bellman update and projection without any kind of
+model. As noted also by Boyan (2002) in reference to LSTD, LSTDQ can be considered
+as a model-based method that learns a compressed model in the form of the A.         e This
+relationship to model-based learning becomes explicit at the extreme of orthonormal basis
+functions. The relationship is less clear in the general case and since there is no reason to
+assume that the Ae matrix will be a stochastic matrix, further investigation will be required
+to relate this matrix to standard notions of a model.
+
+                                             1129
+                                     Lagoudakis and Parr
+
+
+
+
+    In contrast to the variety of direct policy learning methods (Ng et al., 2000; Ng and
+Jordan, 2000; Baxter and Bartlett, 2001; Sutton et al., 2000; Konda and Tsitsiklis, 2000),
+LSPI offers the strength of policy iteration. Policy search methods typically make a large
+number of relatively small steps of gradient-based policy updates to a parameterized policy
+function. Our use of policy iteration generally results in a small number of very large steps
+directly in policy space.
+
+
+9. Experimental Results
+
+LSPI was implemented9 using a combination of Matlab and C and was tested on the
+following problems: chain walk, inverted pendulum balancing, and bicycle balancing and
+riding. The chain walk class of problems has no significant practical importance, but is
+particularly instructive as it is possible to compare the approximations learned by LSPI
+to the true underlying value functions, and therefore understand better the way the algo-
+rithm works. A particular simple task from this domain is also used to demonstrate that
+the least-squares fixed-point approximation is superior to the Bellman residual minimizing
+approximation. The other two domains are standard benchmark domains for reinforcement-
+learning algorithms featuring continuous state spaces and nonlinear dynamics. In each of
+these domains, the results of LSPI are compared to the results of Q-learning (Watkins,
+1989) and the results of Q-learning enhanced with experience replay (Lin, 1993).
+
+
+9.1 Chain Walk
+
+Initial tests were performed on the problematic MDP noted by Koller and Parr (2000), which
+consists of a chain with 4 states (numbered from 1 to 4) and is shown in Figure 9. There
+are two actions available, “left” (L) and “right” (R). The actions succeed with probability
+0.9, changing the state in the intented direction, and fail with probability 0.1, changing the
+state in the opposite direction; the two boundaries of the chain are dead-ends. The reward
+vector over states is (0, +1, +1, 0) and the discount factor is set to 0.9. It is clear that the
+optimal policy is RRLL.
+    Koller and Parr (2000) showed that, starting with the policy RRRR, a form of approx-
+imate policy iteration that combines learning of an approximate state value function using
+LSTD and exact policy improvement using the model oscillates between the suboptimal
+policies RRRR and LLLL. The linear architecture they used to represent the state value
+function was a linear combination of the following three basis functions:
+
+                                                   
+                                                 1
+                                        φ(s) =  s  ,
+                                                 s2
+
+
+
+9. The LSPI code distribution is publicly available for non-commercial purposes from the following URL:
+   http://www.cs.duke.edu/research/AI/LSPI.
+
+
+                                                1130
+                                       Least-Squares Policy Iteration
+
+
+
+                                            0.1                       0.1
+                                                                                             0.1
+
+                         0.1
+                                       0.9                      0.9                         0.9
+
+                                  R                         R                     R                         R
+                    L
+                              1                        2                    3                         4         0.9
+              0.9                                 L                    L                          L
+
+                                      0.9                       0.9                    0.9
+                                                                                                      0.1
+                        0.1
+                                                                0.1                   0.1
+
+
+                          r=0                         r=1                   r=1                       r=0
+
+                                        Figure 9: The problematic MDP.
+
+where s is the state number. LSPI was applied on the same problem using the same basis
+functions repeated for each of the two actions so that each action gets its own parameters:10
+                                                          
+                                            I(a = L) × 1
+                                         I(a = L) × s 
+                                                          
+                                         I(a = L) × s2 
+                                        
+                              φ(s, a) =                    .
+                                                           
+                                         I(a = R) × 1 
+                                         I(a = R) × s 
+                                                                I(a = R) × s2
+    LSPI typically finds the optimal policy for this problem in 4 or 5 iterations. Samples for
+each run were collected in advance by choosing actions uniformly at random for about 25
+(or more) steps and the same sample set was used throughout all LSPI iterations in the run.
+Figure 10 shows the iterations of one run of LSPI on a training set of 50 samples. States
+are shown on the horizontal axis and Q values on the vertical axis. The approximations
+are shown with solid lines, whereas the exact values are connected with dashed lines. The
+values for action L are marked with ◦ and for action R with ∗. LSPI finds the optimal
+policy by the 2nd iteration, but it does not terminate until the 4th iteration, at which point
+the successive parameters (3rd and 4th iterations) are approximately equal. Notice that
+the approximations capture the qualitative structure of the value function, although the
+quantitative error is fairly big. The state visitation distribution for this training set was
+(0.24, 0.14, 0.28, 0.34). Although it was not perfectly uniform, it was “flat” enough to
+prevent an extremely uneven allocation of approximation errors over the state-action space.
+    LSPI was also tested on variants of the chain walk problem with more states and different
+reward schemes to better understand and illustrate its behavior. Figure 11 shows a run of
+LSPI on a 20-state chain with the same dynamics as above and a reward of +1 given only
+at the boundaries (states 1 and 20). The optimal policy in this case is to go left in states
+1–10 and right in states 11–20. LSPI converged to the optimal policy after 8 iterations
+using a single set of samples collected from a single episodes in which actions were chosen
+uniformly at random for 5000 steps. A polynomial of degree 4 was used for approximating
+the value function for each of the two actions, giving a block of 5 basis functions per action,
+10. I is the indicator function: I(true) = 1 and I(false) = 0.
+
+
+                                                                 1131
+                                           Lagoudakis and Parr
+
+
+
+
+             3                                                7
+                                                              6
+             2
+                                                              5
+
+             1                                                4
+                                                              3
+             0
+                                                              2
+
+            −1                                                1
+                                                              0
+                 1           2            3        4              1          2             3        4
+                     1st iteration: RRRR −> RLLL                      2nd iteration: RLLL −> RRLL
+
+
+
+
+             8                                                8
+
+
+             6                                                6
+
+
+             4                                                4
+
+
+             2                                                2
+
+
+             0                                                0
+                 1          2             3        4              1          2             3        4
+                     3rd iteration: RRLL −> RRLL                      4th iteration: RRLL −> RRLL
+
+
+                      Figure 10: LSPI applied on the problematic MDP.
+
+
+or a total of 10 basis functions. The initial policy was the policy that chooses left (L) in
+all states. LSPI eventually discovered the optimal policy, although in iteration 2 it found
+neither a good approximation to the value function nor an improved policy. This example
+illustrates the non-monotonic nature of policy improvement between iterations of LSPI due
+to value function approximation errors.
+    Figure 12 shows an example where LSPI fails to discover the optimal policy because of
+limited representational ability of the linear architecture. In this 50-state chain, reward is
+given only in states 10 and 41 and therefore due to the symmetry the optimal policy is to
+go right in states 1–9 and 26–41 and left in states 10–25 and 42–50. Again, a polynomial of
+degree 4 was used for each of the actions. Using a single training set of 10000 samples (all
+from a single “random walk” trajectory), LSPI converged after 6 iterations to a suboptimal
+policy that nevertheless resembles the optimal policy to a good extent. This failure can be
+explained as an inability of the polynomial approximator to capture the precise structure
+of the underlying value function. This behavior was fairly consistent with different sample
+sets and/or increased sample size. In all runs, LSPI converged in less than 10 iterations to
+fairly good, but not optimal, policies.
+    The performance of LSPI improves with better linear approximation architectures. Fig-
+ure 13 shows a run of LSPI on the same problem as above, but with a radial basis function
+approximator (everything else is identical). This approximator uses 10 Gaussians (σ = 4)
+with means spread uniformly over the state space plus a constant term for each of the 2
+actions, resulting in a total of 22 basis functions. LSPI finds the optimal policy in 7 itera-
+tions. With different sample sets, LSPI consistently converges to the optimal policy (or to
+minor deviations from the optimal policy) in less than 10 iterations.
+
+                                                       1132
+                             Least-Squares Policy Iteration
+
+
+
+
+      10                                             5
+                                                     0
+                                                   −5
+       5
+                                                   −10
+                                                   −15
+       0
+               5       10         15   20                5          10         15   20
+                    Iteration1                                   Iteration2
+       3                                             8
+
+       2                                             6
+
+       1                                             4
+
+       0                                             2
+                                                     0
+               5       10         15   20                5          10         15   20
+                    Iteration3                                   Iteration4
+       8                                             8
+       6                                             6
+       4                                             4
+       2                                             2
+       0                                             0
+               5       10         15   20                5          10         15   20
+                    Iteration5                                   Iteration6
+       8                                             8
+       6                                             6
+       4                                             4
+       2                                             2
+       0                                             0
+               5       10         15   20                5          10         15   20
+                    Iteration7                                   Iteration8
+
+
+
+
+                5       10        15   20                    5       10        15   20
+                     Iteration1                                   Iteration2
+
+
+
+
+                5       10        15   20                    5       10        15   20
+                     Iteration3                                   Iteration4
+
+
+
+
+                5       10        15   20                    5       10        15   20
+                     Iteration5                                   Iteration6
+
+
+
+
+                5       10        15   20                    5       10        15   20
+                     Iteration7                                   Iteration8
+
+
+
+
+Figure 11: LSPI iterations on a 20-state chain (reward only in states 1 and 20). Top: The
+           state value function V π (s) = Q(s, π(s)) of the policy being evaluated in each
+           iteration (LSPI approximation - solid line; exact values - dotted line). Bot-
+           tom: The improved policy after each iteration (R action - dark/red shade; L
+           action - light/blue shade; LSPI - top stripe; exact - bottom stripe).
+
+
+
+                                            1133
+                                                    Lagoudakis and Parr
+
+
+
+
+ 1                                                                    1.5
+ 0
+                                                                       1
+−1
+−2                                                                    0.5
+−3                                                                     0
+      5    10   15    20       25 30     35    40   45    50                5   10   15   20      25 30       35   40   45   50
+                            Iteration1                                                         Iteration2
+ 2
+                                                                      1.5
+
+                                                                       1
+ 1
+                                                                      0.5
+
+ 0                                                                     0
+      5    10   15    20       25 30     35    40   45    50                5   10   15   20      25 30       35   40   45   50
+                            Iteration3                                                         Iteration4
+
+1.5                                                                   1.5
+
+ 1                                                                     1
+
+0.5                                                                   0.5
+
+ 0                                                                     0
+      5    10   15    20       25 30     35    40   45    50                5   10   15   20      25 30       35   40   45   50
+                            Iteration5                                                         Iteration6
+
+
+
+
+          10         20             30        40         50                     10        20             30        40        50
+                          Iteration1                                                           Iteration2
+
+
+
+
+          10         20             30        40         50                     10        20             30        40        50
+                          Iteration3                                                           Iteration4
+
+
+
+
+          10         20             30        40         50                     10        20             30        40        50
+                          Iteration5                                                           Iteration6
+
+
+
+
+Figure 12: LSPI iterations on a 50-state chain with a polynomial approximator (reward
+           only in states 10 and 41). Top: The state-action value function of the policy
+           being evaluated in each iteration (LSPI approximation - solid lines; exact values
+           - dotted lines). Bottom: The improved policy after each iteration (R action -
+           dark/red shade; L action - light/blue shade; LSPI - top stripe; exact - bottom
+           stripe).
+
+
+                                                               1134
+                                           Least-Squares Policy Iteration
+
+
+
+
+1.5                                                                      1.5
+                                                                           1
+ 1                                                                       0.5
+0.5                                                                        0
+                                                                        −0.5
+ 0
+      5    10   15    20       25     30   35    40   45    50                 5   10   15   20      25     30   35   40   45   50
+                            Iteration1                                                            Iteration2
+
+ 4                                                                        4
+
+
+                                                                          2
+ 2
+
+                                                                          0
+ 0
+      5    10   15    20       25     30   35    40   45    50                 5   10   15   20      25     30   35   40   45   50
+                            Iteration3                                                            Iteration4
+
+ 4                                                                        4
+
+
+ 2                                                                        2
+
+
+ 0                                                                        0
+      5    10   15    20       25     30   35    40   45    50                 5   10   15   20      25     30   35   40   45   50
+                            Iteration5                                                            Iteration6
+
+ 4
+
+
+ 2
+
+
+ 0
+      5    10   15    20       25     30   35    40   45    50
+                            Iteration7
+
+
+
+
+          10         20             30          40         50                      10        20             30        40        50
+                          Iteration1                                                              Iteration2
+
+
+
+
+          10         20             30          40         50                      10        20             30        40        50
+                          Iteration3                                                              Iteration4
+
+
+
+
+          10         20             30          40         50                      10        20             30        40        50
+                          Iteration5                                                              Iteration6
+
+
+
+
+          10         20             30          40         50
+                          Iteration7
+
+
+
+
+Figure 13: LSPI iterations on a 50-state chain with a radial basis function approximator
+           (reward only in states 10 and 41). Top: The state-action value function of the
+           policy being evaluated in each iteration (LSPI approximation - solid lines; exact
+           values - dotted lines). Bottom: The improved policy after each iteration (R
+           action - dark/red shade; L action - light/blue shade; LSPI - top stripe; exact -
+           bottom stripe).
+
+
+                                                                 1135
+                                        Lagoudakis and Parr
+
+
+
+
+    LSPI makes a call to LSTDQ, which learns the least-squares fixed-point approximation
+to the state-action value function given a set of samples. Alternatively, LSPI could call some
+other learning procedure, similar to LSTDQ, which instead would learn the Bellman residual
+minimizing approximation. For this modified version of LSTDQ, the update equations for
+learning would be:
+                                                                                         |
+          e (t+1) = A
+          A         e (t) + φ(st , at ) − γφ s00t , π(s00t )   φ(st , at ) − γφ s0t , π(s0t )    ,
+                                                                          
+                           eb(t+1) = eb(t) + φ(st , at ) − γφ s00 , π(s00 ) rt .
+                                                               t       t
+
+    For comparison purposes, this modified version of LSPI was applied to the 50-state
+problem discussed above (same parameters, same number and kind of training samples).11
+Figure 14 and Figure 15 show the results for the polynomial and the radial basis function
+approximators respectively. In both cases, the approximations of the value function seem
+to be “close” to the true value functions. However, in both cases, this modified version of
+LSPI exhibits a non-convergent behavior (only the first 8 iterations are shown). With either
+approximator, the iteration initially proceeds toward better policies, but fails to discover the
+optimal policy. The resulting policies are somewhat better with the radial basis function
+approximator, but in either case they are worse than the ones found by LSPI with the
+least-squares fixed-point approximation. This behavior of LSPI combined with the Bellman
+residual minimizing approximation was fairly consistent and did not improve with increased
+sample size.
+    It is not clear why the least-squares fixed-point solution works better than the Bell-
+man residual minimizing solution. We conjecture that the fixed-point solution preserves
+the “shape” of the value function (the relative magnitude between values) to some extent
+rather than trying to fit the absolute values. In return, the improved policy from the ap-
+proximate value function is “closer” to the improved policy from the corresponding exact
+value function, and therefore policy iteration is guided to a direction of improvement. Of
+course, this point needs further investigation.
+
+9.2 Inverted Pendulum
+The inverted pendulum problem requires balancing a pendulum of unknown length and mass
+at the upright position by applying forces to the cart it is attached to. Three actions are
+allowed: left force LF (−50 Newtons), right force RF (+50 Newtons), or no force NF (0
+Newtons). All three actions are noisy; uniform noise in [−10, 10] is added to the chosen
+action. The state space of the problem is continuous and consists of the vertical angle θ
+and the angular velocity θ̇ of the pendulum. The transitions are governed by the nonlinear
+dynamics of the system (Wang et al., 1996) and depend on the current state and the current
+(noisy) control u:
+
+                               g sin(θ) − αml(θ̇)2 sin(2θ)/2 − α cos(θ)u
+                        θ̈ =                                             ,
+                                          4l/3 − αml cos2 (θ)
+11. To generate the necessary “doubled” samples, for each sample (s, a, r, s0 ) in the original set, another
+    sample (s, a, r 0 , s00 ) was drawn from a generative model of the chain, resulting in twice as many total
+    samples.
+
+
+                                                    1136
+                                           Least-Squares Policy Iteration
+
+
+
+
+1.5                                                                     1.5
+
+ 1                                                                       1
+
+0.5                                                                     0.5
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration1                                                           Iteration2
+
+1.5                                                                      4
+
+ 1
+                                                                         2
+0.5
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration3                                                           Iteration4
+ 2
+                                                                         4
+
+
+ 1                                                                       2
+
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration5                                                           Iteration6
+
+1.5                                                                      4
+
+ 1
+                                                                         2
+0.5
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration7                                                           Iteration8
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration1                                                             Iteration2
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration3                                                             Iteration4
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration5                                                             Iteration6
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration7                                                             Iteration8
+
+
+
+
+Figure 14: Modified-LSPI iterations on the 50-state chain with the polynomial approxima-
+           tor (reward only in states 10 and 41). Top: The state-action value function of
+           the policy being evaluated in each iteration (LSPI approximation - solid lines;
+           exact values - dotted lines). Bottom: The improved policy after each iteration
+           (R action - dark/red shade; L action - light/blue shade; LSPI - top stripe; exact
+           - bottom stripe).
+
+
+                                                                 1137
+                                                      Lagoudakis and Parr
+
+
+
+
+1.5                                                                     1.5
+
+ 1                                                                       1
+
+0.5                                                                     0.5
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration1                                                           Iteration2
+
+ 2                                                                       4
+
+
+ 1                                                                       2
+
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration3                                                           Iteration4
+
+ 4                                                                       4
+
+
+ 2                                                                       2
+
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration5                                                           Iteration6
+
+ 4                                                                       4
+
+
+ 2                                                                       2
+
+
+ 0                                                                       0
+      5    10   15    20       25     30   35    40   45    50                5   10   15   20      25     30   35   40   45   50
+                            Iteration7                                                           Iteration8
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration1                                                             Iteration2
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration3                                                             Iteration4
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration5                                                             Iteration6
+
+
+
+
+          10         20             30          40         50                     10        20             30        40        50
+                          Iteration7                                                             Iteration8
+
+
+
+
+Figure 15: Modified-LSPI iterations on the 50-state chain with the radial basis function
+           approximator (reward only in states 10 and 41). Top: The state-action value
+           function of the policy being evaluated in each iteration (LSPI approximation -
+           solid lines; exact values - dotted lines). Bottom: The improved policy after each
+           iteration (R action - dark/red shade; L action - light/blue shade; LSPI - top
+           stripe; exact - bottom stripe).
+
+
+                                                                 1138
+                                      Least-Squares Policy Iteration
+
+
+
+
+                        3000
+                                   Best
+
+
+                        2500
+
+
+
+
+                Steps   2000
+
+
+
+
+                        1500
+
+
+
+
+                        1000                                                        Worst
+
+
+
+                        500
+
+
+
+
+                          0
+                               0    100   200   300     400      500      600     700   800   900   1000
+                                                      Number of training episodes
+
+
+              Figure 16: Inverted pendulum (LSPI): Average balancing steps.
+
+
+where g is the gravity constant (g = 9.8m/s2 ), m is the mass of the pendulum (m = 2.0
+kg), M is the mass of the cart (M = 8.0 kg), l is the length of the pendulum (l = 0.5 m),
+and α = 1/(m + M ). The simulation step is set to 0.1 seconds. Thus, the control input is
+given at a rate of 10 Hz, at the beginning of each time step, and is kept constant during
+any time step. A reward of 0 is given as long as the angle of the pendulum does not exceed
+π/2 in absolute value (the pendulum is above the horizontal line). An angle greater than
+π/2 signals the end of the episode and a reward (penalty) of −1. The discount factor of the
+process is set to 0.95.
+    We applied LSPI with a set of 10 basis functions for each of the 3 actions, thus a total
+of 30 basis functions, to approximate the value function. These 10 basis functions included
+a constant term and 9 radial basis functions (Gaussians) arranged in a 3 × 3 grid over the
+2-dimensional state space. In particular, for some state s = (θ, θ̇) and some action a, all
+basis functions were zero, except the corresponding active block for action a which was
+
+                  ks − µ1 k2   ks − µ2 k2   ks − µ3 k2         ks − µ9 k2 
+                    −         −            −                  −              |
+              1, e    2σ 2 , e     2σ 2 , e     2σ 2 , ... , e     2σ 2        ,
+
+where the µi ’s are the 9 points of the grid {−π/4, 0, +π/4} × {−1, 0, +1} and σ 2 = 1.
+    Training samples were collected in advance from “random episodes”, that is, starting in
+a randomly perturbed state very close to the equilibrium state (0, 0) and following a policy
+that selected actions uniformly at random. The average length of such episodes was about
+6 steps, thus each one contributed about 6 samples to the set. The same sample set was
+used throughout all iterations of each run of LSPI.
+    Figure 16 shows the performance of the control policies learned by LSPI as a function of
+the number of training episodes. For each size of training episodes, the learned policy was
+
+                                                            1139
+                                              Lagoudakis and Parr
+
+
+
+
+                         50
+
+                         45
+                                                         Best
+                         40
+
+                         35
+
+
+                         30                                                       Worst
+                 Steps
+
+
+
+                         25
+
+
+                         20
+
+                         15
+
+
+                         10
+
+                          5
+
+
+                          0
+                              0   100   200    300     400      500      600     700   800   900   1000
+                                                     Number of training episodes
+
+
+           Figure 17: Inverted pendulum (Q-learning): Average balancing steps.
+
+
+evaluated 1000 times to estimate accurately the average number of balancing steps (we do
+not show confidence intervals for this estimation). This experiment was repeated 100 times
+for the entire horizontal axis to obtain average results and the 95% confidence intervals
+over different sample sets. Each episode was allowed to run for a maximum of 3000 steps
+corresponding to 5 minutes of continuous balancing in real-time. A run that balanced for
+this period of time was considered to be successful.
+    LSPI returns very good policies given a few hundred training episodes. With 1000
+training episodes the expected number of balancing steps is about 2850 steps. Failures
+come mostly as a result of a bad distribution of samples, but that fades out as the number
+of samples grows. Figure 16 shows also the worst and best policies obtained during the
+entire experiment for each sample set size. Notice that excellent policies are occasionally
+found with as few as 50 training episodes. With 1000 training episodes even the worst
+policy could balance the pendulum for at least half the time.
+    The same experiment was repeated with Q-learning using the same linear architecture.
+Samples were collected in the same manner and Q-learning performed a single pass through
+the sample set at each run. The learning rate α was adjusted according to a typical schedule:
+
+                                                                n0 + 1
+                                                 αt = α0               ,
+                                                                n0 + t
+
+where α0 is the initial value, αt is the value at time step t, and n0 is a constant that controls
+the decrease rate. In our experiment, we used α0 = 0.5 and n0 was set to an appropriate
+value so that αt = 0.01 at the last sample in each run. The outcome is shown in Figure 17
+(notice the scale of the vertical axis). Q-learning did not succeed to balance the pendulum
+for more than a few dozen steps, although there was an improving trend with more data.
+
+                                                            1140
+                                     Least-Squares Policy Iteration
+
+
+
+
+                        3000
+                                   Best
+
+
+                        2500
+
+
+
+                Steps   2000
+
+
+
+                        1500
+
+
+
+                        1000                                              Worst
+
+
+
+                        500
+
+
+
+                          0
+                               0   100    200   300     400      500      600     700   800   900   1000
+                                                      Number of training episodes
+
+
+         Figure 18: Inverted pendulum (Q-learning/ER): Average balancing steps.
+
+
+    The same experiment was also repeated with Q-learning and experience replay (ER).
+In this case, Q-learning/ER was allowed to perform 100 passes through the samples while
+the learning rate was adjusted according to the schedule above with α0 = 0.5 and n0 set
+appropriatelly so that αt = 0.01 at the last sample of the last pass in each run. This
+is similar to the way LSPI processes samples, although LSPI was allowed to run for a
+maximum of only 20 iterations. Q-learning/ER performed very well, better than LSPI.
+Figure 18 shows the average number of balancing steps. After about 400 training episodes
+the learned policies are excellent with an expected number of balancing steps close to
+3000. With 700 or more training episodes the expected number of balancing steps is about
+3000 steps. Figure 18 shows also the worst and best policies obtained during the entire
+experiment. Excellent policies are occasionally found with as few as 50 training episodes.
+With 750 or more training episodes even the worst policy balances the pendulum almost all
+the time. The success of Q-learning/ER in this case is mostly due to the benign nature of the
+radial basis functions that are very well-behaved. These basis functions are automatically
+normalized and their localized nature in conjunction with their magnitude are indicative of
+the appropriate adjustment to each parameter.
+
+9.3 Bicycle Balancing and Riding
+
+The goal in the bicycle balancing and riding problem (Randløv and Alstrøm, 1998) is to
+learn to balance and ride a bicycle to a target position located 1 km away from the starting
+location. Initially, the bicycle’s orientation is at an angle of 90◦ to the goal. The state
+description is a six-dimensional real-valued vector (θ, θ̇, ω, ω̇, ω̈, ψ), where θ is the angle of
+the handlebar, ω is the vertical angle of the bicycle, and ψ is the angle of the bicycle to
+the goal. The actions are the torque τ applied to the handlebar (discretized to {−2, 0, +2})
+
+                                                            1141
+                                                                   Lagoudakis and Parr
+
+
+
+
+                                             1
+
+                                            0.9
+
+                                            0.8
+
+                                            0.7
+                   Probability of Success
+                                            0.6
+
+                                            0.5
+
+                                            0.4
+
+                                            0.3
+
+                                            0.2
+
+                                            0.1
+
+                                             0
+
+
+                                                  0   500   1000   1500     2000    2500      3000    3500   4000   4500   5000
+                                                                          Number of training episodes
+
+
+                                   Figure 19: Bicycle (LSPI): Average probability of success.
+
+and the displacement of the rider υ (discretized to {−0.02, 0, +0.02}). In our experiments,
+actions are restricted so that either τ = 0 or υ = 0 giving a total of 5 actions.12 The noise
+in the system is a uniformly distributed term in [−0.02, +0.02] added to the displacement
+component of the action. The dynamics of the bicycle are based on the model of Randløv
+and Alstrøm (1998) and the time step of the simulation is set to 0.01 seconds.
+    The state-action value function Q(s, a) for a fixed action a is approximated by a linear
+combination of 20 basis functions:
+    ( 1, ω, ω̇, ω 2 , ω̇ 2 , ω ω̇, θ, θ̇, θ 2 , θ̇ 2 , θ θ̇, ωθ, ωθ 2 , ω 2 θ, ψ, ψ 2 , ψθ, ψ̄, ψ̄ 2 , ψ̄θ )| ,
+where ψ̄ = π − ψ for ψ > 0 and ψ̄ = −π − ψ for ψ < 0. Note that the state variable ω̈
+is completely ignored. This block of basis functions is repeated for each of the 5 actions,
+giving a total of 100 basis functions (and parameters).
+    The average performance of control policies learned by LSPI is shown in Figures 19
+and 20 as a function of the number of training episodes. Training samples were collected in
+advance by initializing the bicycle to a small random perturbation from the initial position
+(0, 0, 0, 0, 0, π/2) and running each episode up to 20 steps using a purely random policy.
+The same sample set was used throughout each run of LSPI and convergence typically
+was achieved in 6 to 8 iterations. For each size of training episodes, the learned policy
+was evaluated 100 times in order to estimate the probability of success (reaching the goal)
+and the average number of balancing steps (we provide no confidence intervals for this
+estimation). This experiment was repeated 100 times for the entire horizontal axis to
+obtain average results and the 95% confidence intervals over different sample sets. Each
+episode was allowed to run for a maximum of 72000 steps corresponding to 2 kilometers of
+riding distance. Episodes that reached the goal were considered to be successful.
+12. Results are similar for the full 9-action case, but required more training data.
+
+
+                                                                                 1142
+                                            Least-Squares Policy Iteration
+
+
+
+                                  4
+                              x 10
+                          8
+
+                                             Best
+                          7
+
+
+                          6
+
+
+                  Steps   5
+
+
+                          4
+
+
+                          3                                                             Worst
+
+
+                          2
+
+
+                          1
+
+
+                          0
+                              0       500    1000   1500     2000    2500      3000    3500   4000   4500   5000
+                                                           Number of training episodes
+
+
+
+              Figure 20: Bicycle (LSPI): Average number of balancing steps.
+
+
+    LSPI returns excellent policies given a few thousand training episodes. With 5000
+training episodes (60000 samples) the probability of success is about 95% and the expected
+number of balancing steps is about 70000 steps. Figure 20 shows also the worst and best
+policies obtained during the entire experiment for each sample set size. Notice that excellent
+policies that reach the goal are occasionally found with as few as 500 training episodes (10000
+samples). With 5000 training episodes even the worst policy could balance the bicycle for
+at least 1 km. Successful policies usually reached the goal riding a total distance of a little
+over 1 km, near optimal performance.
+    An annotated set of trajectories over the two-dimensional terrain is shown in Figure 21
+to demonstrate the performance improvement over successive iterations of LSPI. This run
+is based on 50000 samples collected from 2500 episodes. This LSPI run converged in 8
+iterations. The policy after the first iteration balances the bicycle, but fails to ride to
+the goal. The policy after the second iteration is heading towards the goal, but fails to
+balance. All policies thereafter balance and ride the bicycle to the goal. Note that crashing
+is occasionally possible even for good policies because of the noise in the input.
+    A number of design decisions influenced the performance of LSPI on the bicycle balanc-
+ing and riding problem. As is typical with this problem, a shaping reward (Ng et al., 1999)
+for the distance to the goal was used. In particular, the shaping reward was 1% of the net
+change (in meters) in the distance to the goal. It was also observed that, in full random
+trajectories, most of the samples were not very useful; except the ones at the beginning of
+the trajectory, the rest occurred after the bicycle had already entered into a “death spiral”
+from which recovery was impossible. This complicated the learning efforts by biasing the
+samples towards hopeless parts of the space, so it was decided to cut off trajectories after 20
+steps. However, a new problem was created because there was no terminating reward signal
+to indicate failure. This was approximated by an additional shaping reward, which was
+
+                                                                   1143
+                                               Lagoudakis and Parr
+
+
+
+
+          200                                                                       6th iteration
+                                                                                      (crash)
+                  Starting
+                  Position
+
+            0
+                                                                 3rd iteration
+
+
+                       2nd iteration (crash)
+                                                                                                     Goal
+         −200                                                               5th and 7th
+                                                                              iteration
+
+
+                                                                                                     4th and 8th
+         −400                                                                                          iteration
+
+
+
+
+         −600
+
+
+                                                 1st iteration
+
+
+         −800
+           −200              0           200          400             600           800             1000           1200
+
+
+                        Figure 21: Bicycle (LSPI): Trajectories of policies.
+
+
+proportional to the net change in the square of the vertical angle ω. This addition roughly
+approximated the likelihood of falling at the end of a truncated trajectory. Note, however,
+that the learning agent never sees these two shaping rewards separately; they are combined
+additively in a single numeric reward value. To verify that the learning problem had not
+be reduced through shaping to maximizing immediate reward, we reran some experiments
+using a discount factor of 0.0. In this case, LSTDQ simply projects the immediate reward
+function into the column space of the basis functions. If the problem were tweaked too
+much with shaping, acting to maximize the projected immediate reward would be sufficient
+to obtain good performance. On the contrary, these runs constantly produced immediate
+crashes in all trials. Finally, the discount factor was set to 0.8, which seemed to yield more
+robust performance.
+    The same experiment was repeated with Q-learning using the same linear architecture,
+however with each basis function normalized to [−1, 1] to avoid divergence. Samples were
+collected in the same manner as in the LSPI case. Q-learning performed a single pass
+through the sample set at each run. The learning rate was adjusted according to the typical
+schedule described above with α0 = 0.5 and n0 set appropriately so that αt = 0.005 at the
+last sample in each run. The outcome is shown in Figure 22. This algorithm did not succeed
+in riding the bicycle to the goal and was not able to balance the bicycle for very long either.
+A few exceptional runs succeeded to balance the bicycle for a non-trivial number of steps,
+but did not make it to the goal.
+    The same experiment was also repeated with Q-learning and experience replay (ER).
+In this case, Q-learning/ER was allowed to perform 100 passes through the samples while
+the learning rate was adjusted according to the typical schedule with α0 = 0.5 and n0 set
+appropriately so that αt = 0.005 at the last sample of the last pass in each run. This was
+
+                                                            1144
+                                        Least-Squares Policy Iteration
+
+
+
+
+                       3000
+
+
+
+
+                       2500
+
+
+
+
+               Steps   2000
+
+
+
+
+                       1500
+
+
+
+
+                       1000
+
+
+
+
+                       500
+
+
+
+
+                         0
+                              0   500    1000   1500     2000    2500      3000    3500   4000   4500   5000
+                                                       Number of training episodes
+
+
+                   Figure 22: Bicycle (Q-learning): Average balancing steps.
+
+
+similar to the way LSPI processed samples, although LSPI was allowed to run for a maxi-
+mum of only 15 iterations. Q-learning/ER performed a little better than pure Q-learning,
+but still nowhere close to LSPI. Figure 23 shows the average number of balancing steps.
+Q-learning/ER was not able to ride the bicycle to the goal, although several times it man-
+aged to balance for the entire period of the 72000 steps. There was however huge variance
+and there is no clear evidence of improvement with additional samples. In this case, the
+approximation architecture, although normalized, it is not nicely-behaved because of huge
+differences in magnitude that are not necessarily indicative of the appropriate adjustment
+to each parameter. Performance was also very sensitive to the settings of the learning rate.
+The values used in the experiment above represent our best effort in tuning the learning
+rate appropriately.
+
+10. Future Work
+LSPI raises several issues and interesting questions that need further investigation. The
+distribution of the training samples over the state-action space can have a significant impact
+on the performance of the algorithm. There are at least two relevant issues. The first is the
+fact that the approximate value function may be biased in favor of state-action pairs that
+are sampled more frequently and against state-action pairs that are sampled infrequently.
+This problem can be mitigated by density estimation techniques to reweigh the samples so
+that a desired set of projection weights is achieved regardless of the initial distribution of
+samples. The second and more serious issue is that our initial batch of samples may not
+be sufficiently representative, that is, some important states may never be visited. We note
+that this problem appears in one form or another in all reinforcement-learning methods.
+For example, Q-learning agents often must reach a goal state on a random walk before
+
+                                                             1145
+                                               Lagoudakis and Parr
+
+
+
+
+                       3500
+
+
+
+                       3000
+
+
+
+                       2500
+
+
+
+                       2000
+               Steps
+
+
+
+
+                       1500
+
+
+
+                       1000
+
+
+
+                       500
+
+
+
+                         0
+                              0   500   1000    1500     2000    2500      3000    3500   4000   4500   5000
+                                                       Number of training episodes
+
+
+              Figure 23: Bicycle (Q-learning/ER): Average balancing steps.
+
+
+any meaningful learning can occur. For LSPI, we would like to develop a more general
+framework for sample collection that views the problem of acquiring new samples as an
+active learning problem. This would encompass both determining the need for new samples
+and the region of state-action space from which these samples are required.
+    In our experimental results presented in this paper we constructed linear architectures
+by repeating the same block of basis functions (that depend only on the state) for each
+of the actions and using indicator functions to activate the appropriate block, essentially
+allowing for a separate set of parameters for each action. However, this is not the only
+way to go and is definitely impractical for large action spaces. Alternatively, the linear
+architecture can be constructed as a single block of basis functions that depend on both the
+state and the action and the entire set of parameters is used by all actions.
+    The choice of basis functions is a fundamental problem in itself. In this paper, we ex-
+plored only polynomial and radial basis functions, but many other options exist. Answering
+this question seems to be very domain-specific and there is no universal choice that works
+in all domains. LSPI relies on a good choice of basis function, and does not yet offer a
+method of recovering from a bad choice without user intervention. This is an important
+area for future research.
+    In this paper, LSPI has been used as an off-line method; learning takes place after the
+training samples have been collected. An online version of LSPI would have to update the
+matrices and solve the system for every sample it experiences. Another, less expensive,
+approach to online learning would maintain a window of the most recent experiences and
+would update the matrices and solve the system at regular intervals. Exponential windowing
+techniques may also be used to discount the influence of old experience. This approach is
+yet to be explored, but has the potential to accomodate slowly changing environments.
+
+                                                             1146
+                            Least-Squares Policy Iteration
+
+
+
+
+    Other issues that we would like to explore include domains with continuous actions,
+alternative projections in value-function space, and other approximation architectures. We
+are also interested in extending the main ideas of LSPI for learning in other models of
+decision making that involve multiple agents, such as coordinated learning in team Markov
+decision processes and minimax learning in competitive Markov games.
+
+
+11. Conclusion
+We have presented the least-squares policy iteration (LSPI) algorithm, a new, model-free,
+off-line, reinforcement-learning algorithm for control problems. LSPI combines the policy
+search efficiency of approximate policy iteration with the data efficiency of least-squares
+temporal-difference learning. The algorithm eliminates the sensitive learning parameters of
+stochastic approximation methods and separates the main elements of practical reinforce-
+ment learning (sample collection, approximation architecture, solution method) in a way
+that allows for focused attention to each one of them individually.
+     Our experimental results demonstrate the potential of LSPI. We achieved good perfor-
+mance on the pendulum and the bicycle tasks using a relatively small number of randomly
+generated samples that were reused across multiple steps of policy iteration. Achieving
+this level of performance with just a linear approximation architecture did require some
+tweaking, but the transparency of the linear architectures made the relevant issues much
+more obvious than would be the case with any “black box” function approximators.
+     We believe that the direct approach to function approximation and data reuse taken by
+LSPI will make the algorithm an intuitive and easy-to-use first choice for many reinforcement-
+learning tasks of practical interest.
+
+
+Acknowledgments
+
+We would like to thank Jette Randløv and Preben Alstrøm for making the bicycle simulator
+available. We also thank Carlos Guestrin, Daphne Koller, Uri Lerner, and Michael Littman
+for helpful discussions. This work was supported in part by the National Science Foundation
+(NSF-grant-0209088). The first author was also partially supported by the Lilian Boudouri
+Foundation in Greece.
+
+
+References
+Andrew G. Barto, Richard S. Sutton, and Charles W. Anderson. Neuronlike adaptive ele-
+ ments that can solve difficult learning control problems. IEEE Transactions on Systems,
+ Man, and Cybernetics, 13(5):835–846, 1983.
+
+Jonathan Baxter and Peter L. Bartlett. Infinite-horizon gradient-based policy search. Jour-
+  nal of Artificial Intelligence Research, 15:319–350, 2001.
+
+Dimitri P. Bertsekas and John N. Tsitsiklis. Neuro-Dynamic Programming. Athena Scien-
+  tific, Belmont, Massachusetts, 1996.
+
+                                            1147
+                                  Lagoudakis and Parr
+
+
+
+
+Justin A. Boyan. Technical update: Least-squares temporal difference learning. Machine
+  Learning, 49(2-3):233–246, 2002.
+
+Steven J. Bradtke. Reinforcement learning applied to linear quadratic regulation. In Ad-
+  vances in Neural Information Processing Systems 5: Proceedings of the 1992 Conference,
+  pages 295–302, Denver, Colorado, 1993.
+
+Steven J. Bradtke and Andrew G. Barto. Linear least-squares algorithms for temporal
+  difference learning. Machine Learning, 22(2):33–57, 1996.
+
+Arthur P. Dempster, Martin Schatzoff, and Nanny Wermuth. A simulation study of al-
+  ternatives to ordinary least-squares. Journal of the American Statistical Association, 72
+  (357):77–91, 1977.
+
+Ronald A. Howard. Dynamic Programming and Markov Processes. MIT Press, Cambridge,
+  Massachusetts, 1960.
+
+Daphne Koller and Ronald Parr. Policy iteration for factored MDPs. In Proceedings of the
+ Sixteenth Conference on Uncertainty in Artificial Intelligence, pages 326–334, Stanford,
+ California, 2000.
+
+Vijay R. Konda and John Tsitsiklis. Actor-critic algorithms. In Advances in Neural In-
+  formation Processing Systems 12: Proceedings of the 1999 Conference, pages 1008–1014,
+  Denver, Colorado, 2000.
+
+Long-Ji Lin. Reinforcement Learning for Robots Using Neural Networks. PhD thesis,
+  Carnegie Mellon University, Pittsburgh, Pennsylvania, 1993.
+
+Rémi Munos. Error bounds for approximate policy iteration. In Proceedings of the Twentieth
+  International Conference on Machine Learning, pages 560–567, Washington, District of
+  Columbia, 2003.
+
+Angelia Nedić and Dimitri P. Bertsekas. Least-squares policy evaluation algorithms with lin-
+ ear function approximation. Discrete Event Dynamic Systems: Theory and Applications,
+ 13(1–2):79–110, 2003.
+
+Andrew Y. Ng, Daishi Harada, and Stuart Russell. Policy invariance under reward trans-
+ formations: Theory and application to reward shaping. In Proceedings of the Sixteenth
+ International Conference on Machine Learning, pages 278–287, Bled, Slovenia, 1999.
+
+Andrew Y. Ng and Michael Jordan. PEGASUS: A policy search method for large MDPs
+ and POMDPs. In Proceedings of the Sixteenth Conference on Uncertainty in Artificial
+ Intelligence, pages 406–415, Stanford, California, 2000.
+
+Andrew Y. Ng, Ronald Parr, and Daphne Koller. Policy search via density estimation. In
+ Advances in Neural Information Processing Systems 12: Proceedings of the 1999 Confer-
+ ence, pages 1022–1028, Denver, Colorado, 2000.
+
+Dirk Ormoneit and Saunak Sen. Kernel-based reinforcement learning. Machine Learning,
+  49(2–3):161–178, 2002.
+
+                                            1148
+                           Least-Squares Policy Iteration
+
+
+
+
+Doina Precup, Richard Sutton, and Sanjoy Dasgupta. Off-policy temporal difference learn-
+ ing with function approximation. In Proceedings of the Eighteenth International Confer-
+ ence on Machine Learning, pages 417–424, Williamstown, Massachusetts, 2001.
+
+Jette Randløv and Preben Alstrøm. Learning to drive a bicycle using reinforcement learn-
+  ing and shaping. In Proceedings of The Fifteenth International Conference on Machine
+  Learning, pages 463–471, Madison, Wisconsin, 1998.
+
+Gavin A. Rummery and Mahesan Niranjan. On-line Q-learning using connectionist systems.
+ Technical Report CUED/F-INFENG/TR 166, Engineering Department, Cambridge Uni-
+ versity, Cambridge, United Kingdom, 1994.
+
+Paul J. Schweitzer and Abraham Seidmann. Generalized polynomial approximations in
+  Markovian decision processes. Journal of Mathematical Analysis and Applications, 110
+  (6):568–582, 1985.
+
+Richard Sutton and Andrew Barto. Reinforcement Learning: An Introduction. MIT Press,
+  Cambridge, Massachusetts, 1998.
+
+Richard Sutton, David McAllester, Satinder Singh, and Yishay Mansour. Policy gradient
+  methods for reinforcement learning with function approximation. In Advances in Neural
+  Information Processing Systems 12: Proceedings of the 1999 Conference, pages 1057–
+  1063, Denver, Colorado, 2000.
+
+Richard S. Sutton. Temporal Credit Assignment in Reinforcement Learning. PhD thesis,
+  University of Massachusetts, Amherst, Massachusetts, 1984.
+
+Richard S. Sutton. Generalization in reinforcement learning: Successful examples using
+  sparse coarse coding. In Advances in Neural Information Processing Systems 8: Proceed-
+  ings of the 1995 Conference, pages 1038–1044, Denver, Colorado, 1996.
+
+Hua O. Wang, Kazuo Tanaka, and Michael F. Griffin. An approach to fuzzy control of
+ nonlinear systems: Stability and design issues. IEEE Transactions on Fuzzy Systems, 4
+ (1):14–23, 1996.
+
+Christopher J. C. H. Watkins. Learning from Delayed Rewards. PhD thesis, Cambridge
+ University, Cambridge, United Kingdom, 1989.
+
+Ronald J. Williams and Leemon C. Baird. Tight performance bounds on greedy policies
+  based on imperfect value functions. Technical Report NU-CCS-93-14, College of Com-
+  puter Science, Northeastern University, Boston, Massachusetts, 1993.
+
+
+
+
+                                         1149
+
