@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-css-knowledge-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-css-knowledge-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-affordance-fuzzing-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-affordance-fuzzing-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-css-knowledge-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-affordance-fuzzing-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_css_knowledge_reviewed_2026-10-24.pdf) has 1,421 pages,
-1,086 audited citation records and 244 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_css_knowledge_reviewed_2026-10-24.pdf) has 97 pages and 570 citations.
-All 1,083 predecessor records, citation contexts and 335 compiled content inputs survive.
+The [monograph](../../causal_proposal_affordance_fuzzing_reviewed_2026-10-24.pdf) has 1,425 pages,
+1,090 audited citation records and 246 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_affordance_fuzzing_reviewed_2026-10-24.pdf) has 98 pages and 576 citations.
+All 1,086 predecessor records, citation contexts and 336 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,29 +30,31 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-The computational-social-science study and knowledge-mechanism survey now have
-inspected genuine author originals, explicit version limits and traced claims.
-The literature census advances to 79 inspected and 34 unread originals, plus
-four crosscutting obligations. Publisher-byte equality remains unasserted.
+The original TitanFuzz paper is inspected, with a separately pinned implementation
+profile. A related affordance-reasoning preprint is independently identified and
+reviewed; it does not replace the inaccessible candidate163 conference original.
+The inherited census advances to 80 inspected and 33 unread works, plus four
+crosscutting obligations. No native model or downloaded code was executed.
 
-The connected banking argument separates text measurement, graph proposals,
-model-internal interventions and external causal identification. Exact authored
-examples show equal 90 percent accuracy with observed prevalences 0.26 and 0.18,
-80 USD stipulated loss distortion, correlated-prompt mean variance 0.84,
-and identical observational laws with intervention effects one versus zero.
-The complete-cost fixture distinguishes 2.40 USD per request from cost per
-answer and correct artifact. No model, benchmark or bank experiment was run.
+The connected banking argument distinguishes functional selection from causal
+identification and differential numerical agreement from an economic acceptance
+rule. Exact authored examples demonstrate invariant feasible choices, clustered
+variance 0.0308 versus 0.002, a 5,000 USD backend discrepancy accepted by an
+illustrative numerical tolerance but rejected by a stipulated business limit,
+and complete costs of 6/10/15/100 USD per attempt/runnable/unique/confirmed output.
 
-All previous software, reuse and scientific-method arguments remain. The two
-new source reviews advance LL.CENSUS without fabricating an operation closure.
-The continuation note names unfinished originals and crosscutting work; it does
-not repeat the completed CSS/knowledge publication. Independent branches remain eligible.
+The pinned TitanFuzz tree leaves reuse rights, the external seed archive and exact
+distributions unresolved. Paper and repository bug-count snapshots remain dated
+and separate. Public semantic/refusal oracles and full costs are a known next
+step; native security, performance, bank and adoption claims remain ungranted.
+All prior software, reuse and LLM arguments are preserved. Continuation notes
+name unfinished work rather than asking to repeat completed publication.
 
 ## Remaining gaps and routes
 
 1. Software:50open and49inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
 2. Reuse:50open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
-3. Frontier census:34unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
+3. Frontier census:33unread originals and four crosscutting obligations. Candidate163conference original remains locally inaccessible; candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister justified task/version splits, semantic/refusal/fault oracles and full costs before broader native or bank claims.
 6. Manuscript acceptance: finish mandatory coverage/depth, Q1/Q5 and fresh visual review; text bounds alone are not visual acceptance.

@@ -1,0 +1,1 @@
+Preserve all1086 prior source records, citation contexts and content inputs. Add two genuine scholarly originals, one pinned static implementation profile and one authored exact reference. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
