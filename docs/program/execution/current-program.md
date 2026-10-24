@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-policies-java-v1/program-review.json)
-and [remaining-operation register](2026-10-24/program-refresh-policies-java-v1/remaining-operations.json)
+Updated 24 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-24/program-refresh-ray-v1/program-review.json)
+and [remaining-operation register](2026-10-24/program-refresh-ray-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-24/program-refresh-policies-java-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-24/program-refresh-ray-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,51 +12,51 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_policies_java_reviewed_v2_2026-10-24.pdf) has 1,408 pages,
-1,079 audited citation records and 242 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_policies_java_reviewed_2026-10-24.pdf) has 95 pages and 557 citations.
-All 1,074 predecessor records, citation contexts and 332 compiled content inputs survive.
+The [monograph](../../causal_proposal_ray_reviewed_2026-10-24.pdf) has 1,413 pages,
+1,081 audited citation records and 242 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_ray_reviewed_2026-10-24.pdf) has 96 pages and 561 citations.
+All 1,079 predecessor records, citation contexts and 333 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**251 recorded outcomes of 376; 102 ready; 199 nonpassing obligations.**
+**252 recorded outcomes of 376; 101 ready; 198 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
 | software | 3 | 49 | 50 | 102 |
-| reuse | 60 | 3 | 52 | 115 |
+| reuse | 61 | 3 | 51 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-Three selected Java policy profiles now have a connected primary-source comparison.
-BURLAP supplies finite-model planning and selected linear-feature control paths;
-Chen's compact routines expose distinct Q-learning,Sarsa and actor-update semantics;
-the inspected RL4J source is an explicitly historical February2022artifact.
-Three software records,one genuine43-page LSPI original and one authored comparison
-add five audited citations. All prior sources,contexts and compiled inputs survive.
+Ray Core now has a cutoff-pinned source profile and an explicit reference disposition.
+The selected commit is 7 October 2026 at 15:33:11 UTC, within the Shanghai cutoff.
+An initial UTC-day candidate is preserved; thirteen matching blobs were rebound and
+five changed documents acquired from the corrected revision. Eighteen selected source
+files support task,actor,object,GCS,resource,environment and trusted-code boundaries.
 
-Exact rational witnesses distinguish a zero nominal Bellman residual from10USDmodel
-error,a singular rank-one inverse update,Q-learning4.36fromSarsa3.87andterminal3.80,
-standard DQN11fromdouble2.90,and unclamped targets from5/3training labels.
-A supplied hidden-state law shows3.50USDregret from ignoring information acquisition.
-These are authored finite examples,not observed upstream failures or bank outcomes.
+Exact authored witnesses preserve a 2 USD logical mean across 120 retry-event
+permutations and reject conflicting duplicates; naive attempt accounting gives 2.40
+or 3 USD. Cluster aggregation gives 1/2 versus a row-only 1/4, and floating-point
+reduction order gives 1 versus 0. Stipulated scaling yields 2.5 versus 1.43 with
+overhead; stipulated complete costs give 60/90/120 USD per attempt/request/accepted artifact.
+These are design witnesses, not Ray benchmarks, vendor prices or calibrated intervals.
 
-Conditional BURLAP integration,Chen reference and historical RL4J deferral retain
-explicit target,terminal,clock,replay,rights,environment,uncertainty and full-cost
-qualification. No downloaded code,worker,MCP server or native package was executed.
-The bounded search and remaining registry/fork/method/delegate work keep coverage
-inconclusive. Unknown logging and unrestricted latent identification have no universal
-promised repair. Public/generated oracle tasks can justify later bank experiments.
+Reference-only disposition preserves a local baseline. Conditional native adoption
+requires profiling, selected distribution/rights, durable logical accounting,
+scientific fold/clock/covariance invariants, external isolation and complete fault/cost
+qualification. No Ray package,cluster,MCP server or downloaded code was executed.
+Development-source identity is distinct from an installed release; Core does not
+qualify Train,Tune,Serve,Data,RLlib or a commercial hosted service transitively.
 
-The prior Python-policy,scientific-method,pydynpd,Pandera,R-policy,survival and earlier
-LLM/integration arguments remain intact. Census stays77/36plus4crosscutting.
+The prior Java/Python policy,scientific-method,panel,validation,survival and earlier
+LLM/integration arguments remain intact. Census stays 77/36 plus four crosscutting.
 
 ## Remaining gaps and routes
 
 1. Software:50open and49inconclusive cells. Resolve aliases/search tails, inspect primary delegates and retain target-specific limits.
-2. Reuse:52open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
+2. Reuse:51open and3inconclusive decisions. Complete concrete choices with source/rights, owners, costs and triggers.
 3. Frontier census:36unread originals and four crosscutting obligations. Candidate165journal original remains unavailable despite its related-preprint review; candidate217access/date and candidate27metadata limits remain local.
 4. Commercial qualification: resolve named supported server/API profiles, entitlement, price and complete request/failure denominators.
 5. Public prototypes: preregister justified task/version splits, semantic/refusal/fault oracles and full costs before broader native or bank claims.
@@ -68,7 +68,7 @@ acceptance and actual economic value remain later external work, not global prop
 
 ## Exact continuation
 
-Next:SW.DECISION.inherited_ray. Inspect this entry and any canonical alias at a pinned revision. Choose adopt, integrate, port, reference, defer or reject with reasons. An umbrella lead must be resolved into concrete candidates; cite its source and license rather than borrowing family-level approval.
+Next:LL.CENSUS. Publish preserving scientific-method reader and paired sponsor, reconcile, then continue36unread originals and fourcrosscutting tasks; independent Python off-policy source review remains ready.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
