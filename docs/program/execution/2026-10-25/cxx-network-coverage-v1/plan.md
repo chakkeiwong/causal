@@ -1,0 +1,3 @@
+# C++ network and interference coverage
+
+Operation SW.CELL.networks_interference.Cxx. Review direct randomized graph-cluster experimental code alongside graph and distributed-simulation components. Pin sources before7 October2026 Shanghai cutoff; inspect exposure/joint-probability,estimation,graph identity,RNG,synchronization,rights and failure contracts. Integrate connected banking examples with reproducible authored references. Preserve bounded search tails and native/rights/visual limits. No acquired-code execution. Canonical publication waits for consumed JVM delivery; independent source work continues.
