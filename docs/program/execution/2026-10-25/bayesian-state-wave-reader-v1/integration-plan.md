@@ -1,0 +1,1 @@
+Preserve all1371 prior source records,citation contexts and content inputs. Add five-language Bayesian SCM,hidden-state,information-clock,posterior uncertainty,diagnostic and qualification contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
