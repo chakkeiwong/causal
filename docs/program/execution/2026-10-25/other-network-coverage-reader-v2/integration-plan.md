@@ -1,0 +1,1 @@
+Preserve all1303 prior source records,citation contexts and content inputs. Add Shared-state score and variance contracts,graph identity,distributed state,primary shared-state methods and exact witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

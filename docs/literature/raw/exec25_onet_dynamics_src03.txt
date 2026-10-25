@@ -1,0 +1,576 @@
+# Batches are kept in a tuple so the core loop can unroll over them and stay type
+# stable. Past 32 elements inference gives up on the tuple, every batch call turns
+# into a dynamic dispatch and the loop gets both slower and allocating -- beyond
+# that a plain Vector (one dispatch per batch, but nothing to infer) wins.
+const MAX_UNROLLED_BATCHES = 25
+
+"""
+    Network([g,] vertexf, edgef; kwarg...)
+
+Construct a `Network` object from a graph `g` and edge and component models `vertexf` and `edgef`.
+
+Arguments:
+ - `g::AbstractGraph`: The graph on which the network is defined, a `SimpleGraph`, `SimpleDiGraph`
+    or `NetworkDynamics.ComponentGraph` (which allows parallel edges).
+    Optional, can be ommittet if all component models have a defined `graphelement`.
+    See `vidx` and `src`/`dst` keywors for [`VertexModel`](@ref) and [`EdgeModel`](@ref) constructors respectively.
+ - `vertexm`:
+    A single [`VertexModel`](@ref) or a vector of [`VertexModel`](@ref) objects.
+    The order of the vertex models must mirror the order of the `vertices(g)` iterator.
+
+ - `edgem`: A single [`EdgeModel`](@ref) or a vector of [`EdgeModel`](@ref) objects.
+    The order of the edge models must mirror the order of the `edges(g)` iterator.
+
+Optional keyword arguments:
+ - `execution=SequentialExecution{true}()`:
+    Execution model of the network. E.g. [`SequentialExecution`](@ref), [`KAExecution`](@ref), [`PolyesterExecution`](@ref) or [`ThreadedExecution`](@ref).
+ - `aggregator=execution isa SequentialExecution ? SequentialAggregator(+) : PolyesterAggregator(+)`:
+    Aggregation function applied to the edge models. E.g. [`SequentialAggregator`](@ref), [`PolyesterAggregator`](@ref), [`ThreadedAggregator`](@ref), [`SparseAggregator`](@ref).
+ - `check_graphelement=true`:
+    Check if the `graphelement` metadata is consistent with the graph.
+ - `dealias=false`
+    Check if the components alias eachother and create copies if necessary.
+    This is necessary if the same component model is referenced in multiple places in the Network but you want to
+    dynamicially asign metadata, such as initialization information to specific instances.
+ - `sparse=false`:
+    Detect the Jacobian sparsity pattern and store it in the network, which lets stiff solvers
+    and the initialization use sparse linear algebra. Equivalent to calling
+    [`set_jac_prototype!`](@ref) afterwards, see also [`get_jac_prototype`](@ref).
+    The detection reports what it is doing only if `verbose` is set.
+ - `verbose=false`:
+    Show additional information during construction.
+ - `fullytyped=false`:
+    By default the `Network` type does not carry the component functions, so code working on
+    networks (including the solver) compiles once and is reused for other networks. The network
+    call then goes through a function barrier, which costs a few ns per call. `fullytyped=true`
+    puts everything into the type and avoids the barrier.
+
+Keyword arguments only for the graphless constructor:
+ - `warn_order=true`:
+    Warn if the vertex or edge models are reordered to match the graph.
+ - `legacy_graph=true`:
+    If no two edges share the same ordered endpoints, build a `SimpleGraph` (all `src < dst`) or
+    `SimpleDiGraph` and sort the edge models into `edges(g)` order. Parallel edges, or
+    `legacy_graph=false`, give a `ComponentGraph` where the edge index is the position in the
+    input list.
+"""
+function Network(g::AbstractGraph,
+                 vertexm::Union{VertexModel,Vector{<:VertexModel}},
+                 edgem::Union{EdgeModel,Vector};
+                 execution=SequentialExecution{true}(),
+                 aggregator=execution isa SequentialExecution ? SequentialAggregator(+) : PolyesterAggregator(+),
+                 check_graphelement=true,
+                 dealias=false,
+                 sparse=false,
+                 verbose=false,
+                 fullytyped=false)
+    @argcheck sparse isa Bool "`sparse` must be `true` or `false`."
+    # TimerOutputs.reset_timer!()
+    @timeit_debug "Construct Network" begin
+        # collect all vertex/edgf to vector
+        all_same_v = vertexm isa VertexModel
+        all_same_e = edgem isa EdgeModel || ne(g) == 0
+        maybecopy = dealias ? copy : identity
+        _vertexm = all_same_v ? [maybecopy(vertexm) for _ in vertices(g)] : vertexm
+        _edgem   = if ne(g) == 0
+            EdgeModel[]
+        elseif all_same_e
+            [maybecopy(edgem) for _ in edges(g)]
+        else
+            edgem
+        end
+
+        @argcheck _vertexm isa Vector{<:VertexModel} "Expected VertexModels, got $(eltype(_vertexm))"
+        @argcheck _edgem isa Vector{<:EdgeModel} "Expected EdgeModels, got $(eltype(_edgem))"
+        @argcheck ne(g) > 0 || (edgem isa Vector && length(edgem) == 0) "Expected empty set of EdgeModels, got $edgem"
+        @argcheck length(_vertexm) == nv(g)
+        @argcheck length(_edgem) == ne(g)
+
+        if CHECK_COMPONENT[]
+            eidx = findall(is_loopback, _edgem)
+            simpleedges = collect(edges(g))[eidx]
+            degrees = Graphs.degree(g) # counts parallel edges
+            loopback_srcs = Set(e.src for e in simpleedges)
+
+            # the only edge at a ff vertex must be a loopback edge starting there
+            ERRORMSG = "Feed forward vertex models are only allowed as leave nodes (1 neighbor) \
+                        with single `LoopbackConnection` from satelite to cluster node! In other \
+                        scenarios can use `ff_to_constraint(vf)` on the vertex model to turn \
+                        feed forward outputs into algebraic states."
+            for v in findall(hasff, _vertexm)
+                (degrees[v] == 1 && v ∈ loopback_srcs) || throw(ArgumentError(ERRORMSG))
+            end
+
+            # every loopback edge must be the only edge at its injector
+            for (i, e) in zip(eidx, simpleedges)
+                if degrees[e.src] != 1
+                    throw(ArgumentError("All LoopbackConnection edges must originate from leaf nodes \
+                                     (exactly one edge)! Found at least one violating edge: $(_edgem[i])"))
+                end
+            end
+        end
+
+        # check if components alias eachother copy if necessary
+        # allready dealiase if provided as single functions
+        if dealias && !all_same_v
+            dealias!(_vertexm)
+        end
+        if dealias && !all_same_e
+            dealias!(_edgem)
+        end
+
+        verbose &&
+            println("Create dynamic network with $(nv(g)) vertices and $(ne(g)) edges:")
+        @argcheck execution isa ExecutionStyle "Execution type $execution not supported (choose from $(subtypes(ExecutionStyle)))"
+
+
+        if !allequal(outdim, _vertexm)
+            throw(ArgumentError("All vertex models must have the same output dimension!"))
+        end
+        if !allequal(outdim_dst, _edgem)
+            throw(ArgumentError("All edge models must have the same output dimension!"))
+        end
+        vdepth = outdim(first(_vertexm))
+        edepth = if length(_edgem) > 0
+            outdim_dst(first(_edgem))
+        else
+            maximum(_vertexm) do vertm
+                hasindim(vertm) ? indim(vertm) : 0
+            end
+        end
+
+        dynstates = mapreduce(dim, +, Iterators.flatten((_vertexm,_edgem)))
+
+        # create index manager
+        @timeit_debug "Construct Index manager" begin
+            valias = dealias ? :none : (all_same_v ? :all : :some)
+            ealias = dealias ? :none : (all_same_e ? :all : :some)
+            im = IndexManager(g, dynstates, edepth, vdepth, _vertexm, _edgem; valias, ealias)
+        end
+
+
+        # check graph_element metadata and attach if necessary
+        if check_graphelement
+            @timeit_debug "Check graph element" begin
+                if !all_same_v
+                    for (i, vf) in pairs(_vertexm)
+                        if has_graphelement(vf)
+                            if get_graphelement(vf) != i
+                                @warn "Vertex model $(vf.name) is placed at node index $i bus has \
+                                `graphelement` $(get_graphelement(vf)) stored in metadata. \
+                                The wrong data will be ignored! Use `check_graphelement=false` tu supress this warning."
+                            end
+                        end
+                    end
+                elseif has_graphelement(vertexm)
+                    @warn "Provided vertex model has assigned `graphelement` metadata. \
+                    but is used at every vertex. The `graphelement` will be ignored."
+                end
+                if !all_same_e
+                    for (iteredge, ef) in zip(im.edgevec, _edgem)
+                        if has_graphelement(ef)
+                            ge = get_graphelement(ef)
+                            src = get(im.unique_vnames, ge.src, ge.src)
+                            dst = get(im.unique_vnames, ge.dst, ge.dst)
+                            if iteredge.src != src || iteredge.dst != dst
+                                @warn "Edge model $(ef.name) at $(iteredge.src) => $(iteredge.dst) has wrong `:graphelement` $src => $dst). \
+                                The wrong data will be ignored! Use `check_graphelement=false` tu supress this warning."
+                            end
+                        end
+                    end
+                elseif length(_edgem) > 0 && has_graphelement(edgem)
+                    @warn "Provided edge model has assigned `graphelement` metadata. \
+                    but is used for all edges. The `graphelement` will be ignored."
+                end
+            end
+        end
+
+        # batch identical edge and vertex model
+        @timeit_debug "batch identical vertexes" begin
+            vidxs = if all_same_v
+                [collect(1:nv(g))]
+            else
+                _find_identical_components(_vertexm)
+            end
+        end
+        @timeit_debug "batch identical edges" begin
+            eidxs = if all_same_e && ne(g) > 0
+                [collect(1:ne(g))]
+            else
+                _find_identical_components(_edgem)
+            end
+        end
+
+        # create vertex batches and initialize with index manager
+        @timeit_debug "create vertex batches" begin
+            vertexbatches = map(vidxs) do idxs
+                VertexBatch(im, idxs; verbose)
+            end
+
+            if length(vertexbatches) ≤ MAX_UNROLLED_BATCHES
+                vertexbatches = Tuple(vertexbatches)
+            else
+                verbose &&
+                    println(" $(length(vertexbatches)) > $MAX_UNROLLED_BATCHES unique indices: don't unroll!")
+            end
+        end
+
+        # create edge batches and initialize with index manager
+        @timeit_debug "create edge batches" begin
+            edgebatches = map(eidxs) do idxs
+                EdgeBatch(im, idxs; verbose)
+            end
+            if length(edgebatches) ≤ MAX_UNROLLED_BATCHES
+                edgebatches = Tuple(edgebatches)
+            else
+                verbose &&
+                    println("$(length(edgebatches)) > $MAX_UNROLLED_BATCHES unique edges: don't unroll!")
+            end
+        end
+
+        @timeit_debug "initialize aggregator" begin
+            _aggregator = aggregator(im, edgebatches)
+        end
+
+        nl = NetworkLayer(im.g, edgebatches, _aggregator, im.edepth, im.vdepth)
+
+        @assert isdense(im)
+        mass_matrix = construct_mass_matrix(im)
+        N = ad_chunksize(im)
+        caches = (; output = DiffCache(zeros(im.lastidx_out), N),
+                    aggregation = DiffCache(zeros(im.lastidx_aggr), N),
+                    external = DiffCache(zeros(im.lastidx_extbuf), N))
+
+        gbufprovider = if usebuffer(execution)
+            EagerGBufProvider(im, edgebatches)
+        else
+            LazyGBufProvider(im, edgebatches)
+        end
+
+        loopback_map = has_loopback_edges(im) ? gen_loopback_map(im) : nothing
+
+        # create map for external inputs
+        extmap = has_external_input(im) ? ExtMap(im) : nothing
+
+        core = NetworkCore(execution, vertexbatches, nl, gbufprovider, loopback_map, extmap, caches)
+        nw = Network(core, im, mass_matrix, nothing; fullytyped)
+
+    end
+    # TimerOutputs.print_timer()
+    sparse && set_jac_prototype!(nw; verbose)
+    return nw
+end
+
+function _find_identical_components(models)
+    # identical components are based on identical _component_hash
+    # those can have different metadata but are considered identical when in comes to batching
+    hashs = _component_hash.(models)
+    find_identical(hashs)
+end
+# hash condition: components with same hash will end up in the same batch
+function _component_hash(c::ComponentModel)
+    hash((
+        typeof(c), # same type
+        compf(c),  # same f-function
+        compg(c),  # same g-function
+        fftype(c), # same feedforward type
+        dim(c),    # same state dimension
+        outdim(c), # same output dimension
+        pdim(c),   # same parameter dimension
+        extdim(c), # same external input dimension
+    ))
+end
+
+function Network(vertexfs, edgefs; warn_order=true, legacy_graph=true, kwargs...)
+    vertexfs = vertexfs isa VertexModel ? [vertexfs] : vertexfs
+    edgefs   = if edgefs isa EdgeModel
+        [edgefs]
+    elseif length(edgefs) == 0
+        EdgeModel[]
+    else
+        edgefs
+    end
+    @argcheck all(has_graphelement, edgefs) "All edge models must have assigned `graphelement` to implicitly construct graph!"
+    # vertices must either all have unique names or all have graphelement set
+    if all(has_graphelement, vertexfs)
+        vidxs = get_graphelement.(vertexfs)
+    elseif allunique(x -> x.name, vertexfs) && !any(has_graphelement, vertexfs)
+        vidxs = collect(1:length(vertexfs))
+    else
+        throw(ArgumentError("Either all vertex models must have assigned `graphelement` or all vertex models must have unique `name` but no graphelement!"))
+    end
+
+    allunique(vidxs) || throw(ArgumentError("All vertex models must have unique `graphelement`!"))
+    sort(vidxs) == 1:length(vidxs) || throw(ArgumentError("Vertex models must have `graphelement` in range 1:length(vertexfs)!"))
+
+    vdict = Dict(vidxs .=> vertexfs)
+
+    # find unique mappings from name => graphelement
+    vnamedict = unique_mappings(getproperty.(vertexfs, :name), vidxs)
+
+    simpleedges::Vector{SimpleEdge{Int}} = map(edgefs) do e
+        ge = get_graphelement(e)
+        src = get(vnamedict, ge.src, ge.src)
+        dst = get(vnamedict, ge.dst, ge.dst)
+        if src isa Symbol || dst isa Symbol
+            throw(ArgumentError("Edge graphelement $src => $dst contains non-unique or unknown vertex names!"))
+        end
+        SimpleEdge(src, dst)
+    end
+
+    # Parallel edges need a ComponentGraph which keeps the input order. Everything else is
+    # converted to SimpleGraph/SimpleDiGraph, whose edges(g) order decides the edge indices.
+    cg = ComponentGraph(length(vertexfs), simpleedges)
+    gtype = legacy_graph ? legacy_graph_type(cg) : :none
+
+    if gtype == :none
+        g = cg
+        efs_ordered = collect(edgefs)
+    else
+        g = gtype == :simple ? SimpleGraph(length(vertexfs)) : SimpleDiGraph(length(vertexfs))
+        for edge in simpleedges
+            if g isa SimpleDiGraph && has_edge(g, edge.dst, edge.src)
+                @warn "Edges $(edge.src) -> $(edge.dst) and $(edge.dst) -> $(edge.src) are both present in the graph!"
+            end
+            r = add_edge!(g, edge)
+            r || error("Could not add edge $(edge) to graph $(g)!")
+        end
+        edict = Dict(simpleedges .=> edgefs)
+        efs_ordered = [edict[k] for k in edges(g)]
+    end
+
+    vfs_ordered = [vdict[k] for k in vertices(g)]
+    if warn_order && any(vfs_ordered .!== vertexfs)
+        @warn "Order of vertex models was changed to match the natural ordering of vertices in graph (as in `vertices(g)`)! \
+               Concretely, this means that `nw[VIndex(1)]` referencs the vertex with `vidxs=1` \
+               **and not necessarily the first vertex model in the provided list**. \
+               Disable warning with kw `warn_order=false`."
+    end
+    if warn_order && any(efs_ordered .!== edgefs)
+        @warn "Order of edge models was changed to match the natural ordering of edges in graph (as in `edges(g)`)! \
+               Concretely, this means that `nw[EIndex(1)]` references the first edge from `edges(g)` \
+               **and not necessarily the first edge model in the provided list**. \
+               Disable warning with kw `warn_order=false`."
+    end
+
+    Network(g, vfs_ordered, efs_ordered; check_graphelement=false, kwargs...)
+end
+
+"""
+    dealias!(cfs::Vector{<:ComponentModel})
+
+Checks if any component models reference the same metadtata/symmetada fields and
+creates copies of them if necessary.
+"""
+function dealias!(cfs::Vector{<:ComponentModel}; warn=false)
+    ag = aliasgroups(cfs)
+
+    isempty(ag) && return cfs # nothign to do
+
+    copyidxs = reduce(vcat, values(ag))
+
+    cfs[copyidxs] = copy.(cfs[copyidxs])
+end
+
+
+"""
+    aliasgroups(cfs::Vector{<:ComponentModel})
+
+Returns a dict `cf => idxs` which contains all the component models
+which appear multiple times with all their indices.
+"""
+function aliasgroups(cfs::Vector{T}) where {T<:ComponentModel}
+    d = IdDict{T, Vector{Int}}()
+
+    for (i, cf) in pairs(cfs)
+        if haskey(d, cf) # c allready present
+            push!(d[cf], i)
+        else
+            d[cf] = [i]
+        end
+    end
+
+    filter!(x -> length(x.second) > 1, d)
+end
+
+function VertexBatch(im::IndexManager, idxs::Vector{Int}; verbose)
+    first_comp = im.vertexm[first(idxs)]
+    _compT  = dispatchT(first_comp)
+    _compf  = compf(first_comp)
+    _compg  = compg(first_comp)
+    _ff     = fftype(first_comp)
+    _dim    = dim(first_comp)
+    _pdim   = pdim(first_comp)
+    _outdim = outdim(first_comp)
+    _extdim = extdim(first_comp)
+
+    strides = register_vertices!(im, idxs, _dim, _outdim, _pdim, _extdim)
+
+    verbose && println(" - VertexBatch: dim=$(_dim), pdim=$(_pdim), length=$(length(idxs))")
+
+    ComponentBatch(_compT, idxs, _compf, _compg, _ff, strides.state, strides.p, strides.in, strides.out, strides.ext)
+end
+
+function EdgeBatch(im::IndexManager, idxs::Vector{Int}; verbose)
+    first_comp = im.edgem[first(idxs)]
+    _compT  = dispatchT(first_comp)
+    _compf  = compf(first_comp)
+    _compg  = compg(first_comp)
+    _ff     = fftype(first_comp)
+    _dim    = dim(first_comp)
+    _pdim   = pdim(first_comp)
+    _outdim = outdim(first_comp)
+    _extdim = extdim(first_comp)
+
+    strides = register_edges!(im, idxs, _dim, _outdim, _pdim, _extdim)
+
+    verbose && println(" - EdgeBatch: dim=$(_dim), pdim=$(_pdim), length=$(length(idxs))")
+
+    ComponentBatch(_compT, idxs, _compf, _compg, _ff, strides.state, strides.p, strides.in, strides.out, strides.ext)
+end
+
+batch_by_idxs(v, idxs::Vector{Vector{Int}}) = [v for batch in idxs]
+function batch_by_idxs(v::AbstractVector, batches::Vector{Vector{Int}})
+    @assert length(v) == sum(length.(batches))
+    [v[batch] for batch in batches]
+end
+
+function construct_mass_matrix(im; type=nothing)
+    vertexd = filter(pairs(im.vertexm)) do (_, c)
+        hasproperty(c,:mass_matrix) && c.mass_matrix != LinearAlgebra.I
+    end
+    edged = filter(pairs(im.edgem)) do (_, c)
+        hasproperty(c,:mass_matrix) && c.mass_matrix != LinearAlgebra.I
+    end
+    if isempty(vertexd) && isempty(edged)
+        return LinearAlgebra.I
+    end
+
+
+    # go through all mass matrices, find type and diagonal structure of massmatrix
+    all_diag = true
+    _type = Bool
+    for comp in Iterators.flatten((values(vertexd), values(edged)))
+        _check_massmatrix(comp)
+        _type = promote_type(_type, eltype(comp.mass_matrix))
+        all_diag = all_diag && LinearAlgebra.isdiag(comp.mass_matrix)
+    end
+    if type != nothing
+        _type = type
+    end
+
+    mass_matrix = if all_diag
+        UniformScaling{_type}(1)(im.lastidx_dynamic)
+    else
+        Matrix(UniformScaling{_type}(1)(im.lastidx_dynamic))
+    end
+    _fill_mass_matrix!(mass_matrix, im, vertexd, edged)
+end
+
+function _fill_mass_matrix!(mass_matrix, im, vertexd, edged)
+    for (i, c) in vertexd
+        range = im.v_data[i]
+        # cannot broadcast uniform scaling, collect to diagonal in that case
+        mm = c.mass_matrix isa UniformScaling ? c.mass_matrix(length(range)) : c.mass_matrix
+        mass_matrix[range, range] .= mm
+    end
+    for (i, c) in edged
+        range = im.e_data[i]
+        mm = c.mass_matrix isa UniformScaling ? c.mass_matrix(length(range)) : c.mass_matrix
+        mass_matrix[range, range] .= mm
+    end
+    mass_matrix
+end
+
+function _check_massmatrix(c)
+    if c.mass_matrix isa UniformScaling
+        return
+    end
+    if length(size(c.mass_matrix)) == 2
+        @argcheck size(c.mass_matrix) == (dim(c), dim(c))
+        return
+    end
+    throw(ArgumentError("Mass matrix must be a square matrix,\
+                         a uniform scaling, or scalar. Got $(c.mass_matrix) \
+                         in component :$(c.name)."))
+end
+
+"""
+    Network(nw::Network; g, vertexm, edgem, copy_components=true, kwargs...)
+
+Rebuild the Network with same graph and vertex/edge models but possibly different kwargs.
+If `copy_components=true` (default) then the vertex and edge models are copied.
+
+A network built from one which carries a Jacobian sparsity pattern carries one too: an
+unchanged structure hands the old pattern over, a changed one detects it anew. Pass
+`sparse=false` to drop it.
+"""
+function Network(nw::Network;
+                 g = nothing,
+                 vertexm = nothing,
+                 edgem = nothing,
+                 copy_components = true,
+                 kwargs...)
+
+    # Check if structure is identical (nothing means unchanged)
+    structurally_identical = isnothing(g) && isnothing(vertexm) && isnothing(edgem)
+
+    # Fill defaults
+    g = isnothing(g) ? nw.im.g : g
+    vertexm = if isnothing(vertexm)
+        copy_components ? copy.(nw.im.vertexm) : nw.im.vertexm
+    else
+        vertexm
+    end
+    edgem = if isnothing(edgem)
+        copy_components ? copy.(nw.im.edgem) : nw.im.edgem
+    else
+        edgem
+    end
+
+    _kwargs = Dict(:execution => executionstyle(nw),
+                   :aggregator => get_aggr_constructor(nw.layer.aggregator),
+                   :check_graphelement => true,
+                   :dealias => false,
+                   # a network built from a sparse one stays sparse
+                   :sparse => !isnothing(nw.jac_prototype),
+                   :verbose => false,
+                   :fullytyped => isfullytyped(nw))
+    for (k, v) in kwargs
+        _kwargs[k] = v
+    end
+
+    # If the structure did not change the pattern cannot have changed either, so hand the old
+    # one over rather than paying for the detection a second time.
+    reuse_prototype = _kwargs[:sparse] === true && structurally_identical && !isnothing(nw.jac_prototype)
+    reuse_prototype && (_kwargs[:sparse] = false)
+
+    # check, that we actually provide all of the arguments
+    # mainly so we don't forget to add it here if we introduce new kw arg to main constructor
+    m = only(methods(Network, [typeof(g), typeof(vertexm), typeof(edgem)]))
+    wrong_kwargs = setdiff(keys(_kwargs), Set(Base.kwarg_decl(m)))
+    if !isempty(wrong_kwargs)
+        throw(ArgumentError("Got unknown keyword arguments $(collect(wrong_kwargs)) for copy-constructor Network(nw; kwargs...).\n\
+                             Possible arguments: $(collect(Set(Base.kwarg_decl(m))))"))
+    end
+    @assert keys(_kwargs) == Set(Base.kwarg_decl(m))
+
+    new_nw = Network(g, vertexm, edgem; _kwargs...)
+
+    if reuse_prototype
+        getfield(new_nw, :jac_prototype)[] = nw.jac_prototype
+    end
+
+    return new_nw
+end
+
+"""
+    copy(nw::Network)
+
+Copy a `Network`. The vertex and edge component models are copied (see
+[`copy(::ComponentModel)`](@ref) for how their metadata is dealiased) while the
+underlying graph is shared. Much cheaper than `deepcopy(nw)`, which would additionally
+clone the (immutable) graph, caches and buffers as well as the components' symbolic
+compile artifacts (e.g. the MTK `System`s stored in metadata).
+"""
+Base.copy(nw::Network) = Network(nw)
