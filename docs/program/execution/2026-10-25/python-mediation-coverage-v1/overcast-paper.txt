@@ -1,0 +1,1518 @@
+                                           Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of
+                                                                 Continuous-Valued Interventions
+
+
+                                                Andrew Jesson 1 Alyson Douglas 2 Peter Manshausen 2 Nicolai Meinshausen 3 Philip Stier 2 Yarin Gal 1
+                                                                                           Uri Shalit 4
+
+
+                                                                    Abstract                               1. Introduction
+arXiv:2204.10022v1 [cs.LG] 21 Apr 2022
+
+
+
+
+                                                Estimating the effects of continuous-valued in-            Understanding the causal effect of a continuous variable
+                                                terventions from observational data is critically          (termed “treatment”) on individual units and subgroups is
+                                                important in fields such as climate science, health-       crucial across many fields. In economics, we might like to
+                                                care, and economics. Recent work focuses on                know the effect of price on demand from different types of
+                                                designing neural-network architectures and regu-           customers. In healthcare, we might like to know the effect
+                                                larization functions to allow for scalable estima-         of medication dosage on health outcomes for patients of
+                                                tion of average and individual-level dose response         various ages and comorbidities. And in climate science, we
+                                                curves from high-dimensional, large-sample data.           might like to know the effects of anthropogenic emissions
+                                                Such methodologies assume ignorability (all con-           on cloud formation and lifetimes under variable atmospheric
+                                                founding variables are observed) and positivity            conditions. In many cases, these effects must be estimated
+                                                (all levels of treatment can be observed for every         from observational data as experiments are often costly,
+                                                unit described by a given covariate value), which          unethical, or otherwise impossible to conduct.
+                                                are especially challenged in the continuous treat-
+                                                ment regime. Developing scalable sensitivity and           Often, estimating causal effects from observational data can
+                                                uncertainty analyses that allow us to understand           only be done under certain conditions, some of which are
+                                                the ignorance induced in our estimates when these          not testable from data. The most prominent are the assump-
+                                                assumptions are relaxed receives less attention.           tions that all confounders between treatment and outcome
+                                                Here, we develop a continuous treatment-effect             have been measured (“no hidden confounders”), and that
+                                                marginal sensitivity model (CMSM) and derive               any level of treatment could occur for any observable co-
+                                                bounds that agree with both the observed data and          variate vector (“positivity”). These assumptions and their
+                                                a researcher-defined level of hidden confound-             possible violations introduce uncertainty when estimating
+                                                ing. We introduce a scalable algorithm to de-              treatment effects. Estimating this uncertainty is crucial for
+                                                rive the bounds and uncertainty-aware deep mod-            decision-making and scientific understanding. For example,
+                                                els to efficiently estimate these bounds for high-         understanding how unmeasured confounding can change
+                                                dimensional, large-sample observational data. We           our estimates about the impact of emissions on cloud prop-
+                                                validate our methods using both synthetic and real-        erties can help us to modify our models in order to increase
+                                                world experiments. For the latter, we work in con-         our confidence in future projections of global warming.
+                                                cert with climate scientists interested in evaluating      In this work, we present a novel marginal sensitivity model
+                                                the climatological impacts of human emissions on           for continuous treatment effects. Using this model, we de-
+                                                cloud properties using satellite observations from         velop a method that, for a specified level of violation of
+                                                the past 15 years: a finite-data problem known to          the no-hidden confounding assumption, gives the user a
+                                                be complicated by the presence of a multitude of           corresponding interval representing the “ignorance region”
+                                                unobserved confounders.                                    of the possible treatment outcomes per covariate and treat-
+                                                                                                           ment level [D’Amour, 2019]. We build on prior work [Tan,
+                                            1
+                                              OATML, Department of Computer Science, University of         2006; Kallus et al., 2019; Jesson et al., 2021], adapting
+                                         Oxford 2 Atmospheric, Oceanic, and Planetary Physics, Depart-     to the unique technical challenge presented by continuous
+                                         ment of Physics, University of Oxford 3 Seminar for Statistics,
+                                         Department of Mathematics, ETH Zurich 4 Machine Learning
+                                                                                                           treatments, such as modifying the existing model in order
+                                         and Causal Inference in Healthcare Lab, Technion – Israel In-     to work with propensity score densities instead of propen-
+                                         stitute of Technology. Correspondence to: Andrew Jesson <an-      sity score probabilities (see Section 3.1 below). We further
+                                         drew.jesson@cs.ox.ac.uk>.                                         derive bootstrapped uncertainty intervals for the aforemen-
+                                                                                                           tioned ignorance regions and show how the intervals can be
+                                         Preliminary work. Under review.
+         Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+efficiently computed, thus providing a method for quanti-           and the APO is identifiable from the observational distribu-
+fying the uncertainty presented by finite data and possible         tion P (X, T, YT ) as:
+violations of the positivity assumption. We validate our
+methods on synthetic data and provide an application on                                 µ
+                                                                                        e(t) = E [e
+                                                                                                  µ(X, t)] .                  (4)
+real-world satellite observations of the effects of anthro-
+pogenic emissions on cloud properties. For this application,        In practice however, it is rare that these assumptions hold:
+we develop a new neural network architecture for estimating         there will almost always be unobserved confounders so that
+continuous treatment effects that can take into account spa-        ignorability (also known as unconfoundedness or exogene-
+tiotemporal covariates. We find that the model accurately           ity) assumption will be violated, YT 6⊥ ⊥ T | X. Moreover,
+captures known patterns of cloud deepening in response to           due to both the finite sample of observed data, D, and also
+anthropogenic emission loading, with plausible intervals of         by the continuity of treatment T, there will most certainly be
+uncertainty due to hidden confounders present in real-world         values, T = t, that are unobserved for a given covariate mea-
+applications.                                                       surement, X = x, leading to violations or near violations
+                                                                    of the positivity assumption (also known as overlap).
+2. Problem Setting
+                                                                    3. Interval Estimators for CAPO and APO
+The observable covariates are modeled as the random vari-
+able X ∈ X . For simplicity of notation we will assume that         3.1. Continuous Marginal Sensitivity Model
+X is a d-dimensional continuous space: X ⊆ Rd , but this            In this section we define a new marginal sensitivity model
+does not preclude more diverse covariate spaces. Instances          (MSM [Tan, 2006]) for continuous treatment variables. We
+of X are denoted by x. The observable continuous treatment          call it the continuous marginal sensitivity model or CMSM.
+variable is modeled as the random variable T ∈ T ⊆ R.
+Instances of T are denoted by t. The observable continu-            The conditional distributions of the potential outcomes given
+ous outcome variable is modeled as the random variable              the observed treatment assigned,
+Y ∈ Y ⊆ R. Instances of Y are denoted by y. Using the
+Neyman-Rubin potential outcomes framework [Neyman,                              {P (Yt | T = t, X = x) : t ∈ T } ,
+1923; Rubin, 1974; Sekhon, 2008], we let the potential
+                                                                    are identifiable from observational data. But the marginal
+outcome of a treatment level t be modeled by the random
+                                                                    distributions of the potential outcomes over all possible
+variable Yt ∈ Y. Instances of Yt are denoted by yt . We
+                                                                    treatment values, each expressed as a continuous mixture,
+assume that the observational data, Dn , consists of n real-
+                                                             n
+izations of the random variables, Dn = {(xi , ti , yi )}i=1 .                           Z
+We let the observed outcome be the potential outcome of             P (Yt | X = x) =       p(t0 | x)P (Yt | T = t0 , X = x)dt0 ,
+                                                                                         T
+the assigned treatment level, yi = yti , thus assuming non-
+interference and consistency [Rubin, 1980]. Moreover, we            ∀t ∈ T , are not. This is because the component distri-
+assume that the tuple (xi , ti , yi ) are i.i.d. samples from the   butions, P (Yt | T = t0 , X = x), are not identifiable in
+joint distribution P (X, T, YT ), where YT = {Yt : t ∈ T }.         general as Yt cannot be observed for units under treatment
+We are interested in the conditional average potential out-         level T = t0 : the well-known “fundamental problem of
+come (CAPO) function,                                               causal inference” [Holland, 1986]. Yet, under the ignor-
+                                                                    ability assumption, P (Yt | T = t, X = x) = P (Yt |
+                 µ(x, t) = E [Yt | X = x] ,                  (1)    T = t0 , X = x) for all t0 ∈ T . Thus, P (Yt | X = x)
+                                                                    and P (Yt | T = t, X = x) are identical, which implies
+                                                                    that any divergence between P (Yt | T = t0 , X = x) and
+and the average potential outcome (APO) or dose-response
+                                                                    P (Yt | T = t, X = x) is indicative of hidden confounding.
+function,
+                                                                    However, such divergence can obviously never be observed
+                     µ(t) = E [µ(X, t)] ,                    (2)    in practice.
+for continuous valued treatments.                                   The CMSM postulates a limited degree of divergence be-
+                                                                    tween the unidentifiable P (Yt | X = x) and the identifiable
+Under the assumptions of ignorability, YT ⊥  ⊥ T | X, and           P (Yt | T = t, X = x) by saying that the rate of change of
+positivity, p(t | X = x) > 0 : ∀t ∈ T , ∀x ∈ X (jointly             P (Yt | X = x) with respect to P (Yt | T = t, X = x) is
+known as strong ignorability [Rosenbaum & Rubin, 1983]),            bounded by some value greater than or equal to 1. This is
+the CAPO is identifiable from the observational distribution        expressed by the Radon-Nikodym derivative,
+P (X, T, YT ) as:
+                                                                                                  dP (Yt | X = x)
+              e(x, t) = E [Y | T = t, X = x] ,
+              µ                                              (3)              λ(yt ; x, t) =                          ,       (5)
+                                                                                               dP (Yt | T = t, X = x)
+         Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+under the assumption that P (Yt | X = x) is absolutely                  a given Λ, the set of identified CAPO and APO functions
+continuous with respect to P (Yt | T = t, X = x), ∀t ∈ T .              are those that are consistent with both the observational data
+Under the additional assumption of equivalence between                  D and the continuous marginal sensitivity model. All of
+P (Yt | T = t, X = x) and the Lebesgue measure,                         the functions in this set are possible from the point of view
+the Radon-Nikodym derivative is equivalent to the ratio                 of the observational data alone. Thus, we seek a function
+of the composite probability measures’ density functions:               that maps covariate values, X = x, to the upper and lower
+p(yt | x)/p(yt | t, x). By applying Bayes’s rule to the de-             bounds of this set.
+nominator of the density ratio and cancelling terms, we can
+                                                                        For t ∈ T and x ∈ X , let p(y | t, x) denote the den-
+express λ as the ratio between the unidentifiable “complete”
+                                                                        sity of the distribution P (Yt | T = t, X = x). As
+propensity density for treatment p(t | yt , x) and the identifi-
+                                                                        a reminder, this distribution is identifiable from observa-
+able “nominal” propensity density for treatment p(t | x),
+                                                                        tional data, but without further assumptions the CAPO,
+                                     p(t | x)                           µ(x, t) = E [Yt | X = x], is not. We can express the
+                   λ(yt ; x, t) =                 ,              (6)    CAPO in terms of its identifiable and unidentifiable compo-
+                                    p(t | yt , x)
+                                                                        nents as
+where we will additionally assume positivity of the com-
+                                                                                        y p(yt |t,x) dyt
+                                                                                    R
+plete propensity density p(t | yt , x) > 0 : ∀t ∈ T , ∀yt ∈                           Y t p(t|yt ,x)
+Y, ∀x ∈ X . The case where λ = 1 indicates no hidden con-                 µ(x, t) = R p(y |t,x)
+                                                                                             t
+                                                                                       Y p(t|yt ,x)
+                                                                                                    dyt
+founding (the nominal and complete propensity densities are                                R
+the same), whereas deviations of λ from 1 indicate a belief                                    w(y, x)(y − µ
+                                                                                                           e(x, t))p(y | t, x)dy
+                                                                             =µ e(x, t) + Y2          −1
+                                                                                                         R                       ,
+in non-trivial hidden confounding. Proof (Appendix A.3)                                   (Λ − 1) + Y w(y, x)p(y | t, x)dy
+and an analysis of this derivation are given in Appendix A.
+                                                                            ≡ µ(w(y, ·); x, t, Λ)
+Finally, the model supposes that the “complete” propensity                                                                        (9)
+density for subjects with covariates X = x can be different
+from the “nominal” propensity density by at most a factor               where, by a one-to-one change of variables, p(t|y1t ,x) =
+of Λ,                                                                   α(x; t, Λ) + w(y, x)(β(x; t, Λ) − α(x; t, Λ)) with w : Y ×
+                           p(t | x)                                     X → [0, 1]. Both Kallus et al. [2019] and later Jesson et al.
+                 Λ−1 ≤                  ≤ Λ,            (7)
+                          p(t | yt , x)                                 [2021] provide analogous expressions for the CAPO in the
+where the user specified Λ ≥ 1 indicates our belief in the              discrete treatment regime under the MSM, and we provide
+degree of hidden confounding. The inequalities in (7) lead              our derivation in Lemma 1.
+to bounds on the inverse of the unidentifiable complete                 The uncertainty set that includes all possible values of
+propensity density in terms of functions of the inverse of the          w(y, x) that agree with the CMSM, i.e. the set of func-
+identifiable nominal propensity density:                                tions that violate ignorability by no more than Λ can now
+                                1                                       be expressed as
+           α(x; t, Λ) ≤                  ≤ β(x; t, Λ),           (8)
+                           p(t | yt , x)                                     W = {w : w(y, x) ∈ [0, 1]      ∀y ∈ Y, ∀x ∈ X }.
+where α(x; t, Λ) = 1/Λp(t | x) and β(x; t, Λ) = Λ/p(t |
+x).                                                                     With this set of functions, we can now define the CAPO and
+Remark 1. Note that the CMSM is defined in terms of a                   APO bounds under the CMSM.
+density ratio, p(t | x)/p(t | yt , x), whereas the MSM for              Definition 1. CAPO Identified Set under the CMSM.
+binary-valued treatments is defined in terms of an odds                 The lower bound under the CMSM with parameter Λ for the
+          P (t|x)        P (t|yt ,x)
+ratio, (1−P   (t|x)) / (1−P (t|yt ,x)) . It is important to note here   CAPO is
+that naively substituting densities into the MSM for binary-
+treatments would violate the condition that λ > 0 as either                    µ(x, t; Λ) := inf µ(w(y, x); x, t, Λ),           (10a)
+                                                                                              w∈W
+p(t | x) or p(t | yt , x) can be greater than one, which would
+                                                                                          = inf µ(w(y); x, t, Λ),               (10b)
+result in a negative 1 − p(t | ·).                                                           w∈WniH
+
+
+3.2. Continuous Treatment Effect Bounds Without                         were WniH = {w : H(yH − y)}yH ∈Y and H is the Heavi-
+     Ignorability                                                       side step function. The corresponding upper bound is
+
+We are interested in upper and lower bounds on the CAPO                        µ(x, t; Λ) := sup µ(w(y, x); x, t, Λ),           (11a)
+and APO functions. Without ignorability, there is no single                                   w∈W
+
+CAPO or APO (dose-response) function that can be point                                    = sup µ(w(y); x, t, Λ),               (11b)
+                                                                                                H
+                                                                                             w∈Wnd
+identified from observational data. Under the CMSM with
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+        H
+were Wnd   = {w : H(y − yH )}yH ∈Y . Lemma 2 proves               The bounds on the expected potential outcome over
+the equivalence of eq. (11a) and eq. (11b) for bounded Y .        µ(w(y); x, t, Λ) are completely defined in terms of iden-
+The equivalence of eq. (10a) and eq. (10b) can be proved          tifiable quantities: namely, the conditional density of the
+analogously.                                                      outcome given the assigned treatment and measured co-
+Definition 2. APO Identified Set under the CMSM.                  variates, p(y | t, x); and the conditional expected outcome
+The bounds under the CMSM with parameter Λ for the APO            e(x, t). Thus, we define a density estimator p(y | t, x, θ),
+                                                                  µ
+are                                                               and estimator µ(x, t; θ) parameterized by instances θ of
+                                                                the random variable Θ. The choice of density estimator
+               µ(t; Λ) := E µ(X, t; Λ) ,
+                                                     (12)         is ultimately up to the user, and will depend on the scale
+               µ(t; Λ) := E [µ(X, t; Λ)] .                        of the problem examined and the distribution of the out-
+Remark 2. It is worth pausing here and breaking down Equa-        come variable Y. In Section 3.6 we will outline how to
+tion (9) to get an intuitive sense of how the specification of    define appropriate density estimators for high-dimensional,
+Λ in the CMSM affects the bounds on the causal estimands.         large-sample, continuous-valued treatment problems.
+
+First, let’s consider the case where Λ → 1. Then, the             Next, we need an estimator of the integrals in
+(Λ2 − 1)−1 term and thus the denominator in Equation (9)          µ(w(y); x, t, Λ, θ). We use Monte-Carlo (MC) integration
+tend to infinity, and we are left with,                           to estimate the expectation of arbitrary functions h(y) with
+                                                                  respect to the parametric density estimate p(y | t, x, θ):
+             µ(w(y); x, t, Λ → 1) → µ
+                                    e(x, t).                                           m
+                                                                                    1 X
+Here, we see that as we strengthen the ignorability assump-          I(h(y)) :=           h(yi ),   yi ∼ p(y | t, x, θ).    (13)
+                                                                                    m i=1
+tion, the CAPO under Λ, µ(w(y); x, t, Λ), converges to the
+empirical estimate of the CAPO, µe(x, t), as expected. Thus,      Gauss-Hermite quadrature can alternatively be used as an
+the supremum and infimum expressions in Definition 1 and          estimator of these expectations for continuous valued out-
+Definition 2 become independent of w, and the ignorance           comes modelled by Gaussian or Mixture of Gaussian condi-
+intervals concentrate to the points of the empirical CAPO         tional densities. See Appendix C for details.
+and APO, respectively.
+                                                                  The semi-parametric estimators for the CAPO and APO
+Now let’s consider the case where we completely relax the         bounds under the CMSM are now defined.
+ignorability assumption, Λ → ∞. Then, the (Λ2 − 1)−1              Definition 3. Semi-parametric estimator of the CAPO iden-
+term tends to zero, and we are left with,                         tified set under the CMSM and observed data.
+   µ(w(y); x, t, Λ → ∞)                                           The semi-parametric bound estimators under the CMSM
+                   R                                              with sensitivity parameter Λ for the CAPO are
+                     w(y)(y − µ
+                              e(x, t))p(y | t, x)dy
+     →µ e(x, t) + Y     R                                              µ(x, t; Λ, θ) := inf µ(w(y); x, t, Λ, θ),           (14a)
+                         Y
+                           w(y)p(y | t, x)dy,                                              w∈WniH
+       =µ
+        e(x, t) +        E        [Y − µ
+                                       e(x, t)],                       µ(x, t; Λ, θ) := sup µ(w(y); x, t, Λ, θ),           (14b)
+                    p(w(y)|x,t)                                                               H
+                                                                                           w∈Wnd
+
+where, p(w(y) | x, t) ≡ R w(y)p(y|t,x)
+                                w(y)p(y|t,x)dy
+                                               , a distribution   where,
+                              Y
+over Y given X = x and T = t. This means that when we                                                 I (w(y)(y − µ
+                                                                                                                  e(x, t; θ)))
+completely relax the ignorability assumption the CAPO can         µ(w(y); x, t, Λ, θ) ≡ µ
+                                                                                        e(x, t; θ)+      2     −1
+                                                                                                       (Λ − 1) + I (w(y))
+be the entire range of Y, for bounded Y.
+                                                                  Definition 4. Semi-parametric estimator of the APO identi-
+In sum, the parameter Λ can be understood to reflect the          fied set under the CMSM and observed data.
+proportion of unexplained variation in Y that we allow to         The semi-parametric bound estimators under the CMSM
+be attributed to unobserved confounding after observing           with sensitivity parameter Λ for the APO are
+X = x and T = t. When a user sets Λ to 1, they assume that                                                   
+                                                                                µ(t; Λ, θ) := E µ(X, t; Λ, θ) ,
+all of the unexplained variation in Y comes from unknown                                                               (15)
+processes that are independent of T. As the user increases Λ,                   µ(t; Λ, θ) := E [µ(X, t; Λ, θ)] .
+the assume that an increasing proportion of the unexplained       Theorem 1. In the limit of data (n → ∞) and MC sam-
+variation in Y can be contributed to processes that are also      ples (m → ∞), for observed (X = x, T = t) ∈ Dn ,
+causally connected to T.                                          we assume that p(y | t, x, θ) converges in measure to
+                                                                  p(y | t, x), µ
+                                                                               e(x, t; θ) is a consistent estimator of µ
+                                                                                                                       e(x, t),
+3.3. Semi-Parametric Interval Estimator                           and p(t | yt , x) is bounded away from 0 uniformly for
+                                                                                                           p
+Following Jesson et al. [2021], we develop a semi-                all yt ∈ Y. Then, µ(x, t; Λ, θ) → µ(x, t; Λ) and
+                                                                                p
+parametric estimator of the bounds in Definitions 1 and 2.        µ(x, t; Λ, θ) → µ(x, t; Λ).
+          Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+3.4. Solving for w                                                3.5. Uncertainty about the Continuous Treatment
+                                                                       Effect Interval
+We are interested in a scalable algorithm to compute the
+intervals on the CAPO function (14) and the APO (dose-            Following Zhao et al. [2019], Dorn & Guo [2021], and
+response) function (15). The need for scalability stems from      Chernozhukov et al. [2021], we construct (1 − α) confi-
+both dataset size and the need to evaluate the intervals at       dence intervals for the upper and lower bounds under the
+multiple values of both the continuous treatment variable         CMSM using the percentile bootstrap estimator. Let PD
+t ∈ T , and the sensitivity parameter Λ, which could be           be the empirical distribution of the observed data sample,
+arbitrarily many. The bounds on the CAPO function can be                                                           bj }nb be
+                                                                  D = {xi , ti , yi }ni=1 = {Si }ni=1 . Let PbD = {D   k=1
+calculated independently for each instance X = x, and the         the bootstrap distribution over nb datasets, Dbk = {Sb i }n ,
+                                                                                                                            i=1
+bounds on the APO are taken with respect to an expectation        sampled with replacement from the empirical distribution,
+over the CAPO function bounds.                                    PD . Let Qα be the α-percentile of µ(w(y); x, t, Λ, θ) in
+                                                                  the bootstrap resampling distribution:
+Algorithm 1 Grid Search Interval Optimizer
+                                                                                  n                                    o
+Require: x is an instance of X, t is a treatment level to              Qα := inf∗ PbD (µ(w(y); x, t, Λ, θ) ≤ µ∗ ) ≥ α .
+                                                                               µ
+    evaluate, Λ is a belief in the amount of hidden confound-
+    ing, θ are optimized model parameters, Yb is a set of         Finally, let θk be the parameters of the model fit on the k-th
+    unique values {y ∼ p(y | t, x, θ)}.                           bootstrap sample of the data. Then, the bootstrap confidence
+ 1: function G RID S EARCH(x, t, Λ, θ, Y)  b
+                                                                  interval of the upper and lower bounds of the CAPO function
+ 2:     µ ← −∞, y ← 0                                             under the CMSM are given by:
+ 3:     µ ← ∞, y ← 0                                                                         h                             i
+ 4:     for yH ∈ Yb do                                              CIb (µ(x, t; Λ, α)) := µb (x, t; Λ, α), µb (x, t; Λ, α) ,
+ 5:         κ ← µ(H(y − yH ); x, t, Λ, θ)                                                                                   (16)
+ 6:         κ ← µ(H(yH − y); x, t, Λ, θ)                          where,
+ 7:         if κ > µ then                                                                                              
+ 8:             µ ← κ, y ← yH                                                                                        b
+                                                                       µb (x, t; Λ, α) = Qα/2 µ(x, t; Λ, θk , y) k=1 ,
+ 9:         if κ < µ then
+10:             µ ← κ, y ← yH                                     and
+11:       return y, y                                                                        
+                                                                                                                  b
+                                                                                                                     
+                                                                     µb (x, t; Λ, α) = Q1−α/2 {µ(x, t; Λ, θk , y)}k=1 .
+
+The upper and lower bounds for the CAPO function un-              Furthermore, the bootstrap confidence interval of the upper
+der treatment T = t and sensitivity parameter Λ can be            and lower bounds of the APO (dose-response) function
+estimated for any observed covariate value, X = x, as             under the CMSM are given by:
+          µ(x, t; Λ, θ, y) = µ(H(y − y); x, t, Λ, θ),                                     h                         i
+                                                                      CIb (µ(t; Λ, α)) := µb (t; Λ, α), µb (t; Λ, α) ,   (17)
+and
+                                                                  where,
+          µ(x, t; Λ, θ, y) = µ(H(y − y); x, t, Λ, θ),
+                                                                                                                    
+                                                                                                                   b
+where y and y can be found using an algorithm like the                     µb (t; Λ, α) = Qα/2        µ(t; Λ, θk ) k=1 ,
+grid search method described in Algorithm 1. We outline
+an alternative line search algorithm in Algorithm 2, and a        and
+gradient descent approach in Appendix E.                                                        
+                                                                                                               b
+                                                                                                                  
+                                                                           µb (t; Λ, α) = Q1−α/2 {µ(t; Λ, θk )}k=1 .
+The upper and lower bounds for the APO (dose-response)
+function under treatment T = t and sensitivity parameter
+Λ can be estimated over any set of observed covariates
+Dx = {xi }ni=1 , as                                               3.6. Scalable Continuous Treatment Effect Estimation
+                         n
+                        1X                                        Following Shalit et al. [2017], Schwab et al. [2020], and Nie
+      µ(t; Λ, θ, y) =           µ(xi , t; Λ, θ, y),   xi ∈ Dx ,
+                        n i=1                                     et al. [2021], we propose using neural-network architectures
+                                                                  with two basic components: a feature extractor, φ(x; θ)
+                           n
+                        1X                                        (φ, for short) and a conditional outcome prediction block
+      µ(t; Λ, θ, y) =         µ(xi , t; Λ, θ, y),     xi ∈ Dx .
+                        n i=1                                     f (φ, t; θ). The feature extractor design will be problem
+                                                                  and data specific. In Section 5 we look at using both a
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+simple feed-forward neural network, and also a transformer        the APO and CAPO, and propose a way for incorporating
+[Vaswani et al., 2017]. For the conditional outcome block,        confidence intervals into the sensitivity bounds. In contrast,
+we depart from the more complex structures of Schwab et al.       we use the theoretical background of the marginal sensitiv-
+[2020], and Nie et al. [2021] and simply focus on a residual      ity model to derive a one parameter sensitivity model. A
+[He et al., 2016], feed-forward, S-learner [Künzel et al.,       method that purports to quantify the bias induced by un-
+2019] structure. For the final piece of the puzzle, we follow     observed confounding in the effects of continuous-valued
+Jesson et al. [2021] and propose a ny component Gaussian          interventions is given by Detommaso et al. [2021], but a for-
+mixture density:                                                  mal sensitivity analysis is only mentioned and not presented
+                                                                  in their work.
+    p(y | t, x, θ) =
+       ny
+       X                                                          5. Experiments
+                                             ej2 (φ, t; θ) ,
+                                                          
+             ej (φ, t; θ)N y | µ
+             π                 ej (φ, t; θ), σ
+       j=1                                                        In this section we empirically validate our method. First,
+                       Pny                                        we consider a synthetic structural causal model (SCM) to
+and µ e(x, t; θ) =      j=1 πej (φ, t; θ)e
+                                         µj (φ, t; θ) [Bishop,    demonstrate the validity of our method. Next, we show the
+1994]. Model optimization can proceed by minimizing the           scalability of our methods by applying it to a real-world
+log-likelihood of p(y | t, x, θ).                                 climate-science inspired problem. Implementation details,
+                                                                  data, and code to replicate these experiments is available at
+4. Related Works                                                  https://github.com/OATML/overcast.
+
+Scalable Continuous Treatment Effect Estimation Us-               5.1. Synthetic
+ing neural networks to provide scalable solutions for esti-
+mating the effects of continuous-valued interventions has
+received significant attention in recent years. Bica et al.
+[2020] provide a Generative Adversarial Network (GAN)
+approach. The dose-response network (DRNet) [Schwab
+et al., 2020] provides a more direct adaptation of the TarNet
+[Shalit et al., 2017] architecture for continuous treatments.
+The varying coefficient network VCNet [Nie et al., 2021]
+generalizes the DRNet approach and provides a formal re-
+sult for incorporating the target regularization technique pre-
+sented by Shi et al. [2019]. The RieszNet [Chernozhukov
+et al., 2021] provides an alternative approach for targeted            (a) Observed Outcome          (b) Observed Treatment
+regularization. Each of these methods are easily adapted for
+use in our sensitivity analysis framework by replacing the
+outcome prediction head of the model with an appropriate
+neural density estimator.
+
+Sensitivity and Uncertainty Analysis for Continuous
+Treatment Effects The prior literature for continuous-
+valued treatments has focused largely on parametric
+methods assuming linear treatment/outcome, hidden-
+confounder/treatment, and hidden-confounder/outcome re-                 (c) CAPO functions              (d) APO function
+lationships [Carnegie et al., 2016; Dorie et al., 2016; Mid-
+dleton et al., 2016; Oster, 2019; Cinelli & Hazlett, 2020a;b].                 Figure 1. Synthetic data ground truth.
+In addition to linearity, these parametric methods need to
+assume the structure and distribution of the unobserved
+                                                                  Figure 1 presents the synthetic dataset (additional details
+confounding variable(s). Cinelli et al. [2019] allows for
+                                                                  about the SCM are given in Appendix F.1). Figure 1a plots
+sensitivity analysis for arbitrary structural causal models
+                                                                  the observed outcomes, y, against the observed confounding
+under the linearity assumption. The MSM relaxes both the
+                                                                  covariate, x. Each datapoint is colored by the magnitude
+distributional and linearity assumptions, as does our CMSM
+                                                                  of the observed treatment, t. The binary unobserved con-
+extension.
+                                                                  founder, u, induces a bi-modal distribution in the outcome
+They define a two parameter sensitivity model based on            variable, y, at each measured value, x. Figure 1b plots the
+Riesz-Frechet representations of the target functionals, here     assigned treatment, t, against the observed confounding
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+covariate, x. We can see that the coverage of observed treat-     Figure 3a demonstrates that this holds for the APO function
+ments, t, varies for each value of x. For example, there          as well.
+is uniform coverage at X = 1, but low coverage for high
+treatment values at X = 0.1, and low coverage for low treat-      5.2. Estimating Aerosol-Cloud-Climate Effects from
+ment values at X = 2.0. Figure 1c plots the true CAPO                  Satellite Data
+function over the domain of observed confounding variable,
+X, for several values of treatment (T = 0.0, T = 0.5, and         Background The development of the model above, and the
+T = 1.0). For lower magnitude treatments, t, the CAPO             inclusion of treatment as a continuous variable with multi-
+function becomes more linear, and for higher values, we see       ple, unknown confounders, is motivated by a real-life use
+more effect heterogeneity and attenuation of the effect size      case for a prime topic in climate science. Aerosol-cloud
+as seen from the slope of the CAPO curve for T = 0.5 and          interactions (ACI) occur when anthropogenic emissions in
+T = 1.0. Figure 1d plots the the APO function over the            the form of aerosol enter a cloud and act as a cloud conden-
+domain of the treatment variable T.                               sation nuclei (CCN). An increase in the number of CCN
+                                                                  results in a shift in the cloud droplets to smaller sizes which
+Causal Uncertainty We want to show that in the limit of           increases the brightness of a cloud and delays precipita-
+large samples (we set n to 100k) the bounds on the CAPO           tion, increasing the cloud’s lifetime, extent, and possibly
+and APO functions under the CMSM include the true func-           thickness [Twomey, 1977; Albrecht, 1989; Toll et al., 2017].
+tion when the CMSM is correctly specified. That is, when          However, the magnitude and sign of these effects is heav-
+1/Λ ≤ λ∗ (t, x, u) ≤ Λ, for user specified parameter Λ, the       ily dependent on the environmental conditions surrounding
+estimated intervals should cover the true CAPO or APO.            the cloud [Douglas & L’Ecuyer, 2020]. Clouds remain the
+This is somewhat challenging to demonstrate as the true           largest source of uncertainty in our future climate projec-
+density ratio λ∗ (t, x, u) (eq. (52)), varies with t, x, and      tions [Masson-Delmotte et al., 2021]; it is pivotal to under-
+u. Figure 2 works towards communicating this. In Fig-             stand how human emissions may be altering their ability to
+ure 2a, we see that each predicted CAPO function, (dashed         cool. Our current climate models fail to accurately emulate
+lines), is biased away from the true CAPO functions (solid        ACI, leading to uncertainty bounds that could offset global
+lines). We use thick solid lines to indicate cases where          warming completely or double the effects of rising CO2
+1/Λ ≤ λ∗ (t, x, u) ≤ Λ, and thin solid lines otherwise.           [Boucher et al., 2013].
+Therefore thick solid lines indicate areas where we expect
+the causal intervals to cover the true functions. Under the       Defining the Causal Relationships Clouds are integral to
+erroneous assumption of ignorability (Λ = 1), the CMSM            multiple components of the climate system, as they pro-
+bounds have no width. In Figure 2b, we see that as we relax       duce precipitation, reflect incoming sunlight, and can trap
+our ignorability assumption (Λ = 1.1) the intervals (shaded       outgoing heat [Stevens & Feingold, 2009]. Unfortunately,
+regions) start to grow. Note the thicker orange line: this        their interconnectedness often leads to hidden sources of
+indicates that for observed data described by X > 0.5 and         confounding when trying to address how anthropogenic
+T = 0.5 the true density ratio is in the bounds of the CMSM       emissions alter cloud properties.
+with parameter Λ = 0.5. We see that our predicted bounds          Ideally we would like to understand the effect of aerosols
+cover the true CAPO function for these values. In Figure 2c       (a) on the cloud optical thickness, denoted τ . However,
+we increase Λ to 1.2 and we see our bounds grow again.            this is currently impossible. Aerosols come in varying con-
+We see that more data points have λ∗ values that lie in the       centrations, chemical compositions, and sizes [Schutgens
+CMSM range, and that our bounds cover the true CAPO               et al., 2016] and we cannot measure these variables directly.
+function for these values. In Figure 2d we again increase         Therefore, we use aerosol optical depth (AOD) as a con-
+the parameter of the CMSM. We see that the bounds grow            tinuous, 1-dimensional proxy for aerosols. As shown in
+again, and cover the true CAPO functions for all of the data      Figure 4b, it is known AOD is an imperfect proxy, as it is
+that satisfy 1/Λ ≤ λ∗ (t, x, u) ≤ Λ.                              impacted by its surrounding meteorological environment
+Statistical Uncertainty Now we relax the infinite data as-        [Christensen et al., 2017] The meteorological environment
+sumption and set n = 1000. This will increase the estimator       also affects cloud thickness τ and aerosol concentration a,
+error for for the CAPO and APO functions. So the estimated        acting as a confounder. Additionally, we depend on simula-
+functions will not only be biased due to hidden confounding,      tions of the current environment in the form of reanalysis to
+they may also be erroneous due to finite sample variance.         serve as its proxy.
+This can be seen in Figure 3b where the blue dashed line de-      In this work we report AOD as a continuous treatment and
+viates from the true blue solid line as x increases beyond 1.0.   the environmental variables as covariates, though aerosol is
+However, Figure 3b shows that under the correct CMSM the          the true treatment and AOD is only a confounded, imperfect
+uncertainty aware confidence intervals, eq. (16), cover the       proxy (Figure 4a). We know this model cannot accurately
+true CAPO functions for the range of treatments considered.       capture all causal effects and uncertainty due to confound-
+          Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+
+
+
+               (a) Λ=1.0                     (b) Λ=1.1                    (c) Λ=1.2                          (d) Λ=1.6
+
+Figure 2. Causal uncertainty under hypothesized Λ values. Solid lines are ground truth; thick solid lines where the true λ∗ is within the
+range of hypothesized Λ, thin solid lines otherwise. Dotted lines are estimated CAPO, shaded regions are estimated CMSM intervals.
+
+
+
+
+     (a) APO Function                (b) CAPO Functions
+
+Figure 3. Statistical and causal uncertainty, α is statistical signifi-
+cance level for the bootstrap. see Figure Figure 2 for other details.                     (a)                             (b)
+
+                                                                          Figure 4. Causal diagrams. (a) A simplified causal diagram repre-
+ing variables, both known and unknown. Rather, we use                     senting what we are reporting within; aerosol optical depth (AOD,
+this simplified model as a test-bed for the methods devel-                regarded as the treatment T) modulates cloud optical depth (τ , Y)
+oped within this paper. Future work will tackle the more                  which itself is affected by hidden confounders (U) and the meteor-
+challenging and realistic causal model shown in Figure 4b,                logical proxies (X). (b) An expanded causal diagram of ACI the
+noting that the treatment of interest a is multi-dimensional              aerosol (a) and aerosol proxy (AOD), the true confounders (light
+and cannot be measured directly.                                          blue), their proxies (dark blue), and the cloud optical depth (red).
+
+Data We used daily observed 1◦ × 1◦ means of clouds,
+aerosol, and the environment. Their sources are shown in                  variables like this is to capture confounding that may be
+table 1.                                                                  latent in the relationships between neighbouring variables,
+                                                                          and unobserved from the perspective of a single location.
+            Table 1. Sources of satellite observations.                   This architectural change respects both the assumed causal
+                                                                          graph (fig. 4a), and some of the underlying physical causal
+ Product name                                          Description        structure. We see in Figure 5 (Left), that modelling context
+ Cloud optical depth τ                  MODIS 1.6, 2.1, 3.7 µm            with the transformer architecture significantly increases the
+ Precipitation                              NOAA CMORPH                   predictive accuracy of the model with respect to a simple
+ Sea Surface Temperature                       NOAA WHOI                  feed-forward neural network (no context).
+ Vertical Motion                                   MERRA-2
+                                                                          Discussion & Results The results for the expected value
+ Estimated Inversion Strength                      MERRA-2
+                                                                          of cloud optical depth (τ ) as the “treatment” of AOD in-
+ Relative Humidity                                 MERRA-2
+                                                                          creases is shown in Figure 5. As the strength of possible
+ Aerosol Optical Depth                             MERRA-2
+                                                                          confounders increases (Λ > 1), the range of uncertainty in
+                                                                          the treatment outcome increases. Within this range of plausi-
+                                                                          ble levels of confounding, the modeled outcomes agree with
+Model In order to model the spatial correlations between                  two conflicting hypothesis: that aerosol acts to invigorate
+the covariates on a given day, we use multi-headed attention              the cloud, inducing a large response that would follow a
+[Vaswani et al., 2017] to define a transformer based feature              maximum curve within this uncertainty range [Christensen
+extractor. Our motivation in modeling the meteorological                  & Stephens, 2011; Douglas & L’Ecuyer, 2021], or aerosol
+         Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+has very little impact on cloud depth, and the true response        Bishop, C. M. Mixture density networks. 1994. URL
+is a minimal, flat line [Gryspeerdt et al., 2019].                    http://publications.aston.ac.uk/id/
+                                                                      eprint/373/.
+
+                                                                    Bosilovich, M. G., Akella, S., Coy, L., Cullather, R., Draper,
+                                                                      C., Gelaro, R., Kovach, R., Liu, Q., Molod, A., Norris, P.,
+                                                                      et al. Merra-2: Initial evaluation of the climate. 2015.
+
+                                                                    Boucher, O., Randall, D., Artaxo, P., Bretherton, C., Fein-
+                                                                      gold, G., Forster, P., Kerminen, V.-M., Kondo, Y., Liao,
+                                                                      H., Lohmann, U., et al. Clouds and aerosols. In Climate
+                                                                      change 2013: the physical science basis. Contribution of
+                                                                     Working Group I to the Fifth Assessment Report of the In-
+                                                                      tergovernmental Panel on Climate Change, pp. 571–657.
+                                                                      Cambridge University Press, 2013.
+Figure 5. Left: The values of the observed, true τ against the
+modeled τ . Right: The curve for continuous treatment outcome of    Bréon, F.-M., Tanré, D., and Generoso, S. Aerosol effect on
+our aerosol proxy (AOD) on cloud optical depth (τ ). The darkest      cloud droplet size monitored from satellite. Science, 295
+shaded region (Λ = 1) represents the uncertainty in the treatment     (5556):834–838, 2002.
+outcome from the ensemble due to finite data. As the strength of
+confounders increases (Λ > 1.0), the range of uncertainty in the    Carnegie, N. B., Harada, M., and Hill, J. L. Assessing
+treatment outcome increases.                                          sensitivity to unmeasured confounding using a simulated
+                                                                      potential confounder. Journal of Research on Educational
+It is possible that the resolution of the satellite observations      Effectiveness, 9(3):395–420, 2016.
+(1◦ × 1◦ daily means) could be averaging various cloud
+types and obscuring the signal. Future work will involve            Chernozhukov, V., Cinelli, C., Newey, W., Sharma, A., and
+investigating how higher a resolution (20km × 20km) with              Syrgkanis, V. Omitted variable bias in machine learned
+constraints on cloud type may resolve some confounding                causal models. arXiv preprint arXiv:2112.13398, 2021.
+influences. However, even our more detailed causal model
+(Figure 4b) cannot account all confounders; we expected,            Christensen, M. W. and Stephens, G. L. Microphysical and
+and have seen, imperfections in our model of this complex             macrophysical responses of marine stratocumulus pol-
+but important effect. The model’s results require expert              luted by underlying ships: Evidence of cloud deepening.
+validation in order to interpret the outcomes and uncertainty.        Journal of Geophysical Research: Atmospheres, 116(D3),
+Experts were involved during model development in order               2011.
+to fit the model architecture to the given problem. They find       Christensen, M. W., Neubauer, D., Poulsen, C. A., Thomas,
+the reported dose-response curves in agreement with mul-              G. E., McGarragh, G. R., Povey, A. C., Proud, S. R.,
+tiple estimates of aerosol-cloud interactions using satellite         and Grainger, R. G. Unveiling aerosol–cloud interactions–
+observations [Bréon et al., 2002; Myhre et al., 2007; Toll           part 1: Cloud contamination in satellite products enhances
+et al., 2019]. Also, the upper bound for (log Γ = .2) agrees          the aerosol indirect forcing estimate. Atmospheric Chem-
+with direct measurements of the in-cloud environment and              istry and Physics, 17(21):13151–13164, 2017.
+aerosol-cloud interactions from aircraft mounted sensors
+[Painemal & Zuidema, 2013], which may indicate the need             Cinelli, C. and Hazlett, C. Making sense of sensitivity:
+for additional control variables when using satellite data.           Extending omitted variable bias. Journal of the Royal
+                                                                      Statistical Society: Series B (Statistical Methodology), 82
+References                                                            (1):39–67, 2020a.
+
+Albrecht, B. A. Aerosols, cloud microphysics, and fractional        Cinelli, C. and Hazlett, C. An omitted variable bias frame-
+  cloudiness. Science, 245(4923):1227–1230, 1989.                     work for sensitivity analysis of instrumental variables.
+                                                                      Work. Pap, 2020b.
+Baum, B. A. and Platnick, S. Introduction to modis cloud
+  products. In Earth science satellite remote sensing, pp.          Cinelli, C., Kumor, D., Chen, B., Pearl, J., and Bareinboim,
+  74–91. Springer, 2006.                                              E. Sensitivity analysis of linear structural causal mod-
+                                                                      els. In International conference on machine learning, pp.
+Bica, I., Jordon, J., and van der Schaar, M. Estimating the ef-       1252–1261. PMLR, 2019.
+  fects of continuous-valued interventions using generative
+  adversarial networks. arXiv preprint arXiv:2002.12326,            D’Amour, A. On multi-cause approaches to causal inference
+  2020.                                                               with unobserved counfounding: Two cautionary failure
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+  cases and a promising alternative. In The 22nd Interna-          on Machine Learning, volume 139 of Proceedings of
+  tional Conference on Artificial Intelligence and Statistics,     Machine Learning Research, pp. 4829–4838. PMLR, 18–
+  pp. 3478–3486. PMLR, 2019.                                       24 Jul 2021. URL https://proceedings.mlr.
+                                                                   press/v139/jesson21a.html.
+Detommaso, G., Brückner, M., Schulz, P., and Cher-
+  nozhukov, V. Causal bias quantification for continuous         Kallus, N., Mao, X., and Zhou, A. Interval estimation
+  treatment. arXiv preprint arXiv:2106.09762, 2021.                of individual-level causal effects under unobserved con-
+                                                                   founding. In The 22nd international conference on arti-
+Dorie, V., Harada, M., Carnegie, N. B., and Hill, J. A             ficial intelligence and statistics, pp. 2281–2290. PMLR,
+  flexible, interpretable framework for assessing sensitivity      2019.
+  to unmeasured confounding. Statistics in medicine, 35
+ (20):3453–3470, 2016.                                           Künzel, S. R., Sekhon, J. S., Bickel, P. J., and Yu, B. Met-
+                                                                   alearners for estimating heterogeneous treatment effects
+Dorn, J. and Guo, K. Sharp sensitivity analysis for in-            using machine learning. Proceedings of the national
+ verse propensity weighting via quantile balancing. arXiv          academy of sciences, 116(10):4156–4165, 2019.
+  preprint arXiv:2102.04543, 2021.
+                                                                 Masson-Delmotte, V., Zhai, P., Pirani, A., Connors, S. L.,
+Douglas, A. and L’Ecuyer, T. Quantifying cloud adjust-            Péan, C., Berger, S., Caud, N., Chen, Y., Goldfarb,
+  ments and the radiative forcing due to aerosol–cloud in-        L., Gomis, M. I., Huang, M., Leitzell, K., Lonnoy, E.,
+  teractions in satellite observations of warm marine clouds.     Matthews, J. B. R., Maycock, T. K., Waterfield, T.,
+ Atmospheric Chemistry and Physics, 20(10):6225–6241,             Yelekçi, O., Yu, R., , and Zhou, B. Ipcc, 2021: Climate
+  2020.                                                           change 2021: The physical science basis. contribution
+                                                                  of working group i to the sixth assessment report of the
+Douglas, A. and L’Ecuyer, T. Global evidence of aerosol-
+                                                                  intergovernmental panel on climate change. 2021.
+  induced invigoration in marine cumulus clouds. Atmo-
+  spheric Chemistry and Physics, 21(19):15103–15114,             Middleton, J. A., Scott, M. A., Diakow, R., and Hill, J. L.
+  2021.                                                           Bias amplification and bias unmasking. Political Analysis,
+                                                                  24(3):307–323, 2016.
+Gelaro, R., McCarty, W., Suárez, M. J., Todling, R., Molod,
+  A., Takacs, L., Randles, C. A., Darmenov, A., Bosilovich,      Myhre, G., Stordal, F., Johnsrud, M., Kaufman, Y., Rosen-
+  M. G., Reichle, R., et al. The modern-era retrospective         feld, D., Storelvmo, T., Kristjansson, J. E., Berntsen,
+  analysis for research and applications, version 2 (merra-       T. K., Myhre, A., and Isaksen, I. S. Aerosol-cloud in-
+  2). Journal of climate, 30(14):5419–5454, 2017.                 teraction inferred from modis satellite data and global
+                                                                  aerosol models. Atmospheric Chemistry and Physics, 7
+Gryspeerdt, E., Goren, T., Sourdeval, O., Quaas, J.,
+                                                                  (12):3081–3101, 2007.
+  Mülmenstädt, J., Dipu, S., Unglaub, C., Gettelman, A.,
+  and Christensen, M. Constraining the aerosol influence         Neyman, J. edited and translated by dorota m. dabrowska
+  on cloud liquid water path. Atmospheric Chemistry and            and terrence p. speed (1990). on the application of proba-
+  Physics, 19(8):5331–5347, 2019.                                  bility theory to agricultural experiments. essay on princi-
+                                                                   ples. section 9. Statistical Science, 5(4):465–472, 1923.
+He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learn-
+  ing for image recognition. In Proceedings of the IEEE          Nie, L., Ye, M., Liu, Q., and Nicolae, D. Vcnet and func-
+  conference on computer vision and pattern recognition,           tional targeted regularization for learning causal effects of
+  pp. 770–778, 2016.                                               continuous treatments. arXiv preprint arXiv:2103.07861,
+                                                                   2021.
+Hirano, K. and Imbens, G. W. The propensity score
+  with continuous treatments. Applied Bayesian modeling          Oster, E. Unobservable selection and coefficient stability:
+  and causal inference from incomplete-data perspectives,          Theory and evidence. Journal of Business & Economic
+  226164:73–84, 2004.                                              Statistics, 37(2):187–204, 2019.
+Holland, P. W. Statistics and causal inference. Journal of       Painemal, D. and Zuidema, P. The first aerosol indirect
+  the American statistical Association, 81(396):945–960,           effect quantified through airborne remote sensing during
+ 1986.                                                             vocals-rex. Atmospheric Chemistry and Physics, 13(2):
+                                                                   917–931, 2013.
+Jesson, A., Mindermann, S., Gal, Y., and Shalit, U. Quanti-
+  fying ignorance in individual-level causal-effect estimates    Rosenbaum, P. R. and Rubin, D. B. The central role of
+  under hidden confounding. In Meila, M. and Zhang, T.             the propensity score in observational studies for causal
+  (eds.), Proceedings of the 38th International Conference         effects. Biometrika, 70(1):41–55, 1983.
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+Rubin, D. B. Estimating causal effects of treatments in         Toll, V., Christensen, M., Quaas, J., and Bellouin, N. Weak
+  randomized and nonrandomized studies. Journal of edu-           average liquid-cloud-water response to anthropogenic
+  cational Psychology, 66(5):688, 1974.                           aerosols. Nature, 572(7767):51–55, 2019.
+
+Rubin, D. B. Randomization analysis of experimental             Twomey, S. The influence of pollution on the shortwave
+  data: The fisher randomization test comment. Journal of         albedo of clouds. Journal of the atmospheric sciences,
+  the American Statistical Association, 75(371):591–593,          34(7):1149–1152, 1977.
+ 1980.
+                                                                Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones,
+Ruder, S. An overview of gradient descent optimization            L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. Atten-
+  algorithms. arXiv preprint arXiv:1609.04747, 2016.              tion is all you need. In Advances in neural information
+                                                                  processing systems, pp. 5998–6008, 2017.
+Rumelhart, D. E., Hinton, G. E., and Williams, R. J. Learn-
+                                                                Zhao, Q., Small, D. S., and Bhattacharya, B. B. Sensitivity
+  ing representations by back-propagating errors. nature,
+                                                                  analysis for inverse probability weighting estimators via
+  323(6088):533–536, 1986.
+                                                                  the percentile bootstrap. Journal of the Royal Statistical
+Schutgens, N. A., Gryspeerdt, E., Weigum, N., Tsyro, S.,          Society: Series B (Statistical Methodology), 81(4):735–
+  Goto, D., Schulz, M., and Stier, P. Will a perfect model        761, 2019.
+  agree with perfect observations? the impact of spatial
+  sampling. Atmospheric Chemistry and Physics, 16(10):
+  6335–6353, 2016.
+
+Schwab, P., Linhardt, L., Bauer, S., Buhmann, J. M., and
+  Karlen, W. Learning counterfactual representations for
+  estimating individual dose-response curves. In Proceed-
+  ings of the AAAI Conference on Artificial Intelligence,
+  volume 34, pp. 5612–5619, 2020.
+
+Sekhon, J. S. The neyman-rubin model of causal infer-
+  ence and estimation via matching methods. The Oxford
+  handbook of political methodology, 2:1–32, 2008.
+
+Shalit, U., Johansson, F. D., and Sontag, D. Estimating
+  individual treatment effect: generalization bounds and
+  algorithms. In International Conference on Machine
+  Learning, pp. 3076–3085. PMLR, 2017.
+
+Shi, C., Blei, D. M., and Veitch, V. Adapting neural net-
+  works for the estimation of treatment effects. In Pro-
+  ceedings of the 33rd International Conference on Neural
+  Information Processing Systems, pp. 2507–2517, 2019.
+
+Stevens, B. and Feingold, G. Untangling aerosol effects on
+  clouds and precipitation in a buffered system. Nature,
+  461(7264):607–613, 2009.
+
+Tan, Z. A distributional approach for causal inference using
+  propensity scores. Journal of the American Statistical
+  Association, 101(476):1619–1637, 2006. doi: 10.1198/
+  016214506000000023. URL https://doi.org/10.
+  1198/016214506000000023.
+
+Toll, V., Christensen, M., Gassó, S., and Bellouin, N. Vol-
+  cano and ship tracks indicate excessive aerosol-induced
+  cloud water increases in a climate model. Geophysical
+  research letters, 44(24):12–492, 2017.
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+X(χ), χ ∈ X. Y(υ), υ ∈ Υ. Z(τ ), τ ∈ T.
+
+A. Breaking down the Continuous Treatment Marginal Sensitivity Model
+Let’s go deeper into the Continuous Treatment Marginal Sensitivity Model (CMSM).
+
+A.1. MSM for binary treatment values [Tan, 2006]
+For binary treatments, TB = {0, 1}, the (nominal) propensity score, e(x) ≡ P r(T = 1 | X = x), states how the treatment
+status, t, depends on the covariates, x, and is identifiable from observational data. The potential outcomes, Y0 and Y1 ,
+conditioned on the covariates, x, are distributed as P (Y0 | X = x) and P (Y1 | X = x). Each of these conditional
+distributions can be written as mixtures with weights based on the propensity score:
+
+                  P (Y0 | X = x) = (1 − e(x))P (Y0 | T = 0, X = x) + e(x)P (Y0 | T = 1, X = x),
+                                                                                                                       (18)
+                  P (Y1 | X = x) = (1 − e(x))P (Y0 | T = 1, X = x) + e(x)P (Y1 | T = 1, X = x).
+
+The conditional distributions of each potential outcome given the observed treatment, P (Y0 | T = 0, X = x) and
+P (Y1 | T = 1, X = x), are identifiable from observational data, whereas the conditional distributions of each potential
+outcome given the counterfactual treatment, P (Y0 | T = 1, X = x) and P (Y1 | T = 0, X = x) are not. Under ignorability,
+{Y0 , Y1 } ⊥
+           ⊥ T | X = x, P (Y0 | T = 0, X = x) = P (Y0 | T = 1, X = x) and P (Y1 | T = 1, X = x) = P (Y1 | T =
+0, X = x). Therefore, any deviation from these equalities will be indicative of hidden confounding. However, because the
+distributions P (Y0 | T = 1, X = x) and P (Y1 | T = 0, X = x) are unidentifiable, the MSM postulates a relationship
+between each pair of identifiable and unidentifiable components.
+The MSM assumes that P (Yt | T = 1 − t, X = x) is absolutely continuous with respect to P (Yt | T = t, X = x) for
+all t ∈ TB . Therefore, given that P (Yt | T = t, X = x) and P (Yt | T = 1 − t, X = x) are σ-finite measures, by the
+Radon-Nikodym theorem, there exists a function λB (Yt , x; t) : Y → [0, inf) such that,
+                                                          Z
+                          P (Yt | T = 1 − t, X = x) =         λB (Yt , x; t)dP (Yt | T = t, X = x).                    (19)
+                                                          Y
+
+Rearranging terms, λB (Yt , x; t) is expressed as the Radon-Nikodym derivative or ratio of densities,
+
+                                                       dP (Yt | T = 1 − t, X = x)
+                                       λB (Yt , x; t) =                           ,
+                                                         dP (Yt | T = t, X = x)
+                                                                                                                       (20)
+                                                       p(yt | T = 1 − t, X = x)
+                                                     =                          .
+                                                         p(yt | T = t, X = x)
+
+By Bayes’s rule, λ(Y0 , x; 0) and λ(Y1 , x; 1) are expressed as odds ratios,
+                                                                  
+                                                          1 − e(x) 1 − e(x, y0 )
+                                         λB (Y0 , x; 0) =                        ,
+                                                            e(x)     e(x, y0 )
+                                                                                                                      (21)
+                                                            e(x)     e(x, y1 )
+                                         λB (Y1 , x; 1) =                        ,
+                                                          1 − e(x) 1 − e(x, y1 )
+
+where e(x, yt ) ≡ P r(T = 1 | X = x, Yt = yt ) is the unidentifiable complete propensity for treatment.
+Finally, the MSM further postulates that the odds of receiving the treatment T = 1 for subjects with covariates X = x can
+only differ from e(x)/(1 − e(x)) by at most a factor of Λ,
+
+                                                 Λ−1 ≤ λB (Yt , x; t) ≤ Λ.                                             (22)
+
+
+                                       1        1      1            Λ
+                  α(e(x, t), Λ) =            +1− ≤              ≤         + 1 − Λ = β(e(x, t), Λ)                      (23)
+                                    Λe(x, t)    Λ  e(x, t, yt )   e(x, t)
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+A.2. Modifying the MSM for categorical treatment values
+For categorical treatments, TC = {ti }ni=1
+                                        c
+                                           , the (nominal) generalized propensity score [Hirano & Imbens, 2004], r(x, t) ≡
+P r(T = t | X = x), states how the treatment status, t, depends on the covariates, x, and is identifiable from observational
+data. The potential outcomes, {Yt : t ∈ TC }, conditioned on the covariates, x, are distributed as {P (Yt | X = x) : t ∈ TC }.
+Again, each of these conditional distributions can be written as mixtures with weights based on the propensity density,
+yielding the following set of mixture distributions:
+                               (                                                             )
+                                                       X
+                                   P (Yt | X = x) =            r(x, t0 )P (Yt | T = t0 , X = x) .                         (24)
+                                                      t0 ∈TC
+
+
+Each conditional distribution of the potential outcome given the observed treatment, P (Yt | T = t, X = x), is identifiable
+from observational data, but each conditional distribution of the potential outcome given the counterfactual treatment,
+P (Yt | T = t0 , X = x), and therefore each mixture P (Yt | X = x), is not. Under the ignorability assumption,
+P (Yt | T = t, X = x) = P (Yt | T = t0 , X = x) for all t0 ∈ TC .
+In order to recover the form of the binary treatment MSM, we can postulate a relationship between the unidentifiable
+P (Yt | X = x)−r(x, t)P (Yt | T = t, X = x) and the identifiable P (Yt | T = t, X = x)−r(x, t)P (Yt | T = t, X = x).
+Under the assumption that P (Yt | X = x) − r(x, t)P (Yt | T = t, X = x) is absolutely continuous with respect to
+P (Yt | T = t, X = x) − r(x, t)P (Yt | T = t, X = x), we define the Radon-Nikodym derivative
+
+                    d(P (Yt |, X = x) − r(x, t)P (Yt | T = t, X = x))
+    λC (Yt , x; t) =                                                           ,
+                           d(1 − r(x, t))P (Yt | T = t, X = x)
+                                                                                                       
+                         1          dP (Yt |, X = x)                r(x, t)dP (Yt | T = t, X = x)
+                  =                                            −                                          ,
+                    1 − r(x, t) dP (Yt | T = t, X = x)                  dP (Yt | T = t, X = x)
+                                                 0                      0
+                                  P
+                                   t0 ∈TC r(x, t )dP (Yt | T = t , X = x)
+                                                                                                                   
+                         1                                                            r(x, t)dP (Yt | T = t, X = x)
+                  =                                                                −                                  ,
+                    1 − r(x, t)           dP (Yt | T = t, X = x)                          dP (Yt | T = t, X = x)
+                                                 0                   0
+                                  P
+                                   t0 ∈TC r(x, t )p(yt | T = t , X = x)
+                                                                                                              
+                         1                                                         r(x, t)p(yt | T = t, X = x)
+                  =                                                             −                                ,
+                    1 − r(x, t)           p(yt | T = t, X = x)                          p(yt | T = t, X = x)              (25)
+                                                            0
+                                P                                                                      
+                                                  0 p(T=t |yt ,x)  p(y
+                                                                       t)            p(T=t|yt ,x)p(y
+                                                                                                     t)
+                         1                 r(x,
+                                    t0 ∈TC 
+                                              t )       r(x,t
+                                                              0
+                                                                  )         r(x,  t)       r(x,t)
+                                                                                              
+                  =             
+                                           p(T=t|yt ,x)
+                                                          
+                                                        p(y
+                                                                          −                            ,
+                    1 − r(x, t)                             t)                   p(T=t|yt ,x)p(y
+                                                                                                 t)
+                                                 r(x,t)                               r(x,t)
+                                                                                         
+                      r(x, t) 1 − p(T = t | yt , x)
+                  =                                 ,
+                    1 − r(x, t) p(T = t | yt , x)
+                               
+                      r(x, t)     r(x, t, yt )
+                  =                              ,
+                    1 − r(x, t) 1 − r(x, t, yt )
+
+where, r(x, t, yt ) ≡ p(T = t | yt , x) is the unidentifiable complete propensity density for treatment.
+Finally, the categorical MSM further postulates that the odds of receiving the treatment T = t for subjects with covariates
+X = x can only differ from r(x, t)/(1 − r(x, t)) by at most a factor of Λ,
+
+                                                 Λ−1 ≤ λC (Yt , x; t) ≤ Λ.                                                (26)
+
+
+
+                                        1        1      1            Λ
+                   α(r(x, t), Λ) =            +1− ≤              ≤         + 1 − Λ = β(r(x, t), Λ)                        (27)
+                                     Λr(x, t)    Λ  r(x, t, yt )   r(x, t)
+
+A.3. Defining the Continuous MSM (CMSM) in terms of densities for continuous-valued interventions
+The conditional distributions of the potential outcomes given the observed treatment assigned,
+
+                                             {P (Yt | T = t, X = x) : t ∈ T } ,
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+are identifiable from observational data. However, the marginal distributions of the potential outcomes over all possible
+treatments,
+                                        {
+                                            P (Yt | X = x) =
+                                               Z
+                                                  p(t0 | x)P (Yt | T = t0 , X = x)dt0                                   (28)
+                                                T
+                                            :t∈T
+                                        }
+are not. This is because the component distributions, P (Yt | T = t0 , X = x), are not identifiable when t0 6= t as Yt cannot
+be observed for units under treatment level T = t0 . Under the ignorability assumption, P (Yt | T = t, X = x) = P (Yt |
+T = t0 , X = x) for all t0 ∈ T , and so P (Yt |, X = x) and P (Yt | T = t, X = x) are identical. Therefore, any divergence
+between P (Yt |, X = x) and P (Yt | T = t, X = x) will be indicative of hidden confounding.
+Where in the binary setting the MSM postulates a relationship between the unidentifiable P (Yt | T = 1 − t, X = x) and
+identifiable P (Yt | T = t, X = x), our CMSM postulates a relationship between the unidentifiable P (Yt | X = x) and the
+identifiable P (Yt | T = t, X = x).
+
+     The Radon-Nikodym theorem involves a measurable space (X , Σ) on which two σ-finite measures are defined, µ
+     and ν.”
+    – Wikipedia
+
+In our setting, the measurable space is (R, Σ), and our σ-finite measures are, µ = P (Yt | T = t, X = x) and ν = P (Yt |
+X = x): Yt ∈ Y ⊆ R.
+
+     If ν is absolutely continuous with Rrespect to µ (written ν  µ), then there exists a Σ-measurable function
+     f : X → [0, ∞), such that ν(A) = A f dµ for any measurable set A ⊆ X.
+    – Wikipedia
+
+We then need to assume that P (Yt | X = x)  P (Yt | T = t, X = x), that is P (A | T = t, X = x) = 0 implies
+P (A | X = x) = 0 for any measurable set A.
+Further, in our setting we have f = λ(yt ; x, t), therefore
+                                                      Z
+                                 P (Yt | X = x) =        λ(yt ; x, t)dP (Yt | T = t, X = x).                            (29)
+                                                      Y
+
+
+Let the range of Yt be the measurable space (Y, A), and ν(A) denote the Lebesgue measure for any measurable A ∈ A.
+Then,
+                                        dP (Yt | X = x)
+                       λ(yt ; x, t) =                                                                                  (30a)
+                                    dP (Yt | T = t, X = x)
+                                    dP (Yt | X = x)              dν
+                                  =                                                                                    (30b)
+                                           dν         dP (Yt | T = t, X = x)
+                                                                               −1
+                                    dP (Yt | X = x) dP (Yt | T = t, X = x)
+                                  =                                                                                    (30c)
+                                           dν                      dν
+                                       Z                     Z                              −1
+                                     d                          d
+                                  =        p(yt | X = x)dν            p(yt | T = t, X = x)dν                           (30d)
+                                    dν A                       dν A
+                                        p(yt | X = x)
+                                  =                                                                                    (30e)
+                                    p(yt | T = t, X = x)
+                                         p(t | X = x)
+                                  =                                                                                    (30f)
+                                    p(t | Yt = yt , X = x)
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+Equation (30a) by the Radon-Nikodym derivative. Equation (30a)-Equation (30c) hold ν−almost everywhere under the
+assumption P (Yt ∈ A | x)  ν(A) ∼ P (Yt ∈ A | T = t, X = x). Equation (30c)-Equation (30d) by the Radon-
+Nikodym theorem. Equation (30d)-Equation (30e) by the fundamental theorem of calculus under the assumption that
+p(yt | x) and p(yt | T = t, X = x) be continuous for yt ∈ Y. Equation (30e)-Equation (30f) by Bayes’s Rule.
+The sensitivity analysis parameter Λ then bounds the ratio, which leads to our bounds for the inverse complete propensity
+density:
+                                                   1    p(t | x)
+                                                     ≤               ≤ Λ,
+                                                  Λ p(t | yt , x)
+                                              1             1             Λ
+                                                     ≤               ≤                                                 (31)
+                                          Λp(t | x) p(t | yt , x)      p(t | x)
+                                                            1
+                                      α(p(t | x), Λ) ≤               ≤ β(p(t | x), Λ)
+                                                       p(t | yt , x)
+
+A.3.1. KL D IVERGENCE
+The bounds on the density ratio can aslo be expressed as bounds on the Kullback–Leibler divergence between P (Yt | T =
+t, X = x) and P (Yt | X = x).
+                                                              p(t | x)
+                                                 Λ−1 ≤                     ≤ Λ,                                        (32)
+                                                            p(t | yt , x)
+                                                                            
+                                                                p(t | x)
+                                         log Λ−1 ≤ log
+                                                  
+                                                                                ≤ log (Λ)                              (33)
+                                                               p(t | yt , x)
+                                                                                 
+                                            −1
+                                                                    p(t | x)
+                               E     log  Λ      ≤    E     log                     ≤ E log (Λ)                        (34)
+                            p(y|t,x)               p(y|t,x)        p(t | yt , x)      p(y|t,x)
+                                                                                 
+                                                                     p(t | x)
+                                     log Λ−1 ≤ E log
+                                               
+                                                                                    ≤ log (Λ)                          (35)
+                                                   p(y|t,x)        p(t  | yt , x)
+                                                                       
+                                               dP (Yt | X = x)
+                                 Z
+                  log Λ−1 ≤
+                           
+                                     log                                   dP (Yt | T = t, X = x) ≤ log (Λ)            (36)
+                                  Y        dP (Yt | T = t, X = x)
+                       log Λ−1 ≤ −DKL (P (Yt | T = t, X = x)||P (Yt | X = x)) ≤ log (Λ)
+                                  
+                                                                                                                       (37)
+                      − log Λ−1 ≥ DKL (P (Yt | T = t, X = x)||P (Yt | X = x)) ≥ − log (Λ)
+                                   
+                                                                                                                       (38)
+
+
+
+B. Derivation of µ(w(y, ·); x, t, Λ)
+Lemma 1.
+                                                     R
+                                                       Y
+                                                         w(y, x)(y − µ
+                                                                     e(x, t))p(y | t, x)dy
+                               µ(x, t) = µ
+                                         e(x, t) +                 R                                                   (39)
+                                                     (Λ2 − 1)−1 + Y w(y, x)p(y | t, x)dy
+
+Proof. Recall that the expected potential outcome, µ(x, t) = E[Yt | X = x], is unidentifiable without further assumptions.
+Following [Kallus et al., 2019], we start from,
+
+                                                          y p(t,yt |x) dyt
+                                                      R
+                                                        Y t p(t|yt ,x)
+                                             µ(x, t) = R p(t,y |x)          ,
+                                                                t
+                                                         Y p(t|yt ,x)
+                                                                      dyt
+                                                                t |t,x)p(t|x)
+                                                          y p(yp(t|y
+                                                      R
+                                                        Y t           t ,x)
+                                                                              dyt
+                                                     = R p(y |t,x)p(t|x)          ,
+                                                              t
+                                                         Y    p(t|yt ,x)    dy t
+                                                      R     p(yt |t,x)
+                                                          y
+                                                        Y t p(t|yt ,x)
+                                                                        dyt
+                                                     = R p(y |t,x)          ,
+                                                              t
+                                                         Y p(t|yt ,x)
+                                                                      dyt
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+which is convenient as it decomposes µ(x, t) into it’s identifiable, p(yt | t, x), and unidentifiable, p(t | yt , x), parts.
+                                                                                            e(x, t) = E[Y | T = t, X = x]
+Now, following [Jesson et al., 2021], we add and subtract the empirical conditional outcome µ
+from the right-hand-side above:
+                                                         R          p(yt |t,x)
+                                                             Y
+                                                                 yt p(t|y t ,x)
+                                                                                dyt
+                                µ(x, t) = µ
+                                          e(x, t) + R          p(yt |t,x)
+                                                                                      −µ
+                                                                                       e(x, t),                                (41a)
+                                                             Y p(t|yt ,x)
+                                                                          dyt
+                                                                        t |t,x)
+                                                                 yt p(y
+                                                         R
+                                                             Y      p(t|yt ,x) dyt
+                                         =µ
+                                          e(x, t) + R          p(yt |t,x)
+                                                                                      −µ
+                                                                                       e(x, t),                                (41b)
+                                                             Y p(t|yt ,x)
+                                                                          dyt
+                                                                        t |t,x)                   p(yt |t,x)
+                                                                 yt p(y
+                                                         R                                            R
+                                                             Y      p(t|yt ,x) dyt              Y p(t|yt ,x)
+                                                                                                             dyt
+                                         =µ
+                                          e(x, t) + R          p(yt |t,x)
+                                                                                      −µ
+                                                                                       e(x, t) R p(y |t,x)       ,             (41c)
+                                                                                                     t
+                                                             Y p(t|yt ,x)
+                                                                          dyt                   Y p(t|yt ,x)
+                                                                                                             dyt
+                                                                        t |t,x)                               t |t,x)
+                                                                 yt p(y                           e(x, t) p(y
+                                                         R                                R
+                                                             Y      p(t|yt ,x) dyt            Y
+                                                                                                  µ       p(t|yt ,x) dyt
+                                         =µ
+                                          e(x, t) + R          p(yt |t,x)
+                                                                                      −           R p(yt |t,x)           ,     (41d)
+                                                             Y p(t|yt ,x)
+                                                                          dyt                      Y p(t|yt ,x)
+                                                                                                                 dyt
+                                                                                   t |t,x)
+                                                                      e(x, t)) p(y
+                                                         R
+                                                             Y
+                                                                 (y − µ         p(t|yt ,x) dyt
+                                         =µ
+                                          e(x, t) +                 R p(yt |t,x)               .                               (41e)
+                                                                     Y p(t|yt ,x)
+                                                                                  dyt
+
+
+Following [Kallus et al., 2019] again, we reparameterize the inverse complete propensity density as, p(t|y1t ,x) = α(x; t, Λ) +
+w(y, x)(β(x; t, Λ)−α(x; t, Λ)) with w : Y ×X → [0, 1]. We will shorten this expression to p(t|y1t ,x) = α+w(y, x)(β −α)
+below. This gives,
+                            R                   p(yt |t,x)
+                             Y
+                                 (y − µ
+                                      e(x, t)) p(t|y  t ,x)
+                                                            dyt
+      µ(x, t) = µ
+                e(x, t) +           R p(yt |t,x)                ,                                                              (42a)
+                                     Y p(t|yt ,x)
+                                                  dyt
+                            R
+                            (α + w(y, x)(β − α))(y − µ
+                             Y
+                                                           e(x, t))p(yt | t, x)dyt
+              =µ
+               e(x, t) +        R                                                  ,                                           (42b)
+                                  Y
+                                    (α + w(y, x)(β − α))p(yt | t, x)dyt
+                           R                                             R
+                         α Y (y − µ  e(x, t))p(yt | t, x)dyt + (β − α) Y (y − µ   e(x, t))w(y, x)p(yt | t, x)dyt
+              =µ
+               e(x, t) +                  R                              R                                       ,             (42c)
+                                         α Y p(yt | t, x)dyt + (β − α) Y w(y, x)p(yt | t, x)dyt
+                           R                                             R
+                         α Y (y − µ  e(x, t))p(yt | t, x)dyt + (β − α) Y (y − µ   e(x, t))w(y, x)p(yt | t, x)dyt
+              =µ
+               e(x, t) +                                       R                                                 ,             (42d)
+                                                  α + (β − α) Y w(y, x)p(yt | t, x)dyt
+                           R                                             R
+                         α Y (y − µ  e(x, t))p(yt | t, x)dyt + (β − α) Y (y − µ   e(x, t))w(y, x)p(yt | t, x)dyt
+              =µ
+               e(x, t) +                                       R                                                 ,             (42e)
+                                                  α + (β − α) Y w(y, x)p(yt | t, x)dyt
+                                     R
+                         −(β − α) Y (y − µ     e(x, t))w(y, x)p(yt | t, x)dyt
+              =µ
+               e(x, t) +                      R                                 ,                                              (42f)
+                              α + (β − α) Y w(y, x)p(yt | t, x)dyt
+                                   R
+                         (β − α) Y (y − µ   e(x, t))w(y, x)p(yt | t, x)dyt
+              =µ
+               e(x, t) +                    R                                ,                                                 (42g)
+                             α + (β − α) Y w(y, x)p(yt | t, x)dyt
+                         R
+                            (y − µ e(x, t))w(y, x)p(yt | t, x)dyt
+               e(x, t) + Y α
+              =µ                     R                             ,                                                           (42h)
+                            β−α   +    Y
+                                         w(y, x)p(yt | t, x)dyt
+                              R
+                                Y
+                                  (y − µ e(x, t))w(y, x)p(yt | t, x)dyt
+              =µ
+               e(x, t) +      1/(Λp(t|x))         R                            ,                                               (42i)
+                         Λ/p(t|x)−1/(Λp(t|x)) + Y w(y, x)p(yt | t, x)dyt
+                         R
+                            (y − µ e(x, t))w(y, x)p(yt | t, x)dyt
+               e(x, t) + Y 1
+              =µ                     R                             ,                                                           (42j)
+                           Λ2 −1 + Y w(y, x)p(yt | t, x)dyt
+
+
+which concludes the proof.
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+C. Approximating the integrals in µθ (w(y, ·); x, t, Λ) using Gauss-Hermite quadrature
+Gauss-Hermite
+R∞             quadrature is a numerical method to approximate indefinite integrals of the following form:
+ −∞
+    exp (−y2 )f (y)dy. In this case,
+                                     Z ∞                     m
+                                                             X
+                                         exp (−y2 )f (y)dy ≈   gi f (y),
+                                            −∞                         i=1
+                                                                                                   ∗
+where m is the number of samples drawn. The yi are the roots of the physicists Hermite polynomial Hm (y)(i = 1, 2, . . . , m)
+and the weights are given by                                       √
+                                                         2m−1 m! π
+                                                gi = 2 ∗
+                                                       m [Hm−1 (yk )]2
+This method can be used to calculate the expectation of a function, h(y), with respect to a Gaussian distributed outcome
+p(y) = N (y | µ, σ 2 ) through a change of variables, such that,
+                                                 Z ∞
+                                                        1             √         
+                                     E [h(y)] =        √ exp −y2 h         2σy + µ dy
+                                    p(y)          −∞     π
+                                                       m       √                                                    (43)
+                                                  1 X                    
+                                              ≈√          gi h    2σy + µ .
+                                                   π i=1
+
+Definition 5. Gauss-Hermite quadrature integral estimator when p(y|t, x, θ) is a parametric Gaussian density estimator,
+N (y | µ           e2 (x, t; θ)):
+       e(x, t; θ), σ
+                                                      m    √
+                                               1 X                                         
+                                 IG (h(y)) := √       gi h     σ 2 (x, t; θ)y + µ
+                                                              2e                e(x, t; θ)
+                                                π i=1
+
+                                                                                                             Pny
+Alternatively, when the density of the outcome is modelled using a ny component Gaussian mixture, p(y) =       j=1 πj N (y |
+µj , σj2 )
+                                                 ny       Z ∞
+                                           1 X                          √           
+                               E [h(y)] = √       πj            exp −y2 h   2σj y + µj dy,
+                              p(y)          π j=1         −∞
+                                                 ny m      √
+                                           1 X X                        
+                                         ≈√      πj   gi h    2σj y + µj .
+                                            π j=1 i=1
+
+Definition 6. Gauss-Hermite
+                Pny          quadrature integral estimator for expectations
+                                                                           when p(y|t, x, θ) is a parametric Gaussian
+Mixture Density, j=1  ej (x, t; θ)N y | µ
+                      π                               ej2 (x, t; θ) :
+                                        ej (x, t; θ), σ
+                                           nt               m       √
+                                       1 X                 X                                        
+                        IGM (h(y)) := √       π
+                                              ej (x, t; θ)     gi h    2e
+                                                                        σj (x, t; θ)y + µ
+                                                                                        ej (x, t; θ)
+                                        π j=1              i=1
+
+
+D. Optimization over step functions
+Lemma 2. The sensitivity bounds given in Definition 1 have the following equivalent expressions:
+                                                          R
+                                                             w(y)(y − µ e(x, t))p(y | t, x)dy
+                        µ(x, t; Λ) = sup µ    e(x, t) + Y2         −1
+                                                                        R                     ,
+                                            H
+                                     w(y)∈Wnd            (Λ − 1) + Y w(y)p(y | t, x)dy
+                                                          R
+                                                             w(y)(y − µ e(x, t))p(y | t, x)dy
+                        µ(x, t; Λ) =    inf µ e(x, t) + Y2         −1
+                                                                        R                     ,
+                                            H
+                                     w(y)∈Wni            (Λ  −  1)    +   Y
+                                                                            w(y)p(y | t, x)dy
+                                      H
+      e(x, t) = E[Y | X = x, T = t], Wnd
+where µ                                  = {w : H(y − yH )}yH ∈Y , WniH = {w : H(yH − y)}yH ∈Y , and
+                                                     (
+                                                       1, z ≥ 0
+                                             H(z) :=            ,
+                                                       0, z < 0
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+Proof. We follow the argument of [Kallus et al., 2019] and show that our alternative formulations of α(·, Λ) and β(·, Λ)
+                                                                                                   R       p(t,y |x)
+                                                                                                       Y
+                                                                                                           yt p(t|yt ,x) dyt
+do not change the conclusions of their linear program solution. Starting from µ(x, t) =             R            t
+                                                                                                          p(t,yt |x)           , and applying a
+                                                                                                        Y p(t|yt ,x)
+                                                                                                                     dyt
+one-to-one change of variables, p(t|y1t ,x) = α(x; t, Λ) + w(y)(β(x; t, Λ) − α(x; t, Λ)) with w : Y → [0, 1], α(x; t, Λ) =
+1/Λp(t | x), β(x; t, Λ) = Λ/p(t | x), we arrive at:
+
+                                                          yp(y | t, x)dy + (λ2 − 1) Y yw(y)p(y | t, x)dy
+                                                  R                                R
+                                                      Y
+                       µ(x, t; Λ) =     sup                                  R                           ,                                (44)
+                                      w:Y→[0,1]                1 + (λ2 − 1) Y w(y)p(y | t, x)dy
+
+and
+                                                          yp(y | t, x)dy + (λ2 − 1) Y yw(y)p(y | t, x)dy
+                                                  R                                R
+                                                      Y
+                       µ(x, t; Λ) =      inf                                 R                           ,                                (45)
+                                      w:Y→[0,1]                1 + (λ2 − 1) Y w(y)p(y | t, x)dy
+
+after some cancellations. Duality can be used to prove that the w∗ (y) which achieves the supremum in Equation (44)
+                                      H
+belongs to the set of step functions Wnd . An analogous proof for Equation (45) would show that the w∗ (y) which achieves
+the infimum in Equation (45) belongs to the set of step functions WniH .
+The optimization problem in Equation (44) can be rewritten as a linear-fractional program:
+
+                                                               ahy, w(y)ip(y|t,x) + c
+                                               maximize                                                                                  (46a)
+                                                               bh1, w(y)ip(y|t,x) + d
+                                               subject to 0 ≤ w(y) ≤ 1 : ∀y ∈ Y,                                                         (46b)
+
+where h·, ·ip(y|t,x) is the inner product with respect to p(y | t, x), a = b = λ2 − 1, c =
+                                                                                                                 R
+                                                                                                                   Y
+                                                                                                                       yp(y | t, x)dy, and
+    R
+d = Y p(y | t, x)dy.
+The linear-fractional program of Equation (46) is equivalent to the following linear program:
+
+                                         maximize ahy, w(y)i
+                                                       e    p(y|t,x) + ce
+                                                                        v (x)                                                            (47a)
+                                         subject to w(y)
+                                                    e    ≤ ve(x) : ∀y ∈ Y                                                                (47b)
+                                                            − w(y)
+                                                              e    ≤ 0 : ∀y ∈ Y                                                          (47c)
+                                                            bh1, w(y)i
+                                                                 e    p(y|t,x) + de
+                                                                                  v (x) = 1                                              (47d)
+                                                            ve(x) ≥ 0,                                                                   (47e)
+
+where
+                                           w(y)                                              1
+                          w(y)
+                          e    =                                   and   ve(x) =
+                                   bh1, w(y)ip(y|t,x) + d                          bh1, w(y)ip(y|t,x) + d
+
+by the Charnes-Cooper transformation.
+Let the dual function ρ(y) be associated with the primal constraint eq. (47b), the dual function η(y) be associated with the
+primal constraint eq. (47c), and γ be the dual variable associated with the primal constraint eq. (47d). The dual program is
+then:
+
+                            minimize γ                                                                                                   (48a)
+                            subject to ρ(y) − η(y) + γbp(y | t, x) = ayp(y | t, x) : ∀y ∈ Y                                              (48b)
+                                          − h1, ρ(y)i + γd ≥ c                                                                           (48c)
+                                          ρ(y) ∈ R+ , η(y) ∈ R+ , γ ∈ R                                                                  (48d)
+
+At most one of ρ(y) or η(y) is non-zero by complementary slackness; therefore, condition eq. (48b) implies that
+
+                                 ρ(y) = (λ2 − 1)p(y | t, x) max{y − γ, 0} when η = 0,
+                                 η(y) = (λ2 − 1)p(y | t, x) max{γ − y, 0} when ρ = 0.
+         Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+[Kallus et al., 2019] argue that constraint eq. (48c) ought to be tight (an equivalence) at optimality, otherwise there would
+exist a smaller, feasible γ that satisfies the linear program. Therefore,
+                                                          −h1, ρ(y)i + γd = c,
+                   Z                                      Z                  Z
+                − (λ2 − 1)p(y | t, x) max{y − γ, 0}dy + γ    p(y | t, x)dy =    yp(y | t, x)dy,
+                  Y                                        Y                                                             (49)
+                                             Z                               ZY
+                                    (λ2 − 1)   max{y − γ, 0}p(y | t, x)dy = (γ − y)p(y | t, x)dy.
+                                                            Y                                    Y
+
+Letting CY > 0 such that |Y| ≤ CY , it is impossible that either γ > CY (the r.h.s. would be 0 and the l.h.s. would be > 0)
+or γ < −CY (the r.h.s. would be > 0 and the l.h.s. would be < 0). Thus, ∃y∗ ∈ [−CY , CY ] such that when y < y∗ , η > 0
+so w = 0 and when y ≥ y∗ , ρ > 0 so w = 1. Therefore, the optimal w∗ (y) that achieves the supremum in Equation (44) is
+     H
+in Wnd .
+This result holds under
+                                                   yp(y | t, x)dy + (λ2 − 1) Y yw(y)p(y | t, x)dy
+                                           R                                R
+                                               Y
+                               µ(x, t) =                              R                           ,                     (50a)
+                                                        1 + (λ2 − 1) Y w(y)p(y | t, x)dy
+                                           R          p(t,yt |x)
+                                               Y
+                                                   yt p(t|y t ,x)
+                                                                  dyt
+                                        = R       p(t,yt |x)
+                                                                        ,                                               (50b)
+                                                Y p(t|yt ,x)
+                                                             dyt
+                                                                R
+                                                              Y
+                                                                    w(y)(y − µ
+                                                                             e(x, t))p(y | t, x)dy
+                                        =µ
+                                         e(x, t) +                      R                    ,                          (50c)
+                                                            (Λ2 − 1)−1 + Y w(y)p(y | t, x)dy
+
+thus concluding the proof (eq. (50b)-eq. (50c) by Lemma 1).
+
+D.0.1. D ISCRETE SEARCH APPROACHES
+Let Yb = {yi ∈ Y}ki=1 be a set of k values of y, then
+                                                    n                                          o
+                                                                        ∗               ∗
+                                  µH
+                                   θ
+                                     (x, t) =  min    κ
+                                                      b θ (x, t; Λ, H(y   −  y))   :  y    ∈ Y
+                                                                                             b ,
+                                                y∗
+                                                    n                                          o
+                                                                              ∗          ∗
+                                  µH
+                                   θ (x, t) = max ∗
+                                                      κ
+                                                      b θ (x, t; Λ, H(y   − y   ))  : y    ∈ Yb .
+                                                        y
+
+
+
+E. Optimization over continuous functions
+Second, we need a functional estimator for w(y, x). We use a neural network, w(y, x; ω), parameterized by ω with sigmoid
+non-linearity on the output layer to satisfy the w : Y × X → [0, 1] constraint.
+For each (Λ, t) pair, we then need to solve the following optimization problems:
+                                                                n
+                                                        1X
+                                    ω = arg min               µ(w(y, ·; ω); xi , t, Λ, θ),     xi ∈ D,
+                                               ω        n i=1
+
+and
+                                                            n
+                                                      1X
+                                  ω = arg min               −µ(w(y, ·; ω); xi , t, Λ, θ),       xi ∈ D,
+                                            ω         n i=1
+where
+                                       µ(w(y, ·; ω); x, t, Λ, θ)
+                                                                    I (w(y, x; ω)(y − µ
+                                                                                      e(x, t; θ)))
+                                          := µ
+                                             e(x, t; θ) +              2      −1
+                                                                                                   .
+                                                                     (Λ − 1) + I(w(y, x; ω))
+Each of these problems can then be optimized using stochastic gradient descent [Ruder, 2016] and error back-propogation
+[Rumelhart et al., 1986]. Since the optimization over ω is non-convex, guarantees on this strategy finding the optimal
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+Algorithm 2 Line Search Interval Optimizer
+Require: x∗ is an instance of X, t∗ is a treatment level to evaluate, Λ is a belief in the amount of hidden confounding, θ
+    are optimized model parameters, Yb is a set of unique values y ∈ Y sorted in ascending order.
+ 1: function L INE S EARCH(x∗ , t∗ , Λ, θ, Y)
+                                           b
+ 2:     µ ← −∞, κ ← ∞
+ 3:     µ ← ∞, κ ← −∞
+ 4:     δ ← True, δ ← True
+ 5:     while δ do
+ 6:         y∗ ← P OP(Ybc )                                                                               . Ybc a copy of Yb
+                                  ∗
+ 7:         κ←κ   bθ (x, t; Λ, H(y − y))
+ 8:         if κ < µ then
+ 9:             µ←κ
+10:         else
+11:             δ ← False
+12:     while δ do
+13:         y∗ ← P OP(Ybc )                                                                               . Ybc a copy of Yb
+14:         κ←κ   bθ (x, t; Λ, H(y − y∗ ))
+15:         if κ > µ then
+16:             µ←κ
+17:         else
+18:             δ ← False
+19:     return µ, µ
+
+
+solution have yet to be established. As an alternative, the line-search algorithm presented in [Jesson et al., 2021] can also be
+used with small modifications. Under the assumptions of Theorem 1 in [Jesson et al., 2021], with the additional assumption
+that T is a bounded random variable, we inherit their guarantees on the bound of the conditional average potential outcome.
+The upper and lower bounds for the CAPO function under treatment T = t and sensitivity parameter Λ can be estimated for
+any observed covariate value, X = x, as
+                                          µ(x, t; Λ, θ) = µ(w(y, ·; ω); x, t, Λ, θ),
+and
+                                          µ(x, t; Λ, θ) = µ(w(y, ·; ω); x, t, Λ, θ).
+The upper and lower bounds for the APO (dose-response) function under treatment T = t and sensitivity parameter Λ can
+be estimated over any set of observed covariates Dx = {xi }ni=1 , as
+                                                         n
+                                                    1X
+                                       µ(t; Λ, θ) =       µ(xi , t; Λ, θ),     xi ∈ Dx ,
+                                                    n i=1
+                                                         n
+                                                      1X
+                                       µ(t; Λ, θ) =         µ(xi , t; Λ, θ),   xi ∈ Dx .
+                                                      n i=1
+
+
+
+F. Datasets
+F.1. Synthetic
+
+
+                                 u := Nu ,
+                                 x := Nx ,
+                                                                                                                           (51)
+                                 t := Nt ,
+                                yt := t + x exp(−tx) − γy (u − 0.5) ∗ (0.5 ∗ x + 1) + Ny ,
+        Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+where, Nu ∼ p(u) := Bern(u | 0.5), Nx ∼ p(x) := Unif[x | 0.1, 2.0], Nt ∼ p(t | x, u) := Beta-Binomial(t | n =
+100, α = x + γt u, β = 1), and Ny ∼ N (0, 0.04).
+                             p(t|x)
+The ground truth ratio, λ = p(t|x,u) , is then given by,
+
+                                     Ep(u) [p(t | x, u)]
+                       λ∗ (t, x, u) =
+                                        p(t | x, u)
+                                     P1                                                                                       (52)
+                                        0    0.5 ∗ Beta-Binomial(t | n = 100, α = x + γt u0 , β = 1)
+                                    = u =0
+                                             Beta-Binomial(t | n = 100, α = x + γt u, β = 1)
+
+
+
+
+      (a) Observed Outcome              (b) Observed Treatment           (c) CAPO function                 (d) APO function
+
+                                           Figure 6. Synthetic data with hidden confounding
+
+
+F.2. Observations of clouds and aerosol
+
+
+
+
+                             Figure 7. Workflow of observed clouds from satellite to ingestion by model.
+
+
+The Moderate Resolution Imaging Spectroradiometer (MODIS) instrument aboard the Aqua satellite observes the Earth
+twice daily at ∼1 km x 1 km resolution native resolution (Level 1) [Baum & Platnick, 2006]. We used the daily mean, 1◦ x
+1◦ gridded version (Level 2) in order to somewhat homogenize our observations of clouds and the atmosphere confined to a
+region off the coast of South America in the Pacific basin. MODIS observations are fed into the Modern-Era Retrospective
+analysis for Research and Applications version 2 (MERRA-2) real-time model in order to emulate the atmosphere and it’s
+components, such as aerosol [Gelaro et al., 2017]. Aerosol optical depth at 550nm from MERRA-2 is derived from MODIS
+observations of aerosol from multiple satellites (Terra, Aqua, Suomi-NPP), with corrections for sun glint and near-cloud
+optical effects [Bosilovich et al., 2015]. We collocated all gridded observations of clouds and reanalysis aerosol with our
+meteorological proxies of the environment (EIS, SST, w500, RH700, RH850), then normalized our features before feeding
+them into the model.
+         Scalable Sensitivity and Uncertainty Analysis for Causal-Effect Estimates of Continuous-Valued Interventions
+
+G. Additional Results
+G.1. Synthetic
+
+
+
+
+                                          (a) APO Functions          (b) CAPO Functions
+
+                           Figure 8. Investigating statistical uncertainty using unconfounded synthetic data.
+
+
+G.2. Aerosol-Cloud-Climate Effects
+
+
+
+
+                                    (a)                           (b)                            (c)
+
+Figure 9. Average dose-response curves for other cloud properties. a) Cloud optical depth. b) Water droplet effective radius. c) Liquid
+water path.
+
+
+
+
+                                    (a)                           (b)                            (c)
+
+Figure 10. Comparing transformer to feed-forward feature extractor at predicting cloud properties given covariates and AOD. a) Cloud
+optical depth. b) Water droplet effective radius. c) Liquid water path. We see a significant improvement in pearson correlation (R2 ) in
+each case.
+

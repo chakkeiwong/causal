@@ -1,0 +1,1 @@
+Preserve all1320 prior source records,citation contexts and content inputs. Add Python mediation targets,shared resampling,contrast scaling,finite-support sensitivity boundaries and neural certification; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
