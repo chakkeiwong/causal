@@ -1,0 +1,434 @@
+{
+  "count": 39,
+  "anchors": [
+    {
+      "group": "generalize",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_generalize_DESCRIPTION.txt",
+        "sha256": "c2b41d05d70549c584ecf7793f921682580db57e400bcee181179479b43ccf72",
+        "anchor": "Lines 1-26: Version and selected MIT declaration; dependencies separate."
+      },
+      "first_line": 1,
+      "last_line": 26,
+      "text": "Package: generalize\nType: Package\nTitle: Generalizing Average Treatment Effects from RCTs to Target Populations\nVersion: 0.1.3\nAuthor: Benjamin Ackerman\nMaintainer: Benjamin Ackerman <backer10@jhu.edu>\nDescription: This package allows you to assess and improve upon \n    the generalizability of randomized trials.\nLicense: MIT + file LICENSE\nEncoding: UTF-8\nLazyData: true\nImports:\n    dplyr,\n    purrr,\n    tmle,\n    BayesTree,\n    randomForest,\n    glmnet,\n    magrittr,\n    caret,\n    stringr,\n    tidyr,\n    stats,\n    WeightIt,\n    survey\nRoxygenNote: 7.1.1"
+    },
+    {
+      "group": "generalize",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_generalize_R_weighting_R.txt",
+        "sha256": "ace5e1ab3f0c6dbcb7ec84929a4338d0d8ea3aef7b217002c0f147c6553f13e8",
+        "anchor": "Lines 56-95: Missing-row removal, survey normalization, row expansion and fixed random-forest sample size."
+      },
+      "first_line": 56,
+      "last_line": 95,
+      "text": "  ### Clean up data from missing values ###\n\n  if(survey_weights == FALSE){\n    data = data[rownames(na.omit(data[,c(trial,selection_covariates)])),c(outcome, treatment, trial, selection_covariates)]\n    data$s_weights = 1\n  } else{\n    data = data[rownames(na.omit(data[,c(trial,selection_covariates)])),c(outcome, treatment, trial, survey_weights, selection_covariates)]\n    data$s_weights = ifelse(data[,trial] == 1, 1, data[,survey_weights])\n\n    ### NORMALIZE THE SURVEY WEIGHTS TO SUM TO THE NUMBER OF SURVEY PARTICIPANTS:\n    normalize_factor = mean(data$s_weights[which(data[,trial] == 0)], na.rm = TRUE)\n    data$s_weights[which(data[,trial] == 0)] = data$s_weights[which(data[,trial] == 0)]/normalize_factor\n\n    if(selection_method == \"rf\"){\n      data = data %>%\n        dplyr::filter(get(trial) == 0) %>%\n        dplyr::mutate(n_persons = ceiling(get(survey_weights))) %>%\n        tidyr::uncount(n_persons) %>%\n        dplyr::bind_rows(data %>% filter(get(trial) == 1))\n    }\n  }\n\n  # Change selection method to fit WeightIt\n\n  if(selection_method %in% c(\"lr\",\"gbm\",\"super\")){\n    if(selection_method == \"lr\"){selection_method = \"ps\"}\n\n    formula = as.formula(paste(trial, paste(selection_covariates,collapse=\"+\"),sep=\"~\"))\n    ps = WeightIt::weightit(formula, data = data, method = selection_method,\n                  estimand=\"ATT\",focal=\"1\",s.weights = data$s_weights,\n                  stop.method=\"ks.mean\",#gbm parameters\n                  SL.library = sl_library)$ps #superlearner parameters\n  }\n\n  # Random Forests\n  if(selection_method == \"rf\"){\n    formula = as.formula(paste( paste(\"as.factor(\",trial,\")\"), paste(selection_covariates,collapse=\"+\"),sep=\"~\"))\n    ps = predict(randomForest::randomForest(formula, data=data, na.action=na.omit, sampsize = 454, ntree=1500),type = 'prob')[,2]\n  }\n"
+    },
+    {
+      "group": "generalize",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_generalize_R_weighting_R.txt",
+        "sha256": "ace5e1ab3f0c6dbcb7ec84929a4338d0d8ea3aef7b217002c0f147c6553f13e8",
+        "anchor": "Lines 108-150: Zero-probability adjustment, disjoint/nested weights, clipping and binary odds-ratio output."
+      },
+      "first_line": 108,
+      "last_line": 150,
+      "text": "  ### Set any participation probabilities of 0 in the trial to the minimum non-zero value ###\n  if(any(ps[which(data[,trial]==1)] == 0)){\n    ps[which(data[,trial] == 1 & ps == 0)] = min(ps[which(data[,trial] == 1 & ps != 0)], na.rm=TRUE)\n  }\n\n  ### Generate Weights ###\n  if(is_data_disjoint == TRUE){\n    data$weights = ifelse(data[,trial]==0,0,(1-ps)/ps)\n  }\n\n  if(is_data_disjoint == FALSE){\n    data$weights = ifelse(data[,trial]==0,0,1/ps)\n  }\n\n  # Trim any of the weights if necessary\n  if(trim_weights){\n    cutoff = as.numeric(quantile(data$weights[which(data[,trial] == 1)], trim_pctile))\n    data$weights[which(data[,trial] == 1)] = ifelse(data$weights[which(data[,trial] == 1)] > cutoff, cutoff, data$weights[which(data[,trial] == 1)])\n  }\n\n  participation_probs = list(population = ps[which(data[,trial]==0)],\n                             trial = ps[which(data[,trial]==1)])\n\n  if(is.null(outcome) & is.null(treatment)){TATE = NULL}\n  else{\n    ##### ESTIMATE POPULATION AVERAGE TREATMENT EFFECT #####\n    formula = as.formula(paste(outcome,treatment,sep=\"~\"))\n\n    ATE_design = survey::svydesign(id = ~1, data = data[which(data[,trial] == 1),], weights = data$weights[which(data[,trial] == 1)])\n\n    if(length(table(data[,outcome]))!=2){\n      model = survey::svyglm(formula, design = ATE_design, family='gaussian')\n      TATE = summary(model)$coefficients[treatment,\"Estimate\"]\n      TATE_se = summary(model)$coefficients[treatment,\"Std. Error\"]\n      TATE_CI_l = as.numeric(confint(model)[treatment,])[1]\n      TATE_CI_u =as.numeric(confint(model)[treatment,])[2]\n    } else{\n      model = survey::svyglm(formula, design = ATE_design, family='quasibinomial')\n      TATE = exp(summary(model)$coefficients[treatment,\"Estimate\"])\n      TATE_se = NA\n      TATE_CI_l = as.numeric(exp(confint(model)[treatment,]))[1]\n      TATE_CI_u = as.numeric(exp(confint(model)[treatment,]))[2]\n    }"
+    },
+    {
+      "group": "generalize",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_generalize_R_generalize_R.txt",
+        "sha256": "e0326bfc8935675d2c8eae8cdfce1d805898ec28ec9db58f316975c2aa068f02",
+        "anchor": "Lines 18-32: TMLE dispatch forces population trimming."
+      },
+      "first_line": 18,
+      "last_line": 32,
+      "text": "#' @return \\code{generalize} returns an object of the class \"generalize\"\n\n#' @export\ngeneralize <- function(outcome, treatment, trial, selection_covariates, data, method = \"weighting\",\n                       selection_method = \"lr\", sl_library = NULL, survey_weights = FALSE, trim_weights=FALSE, trim_pctile = .97, is_data_disjoint = TRUE, trimpop = FALSE, seed){\n\n  ##### make methods lower case #####\n  method = tolower(method)\n  selection_method = tolower(selection_method)\n\n  ### If using TMLE, must trim target population\n  if(method == \"tmle\"){\n    trimpop = TRUE\n  }\n"
+    },
+    {
+      "group": "generalize",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_generalize_R_trim_pop_R.txt",
+        "sha256": "8edb41bef9bc4041c3278b075b8820cd873371b236d10dda66d66eb4e993d671",
+        "anchor": "Lines 31-64: Coordinate range and factor support screening; retained population recorded."
+      },
+      "first_line": 31,
+      "last_line": 64,
+      "text": "  ##### subset trial data covariates #####\n  trial_dat = data[which(data[,trial]==1),selection_covariates]\n\n  if(length(selection_covariates)==1){\n    trial_dat = data.frame(trial_dat)\n    names(trial_dat) = selection_covariates\n    }\n\n  ##### find covariate bounds in the trial #####\n  covariate_bounds = function(covariate){\n    if(is.factor(trial_dat[,covariate])){\n\n      trial_levels = levels(droplevels(trial_dat)[,covariate])\n      return(rownames(data)[which(!data[,covariate] %in% trial_levels)])\n    }\n\n    if(is.numeric(trial_dat[,covariate])){\n      trial_bounds = c(min(trial_dat[,covariate],na.rm=TRUE),max(trial_dat[,covariate],na.rm=TRUE))\n      return(rownames(data)[which(!(data[,covariate] >= trial_bounds[1] & data[,covariate] <= trial_bounds[2]))])\n    }\n  }\n\n  ##### find rows of population data that violate bounds #####\n  bound_violations = purrr::map(selection_covariates,covariate_bounds)\n\n  missing_rows=unique(unlist(bound_violations))\n\n  trimmed_data = data[which(!rownames(data) %in% missing_rows),]\n\n  ##### get rid of unused levels from factors #####\n  trimmed_data = droplevels(trimmed_data)\n\n  ##### number of rows in population data excluded #####\n  n_excluded = nrow(data[which(data[,trial]==0),]) - nrow(trimmed_data[which(trimmed_data[,trial]==0),])"
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_DESCRIPTION.txt",
+        "sha256": "94658befe67d12baffbca7905f734a0dbe4630220f44aa1a09da082d0d2dcf12",
+        "anchor": "Lines 1-38: Version and GPL declaration with external dependencies."
+      },
+      "first_line": 1,
+      "last_line": 38,
+      "text": "Package: transportr\nType: Package\nTitle: Transporting Intervention Effects from One Population to Another\nVersion: 0.1.0\nAuthors@R: \n    c(person(given = \"Nicholas\",\n             family = \"Williams\",\n             role = c(\"aut\", \"cre\", \"cph\"),\n             email = \"ntwilliams.personal@gmail.com\", \n             comment = c(ORCID = \"0000-0002-1378-4831\")), \n      person(given = \"Kara\",\n             family = \"Rudolph\",\n             role = c(\"aut\", \"cph\"),\n             email = \"kr2854@cumc.columbia.edu\", \n             comment = c(ORCID = \"0000-0002-9417-7960\")))\nDescription: Doubly-robust, non-parametric estimators for the transported average treatment effect from \n  Rudolph, Williams, Stuart, and Diaz (2023) <doi:10.48550/arXiv.2304.00117> and the \n  intent-to-treatment average treatment effect from Rudolph and van der Laan (2017)\n  <doi:10.1111/rssb.12213>. Estimators are fit using cross-fitting and nuisance parameters are \n  estimated using the Super Learner algorithm.\nLicense: GPL (>= 3)\nEncoding: UTF-8\nLazyData: true\nImports: \n    checkmate,\n    cli,\n    generics,\n    ife,\n    mlr3superlearner,\n    origami,\n    R6\nRoxygenNote: 7.3.2\nURL: https://github.com/nt-williams/transportr\nBugReports: https://github.com/nt-williams/transportr/issues\nSuggests: \n    ranger,\n    testthat (>= 3.0.0)\nConfig/testthat/edition: 3"
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_R_transport_ate_R.txt",
+        "sha256": "b339c4738ff0515d04555041d5dd8b30beaadd76a689ed8f553e52cff098c553",
+        "anchor": "Lines 12-63: Population, observation and cluster declarations; unused sampling weights and one-fold default."
+      },
+      "first_line": 12,
+      "last_line": 63,
+      "text": "#' @param covar \\[\\code{character}\\]\\cr\n#'  An optional vector containing the column names of covariates to be\n#'  included for adjustment.\n#' @param pop \\[\\code{character(1)}\\]\\cr\n#'  The column name of the population indicator variable.\n#'  This variable must be binary (0/1) with 0 indicating the target population and 1 the source population.\n#' @param obs \\[\\code{character(1)}\\]\\cr\n#'  An optional column name for a censoring indicator the same. If missingness in the outcome is\n#'  present, must be provided. This variable must be binary (0/1) with 1 indicating that the outcome is observed.\n#' @param id  \\[\\code{character(1)}\\]\\cr\n#'  An optional column name containing cluster level identifiers.\n#' @param weights \\[\\code{character(1)}\\]\\cr\n#'  An optional column name containing sampling weights. Currently not used.\n#' @param estimator \\[\\code{character(1)}\\]\\cr\n#'  The estimator to use. See details for more information.\n#' @param learners_trt \\[\\code{character}\\]\\cr\n#'  A vector of \\code{mlr3superlearner} algorithms for estimation of the propensity score.\n#' @param learners_pop \\[\\code{character}\\]\\cr\n#'  A vector of \\code{mlr3superlearner} algorithms for estimation of the population mechanism.\n#' @param learners_outcome \\[\\code{character}\\]\\cr\n#'  A vector of \\code{mlr3superlearner} algorithms for estimation of the outcome regression.\n#' @param learners_heterogeneity \\[\\code{character}\\]\\cr\n#'  A vector of \\code{mlr3superlearner} algorithms for estimation of collaborative nuisance parameters.\n#'  Ignored when \\code{estimator = \"standard\"}.\n#' @param folds \\[\\code{integer(1)}\\]\\cr\n#'  The number of folds to be used for cross-fitting.\n#' @param control \\[\\code{list()}\\]\\cr\n#'  Output of \\code{transport_control()}.\n#'\n#' @details\n#' ## Estimators\n#' The \"collaborative\" estimator uses covariate dimension reduction and does not require users to have knowledge about which covariates\n#' are effect modifiers and which differ in distribution between the populations. The \"standard\"\n#' estimator assumes all covariates are effect modifiers and differ in distribution between the populations.\n#'\n#' @return An object of class \\code{transported_ate} containing the parameter estimate.\n#'\n#' @export\n#'\n#' @example inst/examples/examples-transport_ate.R\ntransport_ate <- function(data, trt, outcome, covar, pop,\n                          obs = NULL, id = NULL, weights = NULL,\n                          estimator = c(\"standard\", \"collaborative\"),\n                          learners_trt = \"glm\",\n                          learners_pop = \"glm\",\n                          learners_outcome = \"glm\",\n                          learners_heterogeneity = \"glm\",\n                          folds = 1,\n                          control = transport_control()) {\n  call <- match.call()\n\n  task <- as_transport_task("
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_R_TransportTask_R.txt",
+        "sha256": "c244a8edad4605344514e543cb60c70d34f6abee09e11a637791d06cd8ec3ddf",
+        "anchor": "Lines 139-165: One-fold training/validation identity and separate cluster-aware fold construction."
+      },
+      "first_line": 139,
+      "last_line": 165,
+      "text": "    make_folds = function(folds) {\n      assert_number(folds, lower = 1, finite = TRUE)\n\n      if (folds == 1) {\n        folded <- list(list(\n          v = 1,\n          training_set = 1:nrow(self$backend),\n          validation_set = 1:nrow(self$backend)\n        ))\n\n        return(folded)\n      }\n\n      if (is.null(self$col_roles$id) & self$outcome_type == \"binomial\") {\n        strata <- self$backend[[self$col_roles$Y]]\n        strata[is.na(strata)] <- 2\n        folded <- make_folds(self$backend, V = folds, strata_ids = strata)\n        return(folded)\n      }\n\n      if (!is.null(self$col_roles$id)) {\n        folded <- make_folds(self$backend, cluster_ids = self$backend[[self$col_roles$id]], V = folds)\n        return(folded)\n      }\n\n      origami::make_folds(self$backend, V = folds)\n    }"
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_R_influence_function_R.txt",
+        "sha256": "8114380bb9d84b083ef4bf094938bd949b60965accf1a94d95ecd873ec68d919",
+        "anchor": "Lines 6-29: Selected standard score, inverse selection odds and row-contribution delegation."
+      },
+      "first_line": 6,
+      "last_line": 29,
+      "text": "influence_function.standard <- function(x, task, ...) {\n  task$reset()\n\n  nuisance <- get_item(x, \"pred\")\n  pop <- task$select(task$col_roles$S)$data()\n  a <- task$select(task$col_roles$A)$data()\n  y <- task$select(task$col_roles$Y)$data()\n\n  # ord: outcome regression difference\n  ord <- nuisance$outcome[, \"1\"] - nuisance$outcome[, \"0\"]\n  lambda <- mean(ord[pop == 0])\n\n  # Pr(A = a | H_a)\n  pred_a <- a * nuisance$propensity + (1 - nuisance$propensity) * (1 - a)\n\n  ipw_target <- (1 - pop) / (1 - mean(pop))\n  ipw_source <- pop / mean(pop)\n  ipw_a <- pop / (1 - mean(pop)) * (a / nuisance$propensity[, \"1\"] - (1 - a) / (1 - nuisance$propensity[, \"1\"]))\n  hs <- (1 - nuisance$population) / nuisance$population\n\n  eic <- ipw_a * hs %*0% (y - nuisance$outcome[, \"a\"]) + ipw_target * (ord - lambda)\n\n  ife::ife(lambda + mean(eic), eic)\n}"
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_R_helpers_R.txt",
+        "sha256": "8a0aeb1da5bc9a21fe482974cdc31976494bb9bfa24403b86e0032b79db04bb8",
+        "anchor": "Lines 28-32: All missing products replaced by zero; structural missingness and errors need distinction."
+      },
+      "first_line": 28,
+      "last_line": 32,
+      "text": "`%*0%` <- function(x, y) {\n  res <- x * y\n  res[is.na(res)] <- 0\n  res\n}"
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_R_outcome_mechanism_R.txt",
+        "sha256": "7ebb697bf2107b16d4798e2b49e7d079fe34bb692446d42f73a80ff802f45b19",
+        "anchor": "Lines 1-29: Outcome fitting restricted to observed source rows."
+      },
+      "first_line": 1,
+      "last_line": 29,
+      "text": "estimate_outcome.TransportTask <- function(train, valid, learners, control) {\n  train$reset()\n  valid$reset()\n\n  probs <- matrix(nrow = valid$nrow(), ncol = 3)\n  colnames(probs) <- c(\"a\", \"1\", \"0\")\n\n  features <- train$features(\"Y\")\n  target <- train$col_roles$Y\n\n  train$pop(\"source\")$obs()$select(c(features, target))\n\n  fit <- train(\n    train$pop(\"source\")$obs()$select(c(features, target))$data(),\n    target,\n    learners,\n    train$outcome_type,\n    train$pop(\"source\")$obs()$select(train$col_roles$id)$data(),\n    control$.learners_folds,\n    control$.discrete,\n    control$.info\n  )\n\n  probs[, \"a\"] <- predict(fit, valid$data())\n  probs[, \"1\"] <- predict(fit, valid$modify(\"A\", 1))\n  probs[, \"0\"] <- predict(fit, valid$modify(\"A\", 0))\n\n  list(pred = probs,\n       fit = return_full_fit(fit, control))"
+    },
+    {
+      "group": "transportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_transportr_R_outcome_mechanism_R.txt",
+        "sha256": "7ebb697bf2107b16d4798e2b49e7d079fe34bb692446d42f73a80ff802f45b19",
+        "anchor": "Lines 32-72: Both arm-specific iterated fits route to eps1 despite eps0 also being carried."
+      },
+      "first_line": 32,
+      "last_line": 72,
+      "text": "estimate_itt_iterated.TransportTask <- function(train, valid, learners, control) {\n  train$reset()\n  valid$reset()\n\n  probs <- matrix(nrow = valid$nrow(), ncol = 2)\n  colnames(probs) <- c(\"1\", \"0\")\n\n  features <- train$col_roles$W\n  A <- train$col_roles$A\n  tmp <- train$\n    pop(\"target\")$\n    obs()$\n    select(c(features, \".outcome_eps1\", \".outcome_eps0\", A))$\n    data()\n\n  # do A = 1\n  fit_1 <- train(\n    tmp[tmp[[A]] == 1, c(features, \".outcome_eps1\")],\n    \".outcome_eps1\",\n    learners,\n    \"continuous\",\n    train$pop(\"target\")$obs()$select(train$col_roles$id)$data(),\n    control$.learners_folds,\n    control$.discrete,\n    control$.info\n  )\n\n  # do A = 0\n  fit_0 <- train(\n    tmp[tmp[[A]] == 0, c(features, \".outcome_eps1\")],\n    \".outcome_eps1\",\n    learners,\n    \"continuous\",\n    train$pop(\"target\")$obs()$select(train$col_roles$id)$data(),\n    control$.learners_folds,\n    control$.discrete,\n    control$.info\n  )\n\n  probs[, \"1\"] <- predict(fit_1, valid$data())\n  probs[, \"0\"] <- predict(fit_0, valid$data())"
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_DESCRIPTION.txt",
+        "sha256": "ebb0421ff25f8581bc47458c813c63a0645f2a0f55b123e82d51aae627c3d165",
+        "anchor": "Lines 1-27: Version and selected MIT declaration."
+      },
+      "first_line": 1,
+      "last_line": 27,
+      "text": "Package: causalTransportR\nType: Package\nTitle: Machine learning methods for estimating and bridging causal effects\nVersion: 0.1\nDate: 2022-10-16\nAuthors@R:\n  c(person(given = \"Apoorva\",\n           family = \"Lal\",\n           role = c(\"aut\", \"cre\"),\n           email = \"lal.apoorva@gmail.com\")\n    )\nDescription: causalTransportR implements a number of estimators to estimate, generalize, and transport causal effects using reweighting doubly-robust score functions with transformations of selection scores to generalize and/or transport causal effects. All nuisance functions are cross-fit using fast supervised learning algorithms (grf and glmnet).\nDepends:\n  R (>= 4.0),\n  data.table,\n  fixest,\n  glmnet,\n  ggplot2,\n  grf,\n  glue,\n  magrittr,\n  Matrix,\n  matrixStats\nNeedsCompilation: no\nLicense: MIT\nEncoding: UTF-8\nLazyData: true"
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_R_ateGT_R.txt",
+        "sha256": "226f788a1745d7ad944073c3e13dcb63daa0c89394cf534e694cc19cee33383a",
+        "anchor": "Lines 6-20: Declared population modes, estimator families and normalization interpretation."
+      },
+      "first_line": 6,
+      "last_line": 20,
+      "text": "#' Average treatment effects are defined as averages of differences between counterfactual outcomes \\eqn{Y^a - Y^{a'}}.\n#' @param y outcome vector (may contain missings ; missings must correspond with s = 0)\n#' @param a treatment vector (no missings; can be relaxed with some tinkering)\n#' @param X covariate matrix (no missings)\n#' @param s selection vector, NULL by default (no missings, 1 corresponds with nonmissing y; 0 corresponds with missing y). May be omitted when the target is \"insample\" .\n#' @param treatProb propensity score vector (of length n_treatment) or matrix (n_treatment X n_obs), where latter is for covariate adaptive designs; must sum to 1. NULL by default, so pscore is fitted. When provided, no propensity score is fit. With discrete covariates, estimated propensity score is advisable even if treatment was randomized.\n#' @param Z surrogate matrix, NULL by default (no missings). When nonmissing, the surrogate influence function (Kallus and Mao 2020) is used to compute treatment effects.\n\n#' @param nuisMod one of c(\"rlm\", \"rf\") : choose how to fit nuisance functions (cross-fit).\n#' @param target one of c(\"generalize\", \"transport\", \"insample\") estimand to target. \"generalize\" generalizes (quasi)experimental estimates from the complete data (S == 1) to the overall sample (S == 0 or S == 1). \"transport\" transports estimates from the S == 1 sample to the S == 0 sample. \"insample\" estimates causal effects in the S == 1 sample (i.e. conventional quasi/experimental estimation).\n#' @param estimator one of c(\"AISW\", \"ISW\", \"OM\", \"CW\", \"ACW\"). The default is the augmented inverse selection weighting estimator, which augments the inverse selection weighting estimator (ISW) with an outcome model (OM). ACW does the same with calibration weights (CW), which fit a set of entropy balancing weights that reweights the sample to match target sample moments.\n#' @param hajekize boolean for whether to divide the inverse probability weights term for each treatment level by the sum of weights in that treatment level. This guards against instability from very large weights from extremely small selection or propensity scores.\n#' @param separateMus boolean for whether to fit separate outcome models for each treatment group or a single pooled model. The former is recommended and is the default, but a pooled model may be fit when data is scarce / computation is burdensome.\n\n#' @param glmnet_lamchoice choice of lambda (shrinkage parameter) for regularized linear regressions. Only relevant when nuisMod == \"rlm\""
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_R_nuis_R.txt",
+        "sha256": "5c21b4d9a8b308997f7d82f29b587617e797fb9fb64db9b191256ad7647c5d19",
+        "anchor": "Lines 62-98: Selection model fits S; resulting probabilities are source membership."
+      },
+      "first_line": 62,
+      "last_line": 98,
+      "text": "  # selection model\n  if (fitrho) {\n    rhohat = array(NA, dim = n)\n    if (surrogates) { # include surrogates in selection score\n      if (noi) cat(\"fitting surrogate selection model\\n\")\n      time1 = system.time({\n        rhoMod = cv.glmnet(cbind(X, Z), s,\n          standardize = FALSE,\n          keep = TRUE,\n          foldid = foldid,\n          family = rhoF,\n          alpha = alph,\n          trace.it = tracer,\n          parallel = parl\n        )\n      })\n      if (noi) cat(glue(\"Selection model fitting took {elapExtract(time1)} seconds\"), \"\\n\")\n    } else {\n      if (noi) cat(\"fitting selection model\\n\")\n      time1 = system.time({\n        rhoMod = cv.glmnet(X, s,\n          standardize = FALSE,\n          keep = TRUE,\n          family = rhoF,\n          foldid = foldid,\n          alpha = alph,\n          trace.it = tracer,\n          parallel = parl\n        )\n      })\n      if (noi) cat(glue(\"Selection model fitting took {elapExtract(time1)} seconds\"), \"\\n\")\n    }\n    # selection score for all obs\n    rhohat = fitGet(rhoMod, lamChoice)\n    if (rhoF == \"binomial\") rhohat = plogis(rhohat)\n  } else { # default selection score is 1 (for OM/ACW etc)\n    rhohat = rep(1, n)"
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_R_nuis_R.txt",
+        "sha256": "5c21b4d9a8b308997f7d82f29b587617e797fb9fb64db9b191256ad7647c5d19",
+        "anchor": "Lines 180-193: Selection probability expanded into the score matrix."
+      },
+      "first_line": 180,
+      "last_line": 193,
+      "text": "      }\n    }\n  }\n  # all matrices will be N X n.avals\n  amat = matrix(rep(a, n.avals), nrow = n, byrow = FALSE)\n  smat = matrix(rep(s, n.avals), nrow = n, byrow = FALSE)\n  rhomat = matrix(rep(rhohat, n.avals), nrow = n, byrow = FALSE)\n  alevel = matrix(rep(as.numeric(avals), rep(n, n.avals)), nrow = n, byrow = FALSE)\n  ymat = matrix(rep(y, n.avals), nrow = n, byrow = FALSE)\n  return(list(\n    # nuis fn fits\n    muhat = muhat, pihat = pihat, rhomat = rhomat, nuhat = nuhat,\n    # numbers\n    amat = amat, smat = smat, alevel = alevel, ymat = ymat"
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_R_ateGT_R.txt",
+        "sha256": "226f788a1745d7ad944073c3e13dcb63daa0c89394cf534e694cc19cee33383a",
+        "anchor": "Lines 197-231: No-surrogate augmented transport odds differ from unaugmented transport branch."
+      },
+      "first_line": 197,
+      "last_line": 231,
+      "text": "        } else if (target == \"transport\") {\n            ############################################################\n            # transportation\n            ############################################################\n            # estQOIs called inside each estimator block because of potentially different denominators\n            if (estimator == \"AISW\") {\n                # selection indic and 1 - selection probability in numerator and selection proba in denominator\n                ipw_piece = (((nuis$amat == nuis$alevel) * nuis$smat * nuis$rhomat) /\n                    ((1 - nuis$rhomat) * nuis$pihat)\n                ) * (nuis$ymat - nuis$muhat)\n                # indices of observations with missing ipw because y is missing\n                ymissing_indices = apply(ipw_piece, 1, function(x) any(is.na(x)))\n                # set them to 0 (rely on outcome modeling for those obs)\n                ipw_piece[ymissing_indices, ] = 0\n                if (hajekize) ipw_piece = ipw_piece / colSums(nuis$pihat)\n                # add in outcome model piece (only kicks in for s = 0 group)\n                ifvals = ipw_piece + (1 - nuis$smat) * nuis$muhat\n                # estimation: pass different denominator\n                res = estQois(ifvals, avals, denom = sum(s == 0), noi = noi)\n            } else if (estimator == \"OM\") {\n                # only average over s = 0 group\n                ifvals = nuis$muhat[s == 0, ]\n                res = estQois(ifvals, avals, noi = noi)\n            } else if (estimator == \"ISW\") {\n                ipw_piece = (\n                    ((nuis$amat == nuis$alevel) * nuis$smat * (1 - nuis$rhomat)) /\n                        (nuis$rhomat * nuis$pihat)\n                ) * nuis$ymat\n                # indices of observations with missing ipw because y is missing\n                ymissing_indices = apply(ipw_piece, 1, function(x) any(is.na(x)))\n                # set them to 0 (rely on outcome modeling for those obs)\n                ipw_piece[ymissing_indices, ] = 0\n                if (hajekize) ipw_piece = ipw_piece / colSums(nuis$pihat)\n                ifvals = ipw_piece\n                res = estQois(ifvals, avals, denom = sum(s == 0), noi = noi)"
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_R_ateGT_R.txt",
+        "sha256": "226f788a1745d7ad944073c3e13dcb63daa0c89394cf534e694cc19cee33383a",
+        "anchor": "Lines 130-155: Selected optional normalization uses sums of treatment probabilities."
+      },
+      "first_line": 130,
+      "last_line": 155,
+      "text": "            # (marginalise over s, s = 0, s = 1)\n            if (estimator == \"AISW\") {\n                # selection indic in numerator and selection proba in denominator\n                ipw_piece = (\n                    ((nuis$amat == nuis$alevel) * nuis$smat) / (nuis$rhomat * nuis$pihat)\n                ) * (nuis$ymat - nuis$muhat)\n                # indices of observations with missing ipw because y is missing\n                ymissing_indices = apply(ipw_piece, 1, function(x) any(is.na(x)))\n                # set them to 0 (rely on outcome modeling for those obs)\n                ipw_piece[ymissing_indices, ] = 0\n                if (hajekize) ipw_piece = ipw_piece / colSums(nuis$pihat)\n                # add in outcome model piece\n                ifvals = ipw_piece + nuis$muhat\n            } else if (estimator == \"OM\") {\n                ifvals = nuis$muhat\n            } else if (estimator == \"ISW\") {\n                # selection indic in numerator and selection proba in denominator\n                ipw_piece = (\n                    ((nuis$amat == nuis$alevel) * nuis$smat) / (nuis$rhomat * nuis$pihat)\n                ) * nuis$ymat\n                # indices of observations with missing ipw because y is missing\n                ymissing_indices = apply(ipw_piece, 1, function(x) any(is.na(x)))\n                # set them to 0 (rely on outcome modeling for those obs)\n                ipw_piece[ymissing_indices, ] = 0\n                if (hajekize) ipw_piece = ipw_piece / colSums(nuis$pihat)\n                ifvals = ipw_piece"
+    },
+    {
+      "group": "causaltransportr",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causaltransportr_R_estQOIs_R.txt",
+        "sha256": "55b3ddc15370c7384b664ebfc8a04c9ab7a06d571bf901cc26a4cd6913094837",
+        "anchor": "Lines 1-43: Target denominator changes sums and standard-error denominator; row distribution requires derivation."
+      },
+      "first_line": 1,
+      "last_line": 43,
+      "text": "# %% estimate treatment effects and marginal means\n# internal\nestQois = function(ifvals, avals, denom = NULL, noi = TRUE) {\n  n = dim(ifvals)[1]\n  n.avals = dim(ifvals)[2]\n  if (!is.null(denom)) n = denom\n  # check for missingness in marginal means\n  if (is.na(sum(apply(ifvals, 2, sum))))\n    warning(\"Missing values present in marginal means. This may happen due to extreme propensity scores. Subset ifvals and recompute.\")\n  # Counterfactual means\n  est = apply(ifvals, 2, sum, na.rm = T)\n  est = est / n # this n can be different from nrow(ifvals)\n  se = apply(ifvals, 2, sd, na.rm = T) / sqrt(n)\n  ci.ll = est - 1.96 * se\n  ci.ul = est + 1.96 * se\n  pval = round(2 * (1 - pnorm(abs(est / se))), 3)\n  paste(\"E{Y(\", avals, \")}\")\n  res1 = data.frame(\n    parameter = paste(\"E{Y(\", avals, \")}\", sep = \"\"),\n    est, se, ci.ll, ci.ul, pval\n  )\n  # distance  between all possible Y^d\n  signdist = function(x) c(as.dist(outer(x, x, \"-\")))\n  ifvals2 = t(apply(ifvals, 1, signdist))\n  if (n.avals == 2) ifvals2 = t(ifvals2)\n  tmp = expand.grid(1:n.avals, 1:n.avals)\n  tmp2 = tmp[tmp[, 1] > tmp[, 2], ]\n  contrasts = apply(cbind(avals[tmp2[, 1]], avals[tmp2[, 2]]), 1,\n    paste,\n    collapse = \")-Y(\"\n  )\n  # all pairwise contrasts\n  contrasts = paste(\"E{Y(\", contrasts, \")}\", sep = \"\")\n  est2 = apply(ifvals2, 2, sum, na.rm = T)\n  est2 = est2 / n # this n can be different from nrow(ifvals)\n  se2 = apply(ifvals2, 2, sd, na.rm = T) / sqrt(n)\n  ci.ll2 = est2 - 1.96 * se2\n  ci.ul2 = est2 + 1.96 * se2\n  pval2 = round(2 * (1 - pnorm(abs(est2 / se2))), 3)\n  res2 = data.frame(\n    parameter = contrasts, est = est2, se = se2,\n    ci.ll = ci.ll2, ci.ul = ci.ul2, pval = pval2\n  )"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_DESCRIPTION.txt",
+        "sha256": "d4d58b31757d857f716a38f053205140a7956457f323206099e490dcb965553a",
+        "anchor": "Lines 103-110: Selected GPL declaration and native dependencies."
+      },
+      "first_line": 103,
+      "last_line": 110,
+      "text": "URL: https://github.com/amices/mice,\n    https://amices.org/mice/,\n    https://stefvanbuuren.name/fimd/\nBugReports: https://github.com/amices/mice/issues\nLinkingTo: cpp11, Rcpp\nLicense: GPL (>= 2)\nRoxygen: list(markdown = TRUE)\nConfig/roxygen2/version: 8.0.0"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_mice_R.txt",
+        "sha256": "bd786905293fb619f62267f61b1e3376955f617d33ab2d3dd88b035112310e7f",
+        "anchor": "Lines 153-198: Per-method ignore/where limitations and unchecked monotone shortcut."
+      },
+      "first_line": 153,
+      "last_line": 198,
+      "text": "#' @param ignore A logical vector of \\code{nrow(data)} elements indicating\n#' which rows are ignored when creating the imputation model. The default\n#' \\code{NULL} includes all rows that have an observed value of the variable\n#' to imputed. Rows with \\code{ignore} set to \\code{TRUE} do not influence the\n#' parameters of the imputation model, but are still imputed. We may use the\n#' \\code{ignore} argument to split \\code{data} into a training set (on which the\n#' imputation model is built) and a test set (that does not influence the\n#' imputation model estimates).\n#' Note: Multivariate imputation methods, like \\code{mice.impute.jomoImpute()}\n#' or \\code{mice.impute.panImpute()}, do not honour the \\code{ignore} argument.\n#' @param where A data frame or matrix with logicals of the same dimensions\n#' as \\code{data} indicating where in the data the imputations should be\n#' created. The default, \\code{where = is.na(data)}, specifies that the\n#' missing data should be imputed. The \\code{where} argument may be used to\n#' overimpute observed data, or to skip imputations for selected missing values.\n#' Note: Imputation methods that generate imptutations outside of\n#' \\code{mice}, like \\code{mice.impute.panImpute()} may depend on a complete\n#' predictor space. In that case, a custom \\code{where} matrix can not be\n#' specified.\n#' @param blocks List of vectors with variable names per block. List elements\n#' may be named to identify blocks. Variables within a block are\n#' imputed by a multivariate imputation method\n#' (see \\code{method} argument). By default each variable is placed\n#' into its own block, which is effectively\n#' fully conditional specification (FCS) by univariate models\n#' (variable-by-variable imputation). Only variables whose names appear in\n#' \\code{blocks} are imputed. The relevant columns in the \\code{where}\n#' matrix are set to \\code{FALSE} of variables that are not block members.\n#' A variable may appear in multiple blocks. In that case, it is\n#' effectively re-imputed each time that it is visited.\n#' @param visitSequence A vector of block names of arbitrary length, specifying the\n#' sequence of blocks that are imputed during one iteration of the Gibbs\n#' sampler. A block is a collection of variables. All variables that are\n#' members of the same block are imputed\n#' when the block is visited. A variable that is a member of multiple blocks\n#' is re-imputed within the same iteration.\n#' The default \\code{visitSequence = \"roman\"} visits the blocks (left to right)\n#' in the order in which they appear in \\code{blocks}.\n#' One may also use one of the following keywords: \\code{\"arabic\"}\n#' (right to left), \\code{\"monotone\"} (ordered low to high proportion\n#' of missing data) and \\code{\"revmonotone\"} (reverse of monotone).\n#' \\emph{Special case}: If you specify both \\code{visitSequence = \"monotone\"} and\n#' \\code{maxit = 1}, then the procedure will edit the \\code{predictorMatrix}\n#' to conform to the monotone pattern. Realize that convergence in one\n#' iteration is only guaranteed if the missing data pattern is actually\n#' monotone. The procedure does not check this."
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_sampler_R.txt",
+        "sha256": "a502318026194eaa987a348a73639bc62b542ec58a7b104367447aa404be6ff2",
+        "anchor": "Lines 266-282: Observed complete fitting rows and imputation masks."
+      },
+      "first_line": 266,
+      "last_line": 282,
+      "text": "  if (ct == \"formula\") {\n    x <- x[, -1L, drop = FALSE]\n    type <- rep(1L, length = ncol(x))\n    names(type) <- colnames(x)\n  }\n\n  # define y, ry and wy\n  y <- data[, j]\n  ry <- complete.cases(x, y) & r[, j] & !ignore\n  wy <- complete.cases(x) & where[, j]\n\n  # nothing to impute\n  if (all(!wy)) {\n    return(numeric(0))\n  }\n\n  cc <- wy[where[, j]]"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_mice_impute_pmm_R.txt",
+        "sha256": "2273ea9f57cd121d6cbba6b02d24411a1bc096b377680f9c5071cfe107f132b6",
+        "anchor": "Lines 153-224: Donor exclusions, matching options and observed-value output."
+      },
+      "first_line": 153,
+      "last_line": 224,
+      "text": "  y,\n  ry,\n  x,\n  wy = NULL,\n  donors = 5L,\n  matchtype = 1L,\n  exclude = NULL,\n  quantify = TRUE,\n  trim = 1L,\n  ridge = 1e-05,\n  use.matcher = FALSE,\n  ...\n) {\n  if (is.null(wy)) {\n    wy <- !ry\n  }\n\n  # Reformulate the imputation problem such that\n  # 1. the imputation model disregards records with excluded y-values\n  # 2. the donor set does not contain excluded y-values\n\n  # Keep sparse categories out of the imputation model\n  if (is.factor(y)) {\n    active <- !ry | y %in% (levels(y)[table(y) >= trim])\n    y <- y[active]\n    ry <- ry[active]\n    x <- x[active, , drop = FALSE]\n    wy <- wy[active]\n  }\n  # Keep excluded values out of the imputation model\n  if (!is.null(exclude)) {\n    active <- !ry | !y %in% exclude\n    y <- y[active]\n    ry <- ry[active]\n    x <- x[active, , drop = FALSE]\n    wy <- wy[active]\n  }\n\n  x <- cbind(1, as.matrix(x))\n\n  # quantify categories for factors\n  ynum <- y\n  if (is.factor(y)) {\n    if (quantify) {\n      ynum <- quantify(y, ry, x)\n    } else {\n      ynum <- as.integer(y)\n    }\n  }\n\n  # parameter estimation\n  parm <- .norm.draw(ynum, ry, x, ridge = ridge, ...)\n\n  if (matchtype == 0L) {\n    yhatobs <- x[ry, , drop = FALSE] %*% parm$coef\n    yhatmis <- x[wy, , drop = FALSE] %*% parm$coef\n  }\n  if (matchtype == 1L) {\n    yhatobs <- x[ry, , drop = FALSE] %*% parm$coef\n    yhatmis <- x[wy, , drop = FALSE] %*% parm$beta\n  }\n  if (matchtype == 2L) {\n    yhatobs <- x[ry, , drop = FALSE] %*% parm$beta\n    yhatmis <- x[wy, , drop = FALSE] %*% parm$beta\n  }\n  if (use.matcher) {\n    idx <- matcher(yhatobs, yhatmis, k = donors)\n  } else {\n    idx <- matchindex(yhatobs, yhatmis, donors)\n  }\n\n  return(y[ry][idx])"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_mice_impute_mnar_norm_R.txt",
+        "sha256": "13e32583a6e7120741f176738e4b55097ce1bc1f111da85ec72c1fe1ad4ed91a",
+        "anchor": "Lines 147-173: User-specified unidentifiable contribution added to normal draw."
+      },
+      "first_line": 147,
+      "last_line": 173,
+      "text": "mice.impute.mnar.norm <- function(\n  y,\n  ry,\n  x,\n  wy = NULL,\n  ums = NULL,\n  umx = NULL,\n  ...\n) {\n  ## Undentifiable part:\n  u <- parse.ums(x, ums = ums, umx = umx, ...)\n\n  ## Identifiable part: exactly the same as mice.impute.norm\n  if (is.null(wy)) {\n    wy <- !ry\n  }\n  x <- cbind(1, as.matrix(x))\n  parm <- .norm.draw(y, ry, x, ...)\n\n  ## Draw imputations\n  return(\n    x[wy, , drop = FALSE] %*%\n      parm$beta +\n      u$x[wy, , drop = FALSE] %*% u$delta +\n      rnorm(sum(wy)) * parm$sigma\n  )\n}"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_pool_R.txt",
+        "sha256": "8cadffb00e87e8d941d3883f1af18b5149cc99e522f3538d5207b74b54bce298",
+        "anchor": "Lines 1-22: Fit scientific models before pooling estimates; do not pool completed data."
+      },
+      "first_line": 1,
+      "last_line": 22,
+      "text": "#' Combine estimates by pooling rules\n#'\n#' The \\code{pool()} function combines the estimates from \\code{m}\n#' repeated complete data analyses. The typical sequence of steps to\n#' perform a multiple imputation analysis is:\n#' \\enumerate{\n#' \\item Impute the missing data by the \\code{mice()} function, resulting in\n#' a multiple imputed data set (class \\code{mids});\n#' \\item Fit the model of interest (scientific model) on each imputed data set\n#' by the \\code{with()} function, resulting an object of class \\code{mira};\n#' \\item Pool the estimates from each model into a single set of estimates\n#' and standard errors, resulting in an object of class \\code{mipo};\n#' \\item Optionally, compare pooled estimates from different scientific models\n#' by the \\code{D1()} or \\code{D3()} functions.\n#' }\n#' A common error is to reverse steps 2 and 3, i.e., to pool the\n#' multiply-imputed data instead of the estimates. Doing so may severely bias\n#' the estimates of scientific interest and yield incorrect statistical\n#' intervals and p-values. The \\code{pool()} function will detect\n#' this case.\n#'\n#' @details"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_pool_vector_R.txt",
+        "sha256": "f95f050eacf9deaef5620e4b704ab9e638b5099e95eeb8b2e9a1374873c250d3",
+        "anchor": "Lines 47-92: Robust variance extraction; different missing-data and synthetic-data pooling rules."
+      },
+      "first_line": 47,
+      "last_line": 92,
+      "text": "  # Prefer using robust.se when tidy object contains it\n  if (hasName(w, \"robust.se\")) {\n    w$std.error <- w$robust.se\n  }\n\n  # There we go..\n  if (rule == \"rubin1987\") {\n    pooled <- w %>%\n      group_by(!!!syms(grp)) %>%\n      summarize(\n        m = n(),\n        qbar = mean(.data$estimate),\n        ubar = mean(.data$std.error^2),\n        b = var(.data$estimate),\n        t = ifelse(\n          is.null(custom.t),\n          .data$ubar + (1 + 1 / .data$m) * .data$b,\n          eval(parse(text = custom.t))\n        ),\n        dfcom = dfcom,\n        df = barnard.rubin(.data$m, .data$b, .data$t, .data$dfcom),\n        riv = (1 + 1 / .data$m) * .data$b / .data$ubar,\n        lambda = (1 + 1 / .data$m) * .data$b / .data$t,\n        fmi = (.data$riv + 2 / (.data$df + 3)) / (.data$riv + 1)\n      )\n  }\n\n  if (rule == \"reiter2003\") {\n    pooled <- w %>%\n      group_by(!!!syms(grp)) %>%\n      summarize(\n        m = n(),\n        qbar = mean(.data$estimate),\n        ubar = mean(.data$std.error^2),\n        b = var(.data$estimate),\n        t = ifelse(\n          is.null(custom.t),\n          .data$ubar + (1 / .data$m) * .data$b,\n          eval(parse(text = custom.t))\n        ),\n        dfcom = dfcom,\n        df = (.data$m - 1) * (1 + (.data$ubar / (.data$b / .data$m)))^2,\n        riv = (1 + 1 / .data$m) * .data$b / .data$ubar,\n        lambda = NA_real_,\n        fmi = NA_real_\n      )"
+    },
+    {
+      "group": "mice",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_mice_R_barnard_rubin_R.txt",
+        "sha256": "cb52be52e787978a7fc50b0d31ebff690383e413601ad69aa303ae206c108841",
+        "anchor": "Lines 1-9: Finite complete-data degrees-of-freedom calculation."
+      },
+      "first_line": 1,
+      "last_line": 9,
+      "text": "barnard.rubin <- function(m, b, t, dfcom = Inf) {\n  lambda <- (1 + 1 / m) * b / t\n  dfold <- (m - 1) / (lambda^2)\n  if (length(dfcom) == 1L && is.infinite(dfcom)) {\n    return(dfold)\n  }\n  tmp <- (1 - lambda) * (1 + dfcom) * dfcom\n  df_br <- (m - 1) * tmp / ((dfcom + 3) * (m - 1) + (lambda^2) * tmp)\n  ifelse(is.infinite(dfcom), dfold, df_br)"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_DESCRIPTION.txt",
+        "sha256": "a4af4ea0bd330fb2cf82d7c4d3acf12def867fe41989a1f30cb26f41b3bf05f5",
+        "anchor": "Lines 1-28: Selected version, rights declaration and dependencies."
+      },
+      "first_line": 1,
+      "last_line": 28,
+      "text": "Package: smcfcs\nTitle: Multiple Imputation of Covariates by Substantive Model Compatible Fully\n    Conditional Specification\nVersion: 2.0.2\nAuthors@R: c(person(\"Jonathan\", \"Bartlett\", email = \"jonathan.bartlett1@lshtm.ac.uk\",role = c(\"aut\", \"cre\")),\n    person(\"Ruth\", \"Keogh\", email = \"ruth.keogh@lshtm.ac.uk\",role = c(\"aut\")),\n    person(\"Edouard F.\", \"Bonneville\",role = c(\"aut\")),\n    person(\"Lars\", \"van der Burg\",role = c(\"aut\")),\n    person(\"Claus Thorn\", \"Ekstrøm\",role = c(\"ctb\")))\nURL: https://github.com/jwb133/smcfcs\nDescription: Implements multiple imputation of missing covariates by\n    Substantive Model Compatible Fully Conditional Specification.\n    This is a modification of the popular FCS/chained equations\n    multiple imputation approach, and allows imputation of missing\n    covariate values from models which are compatible with the user\n    specified substantive model.\nDepends:\n    R (>= 3.1.2)\nLicense: GPL-3\nLazyData: true\nImports:\n    MASS,\n    survival,\n    VGAM,\n    stats,\n    rlang,\n    checkmate,\n    abind,"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_R_smcfcs_r.txt",
+        "sha256": "2d68a749c1a0a1e95f205dde7376b8150a421e008cee719536bd5e70aa8f4c56",
+        "anchor": "Lines 1003-1044: Discrete update combines covariate and substantive likelihood information."
+      },
+      "first_line": 1003,
+      "last_line": 1044,
+      "text": "        # impute x, either directly where possibly, or using rejection sampling otherwise\n        imputationNeeded <- (1:n)[r[, targetCol] == 0]\n\n        if ((method[targetCol] == \"logreg\") | (method[targetCol] == \"podds\") | (method[targetCol] == \"mlogit\") |\n          (method[targetCol] == \"brlogreg\")) {\n          # directly sample\n          if ((method[targetCol] == \"logreg\") | (method[targetCol] == \"brlogreg\")) {\n            numberOutcomes <- 2\n            fittedMean <- cbind(1 - xfitted, xfitted)\n          } else {\n            numberOutcomes <- nlevels(imputations[[imp]][, targetCol])\n            fittedMean <- xfitted\n          }\n\n          outcomeDensCovDens <- array(dim = c(length(imputationNeeded), numberOutcomes), 0)\n\n          for (xMisVal in 1:numberOutcomes) {\n            if ((method[targetCol] == \"logreg\") | (method[targetCol] == \"brlogreg\")) {\n              if (is.factor(imputations[[imp]][, targetCol]) == TRUE) {\n                valToImpute <- levels(imputations[[imp]][, targetCol])[xMisVal]\n              } else {\n                valToImpute <- xMisVal - 1\n              }\n            } else {\n              valToImpute <- levels(imputations[[imp]][, targetCol])[xMisVal]\n            }\n            imputations[[imp]][imputationNeeded, targetCol] <- valToImpute\n\n            # update passive variables\n            imputations[[imp]] <- updatePassiveVars(imputations[[imp]], method, passiveVars)\n\n            if (smtype == \"lm\") {\n              outmodxb <- model.matrix(as.formula(smformula), imputations[[imp]]) %*% outcomeModBeta\n              deviation <- imputations[[imp]][imputationNeeded, outcomeCol] - outmodxb[imputationNeeded]\n              outcomeDens <- dnorm(deviation, mean = 0, sd = outcomeModResVar^0.5)\n            } else if ((smtype == \"logistic\") | (smtype == \"brlogistic\")) {\n              outmodxb <- model.matrix(as.formula(smformula), imputations[[imp]]) %*% outcomeModBeta\n              prob <- plogis(outmodxb[imputationNeeded])\n              outcomeDens <- prob * imputations[[imp]][imputationNeeded, outcomeCol] + (1 - prob) * (1 - imputations[[imp]][imputationNeeded, outcomeCol])\n            } else if (smtype == \"dtsam\") {\n              outcomeDens <- dtsamOutcomeDens(\n                imputations[[imp]], extraArgs$timeEffects, outcomeModBeta, nTimePoints,"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_R_smcfcs_r.txt",
+        "sha256": "2d68a749c1a0a1e95f205dde7376b8150a421e008cee719536bd5e70aa8f4c56",
+        "anchor": "Lines 1080-1108: Product normalization and discrete draw."
+      },
+      "first_line": 1080,
+      "last_line": 1108,
+      "text": "            }\n            outcomeDensCovDens[, xMisVal] <- outcomeDens * fittedMean[imputationNeeded, xMisVal]\n          }\n\n          if(!is.null(restrictions) && var %in% index_restrictions){\n            len_restrictions = length(restrictions_work[[var]])\n\n            ## For each information source, a separate step is run\n            for(i in 1:len_restrictions){\n              restrictions_work_vari = restrictions_work[[var]][[i]]\n              res_var = restrictions_work_vari[[1]]; res_cond = restrictions_work_vari[[2]]; res_opts = restrictions_work_vari[[3]]\n\n              ## If a column is not compatible with the restricting information, the probability for that column is set to 0\n              outcomeDensCovDens[which(originaldata[imputationNeeded, res_var] == res_cond), !(levels(imputations[[imp]][, targetCol]) %in% res_opts)] = 0\n            }\n          }\n\n          directImpProbs <- outcomeDensCovDens / rowSums(outcomeDensCovDens)\n\n          if ((method[targetCol] == \"logreg\") | (method[targetCol] == \"brlogreg\")) {\n            directImpProbs <- directImpProbs[, 2]\n            if (is.factor(imputations[[imp]][, targetCol]) == TRUE) {\n              imputations[[imp]][imputationNeeded, targetCol] <- levels(imputations[[imp]][, targetCol])[1]\n              imputations[[imp]][imputationNeeded, targetCol][rbinom(length(imputationNeeded), 1, directImpProbs) == 1] <- levels(imputations[[imp]][, targetCol])[2]\n            } else {\n              imputations[[imp]][imputationNeeded, targetCol] <- rbinom(length(imputationNeeded), 1, directImpProbs)\n            }\n          } else {\n            imputations[[imp]][imputationNeeded, targetCol] <- levels(imputations[[imp]][, targetCol])[apply(directImpProbs, 1, catdraw)]"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_R_smcfcs_r.txt",
+        "sha256": "2d68a749c1a0a1e95f205dde7376b8150a421e008cee719536bd5e70aa8f4c56",
+        "anchor": "Lines 1114-1147: Initial rejection loop permits at most 24 attempts and updates stored proposals."
+      },
+      "first_line": 1114,
+      "last_line": 1147,
+      "text": "          # use rejection sampling\n          # first draw for all subjects who need imputing, using a small number of attempts\n          firstTryLimit <- 25\n          j <- 1\n\n          while ((length(imputationNeeded) > 0) & (j < firstTryLimit)) {\n            # sample from covariate model\n            if ((method[targetCol] == \"norm\") | (method[targetCol] == \"latnorm\")) {\n              imputations[[imp]][imputationNeeded, targetCol] <- rnorm(length(imputationNeeded), xfitted[imputationNeeded], newsigmasq^0.5)\n            } else if (method[targetCol] == \"poisson\") {\n              imputations[[imp]][imputationNeeded, targetCol] <- rpois(length(imputationNeeded), xfitted[imputationNeeded])\n            }\n\n            # update passive variables\n            imputations[[imp]] <- updatePassiveVars(imputations[[imp]], method, passiveVars)\n\n            # accept/reject\n            uDraw <- runif(length(imputationNeeded))\n            if (smtype == \"lm\") {\n              outmodxb <- model.matrix(as.formula(smformula), imputations[[imp]]) %*% outcomeModBeta\n              deviation <- imputations[[imp]][imputationNeeded, outcomeCol] - outmodxb[imputationNeeded]\n              reject <- 1 * (log(uDraw) > -(deviation^2) / (2 * array(outcomeModResVar, dim = c(length(imputationNeeded), 1))))\n            } else if ((smtype == \"logistic\") | (smtype == \"brlogistic\")) {\n              outmodxb <- model.matrix(as.formula(smformula), imputations[[imp]]) %*% outcomeModBeta\n              prob <- plogis(outmodxb[imputationNeeded])\n              prob <- prob * imputations[[imp]][imputationNeeded, outcomeCol] + (1 - prob) * (1 - imputations[[imp]][imputationNeeded, outcomeCol])\n              reject <- 1 * (uDraw > prob)\n            } else if (smtype == \"dtsam\") {\n              prob <- dtsamOutcomeDens(\n                imputations[[imp]], extraArgs$timeEffects, outcomeModBeta, nTimePoints,\n                smformula, timeCol, dCol\n              )[imputationNeeded]\n              reject <- 1 * (uDraw > prob)\n            } else if (smtype == \"poisson\") {"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_R_smcfcs_r.txt",
+        "sha256": "2d68a749c1a0a1e95f205dde7376b8150a421e008cee719536bd5e70aa8f4c56",
+        "anchor": "Lines 1195-1224: Finite per-subject proposal batch after initial attempts."
+      },
+      "first_line": 1195,
+      "last_line": 1224,
+      "text": "            }\n            imputationNeeded <- imputationNeeded[reject == 1]\n\n            j <- j + 1\n          }\n\n          # now, for those remaining, who must have low acceptance probabilities, sample by subject\n          for (i in imputationNeeded) {\n            tempData <- imputations[[imp]][i, ]\n            tempData <- tempData[rep(1, rjlimit), ]\n            if (method[targetCol] == \"norm\") {\n              tempData[, targetCol] <- rnorm(rjlimit, xfitted[i], newsigmasq^0.5)\n            } else if ((method[targetCol] == \"logreg\") | (method[targetCol] == \"brlogreg\")) {\n              tempData[, targetCol] <- rbinom(rjlimit, size = 1, xfitted[i])\n            } else if (method[targetCol] == \"poisson\") {\n              tempData[, targetCol] <- rpois(rjlimit, xfitted[i])\n            } else if (method[targetCol] == \"latnorm\") {\n              tempData[, targetCol] <- rnorm(rjlimit, xfitted[i], newsigmasq[i]^0.5)\n            }\n\n            # passively impute\n            tempData <- updatePassiveVars(tempData, method, passiveVars)\n\n            # accept reject\n            uDraw <- runif(rjlimit)\n            if (smtype == \"lm\") {\n              outmodxb <- model.matrix(as.formula(smformula), tempData) %*% outcomeModBeta\n              deviation <- tempData[, outcomeCol] - outmodxb\n              reject <- 1 * (log(uDraw) > -(deviation^2) / (2 * array(outcomeModResVar, dim = c(rjlimit, 1))))\n            } else if ((smtype == \"logistic\") | (smtype == \"brlogistic\")) {"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_R_smcfcs_r.txt",
+        "sha256": "2d68a749c1a0a1e95f205dde7376b8150a421e008cee719536bd5e70aa8f4c56",
+        "anchor": "Lines 1289-1298: All-rejected batch increments failure count without successful replacement."
+      },
+      "first_line": 1289,
+      "last_line": 1298,
+      "text": "            if (sum(reject) < rjlimit) {\n              imputations[[imp]][i, targetCol] <- tempData[reject == 0, targetCol][1]\n            } else {\n              rjFailCount <- rjFailCount + 1\n            }\n          }\n          # update passive variables\n          imputations[[imp]] <- updatePassiveVars(imputations[[imp]], method, passiveVars)\n        }\n      }"
+    },
+    {
+      "group": "smcfcs",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_smcfcs_R_smcfcs_r.txt",
+        "sha256": "2d68a749c1a0a1e95f205dde7376b8150a421e008cee719536bd5e70aa8f4c56",
+        "anchor": "Lines 1398-1423: Warnings accompany returned datasets; passive terms evaluated from declared expressions."
+      },
+      "first_line": 1398,
+      "last_line": 1423,
+      "text": "  if (rjFailCount > 0) {\n    warning(paste(\"Rejection sampling failed \", rjFailCount, \" times (across all variables, iterations, and imputations). You may want to increase the rejection sampling limit.\", sep = \"\"))\n  }\n  if (flexsurvFailCount > 0) {\n    warning(paste(\"Flexsurv fit failed \", flexsurvFailCount, \" times (across all variables, iterations, and imputations). See documentation for more details.\", sep = \"\"))\n  }\n\n  # Added smformula and smtype to metadata, and make \"smcfcs class\"\n  res <- list(\n    impDatasets = imputations,\n    smCoefIter = smCoefIter,\n    smInfo = list(\"smtype\" = smtype, \"smformula\" = smformula),\n    extraArgs = extraArgs # For plot of dtsam\n  )\n  class(res) <- \"smcfcs\"\n\n  return(res)\n}\n\nupdatePassiveVars <- function(data, method, passivecols) {\n  for (i in passivecols) {\n    data[, i] <- with(data, eval(parse(text = method[i])))\n  }\n  data\n}\n"
+    },
+    {
+      "group": "causalOT",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causalOT_DESCRIPTION.txt",
+        "sha256": "724ab8350db4ce2bce8cff6c03351524538e493a26ec2379f8020a570587655f",
+        "anchor": "Lines 1-25: Selected version and GPL declaration."
+      },
+      "first_line": 1,
+      "last_line": 25,
+      "text": "Package: causalOT\nType: Package\nTitle: Optimal Transport Weights for Causal Inference\nVersion: 1.0.4\nDate: 2026-03-07\nAuthor: Eric Dunipace [aut, cre] (<https://orcid.org/0000-0001-8909-213X>)\nAuthors@R: \n    person(\"Eric\", \"Dunipace\", \n        role = c(\"aut\", \"cre\"),\n        email = \"edunipace@mail.harvard.edu\",\n        comment = c(ORCID = \"0000-0001-8909-213X\"))\nMaintainer: Eric Dunipace <edunipace@mail.harvard.edu>\nDescription: Uses optimal transport distances to find probabilistic \n    matching estimators for causal inference.\n    These methods are described in Dunipace, Eric (2021) <doi:10.48550/arXiv.2109.01991>.\n    The package will build the weights, estimate treatment effects, and\n    calculate confidence intervals via the methods described in the paper.\n    The package also supports several other methods as described in the help \n    files.\nLicense: GPL (==3.0)\nImports: \n    CBPS,\n    ggplot2,\n    lbfgsb3c,\n    loo,"
+    },
+    {
+      "group": "causalOT",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causalOT_R_calc_weight_R.txt",
+        "sha256": "71cb19a0820518671a10f479f7960b7aaae275115352b65d47c939394a6dbf3a",
+        "anchor": "Lines 1-23: Weighting estimands and optimal-transport interpretation are distinct from population transportability."
+      },
+      "first_line": 1,
+      "last_line": 23,
+      "text": "# TODO: walk through methods and make everything an R6 class\n\n#' Estimate causal weights\n#'\n#' @param x A numeric matrix of covariates. You can also pass an object of class [causalOT::dataHolder] or [causalOT::DataSim], which will make argument `z` not necessary,\n#' @param z A binary treatment indicator.\n#' @param estimand The estimand of interest. One of \"ATT\",\"ATC\", or \"ATE\".\n#' @param method The method to estimate the causal weights. Must be one of the methods returned by [supported_methods()][supported_methods()].\n#' @param options The options for the solver. Specific options depend on the solver you will be using and you can use the solver specific options functions as detailed below..\n#' @param weights The sample weights. Should be `NULL` or have a weight for each observation in the data. Normalized to sum to one.\n#' @param ... Not used at this time.\n#' \n#'\n#' @details\n#' We detail some of the particulars of the function arguments below.\n#' \n#' ### Causal Optimal Transport (COT)\n#' This is the.main method of the package. This method relies on various solvers depending on the particular options chosen. Please see [cotOptions()][cotOptions] for more details.\n#' \n#' ### Energy Balancing Weights (EnergyBW)\n#' This is equivalent to COT with an infinite penalty parameter, `options(lambda = Inf)`. Uses the same solver and options as COT, [cotOptions()][cotOptions].\n#' \n#' ### Nearest Neighbor Matching with replacement (NNM)"
+    },
+    {
+      "group": "causalOT",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causalOT_R_treatment_effect_R.txt",
+        "sha256": "9dc80970b1d32eeae4c0795cf0dc3427a0e0fb0d40877ca6c86e0551ecf17d3f",
+        "anchor": "Lines 30-76: Optional normalization is method-conditional; outcome model and augmentation dispatch."
+      },
+      "first_line": 30,
+      "last_line": 76,
+      "text": "#' }\nestimate_effect <- function(causalWeights,\n                            x = NULL, y = NULL,  \n                            model.function,\n                            estimate.separately = TRUE,\n                            augment.estimate = FALSE,\n                            normalize.weights = TRUE,\n                            ...) {\n  # save the call\n  mc     <- match.call()\n  \n  # process the data\n  data <- causalWeights@data\n  if(!is.null(x)) {\n    data <- update_x(data, x)\n  }\n  if(!is.null(y)) {\n    data <- update_y(data, y)\n  }\n  if(all(is.na(data@y))) stop(\"Must provide an outcome vector!\")\n  \n  # nickname for causalWeights\n  cw <- causalWeights\n  \n  # make sure logicals are logical\n  augmented.model <- isTRUE(augment.estimate)\n  normalize.weights <- isTRUE(normalize.weights)\n  estimate.separately <- isTRUE(estimate.separately)\n  \n  # normalize weights for the likleihood methods\n  if (normalize.weights && cw@method %in% likelihood_methods()) {\n    cw@w0 <- renormalize(cw@w0)\n    cw@w1 <- renormalize(cw@w1)\n  }\n  \n  # use an outcome model and get relevant quantities\n  if (!missing(model.function) && !is.null(model.function)) {\n    model.outputs <- estimate_model(data = data, causalWeights = cw, \n                                    model.function = model.function,\n                                    separate.estimation = estimate.separately,\n                                    ...)\n    \n  } else {\n    model.outputs <- NULL\n  }\n  \n  # estimate treatement effect"
+    },
+    {
+      "group": "causalOT",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causalOT_R_treatment_effect_R.txt",
+        "sha256": "9dc80970b1d32eeae4c0795cf0dc3427a0e0fb0d40877ca6c86e0551ecf17d3f",
+        "anchor": "Lines 130-172: Different ATT/ATC/ATE targets and weighted residual augmentation."
+      },
+      "first_line": 130,
+      "last_line": 172,
+      "text": "  # get outcome and data length (terms from dataHolder)\n  n        <- get_n(data)\n  y_0_obs  <- get_y0(data)\n  y_1_obs  <- get_y1(data)\n  z        <- get_z(data)\n  \n  # causalWeights\n  w0       <- causalWeights@w0\n  w1       <- causalWeights@w1\n  w        <- rep(NA_real_, n)\n  w[ z==1] <- w1\n  w[ z==0] <- w0\n  w_init   <- get_w(causalWeights@data)\n  \n  # target estimand\n  estimand <- causalWeights@estimand\n  \n  # if an outcome model is used, get relevant quantities\n  if (!is.null(model.outputs)) {\n    y_hat_0<- model.outputs$y_hat_0\n    y_hat_1<- model.outputs$y_hat_1\n    delta  <- y_hat_1 - y_hat_0\n    \n    tau    <- switch(estimand,\n                     \"ATT\" = sum(delta[z==1] * w1), # these weights aren't adjusted\n                     \"ATC\" = sum(delta[z==0] * w0), # these weights aren't adjusted\n                     \"ATE\" = sum(delta       * w_init) # these weights aren't adjusted\n              )\n    \n    # adjust outcome with the observed outcome\n    if (augment.estimate) {\n      tau <- tau + sum(w1 * ( y_1_obs - y_hat_1[z==1]) ) - \n                   sum(w0 * ( y_0_obs - y_hat_0[z==0]) )\n    }\n    \n  } else {\n    # these weights auto-target the estimand\n    mu_0 <- sum( w0 * y_0_obs )\n    mu_1 <- sum( w1 * y_1_obs )\n    \n    # tx effect\n    tau <- mu_1 - mu_0 \n    if (!is.list(model.outputs)) model.outputs <- list(model.outputs)"
+    },
+    {
+      "group": "causalOT",
+      "source": {
+        "path": "docs/literature/raw/exec25_rtm_causalOT_R_ESS_R.txt",
+        "sha256": "792e027698bf5735351d1430f4f88a359b6a3b6c7ca39dbacbb4eb78a0f1bc25",
+        "anchor": "Lines 3-35: Numeric effective sample size assumes normalized weights."
+      },
+      "first_line": 3,
+      "last_line": 35,
+      "text": "#' Effective Sample Size\n#'\n#' @param x Either a vector of weights summing to 1 or an object of class\n#' [causalWeights][causalOT::causalWeights-class]\n#' \n#' @details Calculates the effective sample size as described by Kish (1965). \n#' However, this calculation has some problems and the [PSIS()]\n#' function should be used instead.\n#'\n#' @return Either a number denoting the effective sample size or if `x` is of class\n#' [causalWeights][causalOT::causalWeights-class], then returns a list of both values in the treatment\n#' and control groups.\n#' \n#' @seealso [PSIS()][causalOT::PSIS]\n#' \n#' @export\n#' \n#' @docType methods\n#' @rdname ESS\n#'\n#' @examples\n#' x <- rep(1/100,100)\n#' ESS(x)\nsetGeneric(\"ESS\", def = function(x) standardGeneric(\"ESS\"))\n\n\n#' @describeIn ESS default ESS method for numeric vectors\n#' @method ESS default\nsetMethod(\"ESS\", signature(x = \"numeric\"), \n    function(x) {\n      return(1/sum(x^2))\n    }          \n)"
+    }
+  ]
+}

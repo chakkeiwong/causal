@@ -1,0 +1,1 @@
+Preserve all1346 prior source records,citation contexts and content inputs. Add R population targets, selection odds, missingness, compatible imputation and pooling contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

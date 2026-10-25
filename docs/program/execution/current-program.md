@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-other-mediation-coverage-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-other-mediation-coverage-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-r-transport-missingness-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-r-transport-missingness-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-other-mediation-coverage-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-r-transport-missingness-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,33 +12,33 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_other_mediation_coverage_reviewed_v1_2026-10-25.pdf) has 1,680 pages,
-1,346 audited citation records and 265 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_other_mediation_coverage_reviewed_2026-10-25.pdf) has 149 pages and 975 citations.
-All 1,339 predecessor records, citation contexts and 400 compiled content inputs survive.
+The [monograph](../../causal_proposal_r_transport_missingness_reviewed_v2_2026-10-25.pdf) has 1,684 pages,
+1,353 audited citation records and 265 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_r_transport_missingness_reviewed_2026-10-25.pdf) has 151 pages and 984 citations.
+All 1,346 predecessor records, citation contexts and 401 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**330 recorded outcomes of 376; 21 ready; 150 nonpassing obligations.**
+**331 recorded outcomes of 376; 20 ready; 150 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 78 | 21 | 102 |
+| software | 3 | 79 | 20 | 102 |
 | reuse | 109 | 4 | 2 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor compares CANlab,Paramed.jl,Mediation.jl,CausalMediation.jl,CausalTargeted.jl and Stata cmed. Fifty-five authentic originals ground resampling,covariance,interval probabilities,joint mediator-law and runtime/rights contracts. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
+The preserving successor compares generalize,transportr,causaltransportr,mice,smcfcs and causalOT. Seventy-five authentic originals ground population targets,selection odds,normalization,missingness,compatible imputation,pooling and rights contracts. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
 
-All 1,339 predecessor records, contexts and content inputs survive; the reader has 1,346 records and 265 scholarly PDFs, with 975 in the paired sponsor. Coverage is inconclusive: four successful bounded queries retain explicit irrelevant,uninspected and unreturned candidates;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
+All 1,346 predecessor records, contexts and content inputs survive; the reader has 1,353 records and 265 scholarly PDFs, with 984 in the paired sponsor. Coverage is inconclusive: four successful bounded queries retain explicit uninspected candidates and broader ecosystem limits;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
 
-There are 330 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 78 inconclusive / 21 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
+There are 331 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 79 inconclusive / 20 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
 ## Remaining gaps and routes
 
-1. Software: 21 open and 78 inconclusive cells. Complete explicit search tails,
+1. Software: 20 open and 79 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
