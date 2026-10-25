@@ -1,0 +1,1 @@
+Preserve all1334 prior source records,citation contexts and content inputs. Add C++ RAM,bootstrap,numerical derivatives,named-path and missing-data translation contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
