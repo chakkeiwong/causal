@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-bayesian-state-wave-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-bayesian-state-wave-v1/remaining-operations.json)
+Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-data-workflow-wave-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-data-workflow-wave-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-bayesian-state-wave-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-data-workflow-wave-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,33 +12,33 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_bayesian_state_wave_reviewed_v1_2026-10-25.pdf) has 1,710 pages,
-1,377 audited citation records and 265 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_bayesian_state_wave_reviewed_2026-10-25.pdf) has 156 pages and 1014 citations.
-All 1,371 predecessor records, citation contexts and 406 compiled content inputs survive.
+The [monograph](../../causal_proposal_data_workflow_wave_reviewed_v1_2026-10-25.pdf) has 1,716 pages,
+1,387 audited citation records and 265 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_data_workflow_wave_reviewed_2026-10-25.pdf) has 156 pages and 1026 citations.
+All 1,377 predecessor records, citation contexts and 407 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
-**340 recorded outcomes of 376; 11 ready; 150 nonpassing obligations.**
+**350 recorded outcomes of 376; 1 ready; 150 nonpassing obligations.**
 Recorded outcomes include inconclusive findings; source review grants no native capability.
 
 | Area | Pass | Inconclusive | Open | Total |
 |---|---:|---:|---:|---:|
-| software | 3 | 88 | 11 | 102 |
+| software | 3 | 98 | 1 | 102 |
 | reuse | 109 | 4 | 2 | 115 |
 | chapters | 20 | 2 | 0 | 22 |
 
 ## Newly reconciled work
 
-The preserving successor compares Stan, RStan, NIMBLE, historical Keanu and Turing with existing PyMC, NumPyro, bnlearn, Dynamax and graphical/state-space audits. 57 authentic originals and24preserved source records ground Bayesian identification limits, information clocks, posterior uncertainty, diagnostic formulas, empty/partial outputs, adaptation and restart qualification. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
+The preserving successor compares data.table, targets, Dask, Snakemake, Beam, Arrow, Taskflow, DataFrames.jl and Dagger.jl with prior DuckDB, Polars, Feast, Pandera, Splink, OpenLineage, Ray, Spark and historical SAS evidence. 83 authentic originals and17preserved source records ground identity, cardinality, information clocks, linkage uncertainty, task/cache identity, retry/effect semantics, numeric reductions and complete cost accounting. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
 
-All 1,371 predecessor records, contexts and content inputs survive; the reader has 1,377 records and 265 scholarly PDFs, with 1014 in the paired sponsor. Coverage is inconclusive: four successful bounded queries retain unreturned and uninspected candidates plus broader ecosystem limits;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
+All 1,377 predecessor records, contexts and content inputs survive; the reader has 1,387 records and 265 scholarly PDFs, with 1026 in the paired sponsor. Coverage is inconclusive: five successful bounded queries retain unreturned and uninspected candidates plus broader ecosystem limits;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
 
-There are 340 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 88 inconclusive / 11 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
+There are 350 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 98 inconclusive / 1 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
 ## Remaining gaps and routes
 
-1. Software: 11 open and 88 inconclusive cells. Complete explicit search tails,
+1. Software: 1 open and 98 inconclusive cells. Complete explicit search tails,
    inspect remaining primary delegates, and qualify narrowly matched public trials.
 2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
    rights, targets, owners, costs and revisit conditions without umbrella approval.
