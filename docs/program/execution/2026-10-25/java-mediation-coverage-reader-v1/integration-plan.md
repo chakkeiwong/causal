@@ -1,0 +1,1 @@
+Preserve all1331 prior source records,citation contexts and content inputs. Add Java structural targets,intervention covariance,state restoration,path cutoffs,RAM failure and export contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

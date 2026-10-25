@@ -1,0 +1,7 @@
+### Java mediation: preserve intervention meaning through estimation and export
+
+Tetrad and Onyx offer concrete graph, structural-equation and export components. The reviewed comparison proposes conditional reuse of those services while requiring a separate contract for the causal effect. A fitted covariance matrix and an executable diagram do not establish assignment truth or a valid mediation decomposition. [@exec25_jmed_tetrad; @exec25_jmed_onyx]
+
+Exact authored examples expose commercially material interface risks. Retaining treatment-error correlations in a selected covariance-ratio calculation gives 12.5 where the structural intervention slope is eleven. A bounded path search can miss a nonzero effect of 24. A singular RAM calculation and an export direction inconsistency require explicit refusal and round-trip tests before acceptance. These are static source and algebraic findings, not measured native failure rates. [@exec25_jmed_choice]
+
+The proposed public test program can enumerate known structural laws, correlated disturbances, fixed-parameter failures, singular matrices and target-language exports before expensive bank work. At a hypothetical 10,000 customers and USD10 per outcome unit, using 12.5 instead of eleven overstates value by USD150,000. Rights, native uncertainty, independent review and real economics remain separate gates; the software audit is not product qualification. [@exec25_jmed_choice]
