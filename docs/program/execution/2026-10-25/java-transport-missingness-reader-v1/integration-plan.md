@@ -1,0 +1,1 @@
+Preserve all1359 prior source records,citation contexts and content inputs. Add Python transport stabilization, weight-matrix semantics, imputation laws, covariance and missingness-correction contracts; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
