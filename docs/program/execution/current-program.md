@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-followup-causal-v1/program-review.json)
-and [remaining-operation register](2026-10-28/program-refresh-followup-causal-v1/remaining-operations.json)
+Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-openai-contract-v1/program-review.json)
+and [remaining-operation register](2026-10-28/program-refresh-openai-contract-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-28/program-refresh-followup-causal-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-28/program-refresh-openai-contract-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,35 +12,37 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_followup_causal_reviewed_v1_2026-10-28.pdf) has 1,732 pages,
-1,400 audited citation records and 271 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_followup_causal_reviewed_2026-10-28.pdf) has 161 pages and 1,049 citations.
-All 1,397 predecessor records, citation contexts and 412 compiled content inputs survive.
+The [monograph](../../causal_proposal_openai_contract_reviewed_v1_2026-10-28.pdf) has 1,734 pages,
+1,403 audited citation records and 271 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_openai_contract_reviewed_2026-10-28.pdf) has 161 pages and 1,054 citations.
+All 1,400 predecessor records, citation contexts and 413 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
-Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
+Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open.
 
-**350 recorded outcomes of 376; 1 ready; 150 nonpassing obligations.**
+**351 recorded outcomes of 376; 0 ready; 150 nonpassing obligations.**
 Software remains three pass / 98 inconclusive / one open; reuse 109 pass / four inconclusive / two open.
-Census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded findings are not capability qualification.
+The nonpassing total is 121 inconclusive, 25 open and four negative outcomes. These are dispositions, not qualified capabilities.
 
-## Newly integrated work
+## Completed recovery and new findings
 
-The new section distinguishes causal tasks from causal interventions inside a language model.
-The selected Ma survey supports a task taxonomy and warns about differing evaluation settings.
-The selected Hu preprint supplies source-reported image-language architecture and results,including small benchmark regressions.
-Exact authored witnesses distinguish arithmetic adjustment from normalized geometric approximation,changed weights and joint-confounder factorization.
-Source findings,authored mathematics,proposed interfaces,native qualification and bank truth remain separate.
+The prior 1,732-page reader and 161-page sponsor were committed and pushed as 9cfd20d38276b355b0cb45e59b99e01840964fa7.
+The actual publication process exit was consumed before changing the source manifest or starting this publication.
 
-The [finite followup register](2026-10-28/followup-causal-review-v1/followup-lead-register.json)
-now preserves explicit dispositions for all95later search rows:79metadata identities,16duplicates,
-13rows linked to10retained selected originals,and66unique acquisition or edition obligations.
-The additional Ma selected preprint is linked to,but not equated with,the indexed2025conference edition.
-No source is admitted by title similarity alone;unversioned index entries do not establish byte equality.
+The finite [census review](../../program/comprehensive-v14/work/LL.CENSUS/search-closure.json) now has a recorded inconclusive result.
+Its bounded search-route criterion passes; essential-source and full task coverage remain inconclusive.
+All 113 inherited candidates and 95 later rows retain task mappings and claim restrictions: 82 inspected / 31 unread,
+79 later metadata identities, 16 duplicates and 66 acquisition/edition obligations. These denominators are not additive.
+The stale candidate214 technical-review flag was corrected without asserting final-edition equivalence or native replication.
 
-Eleven exact-DOI lookups supply recorded routes and date limits. One returned metadata cluster links distinct SSRN/journal identifiers.
-The [metadata review](2026-10-28/followup-causal-review-v1/metadata-review.json) retains that distinction and year-only date uncertainty.
-The actual literature criteria require bounded searches,primary evidence or explicit omissions,and task-specific impacts.
-They do not require native installation or bank validation;coverage and final acceptance nevertheless remain open.
+The new provider section integrates twelve exact Git-blob-verified official OpenAI files from two cutoff-pinned repositories.
+It separates completion, schema validation, scientific identification, refusal, message phases and nested retries.
+The stipulated six-attempt, USD1.50 and 33-second examples reproduce; they are not vendor prices or measured performance.
+Official live-guide Markdown routes still return403; their failures remain preserved. The repository originals establish narrower contracts.
+
+The [L6 contract matrix](2026-10-28/l6-criterion-review-v1/contract-matrix.json) records six named provider/client families,
+six additional framework source profiles, scientific-envelope design, rights boundaries and preserved minimum depth.
+L6 remains inconclusive because hosted-service/model profiles and material acquired delegates still need explicit review.
+Native trials, later bank qualification and visual acceptance remain separate from literature disposition.
 
 ## Remaining gaps and routes
 
@@ -86,14 +88,14 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 Recovery on 28 October 2026 completed the interrupted survey and the prepared benchmark-oracle publication. The saved failed sponsor build remains preserved; its corrected successor changes only whitespace. Both publication pairs pass their source, arithmetic and all-page text checks. Visual and final acceptance remain open.
 
-The [current followup register](2026-10-28/program-refresh-followup-causal-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
+The [current followup register](2026-10-28/program-refresh-openai-contract-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
 
 Four specialist queries produced 35 unique metadata candidates. The exact-title arXiv followup returned 429; preprint and conference forward-identity queries returned zero indexed records. These outcomes establish neither technical claims nor search saturation. No new original-source disposition closes.
 
 ## Exact continuation
 
-Next: LL.CENSUS. All95followup rows now have explicit identity/disposition/task records:79distinct metadata identities,16duplicates,13rows bound to10retained selected originals,and66unique acquisition/edition obligations. Continue direct-source and longitudinal gaps using their recorded permitted-route/edition limits;do not repeat reviewed originals or unchanged failures. Prepare a bounded LL.CENSUS criterion review using explicit omission impacts,two-provider searches and citation chains;never require native or bank acceptance for literature disposition. Retain31unread inherited originals and independent L6/visual followups.
+Continue the exact acquired provider/framework delegate reviews and the bounded hosted-service/model rights profiles in the L6 matrix. The finite LL.CENSUS review is recorded inconclusive; future source/edition and essentiality work needs a reviewed successor. Do not restart completed source reads, reader/sponsor builds or the finite census audit. Fresh visual review remains separate.
 
-Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
-Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.
-Publish reviewed independent deltas in bounded waves to avoid repeated full-book reviews; record each decision separately. Commit and push completed waves, then continue ready obligations.
+The current scheduler has no ready original operation after the last finite audit is recorded. This does not mean the proposal is complete: use reviewed successors for the known independent followups. The chapter-successor mechanism is available; do not weaken prerequisites or silently reopen historical results.
+
+Serialize canonical mutations, consume actual process exits, and verify commit/push before the next publication. Preserve failures and immutable originals. Phase boundaries are not permission gates.

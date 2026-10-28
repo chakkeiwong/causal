@@ -1,0 +1,5 @@
+## Preserve scientific meaning across provider responses
+
+Pinned official OpenAI cookbook and Python SDK originals now complement the five existing backend profiles. Strict schemas and parsing helpers constrain representation; refusals, incomplete output and commentary require separate handling. The proposed adapter preserves these native states and admits a scalar effect only after completion, representation checks and scientific identification. A completed nonidentification answer remains a useful but distinct result. [@exec28_oa_cookbook; @exec28_oa_sdk]
+
+An exact authored example gives six possible HTTP attempts when two workflow attempts each allow three client attempts. At a stipulated USD 0.25 per attempt the cost is USD 1.50; the stated timing path takes 33 seconds. These are illustrative accounting results, not vendor prices or measured latency. Conditional adoption of the original client through a thin adapter avoids an unjustified wholesale port, while model and service terms, native public fixtures and bank effectiveness remain open. [@exec28_oa_reference]

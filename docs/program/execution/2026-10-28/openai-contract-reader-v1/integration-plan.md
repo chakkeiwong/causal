@@ -1,0 +1,1 @@
+Preserve all1400 prior source records,citation contexts and content inputs. Add pinned official OpenAI cookbook/SDK contracts and exact scientific-admission/nested-retry witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
