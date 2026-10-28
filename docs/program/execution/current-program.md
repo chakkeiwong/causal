@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-linguistic-measurement-v1/program-review.json)
-and [remaining-operation register](2026-10-28/program-refresh-linguistic-measurement-v1/remaining-operations.json)
+Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-causal-modeling-v1/program-review.json)
+and [remaining-operation register](2026-10-28/program-refresh-causal-modeling-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-28/program-refresh-linguistic-measurement-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-28/program-refresh-causal-modeling-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_linguistic_measurement_reviewed_v1_2026-10-28.pdf) has 1,727 pages,
-1,395 audited citation records and 268 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_linguistic_measurement_reviewed_2026-10-28.pdf) has 160 pages and 1,040 citations.
-All 1,392 predecessor records, citation contexts and 410 compiled content inputs survive.
+The [monograph](../../causal_proposal_causal_modeling_reviewed_v1_2026-10-28.pdf) has 1,729 pages,
+1,397 audited citation records and 269 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_causal_modeling_reviewed_2026-10-28.pdf) has 160 pages and 1,044 citations.
+All 1,395 predecessor records, citation contexts and 411 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -25,19 +25,22 @@ Census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded f
 
 ## Newly integrated work
 
-Pages 296-300 connect writer intent, reader perception, classifier labels and implementable editing policies.
-The inspected Pryzant preprint retains its explicit better-than-chance and homogeneous-effect-sign conditions.
-A separate exact stochastic-proxy example gives 77.5 percent accuracy, USD5 true average effect and minus USD4 proxy contrast.
-It is an authored measurement model, not a source-theorem refutation, native TextCause failure or bank evidence.
-Public complaints and generated outcomes have different prototype roles; selection, intervention timing and sequential support remain explicit.
+The new section distinguishes business phrases, variable values, compound entities and causal interventions.
+The inspected Razouk preprint reports seven models evaluated on generated data; independent bank truth is not inferred.
+Exact authored examples distinguish compound wording from additive causal interaction and graph paths from nonzero total mean effects.
+All source-reported scores remain tied to historical task definitions, model labels and generated-label denominators.
 
-The same section integrates three pinned component inventories: missing root/component permission evidence for LLM-CD and LLM-and-SCD,
-and exact weight/provenance/terms, dependencies and loader contracts for LCM. CLI/MCP results must distinguish scientific nonidentification,
-artifact unavailability and execution failure. Native adoption remains deferred locally; independent proposal work continues.
+The [census contract audit](2026-10-28/census-acceptance-scope-v1/review.json) identifies an execution-scope problem:
+LL.CENSUS requires evidence-backed dispositions, task mapping, complementary bounded searches and citation chaining.
+It permits recorded source unavailability with affected claims restricted. Native installation and bank validation are separate gates.
+No unread paper becomes inspected, and no coverage or final acceptance is granted by this diagnosis.
 
-The [bounded source review](2026-10-28/linguistic-measurement-v1/review.json) admits one genuine preprint and preserves
-[unavailable originals and edition boundaries](2026-10-28/linguistic-measurement-v1/omissions-register.json).
-The adjacent backward reference does not close one of the 31 existing census rows or establish search saturation.
+The [followup register](2026-10-28/causal-modeling-lead-v1/followup-lead-register.json) preserves 60 earlier and 35 specialist search rows.
+Two rows now bind the inspected causal-modeling preprint. The remaining 93 need explicit identity/version and source-disposition reconciliation.
+This queue is separate from the 113 inherited candidate census and prevents untracked later discoveries from being overlooked.
+
+The prior linguistic intervention and component-adoption section remains intact. Its exact proxy example and LLM-CD/LLM-and-SCD/LCM limits
+remain qualified. Public/generated prototype evidence, source coverage, native qualification and bank acceptance retain distinct outcomes.
 
 ## Remaining gaps and routes
 
@@ -83,13 +86,13 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 Recovery on 28 October 2026 completed the interrupted survey and the prepared benchmark-oracle publication. The saved failed sponsor build remains preserved; its corrected successor changes only whitespace. Both publication pairs pass their source, arithmetic and all-page text checks. Visual and final acceptance remain open.
 
-The [current followup register](2026-10-28/program-refresh-linguistic-measurement-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
+The [current followup register](2026-10-28/program-refresh-causal-modeling-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
 
 Four specialist queries produced 35 unique metadata candidates. The exact-title arXiv followup returned 429; preprint and conference forward-identity queries returned zero indexed records. These outcomes establish neither technical claims nor search saturation. No new original-source disposition closes.
 
 ## Exact continuation
 
-Next: LL.CENSUS. Compare the remaining longitudinal candidates against explicit intervention, history, measurement, support and evaluation contracts. The selected Pryzant preprint and three runtime inventories are integrated; do not repeat completed queries or unavailable original routes. Seek distinct permitted originals for the remaining31 census rows and unresolved Taubman/Petersen/LDPE and edition identities. Full native benchmark and component adoption remain separate open obligations.
+Next: LL.CENSUS. Reconcile the remaining93 followup-search rows against retained source identities, versions and explicit acquisition limits; two rows now bind the inspected Razouk preprint. Preserve all113 original census candidates,31unread and14task mappings. Apply the actual literature-disposition criteria: explicit unavailable-source impacts and two complementary bounded routes plus citation chains; do not require native product qualification or claim exhaustive search. Address accessible direct leads first, preserve distinct local blockers, and do not repeat completed publications or unchanged failed requests.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.

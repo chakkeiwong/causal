@@ -1,0 +1,1 @@
+Preserve all1395 prior source records,citation contexts and content inputs. Add the inspected Razouk preprint, variable/value contract, generated-label limits and exact compound-interaction/path-cancellation witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

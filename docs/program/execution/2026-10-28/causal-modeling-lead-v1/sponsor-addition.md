@@ -1,0 +1,7 @@
+# Validate variable meaning before accepting the diagram
+
+The inspected causal-modeling preprint evaluates whether phrases describe values of the same variable and whether a phrase combines several supplied variables. Seven models generate and evaluate the examples; the authors explicitly call for comparison with domain expertise. The tasks are useful prototype designs, but the reported scores do not establish independently validated banking variables or causal arrows. [@exec28_cm_razouk]
+
+The proposal separates semantic grouping, intervention definition and effect estimation. An exact authored example shows that a phrase mentioning a payment holiday and outreach can have zero additive causal interaction; a changed outcome law gives USD5 interaction with the same phrase. Another finite example has a causal path but zero total mean effect because direct and mediated changes cancel. The assistant must expose assumptions and ambiguity rather than turn phrase matching or graph reachability into an effect guarantee. [@exec28_cm_reference]
+
+A first public-data prototype should test incorrect variable merges and splits, time and unit mismatches, unsupported certainty, deferred cases and review costs. The source's anonymous code link remains an unqualified adoption lead. A separately authorized implementation can proceed with explicit variable records, source spans and unresolved alternatives before expensive bank validation.
