@@ -1,0 +1,5 @@
+## Separate causal reasoning from model repair
+
+The selected Ma survey organizes discovery, effects, counterfactuals and explanations while warning that collected evaluations use different prompts and task units. It supports a task-specific evaluation contract, not a universal model ranking. The selected Causal-LLaVA preprint improves several image-language scores, with some small regressions, and reports substantial training resources. These are source-reported findings about perception, not evidence of bank-effect identification. [@exec28_fr_ma; @exec28_fr_hu]
+
+An exact authored example separates arithmetic adjustment from normalized geometric approximation and from changes in target weights. With a stipulated USD1,000 event loss, the resulting expected losses are USD300,250,500 and740. These are mathematical examples,not observed bank losses. The proposal retains Causal-LLaVA as a candidate measurement component,with native artifact,rights,matched evaluation and bank transfer still open. CLI/MCP must keep the measurement task,model intervention and business intervention distinct. [@exec28_fr_reference]

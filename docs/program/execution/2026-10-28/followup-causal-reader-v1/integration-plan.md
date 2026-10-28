@@ -1,0 +1,1 @@
+Preserve all1397 prior source records,citation contexts and content inputs. Add the inspected Ma survey and Hu representation preprint,source-specific evaluation limits,and exact arithmetic/geometric and joint-confounder witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

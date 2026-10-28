@@ -1,0 +1,1055 @@
+                                                Causal-LLaVA: Causal Disentanglement for
+                                                Mitigating Hallucination in Multimodal Large
+                                                             Language Models
+
+                                                           Xinmiao Hu1 Chun Wang1 Ruihe An1 ChenYu Shao1
+                                                                 Xiaojun Ye1 Sheng Zhou1 Liangcheng Li1
+                                                                            1
+                                                                              Zhejiang University
+                                                          {xinmiao_hu, zjuheadmaster, 3220106416, 3230105139,
+arXiv:2505.19474v1 [cs.AI] 26 May 2025
+
+
+
+
+                                                          yexiaojun, zhousheng_zju, liangcheng_li}@zju.edu.cn
+
+
+
+                                                                                       Abstract
+                                                  Multimodal Large Language Models (MLLMs) perform well on visual understand-
+                                                  ing tasks, but they suffer from object hallucination and generating inconsistent
+                                                  or nonexistent object descriptions due to the dataset biases. This paper explores
+                                                  how dataset biases affect object hallucinations in MLLMs on feature space, reveal-
+                                                  ing that biased object co-occurrences lead to entangled semantic representations
+                                                  across modalities. Thus, the model mistakenly activates the representation of an
+                                                  object that often appears with the input object but is absent, leading to halluci-
+                                                  nations. To address this, we propose a causality-based disentanglement frame-
+                                                  work using causal intervention to deconfound the biases introduced by frequent
+                                                  object co-occurrences in the data. Specifically, we introduce a Causal-Driven
+                                                  Projector in the visual pathway and a Causal Intervention Module in the final
+                                                  LLM transformer layer, which work together to mitigate spurious correlations.
+                                                  Our experiments show a notable reduction in hallucinations while preserving
+                                                  strong performance across several benchmarks, along with visualization anal-
+                                                  ysis confirming improved representation separability. Our code is available at
+                                                  https://github.com/IgniSavium/Causal-LLaVA.
+
+
+                                         1   Introduction
+                                         Multimodal Large Language Models (MLLMs) like LLaVA [36, 37], MiniGPT-4 [67] and Instruct-
+                                         BLIP [6] have demonstrated their remarkable ability in visual understanding tasks, such as image
+                                         captioning [20], visual question answering (VQA) [1], and complex multimodal reasoning [15].
+                                         Despite these achievements, MLLMs still suffer from hallucination, where models generate content
+                                         inconsistent with visual inputs, such as describing nonexistent objects, incorrect attributes, or im-
+                                         plausible relationships [3, 35]. Among these issues, object hallucination, where models describe
+                                         inconsistent or nonexistent objects, represents a significant challenge that has drawn substantial atten-
+                                         tion in the field. Because of the co-occurrence biases on datasets, models will mistakenly infer one
+                                         object’s presence due to its frequent co-occurrence with another object[30]. For example, an MLLM
+                                         might hallucinate chairs around a table when processing visual inputs containing only the table itself,
+                                         due to learned biased co-occurrence patterns that chairs are always around a table statistically from
+                                         datasets (see Figure 1 left). Such hallucinations fundamentally undermine MLLMs’ reliability in
+                                         downstream reasoning, leading to erroneous semantic interpretations, breaking multi-step inference
+                                         chains built on visual context [14], and impairing grounding for sequential vision-based agents in
+                                         dynamic environments [7]. These failures not only erode user trust but also pose serious risks in
+                                         safety-critical applications requiring accurate perception.
+                                         While previous work [30] has only shown that co-occurrence frequencies are statistically linked to
+                                         hallucination rates, without exploring the deeper reasons behind this, we investigate the dynamic
+
+                                         Preprint. Under review.
+Figure 1: left: A hallucination example where an MLLM incorrectly describes non-existent objects
+(chairs and a coffee cup) based on co-occurrence patterns. middle: Representations of original
+LLaVA’s final LLM Transformer layer. The dining table (green dot, id=67) is surrounded by its
+top-10 most frequently co-occurring objects (red dots). right: Disentangled representations in our
+framework, with previously clustered objects now drifting significantly apart.
+
+
+formation of these biases throughout the representation learning process. This helps us gain a
+more nuanced understanding of how statistical patterns in the training data gradually shape the
+model’s internal representations, allowing us to identify critical stages where biases are most likely
+to be amplified or mitigated. We first examine the distribution of textual and visual representations
+within the semantic space of MLLMs. In Figure 1 (middle and right), dining table and its top-10
+most frequently co-occurring objects on MSCOCO [32] are visualized via average visual object
+representations in the original LLaVA’s final LLM Transformer layer using principal component
+analysis (PCA). We observe that after the trained projector and in the lower half and final layers of
+the Transformer, the entanglement of hidden states shows strong correlation with the co-occurrence
+frequency of objects in the instruction dataset (see Figure 1 middle).
+Based on these findings, we conclude that such spurious correlations arise directly from the biased
+representation learning process. This representational entanglement causes the model to align the
+semantic representations of frequently co-occurring objects, thus one object occurs will raise the
+probability of the other related object occurring with the risk of ignoring the real visual information.
+Statistically biased co-occurrence and associations embedded in the semantic space of MLLMs are a
+primary contributor to object hallucinations. We identify these entangled representations as a key
+underlying cause. They stem from two main sources: (1) object co-occurrence patterns present in the
+training data, and (2) the model’s inclination to associate objects based on superficial correlations
+rather than genuine causal relationships[11, 19, 21]. While many existing approaches attempt to
+address the first issue through data reweighting[22, 34, 52], they often overlook the second and more
+fundamental challenge of understanding how the model internally learns and represents semantic
+relations. To enable MLLMs to comprehend essential semantic and logical structures, it is crucial
+to establish unbiased representations. Causal inference, which uncovers causal relationships from
+observational data, offers a principled way to bridge empirical patterns and underlying causality [43].
+Building on this insight, we propose a causality-driven framework with two parts: a Causal-Driven
+Projector that decouples co-occurring object features, and Causal Intervention Modules that purify
+hidden states in top Transformer layers. This two-part design breaks the spread of bias during
+vision-language learning (see Figure 1 right), helping the model tell objects apart and reducing
+hallucinations from data bias."
+Empirical evidence demonstrates that our method effectively suppresses hallucinations without
+compromising performance across various comprehensive benchmarks, with the integration of our
+Disentanglement Modules into LLaVA yielding a 22.6% increase in the MME-Perception score [8].
+In conclusion, this paper makes the following contributions:
+
+      1. We reveal that object hallucinations in MLLMs are rooted in entangled semantic representa-
+         tions formed during training, driven by co-occurrence biases in data. Our analysis focuses
+         on how these representations evolve within the model, offering a new perspective at the
+         representational level.
+
+
+                                                   2
+       2. We design a causality-based disentanglement architecture that separates object representa-
+          tions to reduce hallucinations from commonly confused combinations. This module can be
+          easily adapted to different multimodal large language model architectures.
+       3. We empirically validate that our approach not only effectively reduces hallucinations but
+          also preserves strong performance across multiple benchmarks. The code and framework
+          will be released publicly for further research.
+
+2     Related Work
+2.1   Hallucination in MLLMs
+
+Hallucination in Multimodal Large Language Models (MLLMs) refers to generating content incon-
+sistent with input images [3]. The causes of hallucinations in MLLMs are multifaceted, including
+over-reliance on parametric or linguistic knowledge [56, 65], biases in training data (distribution
+imbalances and annotation irrelevance) [12, 62], insufficient attention to contextual information in
+large language models (LLMs) [13, 25], and resolution-constrained vision encoders that struggle to
+capture fine-grained semantics [31, 46], all of which collectively exacerbate hallucination phenomena.
+Prior efforts to mitigate hallucinations have explored diverse strategies. Wang et al. [54] and Jain
+et al. [17] refine cross-modal interactions through auxiliary visual controls like segmentation maps
+to improve modality alignment. Kim et al. [22] generate decorrelated synthetic datasets to reduce
+spurious correlations; Liu et al. [34] and Wang et al. [52] employ negative samples or iterative
+correction during large-scale instruction dataset creation. Contrastive decoding strategies by Wang
+et al. [55] and Leng et al. [26] suppress hallucinations by contrasting outputs from original and
+perturbed inputs (e.g., altered instructions or distorted images), adjusting reliance on language priors.
+Yin et al. [61] and Zhou et al. [66] validate outputs using external expert models without modifying
+training processes. Reinforcement learning approaches like RLHF [49] align outputs with human
+preferences through iterative feedback.
+Existing methods face two key limitations. Most rely on external tools like GPT-4 for data generation
+or expert models for validation, causing error propagation and inefficiency. Others use contrastive
+decoding or indirect alignment (RLHF), which fail to tackle the deep cause: the distorted semantic
+representations caused by biased data distributions. In contrast, we propose a novel architectural
+solution based on feature disentanglement learning, which requires no synthetic data, external models,
+or post-processing, enabling lightweight, end-to-end mitigation of hallucinations.
+
+2.2   Causal Inference
+
+Causal inference has been widely adopted across AI domains to tackle bias and spurious correlations.
+In visual question answering (VQA), Niu et al. [42] explicitly model language bias as a causal
+effect, subtracting its direct influence from predictions to improve robustness. Liu et al. [33]
+extend this paradigm to image captioning by employing backdoor adjustment with interventional
+object detectors and transformer decoders to disentangle visual and linguistic confounders. In
+image-text matching, Li et al. [29] further advance the framework by decomposing intra- and inter-
+modal confounders through backdoor adjustments, enabling more reliable alignment. Beyond these
+structured applications, causal inference has also been explored in image recognition[39, 53, 58, 59],
+dialog generation[44, 68], video analysis[27], and scene graph generation[48, 50]. Despite these
+advancements, existing approaches typically rely on task-specific architectures and smaller-scale
+models, restricting scalability. Moreover, few investigate causal integration within high-capacity
+multimodal systems like multimodal large language models (MLLMs). This gap highlights the
+urgent need for methodologies that can systematically mitigate confounding factors in large-scale,
+generalizable architectures while maintaining strong performance across diverse tasks.
+
+3     Influence of Instruction Bias on Hidden States
+Multimodal Large Language Models (MLLMs) typically use instruction-tuning datasets derived
+from traditional vision datasets like MSCOCO[32] and Visual Genome[24]. However, these datasets
+contain inherent biases from long-tailed object distributions, geographic skews, and annotator pref-
+erences for common scenes. These manifest as imbalanced object frequencies (e.g., "person" vs.
+
+
+                                                   3
+Figure 2: Original LLaVA average object visual representations PCA after Vision Encoder (left),
+Projector (middle), and LLM layer 5 (right). Green dots: "dining table"; Red dots: top-10 co-
+occurring objects.
+
+
+
+
+Figure 3: Original LLaVA average object visual hidden state distributions PCA in LLM layers 15
+(left), 30 (middle), and 40 (right). Green dots: "dining table"; Red dots: top-10 co-occurring objects.
+
+
+"hairdryer") and constrained co-occurrence patterns (e.g., "table+chair" vs. "table+snowboard").
+When MLLMs generate instruction data through automated template/rule-based methods[34, 37],
+these biases become amplified, creating highly skewed object distributions.
+We analyze LLaVA[36, 37]—trained on MSCOCO-derived data—to study how instruction dataset
+biases, particularly object pair co-occurrences (e.g., "dining table" centrality), affect latent representa-
+tions in MLLMs. While we focus on visual modality in the main text, Appendix provides textual
+analysis and additional examples.
+As shown in Figure 2, principal components of average visual representations (post-Vision En-
+coder/Projector) reveal distinct patterns. The green dot ("dining table") and red dots (top-10
+co-occurring objects) show minimal clustering after the frozen CLIP Vision Encoder. However,
+post-Projector processing results in tight clustering, indicating that co-occurrence frequency drives
+representational entanglement—a key contributor to model hallucinations.
+Figure 2(right) illustrates layer 5 of the LLM (representative of layers 1-5). Here, hidden state distri-
+butions directly and strongly mirror post-Projector visual tokens: "dining table" remains prominently
+surrounded by co-occurring objects, confirming that Projector-induced entanglement directly shapes
+early LLM semantic understanding.
+Figure 3(left) extends this to layer 15 (representative of layers 6-15), where persistent clustering
+confirms a strong correlation between hidden state entanglement and training data co-occurrence
+frequencies. These results demonstrate that instruction biases propagate through multiple model
+layers, exerting a lasting and consistent influence on the MLLM’s visual semantic understanding
+process.
+At higher LLM layers (Figure 3(middle): layer 30), co-occurrence-driven clustering weakens as
+category representations disperse. This reflects a shift from an "understanding" phase (analyzing
+
+
+                                                     4
+      Z                                            Dv                                                   Dv
+
+ X        Y
+                    I               Fv         S                         I                Fv        S
+                                                        h        W                                           h        W
+                I: image                                             I: image
+                Fv: visual features            T                     Fv: visual features            T
+      Z         S: visual soft tokens                                S: visual soft tokens
+                T: text
+                h: cross-modal hidden states
+                                                            Dt       T: text
+                                                                     h: cross-modal hidden states
+                                                                                                                 Dt
+                W: next word                                         W: next word
+ X        Y     Dv: visual confounders                               Dv: visual confounders
+                Dt: textual confounders                              Dt: textual confounders
+
+
+
+
+Figure 4: Unified illustration of causal mechanisms in MLLMs. (a) Backdoor adjustment blocks con-
+founding paths. (b) Causal relationships involving visual/textual confounders in MLLM processing.
+(c) Final deconfounded results.
+
+
+visual input semantics) to a "prediction" phase (next-token probability estimation), where object
+representations undergo distinct spatial transformations. These transformations map categories to
+more distinguishable semantic units, altering the relationship between co-occurrence frequency and
+representational entanglement compared to earlier stages.
+Finally, Figure 3(right) shows that although there is a representation distribution shift during late
+prediction phases, layer 40 (final hidden states for the next token prediction) still retains strong
+entanglement between "dining table" and its co-occurring objects. This confirms that instruction bias-
+induced entanglement not only persists through visual semantic understanding but also fundamentally
+defines the structure of the final token prediction space.
+
+4     Methodology
+4.1   Backdoor Adjustment
+
+Causal inference addresses dataset biases caused by confounders in AI applications [18, 58, 60]. A
+confounder is a common cause of two variables, inducing spurious associations. In machine learning,
+they manifest as contextual biases (e.g., visual features influenced by real-world contexts in object
+detection or image captioning).
+The observational probability P (Y | X) captures this distortion through:
+                                     X
+                       P (Y | X) =       P (Y | X, Z = z)P (Z = z | X),                                               (1)
+                                                   z
+
+where confounder Z biases estimation via P (Z = z | X). Consider image captioning: if P (Z =
+chair | X = table) ≫ P (Z = toaster | X = table), then P (Y = Tokenstable | X = table, Z =
+chair) dominates estimation over P (Y = Tokenstable | X = table, Z = toaster) during parameter
+training. This creates a bias where features of "chair" are incorrectly linked to "table", as the model
+prioritizes co-occurrence patterns over intrinsic characteristics.
+To address this, causal intervention via P (Y | do(X)) has been proposed [53, 64]. The do-operator
+severs the causal link between confounder Z and input X, blocking the backdoor path X ← Z → Y .
+As illustrated in Figure 4(a), this enables learning of the true causal effect of X on Y . The backdoor
+adjustment formalizes this as:
+                                             X
+                     P (Y | do(X = x)) =         P (Y | X = x, Z = z)P (Z = z),                     (2)
+                                                        z
+
+with Z as the confounder.
+This formula ensures fair integration of all Z values under a uniform prior P (Z = z), decoupling
+their correlation with X. For example, in image captioning, treating frequent concepts as confounders
+in do-intervention deconfounds the relationship between image features and captions. By maximizing
+P (TokensX | do(X)), the model learns direct visual representations from images, avoiding spurious
+dataset-induced co-occurrences.
+
+
+                                                             5
+However, applying Equation (2) in deep learning is computationally intensive due to extensive
+sampling requirements. To address this, the Normalized Weighted Geometric Mean (NWGM)
+approximation has been proposed [53, 57]. For linear probability models f , NWGM simplifies the
+causal intervention as (see Appendix):
+                                          N W GM
+                          P (Y | do(X))      ≈     Softmax (f (x, Ez [z])) ,                        (3)
+Here, Z = [z1 , . . . , zn ] is a predefined confounder dictionary with zi approximated by category-
+averaged hidden features. This reduces computation by replacing marginalization over Z with
+expectation estimation. Our specific implementation will be mentioned later.
+
+4.2   Causal Relationship Analysis
+
+We model the causal relationships in LVLMs using a Structural Causal Model (SCM) with key
+variables: input image I, visual features Fv , visual soft tokens S, textual tokens T , LLM hidden
+states h, predicted word W , visual confounders Dv , and textual confounders Dt [4, 39].
+As shown in Figure 4(b), the causal paths h → W , S → h, and T → h indicate that LLM hidden
+states determine word predictions through multimodal fusion. The chain I → Fv → S reflects
+sequential encoding via the visual encoder and projector.
+The paths Dv → Fv , Dv → S, Dv → h, and Dt → h reveal visual biases during training. For
+instance, object representations may skew toward frequent co-occurring contexts in the dataset. The
+effects Dv → W and Dt → W imply direct confounding on lexical distributions, particularly
+object-related tokens.
+Based on the causal analysis, using the observational likelihood P (W | h) as the training target
+introduces biases through confounders Dv and Dt . Its decomposition is:
+                                X               X
+                    P (W | h) =    P (dv | h) ·    P (dt | h)P (W | h, dv , dt ).             (4)
+                                  dv               dt
+
+
+To block the backdoor paths h ← Dv → W and h ← Dt → W , we apply backdoor adjustment
+[53, 64] with the causal intervention(see Appendix):
+                                        N W GM                       
+                        P (W | do(h)) ≈ P W | h, Edv [dv ], Edt [dt ] ,          (5)
+
+The causal path S → h is further affected by visual confounders Dv . While prior work approximates
+Eq. (5) via NWGM (Eq. 3) [53], this approach limits causal learning to the final Softmax layer, leaving
+earlier biased representations unaddressed. Since neural networks inherently encode conditional
+probabilities through pattern recognition [41], we shift causal intervention from output logits to
+learned features, hypothesizing that unbiased features yield unbiased predictions.
+To block the backdoor path S ← Dv → h, we propose a causally intervened projector module that
+generates disentangled visual tokens S. Let g denote the intervention-driven projector function:
+                                                                 NWGM
+          CausalDrivenProjector(Fv , Z) = Ez [g(fv , z)]           ≈    gf (fv ) + gz (Ez [z]),     (6)
+where Z is a confounder dictionary.
+Finally, the path Fv ← Dv → S is approximately blocked in practice, owing to two factors: (1)
+CLIP vision encoders are trained on diverse datasets, reducing potential bias in Fv ; and (2) CLIP is
+typically frozen during MLLM training (e.g., LLaVA), thereby decoupling Dv from Fv .
+
+4.3   Disentangled Model Architecture
+
+We enhance the MLLM architecture by integrating causal intervention modules into the modality-
+alignment projector and transformer decoder layers to mitigate spurious correlations (Fig. 5).
+
+Disentangled Visual Projector The projector follows Eq. (6), where gf inherits the original MLP
+structure (e.g., LLaVA’s projector). To approximate Ez [z], we build a visual confounder dictionary
+D ∈ RK×σ , with K as the number of object classes and σ as the hidden size. Each entry in D is the
+
+
+                                                   6
+                                                                                                        Word Distribution
+
+                               The image shows a table with a                     𝐷"                    Linear & Softmax
+                               transparent vase holding green
+                                                                                                            Residual
+                               plants, set against a backdrop of
+                               light wooden flooring.                                                        Causal
+                                                                                𝐾          𝑉              Intervention
+
+                                                                               Attention                  Layer Norm          ×𝐿
+                                        +                             +         𝑄                           Residual
+                                                   Attention                   Attention
+                                                                                                             Feed
+                                                    𝐾       𝑉                   𝐾       𝑉                   Forward
+                                                                                                          Layer Norm
+
+                                                                                                            Residual
+                                                      𝐷!                          𝐷!                        Masked
+                       Projector
+                                                                                                         Multi-head Attn
+                    Vision Encoder                 Visual Tokens          Text Tokens                     Layer Norm
+
+                                                                                                               +
+                                                                                                                            Position
+                                                                            Text Encoder                                    Embeds
+
+                                                                   Describe this image in detail.
+
+
+
+          Figure 5: Illustration of our innovative disentangled MLLM model architecture.
+
+average post-projector visual representation of an object category, aggregated from 5,000 instances
+sampled from the LLaVA-Instruct dataset.
+The expectation Ez [z] is approximated via cross-attention:
+                                                                X(DWk )⊤
+                                                                                                   
+                     modeled as
+            EZ [Z] ≈ CrossAttn(X, D, D) = softmax                  √          (DWv ),          (7)
+                                                                     σ
+where X is visual encoding features, and Wk , Wv ∈ Rσ×σ . This formulation allows fixed confounder
+vectors d ∈ D to be contextually modulated by X, enabling input-specific confounding estimation
+while avoiding static representations [33, 58].
+The final Causal-Driven Projector combines the original structure with causal intervention:
+                                                                   fv (DWk )⊤
+                                                                               
+ C.D.Projector(Fv , Z) = OriginalProjector(fv ) + softmax              √          (DWv ) · Wo , (8)
+                             |         {z          }                     σ
+                                     gf (fv )          |                  {z                }
+                                                                                                                gz (Ez [z])
+
+where Wo ∈ Rσ×σ as gz in Eq. (6) enhances representation capacity.
+
+Disentangled LLM Transformer Using NWGM (Eq. 3, 5), we approximate P (W | do(h)) ≈
+P (W | h, Edv [dv ], Edt [dt ]). The expectations Edv [dv ] and Edt [dt ] are computed via cross-attention
+with visual/textual confounder dictionaries Dv , Dt ∈ RK×σ (following the Disentangled Projector’s
+procedure in Eq. 7). These dictionaries are built by aggregating object-category-specific features
+from 5,000 LLaVA-Instruct samples, similar as section 4.3.
+The causal intervention module for LLM layers is defined as:
+         CausalIntervention(h) = CrossAttn(h, Dv , Dv ) + CrossAttn(h, Dt , Dt ),                                                      (9)
+                                      |          {z          } |  {z          }
+                                                                          visual                                         textual
+where each cross-attention component expands to:
+                                                   h(DWk )⊤
+                                                             
+                    CrossAttn(h, D) = softmax         √         (DWv ) · Wo ,         (10)
+                                                        σ
+with Wk , Wv , Wo ∈ Rσ×σ . This formulation decouples visual and textual confounders while
+preserving input-specific modulation through dynamic attention weights.
+
+5     Experiments
+5.1   Experiment Setup
+
+Baselines We adopt LLaVA [36, 37] as our primary baseline framework for causal learning evaluation.
+This choice is motivated by three key advantages: (1) its synthetic instruction data generation pipeline
+
+
+                                                                        7
+Table 1: Hallucination Evaluation Results on POPE, MMEP , and CHAIR. CHAIR metrics are
+computed on COCO val2014. Abbreviations: POPErnd (Random), POPEpop (Popular), POPEadv
+(Adversarial), MMEP (Perception).
+Model                 LLM        POPErnd ↑ POPEpop ↑ POPEadv ↑ MMEP ↑ CHAIRs ↓ CHAIRi ↓ Recall↑
+MiniGPT-4          LLaMA-7B         43.35      50.74      48.07    581.67       -         -        -
+mPLUG-Owl          LLaMA-7B         68.39      66.94      66.82    967.34       -         -        -
+InstructBLIP       Vicuna-7B        89.27      84.66      77.32    1084.0       -         -        -
+Shikra             Vicuna-7B        86.19      83.16      82.49      -          -         -        -
+LLaVA            LLaMA-2-7B         71.70      67.15      67.21     714.29    33.0       9.5     65.6
+Causal-LLaVA     LLaMA-2-7B         72.72      67.92      67.48     757.16    30.9       9.2     65.9
+LLaVA           LLaMA-2-13B         78.60      74.09      70.07     711.22    30.3       8.7     65.9
+Causal-LLaVA    LLaMA-2-13B         79.54      75.21      70.81     872.09    28.2       8.5     66.1
+LLaVA1.5        Vicuna-v1.5-7B      87.34      86.13      84.21    1508.51    52.1      14.9     79.4
+Causal-LLaVA1.5 Vicuna-v1.5-7B      88.18      86.65      84.55    1522.10    51.4      14.8     79.9
+
+
+
+from MSCOCO with quantifiable instruction biases, (2) its fully tunable architecture enabling multi-
+level model intervention capabilities, and (3) its reproducible, modular open-source implementation
+that serves as a representative Multimodal Large Language Model (MLLM) prototype.
+For comparative analysis, we include results from established frameworks:                BLIP-2[28],
+InstructBLIP[6], MiniGPT-4[67], Shikra[5], IDEFICS[16], and Qwen-VL[2].
+Causal-LLaVA Implementation Details Our causal learning framework builds upon LLaVA [36, 37],
+integrating the Causal Disentanglement Module into the projection layer and final transformer block
+(section 4.3). We maintain LLaVA’s official training configuration with two critical modifications: For
+Causal-LLaVA-v1 pretraining, we implement (1). doubled batch size (256) and (2). halved learning
+rate (1 × 10−3 ) to accommodate additional projector parameters while ensuring training stability.
+All other phases retain default hyperparameters. The confounder dictionary estimation utilizes an
+intermediate checkpoint from a non-causal model trained for 0.1 epoch. Experiments were conducted
+on 8×NVIDIA H20 GPUs, with confounder estimation adding approximately 1 hour to total training
+duration.
+Evaluation Benchmarks We evaluate our model across 10 mainstream benchmarks, including
+CHAIR[45][65], POPE[30], MME[8] for hallucination evaluation and VQA-v2[9], GQA[14],
+VizWiz[10], Text-QA[47], ScienceQA-IMG[40], MMBench[38] and MM-Vet[63] for general com-
+prehension evaluation.
+
+
+5.2   Quantitative Results
+
+Effectiveness of Causal-LLaVA on Mitigating Hallucination As shown in Table 1, quantitative re-
+sults demonstrate the effectiveness of causal intervention in reducing hallucinations. On POPE bench-
+marks, Causal-LLaVA consistently surpasses LLaVA baselines. For instance, on POPErnd , LLaMA-
+2-7B and LLaMA-2-13B versions of Causal-LLaVA yield improvements of +1.42%(71.70 → 72.72)
+and +1.20% (78.60 → 79.54), respectively. While gains on other POPE subsets are modest, they
+reflect stable improvements. CHAIR metrics show meaningful reductions in hallucination: CHAIRs
+drops by 6.36% (33.0 → 30.9) and CHAIRi by 3.16% (9.5 → 9.2) for LLaVA. Importantly, MMEP
+improves by 6.0% (714.29 → 757.16) for LLaMA-2-7B and 22.6% (711.22 → 872.09) for LLaMA-
+2-13B, confirming that disentangled representations significantly suppress perceptual hallucination
+while maintaining overall performance stability.
+Effectiveness of Causal-LLaVA on Visual Comprehension As shown in Table 2, Causal-LLaVA
+maintains or improves visual reasoning capabilities across multiple benchmarks. On Vicuna-v1.5-7B,
+it achieves +2.0% on MMBench (64.6 → 65.9) and +4.8% on MM-Vet (31.2 → 32.7). Additional
+gains are observed on GQA (+2.7%, 37.3 → 38.3) and VizWiz (+8.4%, 44.2 → 47.9) with LLaMA-
+2-13B. While improvements on TextVQA and ScienceQA are marginal, Causal-LLaVA consistently
+preserves or slightly enhances performance across tasks, indicating that causal disentanglement
+improves semantic grounding without compromising general comprehension.
+
+
+                                                  8
+Table 2: General Visual Comprehension Evaluation Results on MMBench, MM-Vet, VQAv2 , GQA,
+VizWiz, TextVQA, and ScienceQA. Abbreviations: MMB (MMBench), MMV (MM-Vet).
+      Model               LLM          MMB↑ MMV↑ VQAv2 ↑ GQA↑ VizWiz↑ TextVQA↑ SciQA↑
+      MiniGPT-4         Vicuna-7B       23.0   22.1    65.2    30.08    30.2      52.3      58.4
+      BLIP-2            Vicuna-7B        -     22.4    65.0     41.0    19.6      42.5      61.0
+      InstructBLIP      Vicuna-7B       36.0   26.2     -      49.2     34.5      50.1      60.5
+      IDEFICS           LLaMA-7B        48.2    -      50.9    38.4     35.5       -         -
+      Qwen-VL-Chat       Qwen-7B        60.6    -      78.2    57.5     38.9      61.5      68.2
+      LLaVA            LLaMA-2-7B       39.0   26.2    67.6     37.3    43.8      52.0      61.5
+      Causal-LLaVA     LLaMA-2-7B       39.2   29.1    68.3     37.7    43.9      52.0      62.5
+      LLaVA           LLaMA-2-13B       37.5   32.2    68.1     37.3    44.2      55.2      65.1
+      Causal-LLaVA    LLaMA-2-13B       40.3   33.5    70.4     38.3    47.9      55.6      65.0
+      LLaVA1.5        Vicuna-v1.5-7B    64.6   31.2    75.1     62.5    50.1      61.0      70.2
+      Causal-LLaVA1.5 Vicuna-v1.5-7B    65.9   32.7    75.3     63.2    49.5      61.1      70.3
+
+
+
+
+Figure 6: Semantic distributions PCA after disentanglement at three stages: Projector output (left),
+LLM layer 15 (middle), and LLM layer 40 (right). Green dots: "dining table"; red dots: top-10
+co-occurring objects.
+
+
+5.3     Disentanglement Visualization
+
+Qualitative Analysis of Disentangled Representations Building on the entangled patterns observed
+in earlier stages (Fig. 2 and Fig. 3), Figure 6 visualizes the progressive separation of object repre-
+sentations through our framework. For "dining table" (green dot) and its co-occurring objects (red
+dots), the Causal-Driven Projector begins to spread them apart. By layer 15, they are no longer close
+in space, and by layer 40, they are fully separated. This progression confirms that dual-path causal
+intervention effectively disrupts bias propagation.
+
+
+6      Conclusion
+
+In conclusion, this paper uncovers an essential cause of object hallucinations in MLLMs—entangled
+semantic representations driven by dataset object co-occurrence biases—and proposes a novel
+causality-based disentanglement framework to mitigate this issue. With a Causal-Driven Projector
+and a Causal Intervention Module in the final LLM layer, our approach reduces hallucinations while
+maintaining strong performance across general comprehensive benchmarks, offering both theoretical
+insights and a practical solution for enhancing MLLM reliability.
+
+
+7      Limitations
+
+The primary limitation is substantial computational resource requirements, specifically utilizing 8
+NVIDIA H20 GPUs for model training, causing relatively high requirements for computing resources.
+Meanwhile, the confounders may be affected by noisy potential variables, which are related with
+different environments and different datasets.
+
+
+                                                  9
+References
+ [1] Stanislaw Antol, Aishwarya Agrawal, Jiasen Lu, Margaret Mitchell, Dhruv Batra, C Lawrence Zitnick,
+     and Devi Parikh. Vqa: Visual question answering. In Proceedings of the IEEE international conference on
+     computer vision, pages 2425–2433, 2015.
+ [2] Jinze Bai, Shuai Bai, Shusheng Yang, Shijie Wang, Sinan Tan, Peng Wang, Junyang Lin, Chang Zhou, and
+     Jingren Zhou. Qwen-vl: A versatile vision-language model for understanding, localization, text reading,
+     and beyond. 2023. URL https://api.semanticscholar.org/CorpusID:261101015.
+ [3] Zechen Bai, Pichao Wang, Tianjun Xiao, Tong He, Zongbo Han, Zheng Zhang, and Mike Zheng Shou.
+     Hallucination of multimodal large language models: A survey. ArXiv, abs/2404.18930, 2024. URL
+     https://api.semanticscholar.org/CorpusID:269449935.
+ [4] Krzysztof Chalupka, Frederick Eberhardt, and Pietro Perona. Causal feature learning: an overview. Behav-
+     iormetrika, 44:137–164, 2017. URL https://api.semanticscholar.org/CorpusID:40056398.
+ [5] Ke Chen, Zhao Zhang, Weili Zeng, Richong Zhang, Feng Zhu, and Rui Zhao. Shikra: Unleash-
+     ing multimodal llm’s referential dialogue magic. ArXiv, abs/2306.15195, 2023. URL https://api.
+     semanticscholar.org/CorpusID:259262082.
+ [6] Wenliang Dai, Junnan Li, Dongxu Li, Anthony Meng Huat Tiong, Junqi Zhao, Weisheng Wang, Boyang Al-
+     bert Li, Pascale Fung, and Steven C. H. Hoi. Instructblip: Towards general-purpose vision-language models
+     with instruction tuning. ArXiv, abs/2305.06500, 2023. URL https://api.semanticscholar.org/
+     CorpusID:258615266.
+ [7] Abhishek Das, Georgia Gkioxari, Stefan Lee, Devi Parikh, and Dhruv Batra. Neural modular control for
+     embodied question answering. ArXiv, abs/1810.11181, 2018. URL https://api.semanticscholar.
+     org/CorpusID:53080692.
+ [8] Chaoyou Fu, Peixian Chen, Yunhang Shen, Yulei Qin, Mengdan Zhang, Xu Lin, Zhenyu Qiu, Wei Lin,
+     Jinrui Yang, Xiawu Zheng, Ke Li, Xing Sun, and Rongrong Ji. Mme: A comprehensive evaluation
+     benchmark for multimodal large language models. ArXiv, abs/2306.13394, 2023. URL https://api.
+     semanticscholar.org/CorpusID:259243928.
+ [9] Yash Goyal, Tejas Khot, Douglas Summers-Stay, Dhruv Batra, and Devi Parikh. Making the v in vqa matter:
+     Elevating the role of image understanding in visual question answering. International Journal of Computer
+     Vision, 127:398 – 414, 2016. URL https://api.semanticscholar.org/CorpusID:8081284.
+[10] Danna Gurari, Qing Li, Abigale Stangl, Anhong Guo, Chi Lin, Kristen Grauman, Jiebo Luo, and Jeffrey P.
+     Bigham. Vizwiz grand challenge: Answering visual questions from blind people. 2018 IEEE/CVF
+     Conference on Computer Vision and Pattern Recognition, pages 3608–3617, 2018. URL https://api.
+     semanticscholar.org/CorpusID:3831582.
+[11] Youngkyu Hong and Eunho Yang. Unbiased classification through bias-contrastive and bias-balanced
+     learning. In A. Beygelzimer, Y. Dauphin, P. Liang, and J. Wortman Vaughan, editors, Advances in Neural
+     Information Processing Systems, 2021. URL https://openreview.net/forum?id=2OqZZAqxnn.
+[12] Hongyu Hu, Jiyuan Zhang, Minyi Zhao, and Zhenbang Sun. Ciem: Contrastive instruction eval-
+     uation method for better instruction tuning. ArXiv, abs/2309.02301, 2023. URL https://api.
+     semanticscholar.org/CorpusID:261557047.
+[13] Qidong Huang, Xiao wen Dong, Pan Zhang, Bin Wang, Conghui He, Jiaqi Wang, Dahua Lin, Weiming
+     Zhang, and Neng H. Yu. Opera: Alleviating hallucination in multi-modal large language models via
+     over-trust penalty and retrospection-allocation. 2024 IEEE/CVF Conference on Computer Vision and
+     Pattern Recognition (CVPR), pages 13418–13427, 2023. URL https://api.semanticscholar.org/
+     CorpusID:265498818.
+[14] Drew A. Hudson and Christopher D. Manning. Gqa: A new dataset for real-world visual reasoning
+     and compositional question answering. 2019 IEEE/CVF Conference on Computer Vision and Pattern
+     Recognition (CVPR), pages 6693–6702, 2019. URL https://api.semanticscholar.org/CorpusID:
+     152282269.
+[15] Drew A Hudson and Christopher D Manning. Gqa: A new dataset for real-world visual reasoning and
+     compositional question answering. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+     Pattern Recognition, pages 6700–6709, 2019.
+[16] IDEFICS Team. Introducing idefics: An open reproduction of state-of-the-art visual language model.
+     https://huggingface.co/blog/idefics, 2023. Accessed: 2025-05-13.
+
+
+                                                     10
+[17] Jitesh Jain, Jianwei Yang, and Humphrey Shi. Vcoder: Versatile vision encoders for multimodal large
+     language models. 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR),
+     pages 27992–28002, 2023. URL https://api.semanticscholar.org/CorpusID:266521081.
+
+[18] Licheng Jiao, Yuhan Wang, Xu Liu, Lingling Li, Fang Liu, Wenping Ma, Yuwei Guo, Puhua Chen,
+     Shuyuan Yang, and Biao Hou. Causal inference meets deep learning: A comprehensive survey. Research,
+     7, 2024. URL https://api.semanticscholar.org/CorpusID:272211277.
+
+[19] Thorsten Joachims, Adith Swaminathan, and Tobias Schnabel. Unbiased learning-to-rank with biased
+     feedback. Proceedings of the Tenth ACM International Conference on Web Search and Data Mining, 2016.
+     URL https://api.semanticscholar.org/CorpusID:300418.
+
+[20] Andrej Karpathy and Li Fei-Fei. Deep visual-semantic alignments for generating image descriptions. In
+     Proceedings of the IEEE conference on computer vision and pattern recognition, pages 3128–3137, 2015.
+
+[21] Byungju Kim, Hyunwoo Kim, Kyungsu Kim, Sungjin Kim, and Junmo Kim. Learning not to learn: Training
+     deep neural networks with biased data. 2019 IEEE/CVF Conference on Computer Vision and Pattern
+     Recognition (CVPR), pages 9004–9012, 2018. URL https://api.semanticscholar.org/CorpusID:
+     56895575.
+
+[22] Jae Myung Kim, A. Sophia Koepke, Cordelia Schmid, and Zeynep Akata. Exposing and mitigating spurious
+     correlations for cross-modal retrieval. 2023 IEEE/CVF Conference on Computer Vision and Pattern
+     Recognition Workshops (CVPRW), pages 2585–2595, 2023. URL https://api.semanticscholar.
+     org/CorpusID:258041361.
+
+[23] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. CoRR, abs/1412.6980,
+     2014. URL https://api.semanticscholar.org/CorpusID:6628106.
+
+[24] Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson, Kenji Hata, Joshua Kravitz, Stephanie Chen, Yan-
+     nis Kalantidis, Li-Jia Li, David A. Shamma, Michael S. Bernstein, and Li Fei-Fei. Visual genome: Connect-
+     ing language and vision using crowdsourced dense image annotations. International Journal of Computer
+     Vision, 123:32 – 73, 2016. URL https://api.semanticscholar.org/CorpusID:4492210.
+
+[25] Seongyun Lee, Sue Hyun Park, Yongrae Jo, and Minjoon Seo. Volcano: Mitigating multimodal hal-
+     lucination through self-feedback guided revision. In North American Chapter of the Association for
+     Computational Linguistics, 2023. URL https://api.semanticscholar.org/CorpusID:265150082.
+
+[26] Sicong Leng, Hang Zhang, Guanzheng Chen, Xin Li, Shijian Lu, Chunyan Miao, and Li Bing. Mitigating
+     object hallucinations in large vision-language models through visual contrastive decoding. 2024 IEEE/CVF
+     Conference on Computer Vision and Pattern Recognition (CVPR), pages 13872–13882, 2023. URL
+     https://api.semanticscholar.org/CorpusID:265466833.
+
+[27] Jiangtong Li, Li Niu, and Liqing Zhang. From representation to reasoning: Towards both evidence and
+     commonsense reasoning for video question-answering. 2022 IEEE/CVF Conference on Computer Vision
+     and Pattern Recognition (CVPR), pages 21241–21250, 2022. URL https://api.semanticscholar.
+     org/CorpusID:249192060.
+
+[28] Junnan Li, Dongxu Li, Silvio Savarese, and Steven C. H. Hoi. Blip-2: Bootstrapping language-image
+     pre-training with frozen image encoders and large language models. In International Conference on
+     Machine Learning, 2023. URL https://api.semanticscholar.org/CorpusID:256390509.
+
+[29] Wenhui Li, Xinqi Su, Dan Song, Lanjun Wang, Kun Zhang, and Anan Liu. Towards deconfounded
+     image-text matching with causal inference. Proceedings of the 31st ACM International Conference on
+     Multimedia, 2023. URL https://api.semanticscholar.org/CorpusID:264492480.
+
+[30] Yifan Li, Yifan Du, Kun Zhou, Jinpeng Wang, Wayne Xin Zhao, and Ji rong Wen. Evaluating object
+     hallucination in large vision-language models. In Conference on Empirical Methods in Natural Language
+     Processing, 2023. URL https://api.semanticscholar.org/CorpusID:258740697.
+
+[31] Zhang Li, Biao Yang, Qiang Liu, Zhiyin Ma, Shuo Zhang, Jingxu Yang, Yabo Sun, Yuliang Liu, and Xiang
+     Bai. Monkey: Image resolution and text label are important things for large multi-modal models. 2024
+     IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 26753–26763, 2023.
+     URL https://api.semanticscholar.org/CorpusID:265150038.
+
+[32] Tsung-Yi Lin, Michael Maire, Serge J. Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Dollár,
+     and C. Lawrence Zitnick. Microsoft coco: Common objects in context. In European Conference on
+     Computer Vision, 2014. URL https://api.semanticscholar.org/CorpusID:14113767.
+
+
+                                                     11
+[33] Bing Liu, Dong Wang, Xu Yang, Yong Zhou, Rui Yao, Zhiwen Shao, and Jiaqi Zhao. Show, deconfound
+     and tell: Image captioning with causal inference. 2022 IEEE/CVF Conference on Computer Vision and
+     Pattern Recognition (CVPR), pages 18020–18029, 2022. URL https://api.semanticscholar.org/
+     CorpusID:250520562.
+
+[34] Fuxiao Liu, Kevin Lin, Linjie Li, Jianfeng Wang, Yaser Yacoob, and Lijuan Wang. Mitigating hallucination
+     in large multi-modal models via robust instruction tuning. In International Conference on Learning
+     Representations, 2023. URL https://api.semanticscholar.org/CorpusID:259251834.
+
+[35] Hanchao Liu, Wenyuan Xue, Yifei Chen, Dapeng Chen, Xiutian Zhao, Ke Wang, Liping Hou, Rong-Zhi
+     Li, and Wei Peng. A survey on hallucination in large vision-language models. ArXiv, abs/2402.00253,
+     2024. URL https://api.semanticscholar.org/CorpusID:267365472.
+
+[36] Haotian Liu, Chunyuan Li, Yuheng Li, and Yong Jae Lee. Improved baselines with visual instruction tuning.
+     2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 26286–26296,
+     2023. URL https://api.semanticscholar.org/CorpusID:263672058.
+
+[37] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. ArXiv,
+     abs/2304.08485, 2023. URL https://api.semanticscholar.org/CorpusID:258179774.
+
+[38] Yuanzhan Liu, Haodong Duan, Yuanhan Zhang, Bo Li, Songyang Zhang, Wangbo Zhao, Yike Yuan,
+     Jiaqi Wang, Conghui He, Ziwei Liu, Kai Chen, and Dahua Lin. Mmbench: Is your multi-modal
+     model an all-around player? In European Conference on Computer Vision, 2023. URL https:
+     //api.semanticscholar.org/CorpusID:259837088.
+
+[39] David Lopez-Paz, Robert Nishihara, Soumith Chintala, Bernhard Scholkopf, and Léon Bottou. Discovering
+     causal signals in images. 2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR),
+     pages 58–66, 2016. URL https://api.semanticscholar.org/CorpusID:1847130.
+
+[40] Pan Lu, Swaroop Mishra, Tony Xia, Liang Qiu, Kai-Wei Chang, Song-Chun Zhu, Oyvind Tafjord, Peter
+     Clark, and A. Kalyan. Learn to explain: Multimodal reasoning via thought chains for science question
+     answering. ArXiv, abs/2209.09513, 2022. URL https://api.semanticscholar.org/CorpusID:
+     252383606.
+
+[41] Siqi Nie, Meng Zheng, and Qiang Ji. The deep regression bayesian network and its applications: Proba-
+     bilistic deep learning for computer vision. IEEE Signal Processing Magazine, 35:101–111, 2018. URL
+     https://api.semanticscholar.org/CorpusID:22901106.
+
+[42] Yulei Niu, Kaihua Tang, Hanwang Zhang, Zhiwu Lu, Xiansheng Hua, and Ji rong Wen. Counterfactual vqa:
+     A cause-effect look at language bias. 2021 IEEE/CVF Conference on Computer Vision and Pattern Recog-
+     nition (CVPR), pages 12695–12705, 2020. URL https://api.semanticscholar.org/CorpusID:
+     219530451.
+
+[43] Judea Pearl and Dana Mackenzie. The book of why: the new science of cause and effect. Basic books,
+     2018.
+
+[44] Jiaxin Qi, Yulei Niu, Jianqiang Huang, and Hanwang Zhang. Two causal principles for improving
+     visual dialog. 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages
+     10857–10866, 2019. URL https://api.semanticscholar.org/CorpusID:208267677.
+
+[45] Anna Rohrbach, Lisa Anne Hendricks, Kaylee Burns, Trevor Darrell, and Kate Saenko. Object hallucination
+     in image captioning. In Conference on Empirical Methods in Natural Language Processing, 2018. URL
+     https://api.semanticscholar.org/CorpusID:52176506.
+
+[46] Min Shi, Fuxiao Liu, Shihao Wang, Shijia Liao, Subhashree Radhakrishnan, De-An Huang, Hongxu Yin,
+     Karan Sapra, Yaser Yacoob, Humphrey Shi, Bryan Catanzaro, Andrew Tao, Jan Kautz, Zhiding Yu, and
+     Guilin Liu. Eagle: Exploring the design space for multimodal llms with mixture of encoders. ArXiv,
+     abs/2408.15998, 2024. URL https://api.semanticscholar.org/CorpusID:271974315.
+
+[47] Amanpreet Singh, Vivek Natarajan, Meet Shah, Yu Jiang, Xinlei Chen, Dhruv Batra, Devi Parikh, and
+     Marcus Rohrbach. Towards vqa models that can read. 2019 IEEE/CVF Conference on Computer Vision
+     and Pattern Recognition (CVPR), pages 8309–8318, 2019. URL https://api.semanticscholar.org/
+     CorpusID:85553602.
+
+[48] Shuzhou Sun, Shuaifeng Zhi, Qing Liao, J. Heikkila, and Li Liu. Unbiased scene graph generation
+     via two-stage causal modeling. IEEE Transactions on Pattern Analysis and Machine Intelligence, 45:
+     12562–12580, 2023. URL https://api.semanticscholar.org/CorpusID:259148437.
+
+
+                                                     12
+[49] Zhiqing Sun, Sheng Shen, Shengcao Cao, Haotian Liu, Chunyuan Li, Yikang Shen, Chuang Gan, Liangyan
+     Gui, Yu-Xiong Wang, Yiming Yang, Kurt Keutzer, and Trevor Darrell. Aligning large multimodal models
+     with factually augmented rlhf. ArXiv, abs/2309.14525, 2023. URL https://api.semanticscholar.
+     org/CorpusID:262824780.
+[50] Kaihua Tang, Yulei Niu, Jianqiang Huang, Jiaxin Shi, and Hanwang Zhang. Unbiased scene graph
+     generation from biased training. 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition
+     (CVPR), pages 3713–3722, 2020. URL https://api.semanticscholar.org/CorpusID:211532586.
+[51] Laurens van der Maaten and Geoffrey E. Hinton. Visualizing data using t-sne. Journal of Machine Learning
+     Research, 9:2579–2605, 2008. URL https://api.semanticscholar.org/CorpusID:5855042.
+[52] Bin Wang, Fan Wu, Xiao Han, Jiahui Peng, Huaping Zhong, Pan Zhang, Xiao wen Dong, Weijia Li, Wei
+     Li, Jiaqi Wang, and Conghui He. Vigc: Visual instruction generation and correction. In AAAI Conference
+     on Artificial Intelligence, 2023. URL https://api.semanticscholar.org/CorpusID:261100735.
+[53] Tan Wang, Jianqiang Huang, Hanwang Zhang, and Qianru Sun. Visual commonsense r-cnn. 2020
+     IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 10757–10767, 2020.
+     URL https://api.semanticscholar.org/CorpusID:211532471.
+[54] Wei Wang, Zhaowei Li, Qi Xu, Linfeng Li, Yiqing Cai, Botian Jiang, Hang Song, Xingcan Hu, Pengyu
+     Wang, and Li Xiao. Advancing fine-grained visual understanding with multi-scale alignment in multi-
+     modal models. ArXiv, abs/2411.09691, 2024. URL https://api.semanticscholar.org/CorpusID:
+     274023533.
+[55] Xintong Wang, Jingheng Pan, Liang Ding, and Christian Biemann. Mitigating hallucinations in large
+     vision-language models with instruction contrastive decoding. ArXiv, abs/2403.18715, 2024. URL
+     https://api.semanticscholar.org/CorpusID:268724017.
+[56] Kai Wu, Boyuan Jiang, Zhengkai Jiang, Qingdong He, Donghao Luo, Shengzhi Wang, Qingwen Liu,
+     and Chengjie Wang. Noiseboost: Alleviating hallucination with noise perturbation for multimodal
+     large language models. ArXiv, abs/2405.20081, 2024. URL https://api.semanticscholar.org/
+     CorpusID:270123403.
+[57] Ke Xu, Jimmy Ba, Ryan Kiros, Kyunghyun Cho, Aaron C. Courville, Ruslan Salakhutdinov, Richard S.
+     Zemel, and Yoshua Bengio. Show, attend and tell: Neural image caption generation with visual attention.
+     In International Conference on Machine Learning, 2015. URL https://api.semanticscholar.org/
+     CorpusID:1055111.
+[58] Xu Yang, Hanwang Zhang, and Jianfei Cai. Deconfounded image captioning: A causal retrospect.
+     IEEE Transactions on Pattern Analysis and Machine Intelligence, 45:12996–13010, 2020. URL https:
+     //api.semanticscholar.org/CorpusID:212633945.
+[59] Xu Yang, Hanwang Zhang, Guojun Qi, and Jianfei Cai. Causal attention for vision-language tasks. 2021
+     IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 9842–9852, 2021.
+     URL https://api.semanticscholar.org/CorpusID:232135026.
+[60] Liuyi Yao, Zhixuan Chu, Sheng Li, Yaliang Li, Jing Gao, and Aidong Zhang. A survey on causal
+     inference. ACM Transactions on Knowledge Discovery from Data (TKDD), 15:1 – 46, 2020. URL
+     https://api.semanticscholar.org/CorpusID:211066551.
+[61] Shukang Yin, Chaoyou Fu, Sirui Zhao, Tong Xu, Hao Wang, Dianbo Sui, Yunhang Shen, Ke Li, Xingguo
+     Sun, and Enhong Chen. Woodpecker: Hallucination correction for multimodal large language models. Sci.
+     China Inf. Sci., 67, 2023. URL https://api.semanticscholar.org/CorpusID:264439367.
+[62] Haoxuan You, Haotian Zhang, Zhe Gan, Xianzhi Du, Bowen Zhang, Zirui Wang, Liangliang Cao, Shih-
+     Fu Chang, and Yinfei Yang. Ferret: Refer and ground anything anywhere at any granularity. ArXiv,
+     abs/2310.07704, 2023. URL https://api.semanticscholar.org/CorpusID:263834718.
+[63] Weihao Yu, Zhengyuan Yang, Linjie Li, Jianfeng Wang, Kevin Lin, Zicheng Liu, Xinchao Wang, and Lijuan
+     Wang. Mm-vet: Evaluating large multimodal models for integrated capabilities. ArXiv, abs/2308.02490,
+     2023. URL https://api.semanticscholar.org/CorpusID:260611572.
+[64] Zhongqi Yue, Hanwang Zhang, Qianru Sun, and Xiansheng Hua. Interventional few-shot learning. ArXiv,
+     abs/2009.13000, 2020. URL https://api.semanticscholar.org/CorpusID:221970817.
+[65] Bohan Zhai, Shijia Yang, Chenfeng Xu, Sheng Shen, Kurt Keutzer, Chunyuan Li, and Manling Li.
+     Halle-control: Controlling object hallucination in large multimodal models. 2023. URL https://api.
+     semanticscholar.org/CorpusID:265609270.
+
+
+                                                     13
+[66] Yiyang Zhou, Chenhang Cui, Jaehong Yoon, Linjun Zhang, Zhun Deng, Chelsea Finn, Mohit Bansal,
+     and Huaxiu Yao. Analyzing and mitigating object hallucination in large vision-language models. ArXiv,
+     abs/2310.00754, 2023. URL https://api.semanticscholar.org/CorpusID:263334335.
+
+[67] Deyao Zhu, Jun Chen, Xiaoqian Shen, Xiang Li, and Mohamed Elhoseiny. Minigpt-4: Enhancing vision-
+     language understanding with advanced large language models. ArXiv, abs/2304.10592, 2023. URL
+     https://api.semanticscholar.org/CorpusID:258291930.
+
+[68] Qingfu Zhu, Weinan Zhang, Ting Liu, and William Yang Wang. Counterfactual off-policy training for
+     neural dialogue generation. In Conference on Empirical Methods in Natural Language Processing, 2020.
+     URL https://api.semanticscholar.org/CorpusID:265039635.
+
+
+
+
+                                                   14
+Supplementary Material
+
+In this supplementary document, we present additional material about our causal disentanglement
+framework, including A. Formula Derivations of Causal Intervention with NWGM approximation, B.
+Ablation Experiments, and C. More Visualization Results.
+A. Formula Derivations of Causal Intervention with NWGM approximation
+The methodology presented in our primary work incorporates the Normalized Weighted Geometric
+Mean (NWGM) approximation[53, 57] to evaluate Eq. (2) from Section 4.1 and Eq. (4) from Section
+4.2. This section outlines the comprehensive derivations.
+To demonstrate the application of NWGM in relocating the outer expectation within the Softmax
+operator shown in Eq. (3) and Eq. (5), we first define the Weighted Geometric Mean (WGM) of a
+function y(x) as follows[57]:
+                                                   Y
+                                  WGM(y(x)) =          y(x)P (x) ,                        (11)
+                                                     x
+
+where P (x) denotes the probability distribution over x. When y(x) takes an exponential form,
+specifically y(x) = exp[f (x)], Eq. (12) transforms into:
+                                                Y
+                               WGM(y(x)) =         exp[f (x)]P (x)
+                                                x
+                                                Y
+                                            =       exp[f (x)P (x)]
+                                                x
+                                                     "                #
+                                                      X
+                                            = exp            f (x)P (x)
+                                                         x
+                                            = exp{Ex [f (x)]}.                               (12)
+This allows us to approximate the expectation of y(x) through:
+                               X
+                   Ex [y(x)] =     y(x)P (x) ≈ WGM(y(x)) = exp{Ex [f (x)]},                  (13)
+                               x
+
+given y(x) = exp[f (x)].
+Within our Disentangled LLM Transformer framework, P (Y |do(X)) serves as the predictive distri-
+bution for subsequent tokens, modeled using the final linear word embedding layer g followed by a
+Softmax layer:
+                        P (Y |X, Z) = Softmax[g(X, Z)] ∝ exp[g(X, Z)].                       (14)
+Combining Eq. (2), Eq. (12), and Eq. (14), the following derivation holds:
+                                          X
+                    P (Y |do(X = x)) =         P (Y |X = x, Z = z)P (Z = z)
+                                           Z
+                                       = EZ [P (Y |Z = z, X = x)]
+                                       ≈ WGM(P (Y |Z = z, X = x))
+                                       ∝ exp{[g(EZ [Z], x)]}.                                (15)
+To ensure the resulting probabilities sum to 1, Eq. (15) undergoes normalization through the NWGM
+approximation:
+                                      exp{g(EZ [Z], x)}
+            P (Y |do(X = x)) ≈ P                             = Softmax[g(EZ [Z], x)].        (16)
+                                     y ′ exp{g(EZ [Z], x)y }
+                                                          ′
+
+
+
+
+Assuming g exhibits linearity, it can be decomposed into:
+                       P (Y |do(X = x)) ≈ Softmax[gx (x) + gz (EZ [Z])].                     (17)
+
+
+                                                15
+Extending to the Disentangled LLM Transformer architecture, consider a combined final hidden state
+h associated with word w, alongside estimated visual confounder Dv and textual confounder Dt .
+Analogous to Eq. (17), P (w|do(h)) admits the approximation:
+                  P (W |do(h)) ≈ Softmax[gh (h) + EDv [gv (Dv )] + EDt [gt (Dt )]].                 (18)
+Here, gh retains the structure of the standard LLM transformer. Critically, when computing
+ED [gd (D)] for both Dv and Dt , we condition d on h via E[D|h] [gd (D)] (refer to section 4.3).
+This prevents the expectation from collapsing to a static vector, a strategy validated in [23, 33, 51] to
+enhance model representational capacity.
+
+B. Ablation Experiments
+Projection Matrix Selection in Causal Disentangle Cross-Attention Module We first investigate
+the impact of different projection matrix configurations in the causal disentangled cross-attention
+module, using LLaVA-7B pretraining as a case study. We find inclusion of Wv/Wo is critical
+for regulating feature scaling and preventing significant loss fluctuations. As shown in Table 3,
+comparative experiments under these constraints yield key insights:
+
+Table 3: Ablation study on projection matrix configurations. CHAIR metrics are computed on COCO
+val2014.
+                      Projection Type         CHAIRs ↓       CHAIRi ↓       Recall ↑
+                      Original baseline         29.5            8.6          50.4
+                   Shared Wk /Wv (Wkv )         27.7            8.1          51.1
+                    Independent Wk /Wv          28.1            8.3          50.8
+                    Independent Wq /Wo          16.1           24.2          17.5
+                    Independent Wq /Wv          17.3           24.8          16.9
+
+- Removing the causal disentanglement module entirely (original baseline) results in elevated hal-
+lucination scores (CHAIRs = 29.5, CHAIRi = 8.6) while maintaining moderate recall (50.4),
+demonstrating its essential role in mitigating spurious correlations .
+- Shared Wk /Wv parameterization (single Wkv ) achieves improved performance (CHAIRs =27.7,
+CHAIRi =8.1, Recall=51.1) compared to independent Wk /Wv variants. This validates our design
+choice to preserve causal disentanglement while enhancing training stability through parameter
+sharing, as evidenced by reduced CHAIR scores and improved recall.
+- Independent Wq /Wo and Wq /Wv configurations exhibit significantly higher hallucination metrics
+(CHAIRi : 24.2-24.8) coupled with degraded recall (≤ 18.0). This indicates that improper confounder
+estimation disrupts semantic coherence, creating conflicting signals that degrade factual accuracy.
+The shared Wk /Wv configuration achieves an optimal trade-off between causal disentanglement
+and representational stability. By jointly mapping key/value pairs from the fixed confounder dictio-
+nary (D), this design prevents overfitting to spurious correlations while enabling efficient gradient
+propagation, particularly critical during limited pretraining stages.
+
+Component-Level Causal Disentanglement Integration We systematically evaluate the necessity
+of dual-path causal disentanglement integration across projector and transformer layers. As shown in
+Table 4, isolated implementation of the module in either component yields marginal improvements:
+- Only-transformer variant demonstrates minimal improvement over baseline (CHAIRs = 32.7
+vs. 33.0), suggesting that late-stage intervention alone cannot rectify biased feature propagation
+originating from earlier stages.
+- Only-projection achieves significant MMEP gains (748.70 vs. 714.29 baseline) but falls short of
+the full model (757.16). This highlights the complementary nature of dual-path intervention: while
+early disentanglement in the projector mitigates visual confounding, downstream transformer-level
+adjustments are essential to fully suppress bias amplification during contextual reasoning.
+The full Both-causal model achieves superior performance with the lowest hallucination rates, vali-
+dating our dual-path causal intervention strategy. These results align with the structural causal model,
+
+
+                                                  16
+                  Table 4: Ablation study on causal module integration locations.
+           Component        CHAIRs ↓ CHAIRi ↓ POPErnd ↑ POPEpop ↑ POPEadv ↑ MMEP ↑
+        Original baseline     33.0       9.5         71.70      67.15       67.21     714.29
+        Only-transformer      32.7       9.5         71.87      67.31       67.24     726.15
+        Only-projection       31.9       9.3         72.24      67.51       67.33     748.70
+          Both-causal         30.9       9.2         72.72      67.92       67.48     757.16
+
+
+
+
+Figure 7: (Table-Centric:Visual) Layer-wise visual representations: CLIP Vision Encoder output
+(left), Projector Output (middle), and LLM layer 1 (right).
+
+
+where confounding effects originate from: 1) Visual feature extraction (S ← Dv ): Early disentan-
+glement in the projector blocks bias injection at the source 2) Multimodal fusion (h ← Dv /Dt ):
+Transformer-level intervention eliminates residual correlations during contextualized reasoning (refer
+to section 4.2).
+
+C. More Visualization Results
+C.1. Table-Centric Original Visual Representation Visualizations
+
+We present extended PCA visualizations of LLaVA’s original visual representations across different
+network depths. All visualizations follow the same color scheme as main text: green dots represent
+"dining table" tokens, while red dots indicate its top-10 co-occurring objects in instruction data.
+Across all layers, we observe three key patterns:
+
+      1. Early-stage entanglement: Layers 0-5 maintain tight clustering driven by projector-induced
+         biases, consistent with main text findings (figs. 7 and 8).
+      2. Mid-layer persistence: Surprisingly, strong co-occurrence patterns persist until layer 25
+         despite increasing semantic abstraction (figs. 9 and 10).
+      3. Final-layer retention: Even at the final prediction stage (layer 40), dining tables retain
+         significant entanglement with co-occurring objects (fig. 11), confirming the lasting impact
+         of training data biases.
+
+These results reinforce our main conclusion that instruction data biases create persistent represen-
+tational structures that survive through most stages of the vision-language understanding pipeline.
+The progressive visualization sequence provides empirical validation of how initial representational
+biases propagate through network depth, resisting the expected semantic disentanglement in later
+processing stages.
+
+C.2. Table-Centric Original Textual Representation Visualizations
+
+We visualize the original textual representations of "dining table" (green) and its top-10 co-occurring
+objects (red). Similar to the visual modality analysis, these textual representations exhibit co-
+occurrence-driven entanglement patterns: lower transformer layers (layer 0-10) show tight clustering
+
+
+                                                    17
+Figure 8: (Table-Centric:Visual) LLM layer 3 (left), layer 5 (middle), and layer 8 (right) visualizations
+showing progressive clustering formation.
+
+
+
+
+Figure 9: (Table-Centric:Visual) Mid-depth layers: layer 10 (left), layer 12 (middle), and layer 15
+(right) maintaining strong co-occurrence patterns.
+
+
+between dining tables and frequently co-occurring objects (fig. 12), while the final prediction layers
+(layer 37-40) maintain entanglement despite semantic abstraction (fig. 13). This confirms that
+instruction bias affects both modalities in parallel, with frequent co-occurrence patterns shaping
+representational geometry across all stages of MLLM processing.
+
+C.3. Car-Centric Original Visual Representation Visualizations
+
+We extend table-centric analysis methodology to "car" object visualizations, showing PCA projections
+of car (green) and its top-10 co-occurring objects (red) across network depths:
+Key findings mirror table-centric patterns:
+
+       • Early layers (0-10) show training data bias clustering (fig. 14)
+       • Mid-depth layers (15-25) maintain entanglement despite abstraction (fig. 15)
+       • Final layers (30-40) retain significant co-occurrence patterns (fig. 16)
+
+This confirms instruction bias-induced representational entanglement generalizes across object
+categories, with co-occurrence clustering persisting through network depth in both car-centric and
+table-centric analyses.
+
+C.4. Table-Centric Disentangled Visual Representation Visualizations
+
+We visualize disentangled dining table (green) and top-10 co-occurring objects (red) using PCA
+across LLM layers, demonstrating our framework’s ability to separate entangled representations
+compared to original visual patterns:
+Key improvements over original representations:
+
+
+                                                   18
+Figure 10: (Table-Centric:Visual) Transition phase layers: layer 20 (left), layer 25 (middle), and layer
+30 (right) showing gradual dispersion of object clusters.
+
+
+
+
+Figure 11: (Table-Centric:Visual) Final prediction layers: layer 35 (left), layer 39 (middle), and layer
+40 (right) retaining core entanglement patterns.
+
+
+       • Early separation: Disentanglement begins at layer 0 (fig. 17), breaking projector-induced
+         biases observed in original representations (figs. 7 and 8).
+       • Progressive differentiation: By layer 15, dining tables separate from co-occurring objects
+         (fig. 18), outperforming persistent entanglement in original mid-layers (figs. 9 and 10).
+       • Final disentanglement: Layer 40 achieves distinct semantic subspaces (fig. 19), eliminating
+         co-occurrence biases that original representations retain (fig. 11).
+
+These results validate our framework’s success in disrupting instruction bias propagation while
+preserving discriminative learning. Complete separation in final layers (fig. 19) addresses MLLMs’
+tendency to confuse frequent co-occurring objects through representation disentanglement.
+
+
+
+
+                                                  19
+Figure 12: (Table-Centric:Textual) Textual representations after Projector (left), LLM layer 1 (middle),
+and layer 5 (right).
+
+
+
+
+Figure 13: (Table-Centric:Textual) Layer 10 (left), layer 37 (middle), and layer 40 (right) showing
+persistent co-occurrence patterns in final prediction stages.
+
+
+
+
+    Figure 14: (Car-Centric:Visual) Early layers (0-10) showing initial entanglement patterns.
+
+
+
+
+ Figure 15: (Car-Centric:Visual) Mid-depth layers (15-25) maintaining co-occurrence structures.
+
+
+                                                  20
+    Figure 16: (Car-Centric:Visual) Final layers (30-40) retaining co-occurrence patterns.
+
+
+
+
+ Figure 17: (Disentangled) Layer 0 (left) to layer 10 (right) showing progressive separation.
+
+
+
+
+Figure 18: (Disentangled) Mid-depth layers (15-25) showing increasing spatial differentiation.
+
+
+
+
+    Figure 19: (Disentangled) Final layers (30-40) achieving complete spatial separation.
+
+
+                                             21
+
