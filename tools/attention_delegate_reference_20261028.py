@@ -20,6 +20,9 @@ def calculate():
     offsets=supports(2,2,3);assert offsets==list(range(8))
     target_offsets=[i+1 for i in offsets];assert target_offsets==list(range(1,9))
     seq=[10,20,30];assert seq[:-0]==[]
+    assert supports(2,2,0)==[0]
+    kernel_one_padding=(1-1)*2
+    kernel_one_empty=seq[:-kernel_one_padding]==[]
     scores=[Fraction(4,5),Fraction(1,5)];truth=[1,0];threshold=Fraction(4,5)
     inclusive=[int(s>=threshold) for s in scores]
     strict=[int(s>threshold) for s in scores]
@@ -27,6 +30,9 @@ def calculate():
     return dict(status='pass',kind='authored finite fixture expectations',
         temporal=dict(kernel=2,dilation_base=2,levels=3,non_target_lags=offsets,
                       shifted_target_lags=target_offsets,receptive_field_upper_bound=1+(2-1)*sum(2**i for i in range(3)),
+                      zero_layer_sequential_is_identity=supports(2,2,0)==[0],
+                      kernel_one_zero_chomp_padding=kernel_one_padding,
+                      kernel_one_empty_slice=kernel_one_empty,
                       zero_chomp_python_slice=seq[:-0],scope='Index support of the displayed stride1,pad-and-chop construction; no learned attribution or native torch result.'),
         threshold=dict(scores=[str(x) for x in scores],truth=truth,threshold=str(threshold),
                        inclusive_matrix=inclusive,strict_matrix=strict,inclusive_f1=str(f1(truth,inclusive)),strict_f1=str(f1(truth,strict)),

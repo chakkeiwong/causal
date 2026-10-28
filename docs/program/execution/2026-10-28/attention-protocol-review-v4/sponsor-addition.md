@@ -1,0 +1,7 @@
+# Keep graph truth outside TACD evaluation
+
+The selected TACD repository has four named configurations, and every one sets split_ratio=1.0. Its entrypoint shuffles event pairs and uses the same pair list for both training and validation in this branch. On selected real-data paths, the supplied graph is also passed into model/checkpoint threshold selection and used again by the top-level driver. These results are oracle-assisted and not held-out graph discovery; split each graph family into training, validation, and untouched evaluation instances before making a performance claim. [@exec28_at_tacd_protocol]
+
+The selected TCDF padding/chop path has a bounded indexed receptive field, not a direct causal-delay certificate. With the exact kernel-2, dilation-2, three-layer witness, non-target inputs can include lags zero through seven; a separate one-step target shift moves target raw-history support to lags one through eight. A final channel-mixing layer also means a maximum kernel weight is not every learned path. [@exec28_at_tcdf_temporal; @exec28_at_protocol_reference]
+
+A proposal-owned public fixture now checks validation-only threshold choice, disjoint graph identities, held-out truth binding, exact threshold ties and unavailable zero-valid denominators. It passes as an authored contract test without importing the acquired packages. It establishes test behavior only; native software, calibration, rights and bank performance remain open. [@exec28_at_contract_fixture]
