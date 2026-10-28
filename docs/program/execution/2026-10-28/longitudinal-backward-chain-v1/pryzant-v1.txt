@@ -1,0 +1,844 @@
+                                                                     Causal Effects of Linguistic Properties
+
+                                               Reid Pryzant1 Dallas Card1 Dan Jurafsky1 Victor Veitch2 Dhanya Sridhar3
+                                                                              1
+                                                                                Stanford Unversity
+                                                                           2
+                                                                             University of Chicago
+                                                                            3
+                                                                              Columbia University
+                                                           1
+                                                             {rpryzant,dcard,jurafsky}@stanford.edu
+                                                                     2
+                                                                       victorveitch@gmail.com
+                                                                        3
+                                                                          ds3778@columbia.edu
+
+
+                                                               Abstract                              These questions focus on causal inferences about
+                                                                                                  various linguistic properties. Causal inference re-
+                                             We consider the problem of estimating the            quires reasoning about interventions instead of cor-
+                                             causal effects of linguistic properties on down-
+arXiv:2010.12919v1 [cs.CL] 24 Oct 2020
+
+
+
+
+                                                                                                  relations: what would the response time for a com-
+                                             stream outcomes. For example, does writing
+                                             a complaint politely lead to a faster response       plaint be if we could make it polite while keeping
+                                             time? How much will a positive product re-           its other properties fixed? Although it is some-
+                                             view increase sales? This paper focuses on           times feasible to run such experiments where text
+                                             two challenges related to the problem. First,        is manipulated and outcomes are recorded under
+                                             we formalize the causal quantity of interest as      intervention (Grimmer and Fong, 2020), analysts
+                                             the effect of a writer’s intent, and establish the   typically have observational data consisting of texts
+                                             assumptions necessary to identify this from ob-
+                                                                                                  and outcomes obtained without intervention. This
+                                             servational data. Second, in practice we only
+                                             have access to noisy proxies for these linguis-
+                                                                                                  paper focuses on estimating causal effects of lin-
+                                             tic properties—e.g., predictions from classi-        guistic properties in observational settings.
+                                             fiers and lexicons. We propose an estimator for         In this setting, estimating causal effects from ob-
+                                             this setting and prove that its bias is bounded      servational data requires addressing two challenges.
+                                             when we perform an adjustment for the text.          First, we need to formalize the causal effect of in-
+                                             The method leverages (1) a pre-trained lan-          terest by specifying the hypothetical intervention
+                                             guage model (BERT) to adjust for the text, and       to which it corresponds. In this paper, to articulate
+                                             (2) distant supervision to improve the quality
+                                                                                                  causal effects of linguistic properties, we imagine
+                                             of noisy proxies. We show that our algorithm
+                                             produces better causal estimates than related        intervening on the writer of a text document and
+                                             methods on two datasets: predicting the effect       telling them to write with different properties.
+                                             of music review sentiment on sales, and com-            The second challenge of causal inference is es-
+                                             plaint politeness on response time.                  tablishing the assumptions necessary to estimate
+                                                                                                  effects from observational data. Often, instead of
+                                         1    Introduction                                        the true linguistic property of interest we have ac-
+                                         Social scientists have long been interested in the       cess to a noisy measurement called the proxy la-
+                                         causal effects of language and communication,            bel. Analysts usually infer these values from text
+                                         studying questions like:                                 with classifiers, lexicons, or topic models (Grimmer
+                                                                                                  and Stewart, 2013; Lucas et al., 2015; Prabhakaran
+                                             • How can political candidates describe their        et al., 2016; Voigt et al., 2017; Luo et al., 2019;
+                                               personal history to appeal to voters (Fong and     Lucy et al., 2020). When can we use such a proxy
+                                               Grimmer, 2016)?                                    to recover the true effects of the latent linguistic
+                                             • How can business owners write product de-          property? The second contribution of this paper is
+                                               scriptions to increase sales on e-commerce         establishing the assumptions we need to estimate
+                                               platforms (Pryzant et al., 2017, 2018a)?           effects with proxy labels. In particular, we pro-
+                                             • How can consumers word their complaints to         pose an adjustment for the text of the document
+                                               receive faster responses (Egami et al., 2018)?     and prove that this bounds the bias of the resulting
+                                             • What conversational strategies can mental          estimates.
+                                               health counselors use to have more successful         The third contribution of this paper is practi-
+                                               counseling sessions (Zhang et al., 2020)?          cal: an algorithm for estimating the causal ef-
+fects of linguistic properties. The algorithm uses
+BERT to adjust for the bias due to text (Devlin
+et al., 2018; Veitch et al., 2020) in combination
+with distantly supervised label propagation to im-
+prove the proxy label (Zhur and Ghahramani, 2002;
+Mintz et al., 2009; Hamilton et al., 2016). We
+demonstrate the method’s accuracy with semi-
+simulated product sales data, perform a sensitiv-
+ity analysis in situations where assumptions are
+violated, and show an application to consumer fi-       Figure 1: The causal model of text and outcomes. A
+nance complaints. Data and a package for per-           writer uses linguistic property T and other properties
+forming text-based causal inferences is available at    Z, which may be correlated (denoted by bi-directed ar-
+https://github.com/rpryzant/causal-text.                row), to write the text W . From the text, the reader
+                                                        perceives the property of interest, captured by T̃ , and
+2    Causal Inference Background                        together with other perceived properties Z̃, produces
+                                                        the outcome Y . The proxy label of the property ob-
+Causal inference from observational data is well-       tained via a classifier or lexicon is captured by T̂ .
+studied (Pearl, 2009; Rosenbaum and Rubin, 1983,
+1984; Shalizi, 2013). In this setting, analysts are
+interested in the effect of a treatment T (e.g., a
+                                                        effect, it is natural to imagine intervening on the
+drug) on an outcome Y (e.g., disease progression).
+                                                        writer of a text, e.g., telling people to write using
+For ease, we consider binary treatments in this
+                                                        different properties. In this section we show why
+paper. The average treatment effect (ATE) on the
+                                                        the effect of the writer is difficult to estimate. Then
+outcome Y is,
+                                                        we show why considering instead what a reader of
+    ψ = E [Y ; do(T = 1)] − E [Y ; do(T = 0)] ,         the text perceives enables causal estimation. This
+                                             (1)        creates a connection with the dual perspectives of
+                                                        the reader and writer, which is well studied in lin-
+where the operation do(T = t) means that we
+                                                        guistics and NLP.1
+hypothetically intervene and set the treatment T to
+some value (Pearl, 2009).                                  Let W be a text document and let T (binary)2
+   Typically, the ATE ψ is not the simple difference    be whether or not a writer uses a particular linguis-
+in average conditional outcomes, E [Y | T = 1] −        tic property of interest. For example, in consumer
+E [Y | T = 0]. This is because confounding vari-        complaints, the variable T can indicate whether the
+ables C are associated with both the treatment          writer intends to be polite or not. The outcome is
+and outcome, inducing non-causal associations be-       a variable Y , e.g., response time. Let Z be other
+tween them, referred to as open backdoor paths          linguistic properties that the writer uses to produce
+(Pearl, 2009). When all the confounding variables       the text W . For example, Z could include topic,
+are observed, we can write the ATE in terms of ob-      brevity, or eloquence, and would typically be cor-
+served variables using the backdoor-adjustment          related with both the linguistic property T and the
+formula (Pearl, 2009),                                  outcome Y .
+          h                                      i
+ ψ = EC E [Y | T = 1, C] − E [Y | T = 0, C] .
+                                                            1
+                                                 (2)          Literary theory argues that language is subject to two
+                                                        perspectives: the “artistic” pole – the text as intended by the
+For example, if the confounding variable C is dis-      author – and the “aesthetic” pole – the text as interpreted by
+crete, we group the data into values of C, calculate    the reader (Iser, 1974, 1979). The noisy channel model (Yuret
+                                                        and Yatbaz, 2010; Gibson et al., 2013) connects these poles
+the average difference in outcomes between treated      by supposing that the reader perceives a noisy version of the
+and untreated samples in each group, and take the       author’s intent. This duality has also been modeled in lin-
+average over groups.                                    guistic pragmatics as the difference between speaker meaning
+                                                        and literal or utterance meaning (Potts, 2009; Levinson, 1995,
+                                                        2000). Gricean pragmatic models like RSA (Goodman and
+3    Causal Effects of Linguistic Properties            Frank, 2016) similarly formalize this as the reader using the
+                                                        literal meaning to help make inferences about the speaker’s
+We are interested in the causal effects of particular   intent.
+                                                            2
+linguistic properties on outcomes. To formalize this          We leave higher-dimensional extensions to future work.
+  We are interested in the average treatment effect,         The result says that adjusting for the text W suf-
+                                                          fices to eliminate confounding bias on the effect
+ψ wri. = E [Y ; do(T = 1)] − E [Y ; do(T = 0)] ,          ψ rea. ; in Figure 1, the backdoor path T̃ → W →
+                                            (3)           Z̃ → Y is blocked and the result follows immedi-
+                                                          ately from this. Moreover, so long as we assume
+where we imagine intervening on writers and               that readers correctly perceive the intent of writers,
+telling them to use the linguistic property of interest   the effect ψ rea. , which can expressed in terms of
+(setting T = 1) or not (T = 0). This causal effect        observed variables, is equivalent to the effect that
+is appealing because the hypothetical intervention        we want, ψ wri. .3
+is well-defined. For example, we tell people to
+write politely (or not). However, without further
+assumptions, ψ wri. is not identified from the obser-     4       Substituting Proxy Labels
+vational data. The reason is that we would need to
+                                                          If we observed the reader’s perception of the lin-
+adjust for the other text properties Z; they create
+                                                          guistic property of interest, the variable T̃ , then we
+open backdoor paths but are typically impossible
+                                                          could proceed by estimating the effect ψ rea. (equiv-
+to specify or observe.
+                                                          alently, ψ wri. ). However, in the current setting, we
+   To solve this problem, we observe that the pro-
+                                                          do not observe the linguistic properties that a writer
+cess by which outcomes are produced involves a
+                                                          intends to use (T and Z) or that a reader perceives
+reader of the text document (Figure 1, previous
+                                                          (T̃ and Z̃). Instead, we use a classifier or lexicon to
+page). For example, a customer service representa-
+                                                          predict values for this property from the text, pro-
+tive reads consumer complaints and chooses how
+                                                          ducing a proxy label T̂ (e.g. predicted politeness).
+quickly to respond. This is captured by T̃ and Z̃,
+which represent the reader’s perceived values for            In the setting where we only have access to proxy
+the linguistic property of interest and remaining         labels, we introduce the estimand, ψ proxy , which
+properties. Based on their perception, the reader         substitutes T̂ for T̃ in the effect ψ rea. ,
+produces the outcome Y .                                                           h              i
+   Consider the average treatment effect of the                    ψ   proxy
+                                                                               =EW E Y | T̂ = 1, W                  (7)
+reader,
+                                                                                        h                  i
+                                                                                     − E Y | T̂ = 0, W          .   (8)
+           h                i       h                i
+ψ rea. = E Y ; do(T̃ = 1) − E Y ; do(T̃ = 0) ,
+                                                   (4)
+                                                          This estimand only requires an adjustment for the
+where we imagine intervening on whether or not a          text W . Prior work on causal inference with proxy
+reader perceives the linguistic property of interest,     treatments (Wood-Doughty et al., 2018) requires
+captured by the variable T̃ . The following result        an adjustment using the measurement model, the
+shows that we can identify the causal effect of in-       true relationship between the proxy label T̂ and its
+terest ψ wri. by exploiting this ATE ψ rea. .             target T̃ , which we typically do not observe. In
+Theorem 1. Suppose that the following assump-             contrast, the estimand ψ proxy does not require the
+tions hold:                                               measurement model.
+                                                             The following result shows that the estimand
+  1. (no unobserved confounding) W blocks back-           ψ proxy only attenuates the ATE that we want, ψ rea. .
+     door paths between T̃ and Y ,                        That is, the bias due to proxy treatments is benign;
+                                                          it can only decrease the magnitude of the effect but
+  2. (agreement of intent and perception) T = T̃ .
+                                                          it does not change the sign.
+Then, the ATE ψ rea. is identified as,
+                                                          Theorem 2. Let 0 = Pr(T̃ = 0 | T̂ = 1, W ) and
+                     h                i
+          rea.
+        ψ =EW E Y | T̃ = 1, W −                    (5)        3
+                                                               Grimmer and Fong (2020) studied a closely related setting
+                                                          where text documents are randomly assigned to readers who
+                         h             i                 produce outcomes. From this experiment, they discover text
+                      E Y | T̃ = 0, W .            (6)    properties that cause the outcome. Their causal identification
+                                                          result requires an exclusion restriction assumption, which is
+                                                          related to the no unobserved confounding assumption that we
+Moreover, the ATE ψ rea. is equal to ψ wri. .             make.
+let 1 = Pr(T̃ = 1 | T̂ = 0, W ). Then,
+                                 h
+         ψ proxy =ψ rea. − EW   E[Y | T̃ = 1, W ]
+                                               i
+                    − E[Y | T̃ = 0, W ] 0 + 1
+
+   The proof is in Appendix F. This result shows
+that the proposed estimand ψ proxy , which we can
+estimate, is equal to the ATE ψ rea. that we want
+minus a bias term related to measurement error. In
+                                                                      Figure 2: The first stage of T EXT C AUSE adapts word
+particular, if the classifier is better than chance and
+                                                                      embeddings to predict both of Y ’s potential outcomes.
+the treatment effect sign is homogeneous across
+possible texts — i.e., it always helps or always hurts
+— then the bias term is positive with the degree of                   (c.f. Theorem 3), and (2) construct accurate proxy
+attenuation dependent on the error rate of the proxy                  treatments (c.f. Theorem 2), perhaps using domain
+label T̂ . The result tells us to construct the most                  knowledge. We use these insights to develop the
+accurate proxy treatment T̂ possible, so long as we                   T EXT C AUSE algorithm. The algorithm consists of
+adjust for the text. This is a novel result for causal                two sub-procedures and enjoys the theoretical guar-
+inference with proxy treatments and sidesteps the                     antees of Theorem 2. Note that while we present
+need for the measurement model.                                       our method with respect to binary Y and C, the pro-
+   The next result shows that adjusting for the text                  cess may be easily adapted to higher-dimensional
+is crucial. If, like some prior work (Sridhar and                     or continuous settings.
+Getoor, 2019), an analyst uses a straightforward
+estimand that does not adjust for the text,                           5.1   Adjusting for Text
+                h            i      h           i                     The first part of T EXT C AUSE performs an adjust-
+   ψ naive = E Y | T̂ = 1 − E Y | T̂ = 0 , (9)                        ment for the text and its confounding effects. Ad-
+                                                                      justing for the full text W is challenging because it
+it can be arbitrarily biased away from the effect of                  is high dimensional. So instead, similar to Veitch
+interest, ψ rea. .                                                    et al. (2019), we adjust for a low dimensional repre-
+Theorem 3.                                                            sentation of W . In practice, we may have access to
+                                                                      additional covariates C that capture observed con-
+         ψ naive = EW E[Y | T̃ = 1, W ]α(W ) −
+                     
+                                                                     founding properties, e.g. the product that a review
+                        E[Y | T̃ = 0, W ]β(W )
+                                                                      is about or complaint type, which we include in the
+ where                                                                adjustment.
+                                                                         Formally, we htrain the following i estimator for
+              P (T̃ = 1, T̂ = 1 | W )       P (T̃ = 1, T̂ = 0 | W )
+    α(W ) =                             −
+                    P (T̂ = 1)                    P (T̂ = 0)          Q(t, W, C) = E Y | T̂ = t, W, C :
+              P (T̃ = 0, T̂ = 0 | W )       P (T̃ = 0, T̂ = 1 | W )
+    β(W ) =                             −
+                    P (T̂ = 0)                    P (T̂ = 1)                Q̂(t, W, C) = σ(Mbt b(W ) + Mct c + b),
+   The proof is in Appendix E. The α and β terms                      The vector b(W ) is the document-level embed-
+are related to the error of the proxy label. The                      ding for text W : we use DistillBERT (Sanh et al.,
+theorem says that correlations between the outcome                    2019) to produce contextual word embeddings,
+and errors in the proxy can induce bias. Intuitively,                 then average across time for our final represen-
+this is similar to bias from confounding, though it                   tation (Reimers and Gurevych, 2019). The vector c
+is mathematically distinct. This means that even                      is a one-hot encoding of the covariates C. The vec-
+a highly accurate proxy label can result in highly                    tors Mbt ∈ R768 and Mct ∈ R|C| are learned, one
+misleading estimates.                                                 for each value t of the treatment. The scalar b is a
+                                                                      bias term. This model is trained with the standard
+5    T EXT C AUSE , A Causal Estimation
+                                                                      cross-entropy loss function between Q̂ and Y , but
+     Procedure
+                                                                      the Mt parameters are only trained on examples
+The theoretical results from Section 4 suggest two                    where T̂i = t. To this loss we add the original
+strategies for improving causal effect estimation:                    BERT masked language modeling objective (De-
+(1) adjust for the text to reduce its confounding bias                vlin et al., 2018). Once Q̂(t, W, C) is fitted, we can
+approximate the quantity ψ proxy as,                      Then use T̂ ∗ as the new proxy treatment variable.
+                                                          The full T EXT C AUSE algorithm chains these pro-
+               1X                                         cedures together: we adjust for the text and use
+  ψ̂ proxy =      Q̂(1, Wi , Ci ) − Q̂(0, Wi , Ci )
+               n
+                  i
+                                                          improved proxy labels T̂ ∗ to produce an ATE esti-
+                                                  (10)    mate ψ̂ proxy .
+
+                                                          6     Experiments
+Under certain overlap conditions, ψ̂ proxy is a con-
+sistent estimator of the estimand ψ proxy ; the details   Since ground-truth causal effects are unavailable
+are in Appendix A.                                        without randomized controlled trials, we produce a
+                                                          semi-synthetic dataset based on Amazon reviews
+5.2   Boosting Treatment Fidelity                         where only the outcomes are simulated. We also
+The second stage of T EXT C AUSE applies the in-          conduct a real-world study on politeness and bu-
+sight that once we condition on the text, having          reaucratic response times, where nothing is simu-
+better proxy treatments should reliably lead to bet-      lated. All code and data are available online.4 Our
+ter estimates (Theorem 2). This stage presents one        key findings are
+way of building better proxies: exploiting domain-            • More accurate proxies combined with text ad-
+specific knowledge about lexicons.                              justment leads to more accurate ATEs.
+   The words in a lexicon correctly capture the lin-          • Naive proxy-based procedures significantly
+guistic property of interest (i.e., high precision),            underestimate true causal effects.
+but can omit words and discourse-level elements               • ATE estimates can lose fidelity when the
+that also map to the desired property (i.e., low                proxy is less than 70% accurate.
+recall, Kim and Hovy, 2006; Rao and Ravichan-
+dran, 2009). For example, a lexicon such a LIWC           6.1    Amazon Reviews
+(Tausczik and Pennebaker, 2010) contains many             6.1.1 Experimental Setup
+generically positive words, but does not account          Dataset. Here we use real world and publicly avail-
+for the domain-specific nuances of each applica-          able Amazon review data to answer the question,
+tion.                                                     “how much does a positive product review affect
+   Similar to recent work on self-supervised learn-       sales?” We create a scenario where positive re-
+ing and lexicon induction (Hamilton et al., 2016;         views increase sales, but this effect is confounded
+An et al., 2018), this stage uses the proxy treatments    by the type of product. Specifically:
+as distant supervision labels, training a classifier,
+Pθ , to predict the proxy label T̂ , then using that          • The text W is a publicly available corpus of
+classifier to relabel examples where T̂i = 0 and                Amazon reviews for digital music products
+Pθ (T̂i |Wi ) ≥ 0.5. Intuitively, relabeling T̂ = 0             (Ni et al., 2019). For simplicity, we only in-
+examples whose text looks like T̂ = 1 may help                  clude reviews for mp3, CD, or Vinyl. We also
+improve recall for examples where the reader may                exclude reviews for products worth more than
+have truly perceived the property, i.e., T̃ = 1 (Read,          $100 or fewer than 5 words.
+2005).                                                        • The observed covariate C is a binary indicator
+   Formally, given a dataset of tuples:                         of whether the associated review is for a CD or
+{(Yi , Wi , Ci , T̂i )}ni=1 the algorithm is:                   not, and we use this to simulate a confounded
+                                                                outcome.
+  1. Train a classifier to predict Pθ (T̂ | W ), e.g.,        • The treatment T = T̃ is whether that re-
+     logistic regression trained with bag-of-words              view is positive (5 stars) or not (1 or 2 stars).
+     features and T̂ labels.                                    Hence, we only consider reviews with 3 or 4
+                                                                stars. Note that here it is reasonable to assume
+  2. Find and relabel examples which looked                     writer’s intention (T ) = reader’s perception
+     like T̂ = 1 but received a label of 0 (we                  (T̃ ), as the author is giving us their true sen-
+     experiment with ablating this in Appendix C).              timent score for unambiguous interpretation.
+     This means:
+            (                                                   We use this variable to (1) simulate outcomes
+        ∗    1                          if T̂i = 1          4
+     T̂i =                                                    https://github.com/rpryzant/
+             1[Pθ (T̂i = 1|Wi ) > 0.5] otherwise          causal-text
+                   Noise:                Low                                High
+               Treatment:           Low        High                   Low         High                       Mean delta
+             Confounding:       Low High    Low High               Low High    Low High                      from oracle
+ oracle (ψ)                     9.77 9.20 18.66 18.82              8.40 8.33 16.13 16.35                             0.0
+                    ˆ )
+ semi-oracle (ψ matrix          9.14 9.41 18.91 18.43              8.03 8.10 15.28 15.65                            0.45
+ unadjusted (ψ̂ naive )         4.23 6.13   8.13    9.98           3.29 5.14   6.52    8.47                         6.72
+ proxy-random (ψ̂ naive+C )     4.19 3.69   3.69    7.87           5.09 3.13   5.90    6.48                         8.20
+ proxy-bert (ψ̂ naive+C )       5.54 3.30   8.25    8.13           5.43 4.11   5.32    5.99                         7.45
+ proxy-lex (ψ̂ naive+C )        3.15 3.64   9.51    7.11           6.12 4.05   6.13    6.03                         7.49
+ +T-boost (ψ̂ naive+C )         5.55 5.27   9.91    9.60           4.90 4.74   8.56    8.54                         6.07
+ +W-Adjust (ψ̂ proxy )          4.42 6.21   8.22    9.69           4.71 6.35   6.35    8.11                         6.45
+ +T-boost +W-Adjust             6.65 8.81 11.60 13.89              5.61 7.23 10.34 11.77                            3.72
+   (T EXT C AUSE , ψ̂ proxy )
+
+Table 1: ATE estimates: expected change in click probabilities if one were to manipulate the sentiment of a review
+from negative to positive. T EXT C AUSE performs best in most settings. The true ATE is given in the top row
+(“oracle”). Estimates closer to the oracle are better. The last column gives the average difference between the
+estimated and true ATEs; lower is better. Rows 3-6 are baselines. Rows 7-9 are proposed. The second row and the
+bottom three rows use lexicon-based proxy treatments (we observed similar results using other proxy treatments).
+All columns have βo = 0.9. Low and high noise corresponds to γ = 0.1 and 1. Low and high treatment corresponds
+to βt = 0.4, 0.8. Low and high confounding corresponds to βc = -0.2, 4.0. All standard errors are less than 0.5.
+
+
+     and (2) calculate ground truth causal effects        2,000, and 4,000-example train, validation, and
+     for evaluation.                                      test sets.6 BERT was optimized for 3 epochs on
+   • The proxy treatment T̂ is computed via three         each fold using Adam (Kingma and Ba, 2014),
+     strategies: (1) a randomly noised version of T ,     a learning rate of 2e−5 , and batch size of 32.
+     (2) a binary indicator for whether any words in      The weighting on the potential outcome and
+     W overlap with a positive sentiment lexicon          masked language modeling heads was 0.1 and 1.0,
+     (Liu et al., 2010), and (3) a BERT classifier        respectively. Linear models were implemented
+     which is fine-tuned to predict review score          with sklearn. For T-boosting, we used a vocab size
+     (i.e., T ) using a separate subset of the data.      of 2,000 and L2 regularization with a strength of
+   • The outcome Y ∼ Bernoulli(σ(βc (π(C) −               c = 1e−4 . Each experiment was replicated using
+     βo ) + βt T̃ + N(0, γ))) represents whether a        100 different random seeds for significance. Each
+     product received a click or not. The param-          trial took an average of 32 minutes with three 1.2
+     eter βc controls confound strength, βt con-          GHz CPU cores and one TITAN X GPU.
+     trols treatment strength, βo is an offset and the        Baselines.        The “unadjusted” baseline is
+     propensity π(C) = P (T = 1|C) is estimated           ψ̂ naive   = Ê[Y |T̂ = 1] − Ê[Y |T̂ = 0], the ex-
+     from data.                                           pected difference in outcomes conditioned on T̂ .
+                                                          The proxy-* baselines perform backdoor adjust-
+   The final data set consists of 17,000 examples.        ment     for the observed covariate C: ψ̂ naive+C =
+Protocol. All nonlinear models were imple-                  1 P
+                                                           |C|     c (Ê[Y |T̂ = 1, C = c] − Ê[Y |T̂ = 0, C =
+mented using the Pytorch framework (Paszke
+                                                          c]), using randomly drawn, lexicon-based, and
+et al., 2017). We use the transformers
+                                                          BERT-based T̂ proxies. We also compare against
+implementation of DistillBERT5 and the                                           ˆ , an estimator which as-
+                                                          “semi-oracle”, ψ matrix
+distilbert-base-uncased model which
+                                                          sumes additional access to the ground truth mea-
+has 66M parameters. To this we added 3,080
+                                                          surement model P (T̂ | T ) (Wood-Doughty et al.,
+parameters for text adjustment (the Mbt and Mct
+                                                          2018); see Appendix G for derivation.
+matrices). Models were trained in a cross-validated
+fashion, with the data being split into 12,000,               Note that for clarity, we henceforth refer to
+  5                                                           6
+    https://github.com/huggingface/                             See Egami et al. (2018) for an investigation into train/test
+transformers                                              splits for text-based causal inference.
+    Estimator                     ATE      SE
+    oracle (ψ)                    -14.99   ± 0.1
+    proxy-lex (ψ̂ naive+C )       6.29     ± 0.3
+    +T-boost (ψ̂ naive+C )        4.18     ± 0.5
+    +T-boost +W-Adjust            0.50     ± 1.3
+     (T EXT C AUSE , ψ̂ proxy )
+Table 2: Estimator performance in a worst-case sce-
+nario where the ATE of T̂ indicates the opposite sign
+of the ATE of T (βc = 0.8, βt = −1, π(C) = 0.8,
+βo = 0.6).
+
+
+the treatment-boosting and text-adjusting stages          Figure 3: Without text adjustment, T-boost ’s errors can
+of T EXT C AUSE as T-boost and W-Adjust .                 increase with T̂ . The dotted black lines correspond to
+                                                          the true ATE (left) and 0 error (right).
+6.1.2   Results
+Our primary results are summarized in Table 1.
+Overall we find that the proposed methods pro-            estimates (c.f. Theorem 2).
+duce higher quality ATE estimates than the base-             These results support our first hypothesis: boost-
+lines, and that this result is robust to varying levels   ing treatment labels without text adjustment can
+of noise and treatment/confound strength. Indeed          behave unpredictably, as it overshoots the true
+T EXT C AUSE ’s estimates were on average within          ATE and grows further, not closer to this target
+3% of the semi-oracle. Furthermore, these results         as accuracy(T̂ ) increases.
+support Theorem 2: methods which adjusted for                The results are mixed with respect to our sec-
+the text always attenuated (never exaggerated) the        ond hypothesis. W-Adjust attenuates the true ATE
+true ATE. The results also support Theorem 3: esti-       which is in line with Theorem 2. However, un-
+mators that adjust for the covariates C but not the       like Theorem 2 we find that T EXT C AUSE , which
+text perform poorly, sometimes even worse than            makes use of T-boost and W-Adjust , may not al-
+the unadjusted estimator ψ̂ naive .                       ways attenuate the true ATE in finite data regimes
+   Does it always help to adjust for the text?            (although the text adjustment makes for a more
+Theorem 3 suggested that in some cases, the ATE           reliable estimator than T-boost ).
+obtained from ψ̂ naive can can produce an effect with        As long as the proxy label T̂ is less than 97%
+the opposite sign from the true effect. This is a         accurate, all of the proposed estimators beat out
+worst case for the naive estimator because the di-        the raw backdoor adjustment baseline. However
+rection of influence it indicates is wrong. Does text     all estimates quickly lose fidelity and it becomes
+adjustment help even in this situation? Theorem 2         difficult to recover the true ATE when the proxy T̂
+says yes, because ψ proxy estimates are bounded in        is less than 70% accurate.
+[0, ψ]. This ensures that the most important of bits,
+the bit of directional information, is preserved.         6.2    Application: Complaints to the Financial
+   Table 2 shows results from such a scenario. We                Protection Bureau
+see that the true ATE of T has a strong negative ef-      We proceed to offer a pilot study which seeks
+fect, while the naive estimator indicate the opposite     to answer, “how does perceived politeness affect
+(a positive effect). Adding text adjustment brings        response time?” We consider complaints filed
+the T̂ -based estimate to 0, which is indicative of       with the Consumer Financial Protection Bureau
+the bounded behavior that Theorem 2 suggests.             (CFPB).7 This is a government agency which solic-
+   Sensitivity analysis. In Figure 3 we syntheti-         its and handles complaints about financial products.
+cally vary the accuracy of a proxy T̂ by dropping         When they receive a complaint it is forwarded to the
+random subsets of the data. This is to evaluate the       relevant company. The time it takes for that com-
+robustness of various estimation procedures. We           pany to process the complaint is recorded. Some
+would expect methods that do not adjust for text to          7
+                                                             https://www.consumer-action.org/
+behave unpredictably (c.f. Theorem 3), and meth-          downloads/english/cfpb_full_dbase_report.
+ods that do adjust for the text to have attenuated        pdf/
+    Estimator                      ATE       SE             text as confounders (Roberts et al. (2015); Veitch
+    unadjusted (ψ̂ naive )         3.01      ± 0.3          et al. (2019); see Keith et al. (2020) for a review of
+    proxy-lex (ψ̂ naive+C )        4.03      ± 0.4          that space). We build on Veitch et al. (2019), which
+    +T-boost (ψ̂ naive+C )         9.64      ± 0.5          proposed a BERT-based text adjustment method
+    +W-Adjust (ψ̂ proxy )          6.30      ± 1.6
+                                                            similar to our W-Adjust algorithm. This paper is re-
+    +T-boost +W-Adjust             10.30     ± 2.1
+                                                            lated to work by Grimmer and Fong (2020), which
+                                                            discusses assumptions needed to estimate causal
+     T EXT C AUSE , (ψ̂ proxy )
+                                                            effects of text-based treatments from randomized
+Table 3: Baseline approaches (top two rows) signifi-        controlled trials. There is also work on discov-
+cantly underestimate the true effect of politeness on re-
+                                                            ering causal structure in text, as topics with la-
+sponse time. Each number represents the expected per-
+cent change in the likelihood of getting a fast (< 15       tent variable models (Fong and Grimmer, 2016)
+day) response when the politeness of a request is hypo-     and as words and ngrams with adversarial learning
+thetically increased (controlling for product).             (Pryzant et al., 2018b) and residualization (Pryzant
+                                                            et al., 2018a). There is also a growing body of
+                                                            applications in the social sciences (Olteanu et al.,
+submissions are handled quickly (< 15 days) while
+                                                            2017; Saha et al., 2019; Mozer et al., 2020; Karell
+others languish. This 15-day threshold is our out-
+                                                            and Freedman, 2019; Sobolev, 2018; Zhang et al.,
+come Y . We additionally adjust for an observed
+                                                            2020).
+covariate C that captures what product and com-
+                                                               This paper also fits into a long-standing body of
+pany the complaint is about (mortgage or bank
+                                                            work on measurement error and causal inference
+account). To reduce other potentially confounding
+                                                            (Pearl, 2012; Kuroki and Pearl, 2014; Buonaccorsi,
+effects, we pair each Y = 1 complaint with the
+                                                            2010; Carroll et al., 2006; Shu and Yi, 2019; Oktay
+most similar Y = 0 complaint according to cosine
+                                                            et al., 2019; Wood-Doughty et al., 2018). Most
+similarity of TF-IDF vectors (Mozer et al., 2020).
+                                                            of this work deals with proxies for confounding
+From this we select the 4,000 most similar pairs for
+                                                            variables. The paper is most closely related to
+a total of 8,000 complaints. For the treatment, we
+                                                            Wood-Doughty et al. (2018), which also deals with
+use a state-of-the-art politeness detection package
+                                                            proxy treatments, but instead proposes an adjust-
+geared towards social scientists (Yeomans et al.,
+                                                            ment using the measurement model.
+2018). This package reports a score from a trained
+classifier using expert features of politeness and          8   Conclusion
+a hand-labeled dataset. We take examples in the
+top and bottom 25% of the scoring distribution to           This paper addressed the frequently encountered
+be our T̂ = 1 and T̂ = 0 examples and throw out             scenario of wanting to estimate the causal effect
+all others. The final dataset consists of 4,000 com-        of latent linguistic properties from observational
+plaints, topics, and outcomes. We use the same              data. We clarified critical ambiguities in the prob-
+training procedure and hyperparameters as Section           lem, showed how causal effects can be interpreted,
+6.1, except now W-Adjust is trained for 9 epochs            presented a method, and demonstrated how it of-
+and each cross validation fold is of size 2,000.            fers practical and theoretical advantages over the
+   Results are given in Figure 3 and suggest that           existing practice. We also release a package for per-
+perceived politeness has a significant positive ef-         forming text-based causal inferences.8 This work
+fect on response time. Furthermore the proposed             opens new avenues for further conceptual, proce-
+estimators point to a larger effect. On average, if         dural, and theoretical refinement. This includes
+one writes politely to this bureau, it is between 3         exploration of treatment as author’s intent, hetero-
+and 10 percent more likely that they will receive a         geneous effects and compliance, overlap violations,
+fast response. It is a wise thing to be polite.             counterfactual inference, ethical considerations, ex-
+                                                            tensions to higher-dimensional outcomes and con-
+7   Related Work                                            founders, evaluation datasets based on paired ran-
+Our focus fits into a body of work on text-based            domized controlled trials and observational studies,
+causal inference that includes text as treatments           and other applications.
+(Egami et al., 2018; Fong and Grimmer, 2016;
+Grimmer and Fong, 2020; Wood-Doughty et al.,                  8
+                                                                https://github.com/rpryzant/
+2018), text as outcomes (Egami et al., 2018), and           causal-text
+References                                                  Wolfgang Iser. 1979. The act of reading: A theory of
+                                                             aesthetic response. Johns Hopkins University Press.
+Jisun An, Haewoon Kwak, and Yong-Yeol Ahn. 2018.
+   Semaxis: A lightweight framework to characterize         Daniel Karell and Michael Freedman. 2019. Rhetorics
+   domain-specific word semantics beyond sentiment.           of radicalism.    American Sociological Review,
+   Proceedings of the 56th Annual Meeting of the Asso-        84(4):726–753.
+   ciation for Computational Linguistics (ACL).
+                                                            Katherine Keith, David Jenson, and Brendan O’Connor.
+John P Buonaccorsi. 2010. Measurement error: mod-             2020. Text and causal inference: A review of using
+  els, methods, and applications. CRC press.                  text to remove confounding from causal estimates.
+                                                              Association for Computational Linguistics (ACL).
+Raymond J Carroll, David Ruppert, Leonard A Stefan-
+  ski, and Ciprian M Crainiceanu. 2006. Measure-            Soo-Min Kim and Eduard Hovy. 2006. Identifying and
+  ment error in nonlinear models: a modern perspec-           analyzing judgment opinions. In Proceedings of the
+  tive. CRC press.                                            main conference on Human Language Technology
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and                 Conference of the North American Chapter of the As-
+   Kristina Toutanova. 2018. Bert: Pre-training of deep       sociation of Computational Linguistics, pages 200–
+   bidirectional transformers for language understand-        207. Association for Computational Linguistics.
+   ing. arXiv preprint arXiv:1810.04805.                    Diederik P Kingma and Jimmy Ba. 2014. Adam: A
+Naoki Egami, Christian J Fong, Justin Grimmer, Mar-           method for stochastic optimization. International
+  garet E Roberts, and Brandon M Stewart. 2018.               Conference for Learning Representations (ICLR).
+  How to make causal inferences using texts. arXiv          Manabu Kuroki and Judea Pearl. 2014. Measure-
+  preprint arXiv:1802.02163.                                 ment bias and effect restoration in causal inference.
+Christian Fong and Justin Grimmer. 2016. Discovery           Biometrika, 101(2):423–437.
+  of treatments from text corpora. Proceedings of the
+                                                            Stephen C. Levinson. 1995. Three levels of meaning.
+  54th Annual Meeting of the Association for Compu-
+                                                               In Frank R. Palmer, editor, Grammar and Meaning:
+  tational Linguistics (Volume 1: Long Papers), pages
+                                                               Essays in Honor of Sir John Lyons, pages 90–115.
+  1600–1609.
+                                                               Cambridge University Press.
+Edward Gibson, Leon Bergen, and Steven T Pianta-
+                                                            Stephen C. Levinson. 2000. Presumptive Meanings:
+  dosi. 2013. Rational integration of noisy evidence
+                                                              The Theory of Generalized Conversational Implica-
+  and prior semantic expectations in sentence interpre-
+                                                               ture. MIT Press, Cambridge, MA.
+  tation. Proceedings of the National Academy of Sci-
+  ences, 110(20):8051–8056.                                 Bing Liu et al. 2010. Sentiment analysis and subjec-
+Gene Glass and Kenneth Hopkins. 1996. Statistical             tivity. Handbook of natural language processing,
+  methods in education and psychology. Psyccri-               2(2010):627–666.
+  tiques, 41(12).                                           Christopher Lucas, Richard A Nielsen, Margaret E
+Noah D Goodman and Michael C Frank. 2016. Prag-               Roberts, Brandon M Stewart, Alex Storer, and
+  matic language interpretation as probabilistic infer-       Dustin Tingley. 2015. Computer-assisted text anal-
+  ence. Trends in cognitive sciences, 20(11):818–829.         ysis for comparative politics. Political Analysis,
+                                                              23(2):254–277.
+Justin Grimmer and Christian Fong. 2020. Causal
+   inference with latent treatments.  In Unpub-             Li Lucy, Dorottya Demszky, Patricia Bromley, and
+   lished:        https://www.dropbox.com/s/                  Dan Jurafsky. 2020. Content analysis of textbooks
+   hxxyn5vtpjuyrw4/dexp_rev.pdf?dl=0.                         via natural language processing: Findings on gen-
+                                                              der, race, and ethnicity in texas us history textbooks.
+Justin Grimmer and Brandon M Stewart. 2013. Text as           AERA Open, 6(3):2332858420940312.
+   data: The promise and pitfalls of automatic content
+   analysis methods for political texts. Political analy-   Yiwei Luo, Dan Jurafsky, and Beth Levin. 2019. From
+   sis, 21(3):267–297.                                        insanely jealous to insanely delicious: Computa-
+                                                              tional models for the semantic bleaching of english
+William L Hamilton, Kevin Clark, Jure Leskovec, and           intensifiers. In Proceedings of the 1st International
+  Dan Jurafsky. 2016. Inducing domain-specific senti-         Workshop on Computational Approaches to Histori-
+  ment lexicons from unlabeled corpora. In Proceed-           cal Language Change, pages 1–13.
+  ings of the Conference on Empirical Methods in Nat-
+  ural Language Processing. Conference on Empirical         Mike Mintz, Steven Bills, Rion Snow, and Dan Juraf-
+  Methods in Natural Language Processing, volume              sky. 2009. Distant supervision for relation extrac-
+  2016, page 595. NIH Public Access.                          tion without labeled data. In Proceedings of the
+                                                              Joint Conference of the 47th Annual Meeting of the
+Wolfgang Iser. 1974. The implied reader: Patterns of          ACL and the 4th International Joint Conference on
+ communication in prose fiction from Bunyan to Beck-          Natural Language Processing of the AFNLP, pages
+ ett. Johns Hopkins University Press.                        1003–1011.
+Reagan Mozer, Luke Miratrix, Aaron Russell Kaufman,           Human Language Technologies, Volume 1 (Long Pa-
+  and L Jason Anastasopoulos. 2020. Matching with             pers), pages 1615–1625.
+  text data: An experimental evaluation of methods for
+  matching documents and of measuring match qual-           Delip Rao and Deepak Ravichandran. 2009. Semi-
+  ity. Political Analysis, 28(4):445–468.                     supervised polarity lexicon induction. In Proceed-
+                                                              ings of the 12th Conference of the European Chap-
+Jianmo Ni, Jiacheng Li, and Julian McAuley. 2019.             ter of the Association for Computational Linguistics,
+   Justifying recommendations using distantly-labeled         pages 675–682. Association for Computational Lin-
+   reviews and fine-grained aspects. In Proceedings of        guistics.
+   the 2019 Conference on Empirical Methods in Nat-
+   ural Language Processing and the 9th International       Jonathon Read. 2005. Using emoticons to reduce de-
+   Joint Conference on Natural Language Processing            pendency in machine learning techniques for senti-
+   (EMNLP-IJCNLP), pages 188–197.                             ment classification. In Proceedings of the ACL stu-
+                                                              dent research workshop, pages 43–48.
+Hüseyin Oktay, Akanksha Atrey, and David Jensen.
+  2019. Identifying when effect restoration will im-        Nils Reimers and Iryna Gurevych. 2019. Sentence-
+  prove estimates of causal effect. In Proceedings of         bert: Sentence embeddings using siamese bert-
+  the 2019 SIAM International Conference on Data              networks. Emperical Methods in Natural Language
+  Mining, pages 190–198. SIAM.                                Processing (EMNLP).
+
+Alexandra Olteanu, Onur Varol, and Emre Kiciman.            Margaret E Roberts, Brandon M Stewart, and Richard
+  2017. Distilling the outcomes of personal experi-          Nielsen. 2015.      Matching methods for high-
+  ences: A propensity-scored analysis of social media.       dimensional data with applications to text. Working
+  In Proceedings of the Conference on Computer Sup-          Paper.
+  ported Cooperative Work and Social Computing.             Paul R Rosenbaum and Donald B Rubin. 1983. The
+Adam Paszke, Sam Gross, Soumith Chintala, Gregory             central role of the propensity score in observational
+  Chanan, Edward Yang, Zachary DeVito, Zeming                 studies for causal effects. Biometrika, 70(1):41–55.
+  Lin, Alban Desmaison, Luca Antiga, and Adam               Paul R Rosenbaum and Donald B Rubin. 1984. Reduc-
+  Lerer. 2017. Automatic differentiation in pytorch.          ing bias in observational studies using subclassifica-
+  NIPS Autodiff Workshop.                                     tion on the propensity score. Journal of the Ameri-
+                                                              can statistical Association, 79(387):516–524.
+Judea Pearl. 2009. Causality. Cambridge university
+  press.                                                    Koustuv Saha, Benjamin Sugar, John Torous, Bruno
+                                                              Abrahao, Emre Kıcıman, and Munmun De Choud-
+Judea Pearl. 2012. On measurement bias in causal in-
+                                                              hury. 2019. A social media study on the effects of
+  ference. Proceedings of the Twenty-Sixth Confer-
+                                                              psychiatric medication use. In Proceedings of the
+  ence on Uncertainty in Artificial Intelligence (UAI).
+                                                              International AAAI Conference on Web and Social
+Christopher Potts. 2009. Formal pragmatics. The Rout-         Media.
+  ledge Encyclopedia of Pragmatics.                         Victor Sanh, Lysandre Debut, Julien Chaumond, and
+Vinodkumar Prabhakaran, William L Hamilton, Dan               Thomas Wolf. 2019. Distilbert, a distilled version
+  McFarland, and Dan Jurafsky. 2016. Predicting the           of bert: smaller, faster, cheaper and lighter. arXiv
+  rise and fall of scientific topics from trends in their     preprint arXiv:1910.01108.
+  rhetorical framing. In Proceedings of the 54th An-        Cosma Shalizi. 2013. Advanced data analysis from an
+  nual Meeting of the Association for Computational           elementary point of view.
+  Linguistics (Volume 1: Long Papers), pages 1170–
+  1180.                                                     Di Shu and Grace Y Yi. 2019. Weighted causal in-
+                                                              ference methods with mismeasured covariates and
+Reid Pryzant, Sugato Basu, and Kazoo Sone. 2018a.             misclassified outcomes.  Statistics in medicine,
+  Interpretable neural architectures for attributing an       38(10):1835–1854.
+  ad’s performance to its writing style. In Proceedings
+  of the 2018 EMNLP Workshop BlackboxNLP: An-               Anton Sobolev. 2018. How pro-government “trolls” in-
+  alyzing and Interpreting Neural Networks for NLP,           fluence online conversations in russia. University of
+  pages 125–135.                                              California Los Angeles.[7].
+Reid Pryzant, Youngjoo Chung, and Dan Jurafsky.             Dhanya Sridhar and Lise Getoor. 2019. Estimating
+  2017. Predicting sales from the language of product         causal effects of tone in online debates. Interna-
+  descriptions. In eCOM@ SIGIR.                               tional Joint Conference on Artificial Intelligence (IJ-
+                                                              CAI).
+Reid Pryzant, Kelly Shen, Dan Jurafsky, and Stefan
+  Wagner. 2018b. Deconfounded lexicon induction             Yla R Tausczik and James W Pennebaker. 2010. The
+  for interpretable social science. In Proceedings of         psychological meaning of words: Liwc and comput-
+  the 2018 Conference of the North American Chap-             erized text analysis methods. Journal of language
+  ter of the Association for Computational Linguistics:       and social psychology, 29(1):24–54.
+Victor Veitch, Dhanya Sridhar, and David Blei. 2020.                                           Lexicon      BERT            Random
+  Adapting text embeddings for causal inference. In         oracle (ψ)                          15.54       15.54            15.54
+  Conference on Uncertainty in Artificial Intelligence,
+  pages 919–928. PMLR.                                      proxy-lex (ψ̂ naive+C )             11.21        7.83            12.34
+                                                            T-boost (C only, ψ̂ naive+C )       13.30       10.92            12.70
+Victor Veitch, Dhanya Sridhar, and David M Blei. 2019.
+                                                            T-boost (ψ̂ naive+C )               14.68       12.01            13.59
+  Adapting text embeddings for causal inference. Un-
+  certainty in Artificial Intelligence (UAI).               W-Adjust (ψ proxy )                 15.01       13.88            13.30
+
+Rob Voigt, Nicholas P Camp, Vinodkumar Prab-               Table 4: ATE estimates from a C-restricted classifier
+  hakaran, William L Hamilton, Rebecca C Hetey,            (row 2) are preferable to T̂ but conservative compared
+  Camilla M Griffiths, David Jurgens, Dan Jurafsky,        to less restrictive methods (T-boost and W-Adjust ).
+  and Jennifer L Eberhardt. 2017. Language from
+  police body camera footage shows racial dispari-
+  ties in officer respect. Proceedings of the National     Theorem 4. Let ψ̂ proxy ({(Wi , T̃i , Yi )}ni=1 ) be the
+  Academy of Sciences, 114(25):6521–6526.                  estimator of ψ rea. . Let the text W = f (A, B) for
+Zach Wood-Doughty, Ilya Shpitser, and Mark Dredze.         some unknown function f and random variables A
+  2018. Challenges of using text classifiers for causal    and B. Suppose that,
+  inference. In Proceedings of the Conference on Em-              h                i      h                i
+  pirical Methods in Natural Language Processing.            1. E Y | T̃ = t, W = E Y | T̃ = t, A ,
+  Conference on Empirical Methods in Natural Lan-
+  guage Processing, volume 2018, page 4586. NIH                                      n→∞
+  Public Access.                                             2. Q̂ = Ê[Y |t, W ] −−−→ Q,
+Michael Yeomans, Alejandro Kantor, and Dustin Tin-           3. For some constant ,
+  gley. 2018. The politeness package: Detecting po-
+  liteness in natural language. R Journal, 10(2).                           < P (T̃ = 1 | A) < 1 − ,               (11)
+Deniz Yuret and Mehmet Ali Yatbaz. 2010. The noisy
+  channel model for unsupervised word sense disam-               with probability 1,
+  biguation. Computational Linguistics, 36(1):111–                                                n→∞
+  127.                                                     then, ψ̂ proxy ({(Wi , T̃i , Yi )}ni=1 ) −−−→ ψ proxy .
+
+Justine Zhang, Sendhil Mullainathan, and Cristian             The theorem supposes that the information con-
+   Danescu-Niculescu-Mizil. 2020. Quantifying the          tained in the text has two parts, and that the part
+   causal effects of conversational tendencies. Proceed-   which suffices to predict Y , called A, does not
+   ings of CSCW.                                           perfectly predict T̂ . In other words, if one trains
+Xiaojin Zhur and Zoubin Ghahramani. 2002. Learning         a classifier to predict reply time from emails, the
+  from labeled and unlabeled data with label propaga-      learned representations will not perfectly capture
+  tion. CMU CALD tech report.                              politeness. With this assumption the consistency of
+                                                           ψ proxy follows immediately from the consistency
+A    Overlap Criteria and Linguistic                       of the ATE, although further investigation of over-
+     Treatments                                            lap criteria for text-based causal inference is an
+For ψ̂ proxy to be a consistent estimator of the esti-     important direction for future work.
+mand ψ proxy , it must satisfy a key condition called
+                                                           B C-restriction
+overlap. In words, the text embeddings used for
+adjustment cannot perfectly predict the proxy label        Section 4 said that adjusting for the text W is suffi-
+T̂ . Informally, the problem is that we cannot ask         cient for blocking the confounding backdoor path
+“what would happen if this consumer complaint              created by other properties of the text Z̃. In Section
+had the same embedding but was polite?” for a text         5.1 we proposed performing this adjustment with
+where the embedding perfectly captures impolite-           BERT. We could alternatively try to block this path
+ness. In this paper, the proxy label T̂ is a property      by restricting a T̂ -boosting model to only use infor-
+of the text. Thus, it is possible that text embeddings     mation related to the confounding covariates C (for
+might memorize the proxy label. The following              which we can adjust). This could capture the same
+theorem provides conditions under which ψ̂ proxy is        desired effect as conditioning on W by accounting
+a consistent estimator that does not violate overlap.      for whatever extra information was leaked from W
+The following result provides assumptions under            into T̂ . We accordingly experiment with restrict-
+which consistent estimation of ψ proxy is possible.        ing the model to features that are highly correlated
+with C: we compute point-biserial correlation co-                 Where the first equality is by the tower property, the second
+efficients (Glass and Hopkins, 1996) between each              by inverse probability weighting, and the third Bayes’ rule.
+                                                               We continue by invoking Lemma 1:
+word and C, then select the top 2000 words as
+features for the bootstrapping model. Results are
+                                                                                   Pr(T̂ = 1 | W )
+given in Table 4 and suggest that while it still gives         E[Y | T̂ = 1, W ]                   =
+                                                                                     Pr(T̂ = 1)
+an improvement over the raw T̂ ’s, C-restriction
+yields more conservative estimates than adjusting                                                            Pr(T̂ = 1 | W )
+                                                                   E[Y | W, T = 1] Pr(T = 1 | W, T̂ = 1)
+for W .                                                                                                        Pr(T̂ = 1)
+                                                                                                                   Pr(T̂ = 1 | W )
+                                                                     + E[Y | W, T = 0] Pr(T = 0 | W, T̂ = 1)
+C    Ablating T-boost                                                                                                Pr(T̂ = 1)
+                                                                                     Pr(T = 1, T̂ = 1 | W )
+T-boost only uses a classifier to change the treat-            = E[Y | W, T = 1]
+                                                                                          Pr(T̂ = 1)
+ment status of an example on T̂ = 0 examples.
+                                                                                       Pr(T = 0, T̂ = 1 | W )
+Intuitively, this is because T̂ is assumed to be a rea-            + E[Y | W, T = 0]                          .
+                                                                                            Pr(T̂ = 1)
+sonable estimate of T̃ and therefore has a low false
+positive rate. We investigate this by ablating this                The analogous expression for E[Y | T̂ = 0]:
+part of the algorithm and directly setting T̂ ∗ to the
+classifier’s prediction. Our results on lexicon-based
+                                                                                 h                Pr(T = 0, T̂ = 0 | W )
+                                                               E[Y | T̂ = 0] = E E[Y | W, T = 0]
+T̂ ’s (Table 5, we observed similar outcomes with                                                      Pr(T̂ = 0)
+other T̂ ’s) suggest this can reduce performance be-                                             Pr(T = 1, T̂ = 0 | W ) i
+                                                                               + E[Y | W, T = 1]
+cause a large number of correctly labeled T̂ = 1                                                      Pr(T̂ = 0)
+examples are flipped.                                          And now plugging into the ATE formula:
+
+    Estimator                               Estimate           ψ naive = E[E[Y ; do(T̂ = 1)] − E[Y ; do(T̂ = 0)]]
+    oracle (ψ)                               15.54                 = E[E[Y |T̂ = 1] − E[Y |T̂ = 0]]
+                                                                       h
+    proxy-lex (ψ̂ naive+C )                  11.21                 =E
+    T-boost (T̂ = 0 only, ψ̂ naive+C )       14.60                                     
+                                                                    E[Y | W, C, T = 1]
+    T-boost (all examples, ψ̂ naive+C )      10.00
+                                                                      Pr(T = 1, T̂ = 1 | W )   Pr(T = 1, T̂ = 0 | W ) 
+                                                                                             −
+Table 5: It is advantageous to only relabel T̂ = 0 exam-                    Pr(T̂ = 1)              Pr(T̂ = 0)
+ples.
+                                                                                       
+                                                                     − E[Y | W, T = 0]
+
+                                                                       Pr(T = 0, T̂ = 0 | W )   Pr(T = 0, T̂ = 1 | W ) 
+D    Lemma used by Theorems 2 and 3                                                           −
+                                                                            Pr(T̂ = 0)               Pr(T̂ = 1)
+                                                                       i
+E[Y | W, T̂ = 1] = E[Y | W, T = 1] Pr(T = 1 | W, T̂ = 1)
+                 + E[Y | W, T = 0] Pr(T = 0 | W, T̂ = 1)       The result follows immediately. 
+E[Y | W, T̂ = 0] = E[Y | W, T = 0] Pr(T = 0 | W, T̂ = 0)
+                                                               F     Proof of Theorem 2
+                 + E[Y | W, T = 1] Pr(T = 1 | W, T̂ = 0)
+                                                               Let
+Proof. Apply the law of total probabilitiy and definition of
+conditional independence to the causal graph given in Figure
+3.                                                                          0 = P (T = 0 | T̂ = 1, W )
+                                                                            1 = P (T = 1 | T̂ = 0, W, C)
+E    Proof of Theorem 3
+                                                                           p1 = P (T = 1 | T̂ = 1, W )
+We write the proof for the case C = {}. The general case
+follows immediately by replacing each instance of W with                   p0 = P (T = 0 | T̂ = 0, W )
+(W, C):
+                                                                           E1 = E[Y | W, T = 1]
+  E[Y | T̂ = 1] = E[E[Y | T̂ = 1, W ] | T̂ = 1]                            E0 = E[Y | W, T = 0]
+                    "                                  #
+                                       Pr(W | T̂ = 1)
+                = E E[Y | T̂ = 1, W ]
+                                            Pr(W )
+                    "                                  #           Now recall
+                                       Pr(T̂ = 1 | W )
+                = E E[Y | T̂ = 1, W ]
+                                          Pr(T̂ = 1)           ψ̂ proxy = EW [E[Y | T̂ = 1, W ] − E[Y | T̂ = 0, W ]]
+Now we write the inner part using Lemma D, col-
+lect terms, and use the law of total probability to
+write everything in terms of misclassification prob-
+abilities:
+      = (E1 p1 + E0 0 ) − (E0 p0 − E1 1 )
+      = E1 (p1 + 1 ) + E0 (0 − p0 )
+      = E1 ((1 − 0 ) + 1 ) + E0 (0 − (1 − 1 ))
+      = (E1 − E0 )(1 − (0 + 1 ))
+which completes the proof 
+
+G      Deriving semi-oracle, a Causal
+       Estimator for when P (T |T̂ ) is known
+This is an ATE estimator which assumes access
+to P (T̂ |T ) instead of T but is still unbiased. We
+derive this estimator using the “matrix adjust-
+ment” technique of Wood-Doughty et al. (2018);
+Pearl(2012). We start by decomposing the joint
+distribution
+        P (Y, T, T̂ , C) = P (T̂ |Y, C, T )P (Y, C, T )
+                           X
+           P (Y, C, T̂ ) =      P (T̂ |Y, C, T )P (Y, C, T )
+                                     T
+
+
+  We can write this as a product between a
+matrix Mc,y (T̂ , T ) = P (T̂ |Y, C, T ) and vector
+Vc,y (T ) = P (Y, C, T ):
+                                X
+                 Vc,y (T̂ ) =             Mc,y (T̂ , T )Vc,y (T )
+                                 T
+                              = Mc,y Vc,y
+
+
+  Under fairly broad conditions, M has an inverse,
+which allows us to reconstruct the joint distribution:
+                                     X
+             P (Y, T, C) =                 M−1
+                                            c,y (T, T̂ )Vc,y (T̂ )
+                                     T̂
+
+
+     From which we can recover the ATE
+
+    matrix
+                 X        P (Y, T = 1, C)      P (Y, T = 0, C)
+                                                                          
+ψ            =            P                   −P                              P (C)
+                  c         Y P (Y, T = 1, C)    Y P (Y, T = 0, C)
+
+
+     Note that for our binary setting we have
+                                   
+                          1 − δc,y
+                             c,y
+        Mc,y =
+                           1 − c,y
+                            δc,y
+                                                                     
+                      1         1 − c,y                    −c,y
+        M−1
+         c,y =
+               1 − c,y − δc,y −δc,y                       1 − δc,y
+          c,y = P (T̂ = 0|T = 1, C, Y )
+         δc,y = P (T̂ = 1|T = 0, C, Y )
+
+
+   Note also that this expression is similar to τM E
+in Wood-Doughty et al. (2018) except their error
+terms are of the form P (T | T̂ ).
+

@@ -76,9 +76,17 @@ the final receipt or output revisit trigger. Recorded local blocks take preceden
 Pre-result and pre-block checkpoints remain history; other open operations use
 their latest durable progress. The L6 source followup preserves its inconclusive outcome. The census successor records current 82/31 counts and binds local access failures to the affected candidate actions. Yield verification checks the saved operation checkpoint independently of the next scheduler choice, so normal lane rotation does not falsely stop publication.
 
+## Recovered execution and remaining evidence
+
+Recovery on 28 October 2026 completed the interrupted survey and the prepared benchmark-oracle publication. The saved failed sponsor build remains preserved; its corrected successor changes only whitespace. Both publication pairs pass their source, arithmetic and all-page text checks. Visual and final acceptance remain open.
+
+The [current followup register](2026-10-28/recovered-followups-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
+
+Four specialist queries produced 35 unique metadata candidates. The exact-title arXiv followup returned 429; preprint and conference forward-identity queries returned zero indexed records. These outcomes establish neither technical claims nor search saturation. No new original-source disposition closes.
+
 ## Exact continuation
 
-Next: LL.CENSUS. Continue LA01-runtime-licenses by inspecting exact retained LLM-CD,LLM-and-SCD and LCM artifact,weight and dependency identities. Preserve the benchmark qualification design: full native item/generator/parser/scorer conformance and rights remain open; do not repeat the completed finite-oracle derivation. Continue distinct permitted routes for31unread originals.
+Next: LL.CENSUS. Continue a bounded backward chain from the retained CausalCollab original and seek a distinct permitted LDPE original route. The finite benchmark-oracle derivation,three runtime-artifact inventories,and both forward-identity queries are complete;do not repeat them. Full native benchmark qualification,missing artifact permissions/weights,and31original-source obligations remain open.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.

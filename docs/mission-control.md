@@ -6,7 +6,7 @@ Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`,
 
 **350 / 376 proposal operations have recorded outcomes; 1 are ready.** Next: **LL.CENSUS**.
 
-Continue LA01-runtime-licenses by inspecting exact retained LLM-CD,LLM-and-SCD and LCM artifact,weight and dependency identities. Preserve the benchmark qualification design: full native item/generator/parser/scorer conformance and rights remain open; do not repeat the completed finite-oracle derivation. Continue distinct permitted routes for31unread originals.
+Continue a bounded backward chain from the retained CausalCollab original and seek a distinct permitted LDPE original route. The finite benchmark-oracle derivation,three runtime-artifact inventories,and both forward-identity queries are complete;do not repeat them. Full native benchmark qualification,missing artifact permissions/weights,and31original-source obligations remain open.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
