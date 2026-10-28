@@ -1,0 +1,1 @@
+Preserve all1390 prior source records,citation contexts and content inputs. Add pinned benchmark branch inspection and independent IV,identification-state,interval and capped-loss witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

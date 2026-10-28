@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-agent-evaluation-surveys-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-agent-evaluation-surveys-v1/remaining-operations.json)
+Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-benchmark-oracles-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-benchmark-oracles-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-agent-evaluation-surveys-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-benchmark-oracles-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_agent_evaluation_surveys_reviewed_v2_2026-10-25.pdf) has 1,719 pages,
-1,390 audited citation records and 267 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_agent_evaluation_surveys_reviewed_2026-10-25.pdf) has 158 pages and 1031 citations.
-All 1,387 predecessor records, citation contexts and 408 compiled content inputs survive.
+The [monograph](../../causal_proposal_benchmark_oracles_reviewed_v1_2026-10-25.pdf) has 1,723 pages,
+1,392 audited citation records and 267 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_benchmark_oracles_reviewed_2026-10-25.pdf) has 158 pages and 1035 citations.
+All 1,390 predecessor records, citation contexts and 409 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,9 +30,9 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-The preserving successor integrates Ramos and colleagues chemistry-agent preprint and Zhou and colleagues vulnerability-repair preprint, plus exact project examples of semantic target loss, proxy regret, correlated judges, noisy labels, incomplete tests and complete evaluation denominators. Two genuine version3 originals are independently cited; exact journal equivalence is not established. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
+The preserving successor reinspects pinned CLadder and CausalDS branches and adds independent exact causal and scoring witnesses. Two binary IV worlds have identical observations and ratio1 but opposite population effects; unknown oracle states, malformed answers,nonfinite arithmetic and clipped loss remain distinct. The full native item/generator/scorer path and artifact rights require separate qualification. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
 
-All 1,387 predecessor records, contexts and content inputs survive; the reader has 1,390 records and 267 scholarly PDFs, with 1031 in the paired sponsor. Coverage is inconclusive: seventeen newly reviewed identity/route records preserve uninspected originals and two related-preprint/journal boundaries;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
+All 1,390 predecessor records, contexts and content inputs survive; the reader has 1,392 records and 267 scholarly PDFs, with 1035 in the paired sponsor. Coverage is inconclusive: prior source-route and preprint/journal boundaries remain; finite oracle witnesses do not establish native benchmark conformance;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
 
 There are 350 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 98 inconclusive / 1 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
@@ -52,8 +52,10 @@ There are 350 recorded outcomes of 376 and 150 nonpassing obligations. Software 
    permitted-route/identity limits; no substitute original is admitted. Independent work continues.
 4. Commercial qualification: resolve named supported server/API profiles,
    entitlement, price and complete request/failure denominators.
-5. Public prototypes: preregister task/version splits, scientific and refusal
-   oracles, native environment, fault tests and full costs before expensive bank work.
+5. Public prototypes: the benchmark-oracle design now specifies independent IV,
+   identification-state, finite-interval and loss-aggregation fixtures. Qualify the
+   full native generator/scorer path,task versions,rights and complete costs before
+   expensive bank work; oracle-unknown tasks remain a separate denominator.
 6. Manuscript acceptance: complete mandatory coverage/depth, Q1/Q5 and a fresh
    visual review. Text bounds alone do not establish visual or final acceptance.
 
@@ -76,7 +78,7 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 ## Exact continuation
 
-Next: LL.CENSUS. Continue LA01-benchmark-oracles using independent finite causal/scoring fixtures for the pinned CLadder IV and CausalDS unknown-ID/nonfinite branches. Preserve the 31 unread-original and four crosscutting obligations; related preprints do not close journal originals. Seek distinct permitted routes only, without retrying unchanged provider or policy failures.
+Next: LL.CENSUS. Continue LA01-runtime-licenses by inspecting exact retained LLM-CD,LLM-and-SCD and LCM artifact,weight and dependency identities. Preserve the benchmark qualification design: full native item/generator/parser/scorer conformance and rights remain open; do not repeat the completed finite-oracle derivation. Continue distinct permitted routes for31unread originals.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.

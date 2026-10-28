@@ -6,13 +6,13 @@ Current entrypoint: `python3 tools/run_program_checkpoint_v3.py status`, `next`,
 
 **350 / 376 proposal operations have recorded outcomes; 1 are ready.** Next: **LL.CENSUS**.
 
-Continue LA01-benchmark-oracles using independent finite causal/scoring fixtures for the pinned CLadder IV and CausalDS unknown-ID/nonfinite branches. Preserve the 31 unread-original and four crosscutting obligations; related preprints do not close journal originals. Seek distinct permitted routes only, without retrying unchanged provider or policy failures.
+Continue LA01-runtime-licenses by inspecting exact retained LLM-CD,LLM-and-SCD and LCM artifact,weight and dependency identities. Preserve the benchmark qualification design: full native item/generator/parser/scorer conformance and rights remain open; do not repeat the completed finite-oracle derivation. Continue distinct permitted routes for31unread originals.
 
 Public design outcomes: P1.DESIGN: pass, P2.DESIGN: pass, P3.DESIGN: pass, P4.DESIGN: pass, P5.DESIGN: pass, P6.DESIGN: pass.
 
 Q1–Q5 acceptance is derived from reviewed receipts, not from plan publication. All three mandatory manuscript repairs remain subject to their existing coverage and depth contracts. Bank qualification and adoption are later conditional work, not proposal blockers.
 
-[Current integrated working monograph](causal_proposal_agent_evaluation_surveys_reviewed_v2_2026-10-25.pdf) — 1719 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
+[Current integrated working monograph](causal_proposal_benchmark_oracles_reviewed_v1_2026-10-25.pdf) — 1723 pages. [Public-data survey](program/public-data-v15/public-data-survey.pdf).
 
 Continue after every result or local blocker. Checkpoints preserve unfinished work and are not permission gates. Short commands and bounded text output reduce disconnection risk; a disconnect resumes from canonical state. No unattended research worker is running. An active agent must perform the selected work.
 
