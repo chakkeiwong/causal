@@ -1,0 +1,1 @@
+Preserve all1392 prior source records,citation contexts and content inputs. Add the inspected Pryzant preprint, exact heterogeneous measurement witness and component-specific runtime findings; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
