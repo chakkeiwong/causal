@@ -1,42 +1,44 @@
 # Current executable proposal program
 
 Updated 28 October 2026. [Live master](../master-live.md),
-[program review](2026-10-28/program-refresh-nested-v1/program-review.json), and
-[all unresolved obligations](2026-10-28/program-refresh-nested-v1/remaining-operations.json).
+[program review](2026-10-28/program-refresh-blip-helpers-v1/program-review.json),
+[all unresolved obligations](2026-10-28/program-refresh-blip-helpers-v1/remaining-operations.json), and
+[complete continuation inventory](2026-10-28/continuation-inventory-v1/continuation-guide.md).
 
-The program develops a source-grounded banking research and product proposal.
-Software/reuse, LLM/agent and CLI/MCP repairs are mandatory. Public evidence and
-synthetic fixtures justify later costly experiments; source review, native
-implementation, independent acceptance and bank adoption remain distinct.
-
-Use python3 tools/run_followup_program_v2_20261028.py status, next and check.
-Original controllers retain integrity and acceptance. Independent eligible
-work continues across phase boundaries; local blockers stay local.
+This is a scholarly product proposal. Software/reuse, LLM/agent and CLI/MCP
+coverage remain mandatory. Public and synthetic evidence justify later costly
+experiments; they do not establish independent, bank or adoption acceptance.
 
 ## Current integrated documents
 
-[Monograph](../../causal_proposal_nested_reviewed_v2_2026-10-28.pdf) and
-[paired sponsor](../../sponsor_proposal_nested_reviewed_v1_2026-10-28.pdf).
+[Monograph](../../causal_proposal_blip_helpers_reviewed_v1_2026-10-28.pdf) and
+[paired sponsor](../../sponsor_proposal_blip_helpers_reviewed_v2_2026-10-28.pdf).
 
-The current monograph has 1,756 pages, 1,438 audited citation
-records and 274 genuine scholarly PDFs. The exact paired sponsor has
-168 pages and 1,103 records. All 1,436 reader and 1,099 sponsor
-predecessor citation records survive, with reader contexts and compiled inputs
-preserved. Q2-Q4 exact-byte author checks pass; Q1/Q5, coverage/depth, fresh
-visual review and final acceptance remain open.
+The current monograph has 1,760 pages, 1,440 audited citation
+records and 274 genuine scholarly PDFs. Its exact paired sponsor has
+168 pages and 1,107 records. All 1,438 reader and 1,103 sponsor
+predecessor records, reader citation contexts and compiled inputs remain.
+Q2-Q4 exact-reader author checks pass. Q1/Q5, coverage/depth, fresh visual
+inspection and final acceptance remain open.
 
-351/376 original operations are recorded; 150 are nonpassing: 121 inconclusive,
-25 open and four negative. Software remains 3 passing, 98 inconclusive and
-1 open; reuse 109 passing, 4 inconclusive and 2 open. The inherited frontier
-census remains 82 inspected and 31 unread. Zero original ready work is not completion.
+351/376 original operations are recorded. All 150 nonpassing obligations remain:
+121 inconclusive, 25 open and four negative. Software coverage is 3 passing,
+98 inconclusive and 1 open; reuse is 109 passing, 4 inconclusive and 2 open.
+The frontier census remains 82 inspected and 31 unread. Zero-ready is not completion.
 
-The recovered publication was committed and pushed as
-682c1f2a41b8a29f45219d710371c7179b6e24c3. Its custody audit failures and verified
-repairs remain preserved. The 48-case local fixture and seven Aitiotita delegates
-remain integrated. Twenty additional pinned BLIP/Spot originals now add precise
-source findings, endpoint identity witnesses, prior sensitivity and conditional
-reuse decisions. No acquired engine, Java binary or setup script was executed.
-The two-row Java/R tail reconciliation preserves later Weka/Banjo/Tetrad work.
+The preceding publication was committed and pushed as
+4d88f7ece9f0da195d1b532737f00fc7554a3a8c. Recovery repaired the continuation
+inventory: 105 unresolved software/reuse rows, including an omitted commercial
+cell. Four rows have bounded later deltas; 101 still need semantic reconciliation.
+The exact causal-learn license omission was stale and is corrected by existing
+pinned original evidence. Two historical authored-reference hashes remain
+explicitly mismatched; a separate current replay preserves every earlier exact
+output. Passing controller checks are not a claim of recursive historical closure.
+
+Nine additional BLIP helper originals are now integrated. They establish precise
+test, missingness/input-progress, count, representation and numerical boundaries.
+The native Java engine was not executed. Earlier source reviews and the 48-case
+local fixture remain preserved, with no broader capability or bank acceptance.
 
 ## Remaining gaps and routes
 
@@ -71,17 +73,24 @@ external gates, not global proposal blockers.
 
 ## Execution and recovery
 
-Both historical master files retain exact bytes. Mutable dashboards use saved
-snapshots for evidence. Failed builds and audit repairs remain recorded.
+Both historical masters retain exact bytes. Prior failures, mismatches and repairs
+remain recorded. Mutable controls use saved evidence snapshots.
 
 ## Exact continuation
 
-Continue later-evidence reconciliation for the other 102 software/reuse trace
-rows. R panel work targets nonabsorbing, multiple-event, stacked, panel-approach
-and trend-weighting leads plus remaining delegates. Java successors target the
-nested review's exact origin, helper, artifact, rights and conversion gaps.
-Do not repeat completed acquisitions or the 48-case fixture. Unknown bank truth
-and unrestricted latent/dependent inference need new information or research.
-Public proposal work remains eligible independently of later bank trials.
-Fresh visual acceptance requires a new image allowance. No unattended research
-worker is running; checkpoints retain exact actions, not completion claims.
+Use python3 tools/run_followup_program_v2_20261028.py status, next and check.
+Consume each actual step exit once. Publication depends only on its reviewed source
+addition; PANEL.LEADS and CXX.TAILS have no unrelated prerequisites. Continue the
+remaining inventory using exact later-evidence deltas before acquiring originals.
+The ten R-panel leads and three C++ omission groups now have performed bounded
+reconciliations; register their receipts after publication without repeating them.
+R-panel priorities are nonabsorbing, multiple-event, stacked, panel-approach and
+trend-weighting identities plus remaining delegates. Java priorities are explicit
+input/test repair, common-row scoring and remaining origin/reader/search/rights/
+binary contracts. Do not repeat completed acquisitions or the 48-case fixture.
+
+Current image allowance is exhausted; fresh visual acceptance stays local and
+open. Public proposal research does not wait for bank validation. Unknown bank
+assignment and unrestricted latent/dependent uncertainty require new information
+or justified restrictions; no universal repair is promised. No unattended research
+worker is running. Checkpoints retain exact commands rather than completion claims.

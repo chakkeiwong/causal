@@ -1,0 +1,1 @@
+Preserve all 1438 prior source records, citation contexts and compiled content inputs. Add Nine inspected helper originals and exact count/progress/representation witnesses. No native, broad coverage, visual or final acceptance is inferred.
