@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-openai-contract-v1/program-review.json)
-and [remaining-operation register](2026-10-28/program-refresh-openai-contract-v1/remaining-operations.json)
+Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-delegate-contract-v1/program-review.json)
+and [remaining-operation register](2026-10-28/program-refresh-delegate-contract-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-28/program-refresh-openai-contract-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-28/program-refresh-delegate-contract-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,37 +12,36 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_openai_contract_reviewed_v1_2026-10-28.pdf) has 1,734 pages,
-1,403 audited citation records and 271 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_openai_contract_reviewed_2026-10-28.pdf) has 161 pages and 1,054 citations.
-All 1,400 predecessor records, citation contexts and 413 compiled content inputs survive.
+The [monograph](../../causal_proposal_delegate_contract_reviewed_v1_2026-10-28.pdf) has 1,739 pages,
+1,415 audited citation records and 271 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_delegate_contract_reviewed_2026-10-28.pdf) has 162 pages and 1,068 citations.
+All 1,403 predecessor records, citation contexts and compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open.
 
-**351 recorded outcomes of 376; 0 ready; 150 nonpassing obligations.**
+**351 recorded outcomes of 376; 0 ready original operations; 150 nonpassing obligations.**
 Software remains three pass / 98 inconclusive / one open; reuse 109 pass / four inconclusive / two open.
-The nonpassing total is 121 inconclusive, 25 open and four negative outcomes. These are dispositions, not qualified capabilities.
+The nonpassing total is 121 inconclusive, 25 open and four negative. These are dispositions, not qualified capabilities.
 
 ## Completed recovery and new findings
 
-The prior 1,732-page reader and 161-page sponsor were committed and pushed as 9cfd20d38276b355b0cb45e59b99e01840964fa7.
-The actual publication process exit was consumed before changing the source manifest or starting this publication.
+The recovered 1,734-page reader and 161-page sponsor were committed and pushed as 19513afff0f47b8928c31bc7dc6a7c3848b28851.
+Its actual delivery exit was consumed and HEAD/origin verified before the next publication.
 
-The finite [census review](../../program/comprehensive-v14/work/LL.CENSUS/search-closure.json) now has a recorded inconclusive result.
-Its bounded search-route criterion passes; essential-source and full task coverage remain inconclusive.
-All 113 inherited candidates and 95 later rows retain task mappings and claim restrictions: 82 inspected / 31 unread,
-79 later metadata identities, 16 duplicates and 66 acquisition/edition obligations. These denominators are not additive.
-The stale candidate214 technical-review flag was corrected without asserting final-edition equivalence or native replication.
+The finite census review remains recorded inconclusive: 82 inspected / 31 unread inherited candidates,
+95 later rows with 79 metadata identities, 16 duplicates and 66 acquisition/edition obligations.
+These denominators are not additive. The candidate 214 selected-author-original correction remains preserved.
 
-The new provider section integrates twelve exact Git-blob-verified official OpenAI files from two cutoff-pinned repositories.
-It separates completion, schema validation, scientific identification, refusal, message phases and nested retries.
-The stipulated six-attempt, USD1.50 and 33-second examples reproduce; they are not vendor prices or measured performance.
-Official live-guide Markdown routes still return403; their failures remain preserved. The repository originals establish narrower contracts.
+The new comparison resolves the finite 29-file worklist:23 technical files and 6 scope-only documents.
+Exact source identity, cutoff pins, SHA-256, Git blobs and inspected anchors are recorded.
+The argument distinguishes conditional tool validation, terminal events, retry scope, compaction costs,
+schema-conversion warnings, native stop reasons, recovery identities and learned-program evaluation.
+Exact authored witnesses give five versus nine attempts and stipulated USD 1.25 versus USD 2.25; they are not vendor measurements.
 
-The [L6 contract matrix](2026-10-28/l6-criterion-review-v1/contract-matrix.json) records six named provider/client families,
-six additional framework source profiles, scientific-envelope design, rights boundaries and preserved minimum depth.
-L6 remains inconclusive because hosted-service/model profiles and material acquired delegates still need explicit review.
-Native trials, later bank qualification and visual acceptance remain separate from literature disposition.
+The [L6 matrix](2026-10-28/l6-delegate-criterion-v1/contract-matrix.json) no longer calls those 29 files inventory-only.
+It preserves the ten-page exclusive minimum and the inconclusive full-coverage result.
+Named service/model/artifact profiles and migration leads still need bounded dispositions.
+Unlisted code branches are outside this source review; no downloaded code or live model was executed.
 
 ## Remaining gaps and routes
 
@@ -88,14 +87,12 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 Recovery on 28 October 2026 completed the interrupted survey and the prepared benchmark-oracle publication. The saved failed sponsor build remains preserved; its corrected successor changes only whitespace. Both publication pairs pass their source, arithmetic and all-page text checks. Visual and final acceptance remain open.
 
-The [current followup register](2026-10-28/program-refresh-openai-contract-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
+The [current followup register](2026-10-28/program-refresh-delegate-contract-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
 
 Four specialist queries produced 35 unique metadata candidates. The exact-title arXiv followup returned 429; preprint and conference forward-identity queries returned zero indexed records. These outcomes establish neither technical claims nor search saturation. No new original-source disposition closes.
 
 ## Exact continuation
 
-Continue the exact acquired provider/framework delegate reviews and the bounded hosted-service/model rights profiles in the L6 matrix. The finite LL.CENSUS review is recorded inconclusive; future source/edition and essentiality work needs a reviewed successor. Do not restart completed source reads, reader/sponsor builds or the finite census audit. Fresh visual review remains separate.
+Install a reviewed durable followup queue without rewriting historical outcomes; reconcile named L6 service/artifact profiles and L1 task-specific essentiality independently. Preserve the completed 29-file review.
 
-The current scheduler has no ready original operation after the last finite audit is recorded. This does not mean the proposal is complete: use reviewed successors for the known independent followups. The chapter-successor mechanism is available; do not weaken prerequisites or silently reopen historical results.
-
-Serialize canonical mutations, consume actual process exits, and verify commit/push before the next publication. Preserve failures and immutable originals. Phase boundaries are not permission gates.
+The unchanged original scheduler has no ready node. This is a successor-registration limitation, not proposal completion. Serialize canonical mutations, consume actual exits and verify delivery. Fresh visual review alone requires a fresh safe image allowance.

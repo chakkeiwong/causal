@@ -1,0 +1,1 @@
+Preserve all1403 prior source records,citation contexts and content inputs. Add29inspected delegate originals and exact schema weakening,selective retry and completion witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
