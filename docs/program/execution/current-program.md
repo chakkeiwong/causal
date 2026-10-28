@@ -1,21 +1,21 @@
 # Current executable proposal program
 
-Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-delegate-contract-v1/program-review.json)
-and [remaining-operation register](2026-10-28/program-refresh-delegate-contract-v1/remaining-operations.json)
+Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-28/program-refresh-boundary-profile-v1/program-review.json)
+and [remaining-operation register](2026-10-28/program-refresh-boundary-profile-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-28/program-refresh-delegate-contract-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-28/program-refresh-boundary-profile-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
-Use python3 tools/run_program_checkpoint_v3.py status, next and check. Continue eligible independent branches across phases.
+Use python3 tools/run_followup_program_v2_20261028.py status, next and check for current followup work. Original acceptance and integrity remain governed by python3 tools/run_program_checkpoint_v3.py and tools/causal_program.py. Continue independent branches across phases.
 No unattended worker, sibling edits or downloaded-code execution. The active agent performs eligible work.
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_delegate_contract_reviewed_v1_2026-10-28.pdf) has 1,739 pages,
-1,415 audited citation records and 271 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_delegate_contract_reviewed_2026-10-28.pdf) has 162 pages and 1,068 citations.
-All 1,403 predecessor records, citation contexts and compiled content inputs survive.
+The [monograph](../../causal_proposal_boundary_profile_reviewed_v2_2026-10-28.pdf) has 1,742 pages,
+1,418 audited citation records and 271 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_boundary_profile_reviewed_v2_2026-10-28.pdf) has 163 pages and 1,073 citations.
+All 1,415 predecessor records, citation contexts and compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open.
 
@@ -87,12 +87,37 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 Recovery on 28 October 2026 completed the interrupted survey and the prepared benchmark-oracle publication. The saved failed sponsor build remains preserved; its corrected successor changes only whitespace. Both publication pairs pass their source, arithmetic and all-page text checks. Visual and final acceptance remain open.
 
-The [current followup register](2026-10-28/program-refresh-delegate-contract-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
+The [current followup register](2026-10-28/program-refresh-boundary-profile-v1/remaining-operations.json) preserves all 376 obligations. The [artifact register](2026-10-25/runtime-artifact-gaps-v1/remaining-artifact-register.json) identifies specific unresolved root/component permissions for LLM-CD and LLM-and-SCD, exact external LCM weights and terms, dependency identities and loader conformance. These are local runtime-adoption limits, not evidence that the scientific literature is unavailable.
 
 Four specialist queries produced 35 unique metadata candidates. The exact-title arXiv followup returned 429; preprint and conference forward-identity queries returned zero indexed records. These outcomes establish neither technical claims nor search saturation. No new original-source disposition closes.
 
+## Recovered continuation and current delta
+
+The durable followup queue now exists. Batch1 completed five reconciliation packets;
+batch2 completed four source/review packets. These work results do not change the376
+original acceptance obligations. The current batch has independent publication,
+Python RL/CORL source-tail and CDT dependency packets. A completed/inconclusive
+packet does not stop another branch. No unattended research worker is implied.
+
+The current reader integrates three new audited records: the selected CDT delegates
+and separate pcalg comparator, eleven pinned Ollama server originals, and independent
+variable-order/stream-admission witnesses. All prior records and content survive.
+The first build failed on an overfull commit identifier; its immutable failure is
+preserved and the successor changes only the permissible line break.
+
+L1 retains14supported task comparisons,31unread originals and an eight-page exclusive
+minimum. L6 retains its29-file delegate review and ten-page minimum, and now records
+the server's routing,streaming,model-residency and rights boundaries. Both exact-reader
+chapter successors remain inconclusive for full coverage. Local URL,HTTP200,done and
+keep_alive do not independently establish local inference,scientific admission or
+durable workflow recovery. Exact build/model/dependency profiles remain separate.
+
 ## Exact continuation
 
-Install a reviewed durable followup queue without rewriting historical outcomes; reconcile named L6 service/artifact profiles and L1 task-specific essentiality independently. Preserve the completed 29-file review.
-
-The unchanged original scheduler has no ready node. This is a successor-registration limitation, not proposal completion. Serialize canonical mutations, consume actual exits and verify delivery. Fresh visual review alone requires a fresh safe image allowance.
+Run python3 tools/run_followup_program_v2_20261028.py status and check. Consume the
+current publication exit and unchanged full checks; commit and verify push before a
+later publication. Then execute independent Python RL/CORL and CDT dependency packets
+from their exact contracts. Reconcile their outputs into subsequent bounded work,
+without repeating reviewed ENCO,gCastle PC/NOTEARS or the completed server originals.
+The unchanged original scheduler's zero-ready count is not proposal completion.
+Fresh visual acceptance alone requires a fresh safe image allowance.

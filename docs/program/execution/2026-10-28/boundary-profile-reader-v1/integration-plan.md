@@ -1,0 +1,1 @@
+Preserve all1415 prior source records,citation contexts and content inputs. Add inspected CDT delegates and Ollama server originals with exact variable-order and stream-admission witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
