@@ -1,9 +1,9 @@
 # Current executable proposal program
 
-Updated 25 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-data-workflow-wave-v1/program-review.json)
-and [remaining-operation register](2026-10-25/program-refresh-data-workflow-wave-v1/remaining-operations.json)
+Updated 28 October 2026 (Asia/Shanghai). The [full reconciliation](2026-10-25/program-refresh-agent-evaluation-surveys-v1/program-review.json)
+and [remaining-operation register](2026-10-25/program-refresh-agent-evaluation-surveys-v1/remaining-operations.json)
 account for all 376 proposal obligations. Canonical state and reviewed receipts govern execution.
-The [preserved predecessor](2026-10-25/program-refresh-data-workflow-wave-v1/prior-current-program.md) retains earlier findings.
+The [preserved predecessor](2026-10-25/program-refresh-agent-evaluation-surveys-v1/prior-current-program.md) retains earlier findings.
 
 This is a research/product proposal. Public/generated prototype evidence justifies later expensive bank experiments.
 Proposal completion is distinct from implementation, independent acceptance, bank validation and adoption.
@@ -12,10 +12,10 @@ No unattended worker, sibling edits or downloaded-code execution. The active age
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_data_workflow_wave_reviewed_v1_2026-10-25.pdf) has 1,716 pages,
-1,387 audited citation records and 265 genuine scholarly PDFs. The exact paired
-[sponsor proposal](../../sponsor_proposal_data_workflow_wave_reviewed_2026-10-25.pdf) has 156 pages and 1026 citations.
-All 1,377 predecessor records, citation contexts and 407 compiled content inputs survive.
+The [monograph](../../causal_proposal_agent_evaluation_surveys_reviewed_v2_2026-10-25.pdf) has 1,719 pages,
+1,390 audited citation records and 267 genuine scholarly PDFs. The exact paired
+[sponsor proposal](../../sponsor_proposal_agent_evaluation_surveys_reviewed_2026-10-25.pdf) has 158 pages and 1031 citations.
+All 1,387 predecessor records, citation contexts and 408 compiled content inputs survive.
 Source traceability, exact authored examples and all-page text/bounds checks pass; Q2-Q4 pass for exact bytes.
 Q1/Q5, mandatory coverage/depth and fresh visual/final acceptance remain open. Page count is not completion.
 
@@ -30,9 +30,9 @@ Recorded outcomes include inconclusive findings; source review grants no native 
 
 ## Newly reconciled work
 
-The preserving successor compares data.table, targets, Dask, Snakemake, Beam, Arrow, Taskflow, DataFrames.jl and Dagger.jl with prior DuckDB, Polars, Feast, Pandera, Splink, OpenLineage, Ray, Spark and historical SAS evidence. 83 authentic originals and17preserved source records ground identity, cardinality, information clocks, linkage uncertainty, task/cache identity, retry/effect semantics, numeric reductions and complete cost accounting. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
+The preserving successor integrates Ramos and colleagues chemistry-agent preprint and Zhou and colleagues vulnerability-repair preprint, plus exact project examples of semantic target loss, proxy regret, correlated judges, noisy labels, incomplete tests and complete evaluation denominators. Two genuine version3 originals are independently cited; exact journal equivalence is not established. Exact authored examples reproduce; static findings are not native failure-rate measurements. Coverage remains inconclusive;no native admission is inferred.
 
-All 1,377 predecessor records, contexts and content inputs survive; the reader has 1,387 records and 265 scholarly PDFs, with 1026 in the paired sponsor. Coverage is inconclusive: five successful bounded queries retain unreturned and uninspected candidates plus broader ecosystem limits;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
+All 1,387 predecessor records, contexts and content inputs survive; the reader has 1,390 records and 267 scholarly PDFs, with 1031 in the paired sponsor. Coverage is inconclusive: seventeen newly reviewed identity/route records preserve uninspected originals and two related-preprint/journal boundaries;package/code-comment scholarly references are not admitted as technical papers; complete delegates, installed artifact/dependency rights and native law-specific qualification remain open. MATLAB and HUGIN are locally blocked on authentic named-edition sources; other ready work remains eligible.
 
 There are 350 recorded outcomes of 376 and 150 nonpassing obligations. Software is three pass / 98 inconclusive / 1 open; reuse is 109 pass / four inconclusive / two open; census remains 82 inspected / 31 unread plus four crosscutting tasks. Recorded work is not final acceptance.
 
@@ -76,7 +76,7 @@ their latest durable progress. The L6 source followup preserves its inconclusive
 
 ## Exact continuation
 
-Next: LL.CENSUS. Continue the 31 unread originals and four crosscutting tasks. Preserve all recorded source/date/identity limits, including157/199/202/206, and seek distinct permitted genuine originals without repeating unchanged blocked routes. Copilot and the commercial network reference decisions are published; continue independent software cells and remaining concrete reuse candidates.
+Next: LL.CENSUS. Continue LA01-benchmark-oracles using independent finite causal/scoring fixtures for the pinned CLadder IV and CausalDS unknown-ID/nonfinite branches. Preserve the 31 unread-original and four crosscutting obligations; related preprints do not close journal originals. Seek distinct permitted routes only, without retrying unchanged provider or policy failures.
 
 Serialize canonical mutations and consume command exits. Preserve immutable sources and failed attempts.
 Keep commands/output bounded. Independent obligations do not block one another; phase boundaries do not stop execution.

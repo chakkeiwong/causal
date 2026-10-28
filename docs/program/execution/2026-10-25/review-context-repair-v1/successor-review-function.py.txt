@@ -1,0 +1,37 @@
+def validate_review_binding(root, state, graph, identifier, binding):
+    """Replay a review against the prerequisites recorded when it was performed."""
+    core.bound(root, binding)
+    receipt = core.read(root, binding['path'])
+    require(binding['outcome'] == receipt['outcome'] and
+            binding['capabilities'] == receipt.get('capabilities', []), 'Review receipt/state mismatch')
+    require(receipt['outcome'] != 'pass' or receipt['execution'] == 'performed',
+            'Passing work must actually have been performed')
+    node = ledger.operation(graph, identifier)
+    context = state
+    if 'prerequisites' in binding:
+        declared = {d['id'] for d in node['depends']}
+        saved_keys = set(binding['prerequisites'])
+        disposition_only = receipt['execution'] == 'not_performed' and receipt['outcome'] in ('negative', 'inconclusive')
+        require(saved_keys <= declared and (disposition_only or saved_keys == declared),
+                'Review prerequisite snapshot is incomplete')
+        context = dict(state)
+        context['execution_program'] = dict(state['execution_program'])
+        context['execution_program']['results'] = dict(state['execution_program']['results'])
+        for key, saved in binding['prerequisites'].items():
+            core.bound(root, saved)
+            actual = core.read(root, saved['path'])
+            require(actual.get('operation_id') == key and actual['outcome'] == saved['outcome'] and
+                    actual.get('capabilities', []) == saved.get('capabilities', []),
+                    'Review prerequisite snapshot differs from its receipt')
+            known = [state['execution_program']['results'].get(key)]
+            known += [x['result'] for x in state['execution_runtime'].get('review_history', {}).get(key, [])]
+            require(any(x and same_reader(x, saved) for x in known),
+                    'Review prerequisite was not recorded in the preserved ledger')
+            context['execution_program']['results'][key] = saved
+    validate_receipt(root, context, node, receipt, binding['sequence'])
+    if receipt.get('reviewed_reader'):
+        core.bound(root, receipt['reviewed_reader'])
+    if receipt['outcome'] == 'pass':
+        require(receipt.get('acceptance_scope') == 'proposal_only',
+                'Proposal review cannot award product acceptance')
+        core.bound(root, receipt['reviewed_reader'])
