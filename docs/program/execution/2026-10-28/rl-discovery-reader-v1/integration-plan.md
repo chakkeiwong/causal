@@ -1,0 +1,1 @@
+Preserve all1418 prior source records,citation contexts and content inputs. Add two primary discovery papers,selected RL/CORL source and CDT dependency profiles with exact penalty/keyword witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.

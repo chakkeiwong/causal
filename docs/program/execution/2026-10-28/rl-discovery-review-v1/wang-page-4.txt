@@ -1,0 +1,64 @@
+Decoder. fφdecd
+                 : Ŝ 7→ A maps the state space Ŝ to the ac-       Algorithm 1 Causal discovery with Ordering-based RL.
+tion space A. Among several decoder choices (see also Ap-           Require: observed data X, initial parameters φe , φd and φv ,
+pendix A.1 for an empirical comparison), we pick an LSTM                two empty buffers D and Dscore , initial value (negative
+based structure that proves effective in our experiments. Al-           infinite) BestScore and a random ordering BestOrdeing.
+though the initial state is generated randomly in many appli-        1: while not terminated do
+                                Pd
+cations, we pick it as s0 = d1 i=1 si , considering that the         2:    draw a batch of samples from X, encode them to S and
+source node is fixed in a correct ordering. We restrict each               calculate the initial state ŝ0
+node only be selected once by masking the selected nodes, in         3:    for t = 0, 1, . . . , T do
+order to generate a valid ordering [Vinyals et al., 2015].           4:       collect a batch of data hŝt , at , rt i with πφ : D =
+                                                                              D ∪ {hŝt , at , rt i}
+Optimization. The optimization objective is to learn a pol-          5:       if hvt , Π≺vt , rt i is not in Dscore then
+icy maximizing J(φ), where φ = {φe , φd } with φe and                6:          store hvt , Π≺vt , rt i in Dscore
+φd being parameters associated with encoder f enc and de-            7:       end if
+coder f dec , respectively. Based on the above definition,           8:    end for
+policy gradient [Sutton and Barto, 2018] is used to opti-            9:    update φe , φd , and φv as described in Section 4.2
+mize the ordering generation model parameters. For the                       PT
+                                                                    10:    if t=0 rt > BestScore then
+episodic reward case, h weP   have the following policy
+                                                      i gradi-      11:       update the BestScore and BestOrdering
+                                T
+ent ∇J(φ) = Eπφ R(τ ) t=0 ∇φ log πφ (at |ŝt ) , and the            12:    end if
+algorithm in this case is denoted as CORL-1. For the dense          13: end while
+reward                                                              14: get the final DAG by pruning the BestOrdering
+      hPcase, policy gradient cani be calculated P as ∇J(φ) =
+          T                                          T −t l
+Eπφ       t=0 Rt ∇φ log πφ (at |ŝt ) , where Rt =   l=0 γ rt+l
+denotes the return at time step t. We denote the algorithm in       4.4 Consistency Analysis
+this case as CORL-2. Using a parametric baseline to estimate        So far we have presented CORL in a general manner without
+the expected score typically improves learning [Sutton and          specifying explicitly the distribution family for calculating the
+Barto, 2018]. Therefore, we introduce a critic network Vφv (ŝt )   scores or rewards. In principle, any distribution family could
+parameterized by φv , which learns the expected return given        be employed as long as its log-likelihood can be computed.
+state ŝt and is trained with stochastic gradient descent using     However, whether the maximization of the accumulated re-
+Adam optimizer on a mean squared error objective between            ward recovers the correct ordering, i.e., whether consistency
+its predicted value and the actual return. More details about       of the score function holds, depends on both the modelling
+the critic network are described in Appendix A.2.                   choice of reward and the underlying SEM. If the SEM is iden-
+   Inspired by the benefits from pretrained models [Bello et        tifiable, then the following proposition shows that it is possible
+al., 2016], we also consider to incorporate pretraining to our      to find the correct ordering with high probability in the large
+method to accelerate training. In practice, one can usually         sample limit.
+obtain some observed data with known causal graphs or correct       Proposition 1. Suppose that an identifiable SEM with true
+orderings, e.g., by simulation or real data with labeled graphs.    causal DAG G ∗ on X = {Xj }dj=1 induces distribution P (X).
+Hence, we can pretrain a policy model with such data in a
+supervised way and use the pretrained model as initialization       Let G Π be the fully-connected DAG that corresponds to an
+for new tasks. Meanwhile, a sufficient generalization ability is    ordering Π. If there is an SEM with G Π inducing the same
+desired and we hence include diverse data sets with different       distribution P (X), then G Π must be a super-graph of G ∗ , i.e.,
+numbers of nodes, noise types, causal relationships, etc.           every edge in G ∗ is covered in G Π .
+                                                                    Proof. The SEM with G Π may not be causally minimal but
+4.3   Variable Selection                                            can be reduced to an SEM satisfying the causal minimality
+                                                                    condition [Peters et al., 2014]. Let G̃ Π denotes the causal
+One can obtain the causal graph from an ordering by con-            graph in the reduced SEM with the same distribution P (X).
+ducting variable selection methods, such as sparse candidate        Since we have assumed that original SEM is identifiable, i.e.,
+[Teyssier and Koller, 2005], significance testing of covariates     the distribution P (X) corresponds to a unique true graph, G̃ Π
+[Bühlmann et al., 2014], and group Lasso [Schmidt et al.,           is then identical to G ∗ . The proof is complete by noticing that
+2007]. In this work, for linear data models, we apply linear        G Π is a super-graph of G̃ Π .
+regression to the obtained fully-connected DAG and then use
+thresholding to prune edges with small weights, as similarly           Thus, if the causal relationships fall into the chosen model
+used by [Zheng et al., 2018]. For the non-linear model, we          functions and a right distribution family is assumed, then given
+adopt the CAM pruning used by [Lachapelle et al., 2020]. For        infinite samples the optimal accumulated reward (e.g., the
+each variable Xj , one can fit a generalized additive model         optimal BIC score) must be achieved by a super-DAG of the
+against the current parents of Xj and then apply significance       underlying graph. However, finding the optimal accumulated
+testing of covariates, declaring significance if the reported       reward may be hard, because policy gradient methods only
+p-values are lower that or equal to 0.001. The overall method       guarantee local convergence [Sutton and Barto, 2018], and we
+is summarized in Algorithm 1.                                       can only apply approximate model functions and also need to
