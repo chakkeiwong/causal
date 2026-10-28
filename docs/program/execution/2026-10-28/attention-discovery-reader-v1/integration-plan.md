@@ -1,0 +1,1 @@
+Preserve all1423 prior source records,citation contexts and content inputs. Add the versioned Liu preprint,four selected attention discovery source profiles,CDT installer limits and exact permutation witnesses; preserve all inherited comparisons. Keep coverage, native, visual and final acceptance open. Pair sponsor and reconcile all obligations.
