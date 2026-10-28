@@ -1,0 +1,7 @@
+# Nested discovery components need separate contracts
+
+Twenty pinned source files distinguish reliableAI's root, Spot and nested BLIP components. Their license declarations, source origins and build identities differ; a repository-level label cannot establish artifact equivalence or deployment rights. No acquired engine, setup script or JAR was executed. [@exec28_nested_sources]
+
+The inspected Spot endpoint scorer can lose the neighboring variable: a wrong edge into the same destination obtains arrowhead F1 of one in an exact logical witness, while a neighbor-preserving score is zero. Reversing storage of the same semantic edge can produce the opposite discrepancy. Full-edge and skeleton metrics are separate. Graph conversion, default FCI binding and failure reporting also require explicit adapter repairs before a public trial. [@exec28_nested_sources; @exec28_nested_reference]
+
+BLIP remains a conditional discrete score-based comparison. Zero alpha preserves a default of ten in the inspected constructor; score ties and base-level graph checks require a declared policy. Source inspection is neither native qualification nor evidence that observational score optimization answers a bank intervention question. The next economical step is a fixed public fixture with endpoint roundtrips, failed-request denominators, prior/cardinality checks and explicit costs. Broad software coverage, authentic bank truth and final acceptance remain open. [@exec28_nested_sources; @exec28_nested_reference]

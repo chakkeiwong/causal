@@ -1,53 +1,42 @@
 # Current executable proposal program
 
-Updated 28 October 2026. The [program review](2026-10-28/program-refresh-fixture-java-v1/program-review.json)
-and [complete remaining register](2026-10-28/program-refresh-fixture-java-v1/remaining-operations.json)
-reconcile all 376 original obligations. The [live master](../master-live.md) governs
-continuation; historical masters and dated snapshots retain their exact bytes.
+Updated 28 October 2026. [Live master](../master-live.md),
+[program review](2026-10-28/program-refresh-nested-v1/program-review.json), and
+[all unresolved obligations](2026-10-28/program-refresh-nested-v1/remaining-operations.json).
 
-The program develops a research and product proposal for four banking journeys,
-including software/reuse, LLM and agents, CLI/MCP integration, public-data
-prototype design, scholarly exposition and the investment case. Public and
-synthetic evidence justify later expensive bank experiments. Proposal acceptance,
-native implementation, independent review, bank validation and adoption are distinct.
+The program develops a source-grounded banking research and product proposal.
+Software/reuse, LLM/agent and CLI/MCP repairs are mandatory. Public evidence and
+synthetic fixtures justify later costly experiments; source review, native
+implementation, independent acceptance and bank adoption remain distinct.
 
-Use `python3 tools/run_followup_program_v2_20261028.py status`, `next`, `check` for
-active work. Original controllers retain integrity and acceptance. Independent
-eligible work continues across phases; checkpoints are recovery records.
+Use python3 tools/run_followup_program_v2_20261028.py status, next and check.
+Original controllers retain integrity and acceptance. Independent eligible
+work continues across phase boundaries; local blockers stay local.
 
 ## Current integrated documents
 
-The [monograph](../../causal_proposal_fixture_java_reviewed_v1_2026-10-28.pdf) has 1,753 pages,
-1,436 audited citation records and 274 genuine scholarly PDFs. Its exact paired
-[sponsor](../../sponsor_proposal_fixture_java_reviewed_v1_2026-10-28.pdf) has 166 pages and
-1,099 records. All 1,433 reader and 1,094 sponsor predecessor records survive.
-Reader contexts and compiled content inputs are preserved. Q2-Q4 exact-byte
-author reviews pass; Q1/Q5, required coverage/depth, fresh visual review and final
-acceptance remain open.
+[Monograph](../../causal_proposal_nested_reviewed_v2_2026-10-28.pdf) and
+[paired sponsor](../../sponsor_proposal_nested_reviewed_v1_2026-10-28.pdf).
 
-**351 of 376 original operations recorded; 0 original operations ready;
-150 nonpassing: 121 inconclusive, 25 open and four negative.** Software remains
-three passing, 98 inconclusive and one open cell. Reuse remains 109 passing,
-four inconclusive and two open decisions. The frontier census remains 82 inspected
-and 31 unread inherited originals. Later metadata/acquisition denominators remain
-separate. Zero original ready operations is not completion; reviewed successors
-are needed to advance unresolved evidence.
+The current monograph has 1,756 pages, 1,438 audited citation
+records and 274 genuine scholarly PDFs. The exact paired sponsor has
+168 pages and 1,103 records. All 1,436 reader and 1,099 sponsor
+predecessor citation records survive, with reader contexts and compiled inputs
+preserved. Q2-Q4 exact-byte author checks pass; Q1/Q5, coverage/depth, fresh
+visual review and final acceptance remain open.
 
-## Recovered and integrated work
+351/376 original operations are recorded; 150 are nonpassing: 121 inconclusive,
+25 open and four negative. Software remains 3 passing, 98 inconclusive and
+1 open; reuse 109 passing, 4 inconclusive and 2 open. The inherited frontier
+census remains 82 inspected and 31 unread. Zero original ready work is not completion.
 
-Both saved unchanged-controller checks passed after frozen-master restoration.
-The prior protocol publication is durably recorded. The stronger local contract
-and seven Java delegates were recovered without repeating tests or acquisition,
-and integrated into both documents. All 48 performed adversarial cases passed.
-The exact example retains one unavailable graph among two requests: conditional
-F1 is one, availability one half, and the full-request mean has accounting bound
-[1/2,1]. This is not confidence coverage, process isolation or authentic-label proof.
-
-The Java review distinguishes the generic Gaussian shortcut counterexample from
-the bundled linguistic oracle. It gives half-vote, contradictory rule-3 endpoint,
-optional literal-p-value and preset-mutation findings with conditional port routes.
-No Java or external discovery code was run; broad software and bank qualification
-remain open. A source-access omission is narrower than these larger obligations.
+The recovered publication was committed and pushed as
+682c1f2a41b8a29f45219d710371c7179b6e24c3. Its custody audit failures and verified
+repairs remain preserved. The 48-case local fixture and seven Aitiotita delegates
+remain integrated. Twenty additional pinned BLIP/Spot originals now add precise
+source findings, endpoint identity witnesses, prior sensitivity and conditional
+reuse decisions. No acquired engine, Java binary or setup script was executed.
+The two-row Java/R tail reconciliation preserves later Weka/Banjo/Tetrad work.
 
 ## Remaining gaps and routes
 
@@ -82,16 +71,17 @@ external gates, not global proposal blockers.
 
 ## Execution and recovery
 
-Prior failures and repairs are preserved. Both historical masters retain exact
-bytes. The new live master and this execution page are mutable dashboards;
-future evidence binds their saved snapshots. Local blockers affect their own
-tasks; checkpoints and phase boundaries do not stop independent eligible work.
+Both historical master files retain exact bytes. Mutable dashboards use saved
+snapshots for evidence. Failed builds and audit repairs remain recorded.
 
 ## Exact continuation
 
-Continue scoped commit/push with transitive evidence custody, then independent
-software/source successors against the complete 150-item register. Do not repeat
-the completed 48-case test run, seven Java acquisitions, prior TCDF/TACD acquisition
-or unchanged blocked identity requests. Original-access limits remain local to
-their candidates. A fresh visual session is needed for rendered acceptance;
-source and proposal work remain eligible. No background research worker is running.
+Continue later-evidence reconciliation for the other 102 software/reuse trace
+rows. R panel work targets nonabsorbing, multiple-event, stacked, panel-approach
+and trend-weighting leads plus remaining delegates. Java successors target the
+nested review's exact origin, helper, artifact, rights and conversion gaps.
+Do not repeat completed acquisitions or the 48-case fixture. Unknown bank truth
+and unrestricted latent/dependent inference need new information or research.
+Public proposal work remains eligible independently of later bank trials.
+Fresh visual acceptance requires a new image allowance. No unattended research
+worker is running; checkpoints retain exact actions, not completion claims.

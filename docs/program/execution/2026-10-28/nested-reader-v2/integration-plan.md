@@ -1,0 +1,1 @@
+Preserve all 1436 prior source records, citation contexts and compiled content inputs. Add 20 inspected nested-engine originals and exact endpoint/prior/comparator witnesses. No native, broad coverage, visual or final acceptance is inferred.

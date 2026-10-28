@@ -1,35 +1,45 @@
 # Current master program: causal banking proposal
 
-Updated 28 October 2026. [Current executable program](execution/current-program.md)
-and [all 150 unresolved obligations](execution/2026-10-28/program-refresh-fixture-java-v1/remaining-operations.json)
-govern continuation. The [V11 master](master-program.md) and
-[earlier recovery pointer](master-current.md) are hash-bound historical records.
-This live dashboard is updated without changing those sources.
+Updated 28 October 2026. [Executable program](execution/current-program.md) and
+[all 150 unresolved obligations](execution/2026-10-28/program-refresh-nested-v1/remaining-operations.json)
+govern continuation. V11 and the earlier recovery pointer remain historical.
 
-The standard is a connected scholarly proposal linking each banking question
-through causal assumptions, identification, estimation, uncertainty, diagnostics,
-alternatives and monetary consequences. Genuine local scholarly PDFs, exact
-official software identities, reproducible examples and inspected rendered
-documents are required. FinMarketing is an exposition standard, not a page target.
-Software coverage, the LLM/agent frontier and CLI/MCP integration remain mandatory.
+The standard is a connected scholarly argument from banking questions through
+assumptions, identification, estimation, uncertainty, diagnostics, alternatives
+and monetary consequences. Genuine local scholarly PDFs, exact primary software
+identities, hashes and anchors, reproducible examples and rendered inspection
+are required. FinMarketing is an exposition standard, not a length target.
+Software coverage, LLM/agent frontiers and CLI/MCP integration remain mandatory.
 
-The current [monograph](../causal_proposal_fixture_java_reviewed_v1_2026-10-28.pdf) has 1,753 pages,
-1,436 records and 274 scholarly PDFs; the paired
-[sponsor](../sponsor_proposal_fixture_java_reviewed_v1_2026-10-28.pdf) has 166 pages and 1,099 records.
-There are 351 recorded original operations of 376, with 150 nonpassing.
-The 48-case local fixture and seven Java delegates are integrated. Q2-Q4 author
-checks pass; Q1/Q5 and visual/final acceptance remain open. This working proposal
-does not establish a bank-qualified product.
+[Current monograph](../causal_proposal_nested_reviewed_v2_2026-10-28.pdf) and
+[paired sponsor](../sponsor_proposal_nested_reviewed_v1_2026-10-28.pdf).
 
-Known routes are bounded primary-source review, explicit vendor/reuse comparisons,
-public fixtures and manuscript development. Unrestricted latent-state identification,
-arbitrary persistence, authentic truth and universal uncertainty have no promised
-general repair. External acceptance, bank validation and real costs belong to
-later conditional gates and do not globally block this proposal.
+The current monograph has 1,756 pages, 1,438 audited citation
+records and 274 genuine scholarly PDFs. The exact paired sponsor has
+168 pages and 1,103 records. All 1,436 reader and 1,099 sponsor
+predecessor citation records survive, with reader contexts and compiled inputs
+preserved. Q2-Q4 exact-byte author checks pass; Q1/Q5, coverage/depth, fresh
+visual review and final acceptance remain open.
 
-Continue scoped commit/push with transitive evidence custody, then independent
-software/source successors against the complete 150-item register. Do not repeat
-the completed 48-case test run, seven Java acquisitions, prior TCDF/TACD acquisition
-or unchanged blocked identity requests. Original-access limits remain local to
-their candidates. A fresh visual session is needed for rendered acceptance;
-source and proposal work remain eligible. No background research worker is running.
+351/376 original operations are recorded; 150 are nonpassing: 121 inconclusive,
+25 open and four negative. Software remains 3 passing, 98 inconclusive and
+1 open; reuse 109 passing, 4 inconclusive and 2 open. The inherited frontier
+census remains 82 inspected and 31 unread. Zero original ready work is not completion.
+
+The recovered publication was committed and pushed as
+682c1f2a41b8a29f45219d710371c7179b6e24c3. Its custody audit failures and verified
+repairs remain preserved. The 48-case local fixture and seven Aitiotita delegates
+remain integrated. Twenty additional pinned BLIP/Spot originals now add precise
+source findings, endpoint identity witnesses, prior sensitivity and conditional
+reuse decisions. No acquired engine, Java binary or setup script was executed.
+The two-row Java/R tail reconciliation preserves later Weka/Banjo/Tetrad work.
+
+Continue later-evidence reconciliation for the other 102 software/reuse trace
+rows. R panel work targets nonabsorbing, multiple-event, stacked, panel-approach
+and trend-weighting leads plus remaining delegates. Java successors target the
+nested review's exact origin, helper, artifact, rights and conversion gaps.
+Do not repeat completed acquisitions or the 48-case fixture. Unknown bank truth
+and unrestricted latent/dependent inference need new information or research.
+Public proposal work remains eligible independently of later bank trials.
+Fresh visual acceptance requires a new image allowance. No unattended research
+worker is running; checkpoints retain exact actions, not completion claims.
