@@ -1,0 +1,1 @@
+Preserve all 1440 prior source records, citation contexts and compiled content inputs. Add Three panel originals, eleven pinned sources and exact target/weight/baseline witnesses. No native, broad coverage, visual or final acceptance is inferred.
