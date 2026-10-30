@@ -1,0 +1,307 @@
+\section{Panel software: timing, weighting and uncertainty}
+\label{exec23:panel-scope}
+
+A bank comparing staggered branch interventions with a simultaneous regional
+launch faces two different designs. A Python fixed-effect regression and an R
+synthetic difference-in-differences fit can both return a scalar measured in
+dollars, but that coincidence does not establish that they estimate the same
+policy value. The reusable object must describe the population, adoption clock,
+control eligibility, outcome horizon, weighting and uncertainty. This section
+examines concrete interfaces in PyFixest and the original R synthdid package,
+building on the separate R fixest discussion. Source inspection establishes
+what the selected code says and how a proposed adapter must represent it; it
+does not establish that an installed package has passed our trials.
+\citep{exec23_pyfixest_reuse_source,exec23_synthdid_reuse_source}
+
+The PyFixest snapshot is commit
+\texttt{45d52b6e368cefc7321239921f2547b4e08c8f20}, dated 6 October 2026.
+Its Python version is dynamic through Maturin; the Rust core declares 0.60.0.
+The original synthdid snapshot is commit
+\texttt{70c1ce3eac58e28c30b67435ca377bb48baa9b8a}, dated 15 January 2024,
+and declares version 0.0.9. The different dates matter for maintenance planning:
+the latter README describes a beta interface, while the former has changing
+Python and native numerical boundaries. A cutoff-selected commit and a package
+version are identities, not promises of future support. Neither Python syntax
+similarity to R fixest nor the use of the name SDID by other implementations
+transfers a qualified capability.
+\citep{exec23_pyfixest_reuse_source,exec23_synthdid_reuse_source}
+
+\subsection{A fixed-effect coefficient can reverse a policy conclusion}
+\label{exec23:panel-projection}
+Let $D_{it}$ indicate treatment and $Y_{it}$ be a monetary outcome for unit $i$
+at period $t$. In a balanced panel, residualizing $D$ against unit and time
+effects gives
+\begin{equation}
+ \widetilde D_{it}=D_{it}-\bar D_{i\cdot}-\bar D_{\cdot t}+\bar D,
+ \qquad
+ \widehat\beta_{\rm TWFE}=
+ \frac{\sum_{it}\widetilde D_{it}Y_{it}}
+      {\sum_{it}\widetilde D_{it}^{\,2}}.
+ \label{exec23:panel-twfe}
+\end{equation}
+This is a projection identity. To interpret it as the intended average causal
+effect requires additional restrictions on treatment effects, counterfactual
+trends and comparisons. The fixed-effect labels in a formula do not supply
+those restrictions.
+
+An exact constructed example makes the distinction visible without estimating
+anything in PyFixest. Stipulate zero untreated potential outcomes and use
+\begin{equation}
+ D=\begin{pmatrix}0&1&1\\0&0&1\end{pmatrix},
+ \qquad
+ Y=\begin{pmatrix}0&1&10\\0&0&1\end{pmatrix},
+ \qquad
+ \widetilde D=\frac16
+ \begin{pmatrix}-1&2&-1\\1&-2&1\end{pmatrix}.
+ \label{exec23:panel-witness}
+\end{equation}
+All three treated-cell effects are positive and their average is $4$. The
+denominator in (\ref{exec23:panel-twfe}) is $1/3$, so the projection is $-7/2$.
+Its weights on the six outcomes are
+$(-1/2,1,-1/2;1/2,-1,1/2)$. In particular, the large positive late effect
+receives a negative weight. The example intentionally has no never-treated
+unit and no untreated comparison in its final period; it demonstrates the
+projection's meaning, not a successful causal design. With a stipulated cost
+of $2$ dollars per treated cell, the target net is $2$ dollars but treating the
+projection as that target would report $-11/2$ dollars. These numbers reproduce
+with rational arithmetic and are neither native package outputs nor measured
+bank returns. \citep{exec23_pyfixest_reference}
+
+In the inspected PyFixest event-study dispatcher, the concrete TWFE branch
+constructs a treatment indicator, optional covariates and unit/time effects.
+The stored ATT flag does not itself generate a lead--lag formula in that
+branch. DID2S and the saturated implementation follow different fitting and
+aggregation paths. The product therefore needs an explicit estimator profile
+and a displayed estimand, rather than an event-study label that conceals the
+formula actually fitted. \citep{exec23_pyfixest_reuse_source}
+
+\subsection{Calendar conversion, first-stage support and aggregation}
+\label{exec23:panel-clock}
+PyFixest's common DID base accepts numeric time and cohort fields but constructs
+relative time by subtraction. A calendar code is not necessarily a period
+index: $202601-202512=89$, whereas the elapsed month count is one. The proposed
+adapter should retain real calendar dates and an explicit consecutive index,
+including a policy for missing observations. The base constructs absorbing
+treatment from the declared cohort and uses zero for never treated. Its event
+origin is the first observed treated period. If declared adoption is period
+two and the first observed post-treatment record is period three, the declared
+event time is one while recentering on the observed record makes it zero. Both
+dates must survive conversion so that an observation gap cannot silently
+change the scientific question.
+\citep{exec23_pyfixest_reuse_source,exec23_pyfixest_reference}
+
+The DID2S helper verifies two unique numeric treatment values and then casts
+them to Boolean. Codes two and three both map to true; the adapter must
+validate the actual binary convention before that conversion. Its first stage
+fits untreated observations. Missing fixed-effect levels in that sample lead
+to missing predictions and an explicit error. This is meaningful support
+information: a bank should retain which branches or calendars could not be
+represented, instead of deleting the error from the request denominator. The
+GMM covariance uses residuals from both stages. The wrapper retains the
+second-stage inference degrees of freedom and disables specified
+post-estimation capabilities; availability of a generic fitted-object method
+does not establish that it is valid for this two-stage result.
+\citep{exec23_pyfixest_reuse_source}
+
+The saturated branch also needs a narrower contract than its common public
+surface might suggest. The inspected dispatcher does not pass the covariate
+formula to its saturated helper. The actual aggregation implementation
+accepts period and shares choices, despite broader options in its docstring;
+its period-weight code includes relative period zero despite contrary prose.
+Its linear-combination interval uses the normal multiplier $1.96$. This is
+not automatically a few-cluster correction or a simultaneous event-time band.
+Those source discrepancies are reasons to test and constrain the chosen
+profile, not empirical claims that a newly executed native request failed.
+\citep{exec23_pyfixest_reuse_source}
+
+Aggregation is itself part of the estimand. For effects
+$\widehat\theta=(10,-2)'$, weights $w=(1/4,3/4)'$ and the stated covariance
+\begin{equation}
+ V=\begin{pmatrix}4&1\\1&9\end{pmatrix},
+ \qquad w'\widehat\theta=1,
+ \qquad w'Vw=\frac{91}{16},
+ \label{exec23:panel-aggregation}
+\end{equation}
+the equal-cohort effect would instead be $4$. Omitting cross-covariance gives
+$85/16$, a different variance even with unchanged marginal standard errors.
+The example assumes fixed aggregation weights. If the weights are estimated,
+their additional uncertainty must be justified for the chosen procedure.
+The reporting schema should retain cohort sizes, eligible populations, full
+covariance and coefficient order so an analyst can see why the summaries
+differ. \citep{exec23_pyfixest_reference}
+
+PyFixest offers useful numerical machinery: its demeaning wrapper checks the
+success flag and raises on nonconvergence. But a profile must also retain
+singleton removal, analytic-weight defaults, rank tolerance, solver choice,
+backend-specific preconditioner fallback and warnings. Rust, within, optional
+Numba and Torch paths are not one interchangeable execution guarantee.
+The earlier weighted-IV source discussion remains relevant to its IV branch;
+fixed-effect fitting and first-stage diagnostics do not by themselves provide
+weak-instrument confidence-set inversion.
+\citep{exec23_pyfixest_reuse_source}
+
+\subsection{The original synthetic difference-in-differences block}
+\label{exec23:panel-sdid}
+The original synthdid package addresses a different layout. There are $N_0$
+control units followed by $N_1$ treated units, and $T_0$ pre-treatment periods
+followed by $T_1$ post-treatment periods. Its treatment indicator equals one
+only in the bottom-right block. This is the block design identified in the
+original paper's inspected discussion; broader extensions in the literature
+are not evidence that this package supports staggered adoption.
+\citep{synthdid2021,exec23_synthdid_reuse_source}
+
+Let $Z=Y-X\beta$ denote outcomes after the selected covariate adjustment, and
+let $\omega$ and $\lambda$ be control-unit and pre-period weights. The code
+computes the bilinear contrast
+\begin{equation}
+ \widehat\tau=
+ (-\omega',N_1^{-1}\mathbf1_{N_1}')
+ Z
+ (-\lambda',T_1^{-1}\mathbf1_{T_1}')',
+ \label{exec23:panel-contrast}
+\end{equation}
+so treated units and post periods receive equal weights within that block.
+A branch-period effect is not automatically a customer-weighted portfolio
+effect. If customer populations differ, the proposal must either defend this
+target or derive and qualify an alternative instead of changing weights
+after seeing the answer. The code's scalar result alone cannot establish
+no anticipation, no interference, or the counterfactual trend, factor and
+noise restrictions needed for a causal interpretation.
+\citep{exec23_synthdid_reuse_source}
+
+The panel converter rejects missing values, nonbinary treatment and anything
+other than one observation at every unit--time pair. It then checks
+simultaneous adoption. It converts factor and date fields to character before
+sorting. ISO dates may preserve calendar order, but arbitrary period labels
+need an explicit ordering map. The option that leaves treated units unsorted
+does not change the estimator's expectation that controls occupy the first
+$N_0$ rows. Nor does the converter retain other columns as a covariate array;
+that alignment remains an adapter obligation. The direct matrix entrypoint
+has a different, narrower set of checks. The proposed worker must enforce
+finite data, nonempty treatment/control and pre/post groups, valid noise
+estimation support, and row identity on either entry route.
+\citep{exec23_synthdid_reuse_source}
+
+For an independent arithmetic reference, use
+\begin{equation}
+ Y=\begin{pmatrix}
+ 10&12&14&16\\20&22&26&28\\15&17&25&27\\18&20&28&30
+ \end{pmatrix},
+ \quad\omega=(3/4,1/4)',\quad\lambda=(1/4,3/4)',
+ \label{exec23:panel-block-example}
+\end{equation}
+with two controls, two treated units and two periods on either side. The
+treated-minus-weighted-control gap is four dollars in both pre-periods and
+$19/2$ dollars in both post-periods. Thus (\ref{exec23:panel-contrast}) is
+$11/2$ dollars; a stipulated four-dollar cost leaves $3/2$ dollars. These are
+supplied weights, not weights fitted by synthdid. Their effective donor count
+$1/\sum_i\omega_i^2=8/5$ describes concentration, not the number of
+independent observations or guaranteed inferential degrees of freedom.
+\citep{exec23_synthdid_reference}
+
+The same example supplies a useful conversion oracle. Valid unit-sum control
+weights cancel a common 100-dollar post-period shock. Replacing them by
+$(1/2,1/4)'$, which sums to $3/4$, changes the contrast by 25 dollars. The
+direct estimator checks supplied weight lengths but does not enforce the
+simplex constraints for fixed weights. An SDID profile must check those
+constraints explicitly. The synthetic-control wrapper deliberately uses
+zero pre-period weights and no unit-weight intercept, so its convention must
+remain a separate profile rather than being rejected by an indiscriminate
+SDID validator. \citep{exec23_synthdid_reuse_source,exec23_synthdid_reference}
+
+\subsection{Optimization and inference are separate reproducibility obligations}
+\label{exec23:panel-inference}
+The default unit penalty scales with estimated pre-treatment first-difference
+noise and $(N_1T_1)^{1/4}$; the time penalty uses a small multiplier. The
+no-covariate path uses Frank--Wolfe steps with exact line search, followed by
+optional sparsification and another optimization. Its stopping condition
+uses objective decrease and an iteration limit. The covariate path alternates
+weight updates with a $1/t$ gradient step and tests absolute objective change.
+Neither returns a separate certified error bound just because iteration
+stopped. A worker should retain objective histories, limits, finite-value
+checks and an independent numerical comparison when feasible. The upstream
+CVXR/ECOS reference provides an explicit simplex objective; the inspected
+test compares one California example at tolerance $0.03$. That source test
+is useful for planning, but has not been run here and cannot establish
+general parity or calibrated uncertainty.
+\citep{exec23_synthdid_reuse_source}
+
+Reproducibility also extends beyond the fitted point estimate. The attached
+options retain penalties, intercepts, update flags, minimum decrease and the
+main iteration limit, but omit the sparsification function and the
+pre-sparsification iteration limit. Resampling refits reconstruct calls from
+these saved options. When a caller changed an omitted option, subsequent
+refits can return to its default. The proposed adapter must record the full
+fit configuration independently and replay it deliberately; preserving the
+scalar and its attached setup alone is insufficient. This is a static
+call-path observation requiring native regression tests.
+\citep{exec23_synthdid_reuse_source}
+
+The package offers bootstrap, jackknife and placebo variance estimators with
+different support requirements. Bootstrap and jackknife return missing
+uncertainty for one treated unit. The default fixed-weight jackknife also
+returns missing uncertainty when only one control has nonzero weight; it
+fixes the unit and time weights rather than reoptimizing them. Placebo
+requires more controls than treated units and constructs artificial treated
+groups from controls. That construction needs its own scientific
+comparability argument. The package vignette explicitly cautions about the
+single-treated placebo illustration. A default refusal must not become a
+zero standard error, and a placebo standard deviation is not by itself a
+randomization-test p-value. \citep{exec23_synthdid_reuse_source}
+
+The bootstrap retries until it has the requested count of nonmissing
+estimates, with no attempt limit in the inspected loop. For two controls and
+two treated units, independent sampling of four rows with replacement draws
+only controls or only treated units with probability
+$2(1/2)^4=1/8$. Even if every mixed draw computes successfully, the expected
+attempt count per acceptable composition is $8/7$. Further numerical missing
+values can increase work or prevent termination; exceptions have a distinct
+failure path. This calculation quantifies composition rejection only. It is
+not a native timing result or a claim that every problematic numerical fit
+returns missing rather than throwing an error. Record attempts, exclusions,
+accepted draws and deadlines separately.
+\citep{exec23_synthdid_reuse_source,exec23_synthdid_reference}
+
+Finally, a display method can change the inference presented to a reader.
+The default summary calls bootstrap, a fast summary calls jackknife, and
+the formatter uses the fast summary with a $1.96$ multiplier. A service that
+requests placebo variance and later parses the formatted object could thus
+report a different uncertainty convention. The output should carry the
+selected variance method, seed, successful and failed draws, weights and
+interval convention as explicit fields. Native output, statistical validity
+and user-interface presentation need separate checks.
+\citep{exec23_synthdid_reuse_source}
+
+\subsection{A proposed reuse decision with accountable costs}
+\label{exec23:panel-reuse}
+For this proposal, both packages are retained as reference implementations
+with conditional routes to a Python or R worker. PyFixest is attractive for
+its formula interface and native numerical backends; synthdid exposes a
+compact original block estimator and a separate optimization reference.
+Direct adoption of either package as an unrestricted causal service is
+deferred. Porting now would duplicate numerical, inferential and maintenance
+obligations before a measured bottleneck establishes the benefit. A
+cohort-time DID estimator may be preferable for staggered adoption, while
+SC, ordinary DID and SDID must be compared under matched estimands and
+appropriate assumptions rather than a shared scalar output.
+\citep{exec23_pyfixest_reuse_source,exec23_synthdid_reuse_source}
+
+PyFixest declares MIT licensing; synthdid declares GPL version two or later
+or the supplied three-clause BSD alternative. These source declarations and
+the retained notice texts do not clear every distributed dependency or
+deployment artifact. The scientific owner must approve the target, timing,
+support and uncertainty; the adapter maintainer must own identity conversion,
+exact options, native oracles and upgrade regressions; the operator must
+account for budgets, failure recovery and distribution requirements.
+\citep{exec23_pyfixest_reuse_source,exec23_synthdid_reuse_source}
+
+The first useful public or synthetic trial should therefore compare the
+complete request: eligible sample construction, estimation, uncertainty,
+failed requests, explanation and reproducible cost accounting. Measure
+preparation time, model fitting, covariance or resampling, rejected draws,
+worker recovery and maintenance separately. The exact examples here are
+input/output oracles for such a trial, not evidence that it has already
+succeeded. A successful source-based reuse decision can justify the
+prototype experiment while leaving native qualification, external review
+and actual bank economics explicitly unresolved.
+\citep{exec23_pyfixest_reference,exec23_synthdid_reference}

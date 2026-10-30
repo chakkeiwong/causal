@@ -1,0 +1,382 @@
+# Load description for each variable in each pair
+
+Recreates and extends analysis from https://github.com/amit-sharma/chatgpt-causality-pairs
+Focuses on analysis of the Tübingen dataset from https://webdav.tuebingen.mpg.de/cause-effect/
+# from google.colab import drive
+# drive.mount('/content/drive')
+#pip install '/content/drive/MyDrive/pywhy-llm'
+#pip install guidance
+#pip install python-dotenv
+import sys
+import os
+
+# Add the notebook setup path to sys.path
+notebook_setup_path = os.path.abspath("../")
+sys.path.insert(0, notebook_setup_path)
+
+from notebook_setup import setup_local_pywhyllm
+project_root = setup_local_pywhyllm()
+from dotenv import load_dotenv
+from typing import Dict, List, Tuple
+import guidance
+import os
+
+from openai import OpenAI
+from portkey_ai import createHeaders
+
+
+load_dotenv()
+
+azure_model= "gpt-4o-mini" #"GPT-4o-2024-05-13" 
+us_base_url = "https://us.aigw.galileo.roche.com/v1"
+
+portkey_headers = createHeaders(config=os.environ["PORTKEY_AZURE_US_CONFIG"])
+azure_openai_client = OpenAI(base_url=us_base_url,
+            api_key=os.environ["PORTKEY_AZURE_US_API_KEY"],
+            default_headers=portkey_headers)
+
+
+# Guidance con modelo OpenAI + base_url + headers
+model = guidance.models.OpenAI(
+    #"GPT-4o-2024-05-13",
+    azure_model,
+    api_key=os.environ["PORTKEY_AZURE_US_API_KEY"],
+    base_url=us_base_url,
+    default_headers=portkey_headers
+)
+
+from pywhyllm.suggesters.tuebingen_model_suggester import TuebingenModelSuggester, Strategy
+modeler = TuebingenModelSuggester(llm= model)
+import pandas as pd
+#df = pd.read_csv('/content/drive/MyDrive/pywhy-llm/pywhyllm/tuebingen_pairs.csv')
+df = pd.read_csv('/home/moleropa/repositories/master/TFM/pywhyllm/docs/notebooks/tuebingen_causality_pairs/tuebingen_pairs.csv')
+df.head()
+# Get relationship of each variable pair
+llm_output : Dict[str, dict] = {}
+####  Variables + Straight Strategy
+## ALBA TEST
+modify these variables to run tests or run everything completely
+#TO DO: ready to run everything
+# Define parameters for the experiment
+temperature = 0.3
+num_runs = 5  # Reduced for testing
+
+# Create saved_pairs_info to store ground truth and variable info
+saved_pairs_info = {}
+
+# Process only the first 3 rows for testing
+test_df = df.head(3) #or just df all dataset
+test_df = df #or just df all dataset
+    
+# Iterate through each pair and run multiple times
+for pair_number, values in test_df.iterrows():
+    pair_id = f"pair{pair_number:04d}"  # Create pair ID like "pair0001", "pair0002", etc.
+
+    saved_pairs_info[pair_id] = {
+        "var1": values['var1'],
+        "var2": values['var2'],
+        "ground_truth": values['ground_truth'],  # columna en tu dataframe
+    }
+    
+    for n in range(1, num_runs + 1):  # Run 1 to 5
+        temp_dict = {}
+        
+        print(f"Processing {pair_id}, run {n}/{num_runs}")
+        
+        # Test A -> B direction
+        temp_dict['llm_ab'] = modeler.suggest_relationship(
+            variable_a=values['var1'], 
+            variable_b=values['var2'], 
+            description_a=values['var1_desc'], 
+            description_b=values['var2_desc'], 
+            strategy=Strategy.Straight
+        )
+        
+        # Test B -> A direction  
+        temp_dict['llm_ba'] = modeler.suggest_relationship(
+            variable_a=values['var2'], 
+            variable_b=values['var1'], 
+            description_a=values['var2_desc'], 
+            description_b=values['var1_desc'], 
+            strategy=Strategy.Straight
+        )
+        
+        # Store results with key: (pair_id, temperature, run_number)
+        llm_output[(pair_id, temperature, n)] = temp_dict
+        
+        print(f"  A->B: {temp_dict['llm_ab']}, B->A: {temp_dict['llm_ba']}")
+
+print(f"Completed processing {len(df)} pairs with {num_runs} runs each")
+Latency to run all gpt 4o mini: 
+llm_output
+results : Dict = {}
+
+for id in saved_pairs_info:
+
+    av_correct_ab = 0
+    av_correct_ba = 0
+
+    for i in range(num_runs):
+
+        if llm_output[(id, 0.3, i+1)]['llm_ab'] == 1 and saved_pairs_info[id]['ground_truth'] == " R":
+            av_correct_ab += 1
+        elif llm_output[(id, 0.3, i+1)]['llm_ab'] == 0 and saved_pairs_info[id]['ground_truth'] == " L":
+            av_correct_ab += 1
+
+        if llm_output[(id, 0.3, i+1)]['llm_ba'] == 1 and saved_pairs_info[id]['ground_truth'] == " L":
+            av_correct_ba += 1
+        elif llm_output[(id, 0.3, i+1)]['llm_ba'] == 0 and saved_pairs_info[id]['ground_truth'] == " R":
+            av_correct_ba += 1
+
+    av_correct_ab /= num_runs
+    av_correct_ba /= num_runs
+
+    temp : Dict = {}
+
+    temp['PairID'] = id
+    temp['CorrectACauseB'] = av_correct_ab
+    temp['CorrectBCauseA'] = av_correct_ba
+    temp['VarA'] = saved_pairs_info[id]['var1']
+    temp['VarB'] = saved_pairs_info[id]['var2']
+    temp['GroundTruth'] = saved_pairs_info[id]['ground_truth']
+
+    results[id] = temp
+    print(results[id])
+
+
+
+len(results)
+### Accuracy
+# Calculate accuracy metrics
+accuracy_results = {}
+
+total_pairs = len(results)
+sum_ab_accuracy = 0
+sum_ba_accuracy = 0
+sum_joint_accuracy = 0
+
+print("=== ACCURACY ANALYSIS ===\n")
+
+for pair_id, result in results.items():
+    # Individual accuracies per pair (these are already averages from multiple runs, can be decimal)
+    correct_ab = result['CorrectACauseB']  # This is the mean accuracy (0.0 to 1.0, can be decimal)
+    correct_ba = result['CorrectBCauseA']  # This is the mean accuracy (0.0 to 1.0, can be decimal)
+    
+    # Joint accuracy: average of both directions (more nuanced approach)
+    joint_accuracy = (correct_ab + correct_ba) / 2.0
+    
+    # Alternative strict joint accuracy: both directions must be perfect (1.0)
+    strict_joint_accuracy = 1.0 if (correct_ab == 1.0 and correct_ba == 1.0) else 0.0
+    
+    # Sum for overall statistics (averaging across all pairs)
+    sum_ab_accuracy += correct_ab
+    sum_ba_accuracy += correct_ba
+    sum_joint_accuracy += joint_accuracy
+    
+    # STORING INDIVIDUAL
+    # Store individual pair results (only decimal values, no redundant percentages)
+    accuracy_results[pair_id] = {
+        'PairID': pair_id,
+        'VarA': result['VarA'],
+        'VarB': result['VarB'],
+        'GroundTruth': result['GroundTruth'],
+        'AccuracyAB': correct_ab,  # Decimal value (0.0 to 1.0)
+        'AccuracyBA': correct_ba,  # Decimal value (0.0 to 1.0)
+        'JointAccuracy': joint_accuracy,  # Average of both directions
+        'StrictJointAccuracy': strict_joint_accuracy  # Both must be perfect
+    }
+    
+    print(f"Pair {pair_id}: {result['VarA']} -> {result['VarB']}")
+    print(f"  Ground Truth: {result['GroundTruth']}")
+    print(f"  A→B Accuracy: {correct_ab:.3f}")
+    print(f"  B→A Accuracy: {correct_ba:.3f}")
+    print(f"  Joint Accuracy (avg): {joint_accuracy:.3f}")
+    print(f"  Strict Joint (both=1.0): {strict_joint_accuracy:.3f}")
+    print()
+
+
+# Overall accuracy statistics (averages across all pairs)
+overall_ab_accuracy = sum_ab_accuracy / total_pairs
+overall_ba_accuracy = sum_ba_accuracy / total_pairs
+overall_joint_accuracy = sum_joint_accuracy / total_pairs
+
+# Count of pairs with perfect accuracy (1.0)
+perfect_ab_count = sum(1 for result in results.values() if result['CorrectACauseB'] == 1.0)
+perfect_ba_count = sum(1 for result in results.values() if result['CorrectBCauseA'] == 1.0)
+perfect_joint_count = sum(1 for result in results.values() 
+                         if result['CorrectACauseB'] == 1.0 and result['CorrectBCauseA'] == 1.0)
+
+print("=== OVERALL ACCURACY STATISTICS ===")
+print(f"Total pairs processed: {total_pairs}")
+print(f"\nMEAN ACCURACIES (across all pairs):")
+print(f"A→B Mean Accuracy: {overall_ab_accuracy:.3f}")
+print(f"B→A Mean Accuracy: {overall_ba_accuracy:.3f}")
+print(f"Joint Mean Accuracy: {overall_joint_accuracy:.3f}")
+print(f"\nPERFECT ACCURACY COUNTS (pairs with 1.0 accuracy):")
+print(f"A→B Perfect: {perfect_ab_count}/{total_pairs} = {(perfect_ab_count/total_pairs):.3f}")
+print(f"B→A Perfect: {perfect_ba_count}/{total_pairs} = {(perfect_ba_count/total_pairs):.3f}")
+print(f"Both Perfect: {perfect_joint_count}/{total_pairs} = {(perfect_joint_count/total_pairs):.3f}")
+
+# Summary statistics (only valuable info, no redundant percentages)
+accuracy_summary = {
+    'total_pairs': total_pairs,
+    'ab_mean_accuracy': overall_ab_accuracy,
+    'ba_mean_accuracy': overall_ba_accuracy,
+    'joint_mean_accuracy': overall_joint_accuracy,
+    'ab_perfect_count': perfect_ab_count,
+    'ba_perfect_count': perfect_ba_count,
+    'joint_perfect_count': perfect_joint_count,
+    'ab_perfect_rate': perfect_ab_count/total_pairs,
+    'ba_perfect_rate': perfect_ba_count/total_pairs,
+    'joint_perfect_rate': perfect_joint_count/total_pairs
+}
+# Save accuracy results to CSV
+import csv
+
+# CSV file for detailed accuracy results (no redundant percentages)
+accuracy_csv_file = "alba_accuracy_results.csv"
+
+# Define headers for detailed accuracy results (only valuable info)
+accuracy_header = [
+    "PairID", "VarA", "VarB", "GroundTruth", 
+    "AccuracyAB", "AccuracyBA", "JointAccuracy", "StrictJointAccuracy"
+]
+
+# Write detailed accuracy results
+with open(accuracy_csv_file, mode="w", newline="", encoding="utf-8") as file:
+    writer = csv.DictWriter(file, fieldnames=accuracy_header)
+    writer.writeheader()
+    for pair_id, values in accuracy_results.items():
+        writer.writerow(values)
+
+print(f"Detailed accuracy CSV file '{accuracy_csv_file}' has been created.")
+
+# CSV file for summary statistics
+summary_csv_file = "alba_accuracy_summary.csv"
+
+# Write summary statistics
+with open(summary_csv_file, mode="w", newline="", encoding="utf-8") as file:
+    writer = csv.DictWriter(file, fieldnames=list(accuracy_summary.keys()))
+    writer.writeheader()
+    writer.writerow(accuracy_summary)
+
+print(f"Summary accuracy CSV file '{summary_csv_file}' has been created.")
+
+# Display final summary table (clean format)
+print("\n=== FINAL SUMMARY TABLE ===")
+print(f"{'Metric':<25} {'Mean Accuracy':<15} {'Perfect Count':<15} {'Perfect Rate':<12}")
+print("-" * 70)
+print(f"{'A→B Accuracy':<25} {accuracy_summary['ab_mean_accuracy']:<15.3f} {accuracy_summary['ab_perfect_count']:<15} {accuracy_summary['ab_perfect_rate']:<12.3f}")
+print(f"{'B→A Accuracy':<25} {accuracy_summary['ba_mean_accuracy']:<15.3f} {accuracy_summary['ba_perfect_count']:<15} {accuracy_summary['ba_perfect_rate']:<12.3f}")
+print(f"{'Joint Accuracy':<25} {accuracy_summary['joint_mean_accuracy']:<15.3f} {accuracy_summary['joint_perfect_count']:<15} {accuracy_summary['joint_perfect_rate']:<12.3f}")
+print(f"{'Total Pairs':<25} {accuracy_summary['total_pairs']:<15} {'N/A':<15} {'1.000':<12}")
+save to csv test
+NOTE: the correctness is a mean with all the runs 
+Run 5 times
+import csv
+import copy
+
+# CSV file name
+csv_file = "alba_test.csv"
+
+# Define the CSV file's header (column names)
+header = ["CorrectACauseB", "CorrectBCauseA", "PairID", "VarA", "VarB", "GroundTruth"]
+
+# Write the data to the CSV file
+with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
+    writer = csv.DictWriter(file, fieldnames=header)
+    writer.writeheader()
+    for pair_id, values in results.items():
+        writer.writerow(values)
+
+print(f"CSV file '{csv_file}' has been created.")
+
+### Alba end test continue pywhyllm
+# for pair_number, values in df.iterrows():
+
+#         temp_dict = {}
+
+
+#         temp_dict['llm_ab'] = modeler.suggest_relationship(variable_a=values['var1'], variable_b=values['var2'], description_a=values['var1_desc'], description_b=values['var2_desc'], strategy=Strategy.Straight)
+
+#         temp_dict['llm_ba'] = modeler.suggest_relationship(variable_a=values['var2'], variable_b=values['var1'], description_a=values['var2_desc'], description_b=values['var1_desc'], strategy=Strategy.Straight)
+
+#         llm_output[(pair_number, temperature, n)] = temp_dict
+Running in all dataset (not run yet)
+##### Average LLM Output
+# av_ab = 0
+# av_ba = 0
+
+# for i in range(5):
+#     av_ab += llm_output[('pair0087', 0.3, i+1)]['llm_ab']
+#     av_ba += llm_output[('pair0087', 0.3, i+1)]['llm_ba']
+
+#     print(llm_output[('pair0087', 0.3, i+1)]['llm_ab'])
+#     print(llm_output[('pair0087', 0.3, i+1)]['llm_ba'])
+
+# av_ab = av_ab/5.0
+# av_ba = av_ba/5.0
+
+# print(av_ab)
+# print(av_ba)
+# for id in saved_pairs_info:
+
+#     av_correct_ab = 0
+#     av_correct_ba = 0
+
+#     for i in range(5):
+#         print(llm_output[(id, 0.3, i+1)]['llm_ab'])
+# results : Dict = {}
+
+# for id in saved_pairs_info:
+
+#     av_correct_ab = 0
+#     av_correct_ba = 0
+
+#     for i in range(5):
+
+#         if llm_output[(id, 0.3, i+1)]['llm_ab'] == 1 and saved_pairs_info[id]['ground_truth'] == " R":
+#             av_correct_ab += 1
+#         elif llm_output[(id, 0.3, i+1)]['llm_ab'] == 0 and saved_pairs_info[id]['ground_truth'] == " L":
+#             av_correct_ab += 1
+
+#         if llm_output[(id, 0.3, i+1)]['llm_ba'] == 1 and saved_pairs_info[id]['ground_truth'] == " L":
+#             av_correct_ba += 1
+#         elif llm_output[(id, 0.3, i+1)]['llm_ba'] == 0 and saved_pairs_info[id]['ground_truth'] == " R":
+#             av_correct_ba += 1
+
+#     av_correct_ab /= 5.0
+#     av_correct_ba /= 5.0
+
+#     temp : Dict = {}
+
+#     temp['PairID'] = id
+#     temp['CorrectACauseB'] = av_correct_ab
+#     temp['CorrectBCauseA'] = av_correct_ba
+#     temp['VarA'] = saved_pairs_info[id]['var1']
+#     temp['VarB'] = saved_pairs_info[id]['var2']
+#     temp['GroundTruth'] = saved_pairs_info[id]['ground_truth']
+
+#     results[id] = temp
+#     print(results[id])
+
+
+
+#### Save to csv file
+import csv
+import copy
+
+# CSV file name
+csv_file = "gpt-4_results_straight_prompt_w_descriptions.csv"
+
+# Define the CSV file's header (column names)
+header = ["CorrectACauseB", "CorrectBCauseA", "PairID", "VarA", "VarB", "GroundTruth"]
+
+# Write the data to the CSV file
+with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
+    writer = csv.DictWriter(file, fieldnames=header)
+    writer.writeheader()
+    for pair_id, values in results.items():
+        writer.writerow(values)
+
+print(f"CSV file '{csv_file}' has been created.")

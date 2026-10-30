@@ -1,0 +1,1177 @@
+% SOURCE docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/f4a7a966d885f66a.tex CHAR 0
+\chapter{Comparing methods by what they estimate}
+\label{sw:interfaces}
+
+\section{The decision determines the comparison}
+
+A bank does not need an abstract winner among causal libraries. It needs to
+know whether a particular computation answers its particular question. A
+funding desk might ask how changing a quoted rate affects twelve-month retained
+balances. A servicing team might ask when to contact an account whose financial
+condition changes after earlier contacts. A model-risk team might ask whether
+two plausible causal diagrams imply different intervention decisions. These
+questions require different information, estimands and outputs, even when the
+software accepts the same rectangular dataset.
+
+The useful comparison therefore starts with a scientific interface. Let
+\(q=(\mathcal P,A,Y,h,s)\) denote a target population \(\mathcal P\), an intervention
+\(A\), an outcome \(Y\), a horizon \(h\), and a scale \(s\). A request also supplies
+an information history, a causal model or model class, a sampling design and
+explicit assumptions. An implementation may identify a functional of the
+observed distribution, estimate that functional, characterize uncertainty, or
+report that its method does not support the request. These are different
+operations. A scalar with a standard error is inadequate if the scientifically
+appropriate answer is an equivalence class of graphs, a disconnected set of
+effects, or a symbolic expression for which no numerical estimator has been
+provided.
+
+This distinction organizes the selected software comparisons developed here.
+The evidence is package-authored documentation and selected implementation
+paths at explicitly recorded revisions. A documented option is compared with
+the relevant source where available. These inspections establish what was
+read and what interfaces expose; they do not establish installation success,
+numerical parity, statistical calibration or suitability for confidential bank
+data. The banking calculations are project examples with specified mechanisms,
+not measurements from those packages or from a bank.
+
+The language of a package matters because it constrains integration, but it is
+not a scientific ranking. R offers several specialized design and longitudinal
+interfaces. Python offers graph, discovery and orchestration interfaces.
+Tetrad supplies a Java implementation family. aGrUM exposes C++ causal-model
+and identification interfaces with a related Python wrapper. A wrapper can
+reduce deployment effort while changing exception behavior or result types;
+a port can make deployment more uniform while introducing a second numerical
+implementation to validate. These tradeoffs are assessed at the operation and
+result boundary, rather than by counting languages or API names.
+
+\section{An observed relationship can leave its causal direction unresolved}
+
+Consider a deliberately simple project example involving a standardized quoted
+rate \(X\) and a standardized balance response \(Y\). Two linear Gaussian
+structural models are
+\begin{align}
+ \mathcal M_1 &: X=U_X,\qquad Y=0.4X+U_Y,
+    &\operatorname{var}(U_X)&=1,&\operatorname{var}(U_Y)&=0.84,\\
+ \mathcal M_2 &: Y=V_Y,\qquad X=0.4Y+V_X,
+    &\operatorname{var}(V_Y)&=1,&\operatorname{var}(V_X)&=0.84.
+\end{align}
+All disturbances are centered and independent within their model. Both models
+generate a bivariate normal distribution with unit marginal variances and
+covariance \(0.4\). Under \(\mathcal M_1\), increasing \(X\) by one standardized
+unit through an intervention changes the mean of \(Y\) by \(0.4\). Under
+\(\mathcal M_2\), replacing the equation for \(X\) leaves \(Y\) unchanged. The
+observational covariance does not choose between these answers. The example
+is an algebraic construction, not an assertion that either model describes
+actual funding behavior.
+
+A graph interface should therefore preserve the distinction between an
+asserted causal DAG and a class learned from observations. The inspected
+Tetrad PC documentation states causal sufficiency, acyclicity and faithfulness,
+uses an externally supplied conditional-independence test, and describes CPDAG
+output. Its FCI search path contains circle endpoints, possible-d-separation
+processing and PAG-oriented logic. An inconsistent class-level description
+calling that output a CPDAG cannot serve as the interchange specification.
+The algorithm path and the actual endpoint representation must be checked
+together. \cite{v12_sw_tetrad}
+
+The inspected causal-learn PC interface makes the dependence on procedural
+choices explicit: it accepts a conditional-independence test, a test level,
+a stabilized skeleton option, collider-orientation rules, conflict priorities
+and background knowledge. Its graph matrix can encode two arrowheads, and
+one documented conflict priority deliberately permits that outcome. Thus a
+bidirected mark produced during a PC conflict must not automatically be
+translated into an FCI-style statement about latent confounding. The FCI
+interface separately documents tails, arrowheads and circles and marks its
+result as a PAG. Both endpoint values and the method that produced them
+belong in the result. \cite{v12_sw_causallearn}
+
+Search bounds also belong in that result. causal-learn exposes a conditioning
+bound for PC and adjacency-depth and discriminating-path bounds for FCI. These
+can change the computation being performed. A time limit or restricted search
+is not merely a performance annotation if it changes which separating sets or
+orientation rules can be examined. The proposed adapter must retain these
+settings and distinguish completed bounded search from interrupted search.
+The conditional-independence test level is a setting of that test; no whole-graph
+confidence level follows from the presence of a single parameter named alpha.
+
+For a banking application, background knowledge should specify the proposition
+being added and its provenance. An accounting identity, a verified temporal
+ordering and a language model's directional suggestion carry different
+evidentiary weight. A useful graph object retains alternatives until additional
+information resolves them. Exporting the first available DAG would convert
+computational convenience into an unrecorded identifying assumption.
+
+The detailed Java and Python comparisons now follow that distinction through
+specific implementations. The Java cases show how numerical failure,
+classifier objectives and matrix conventions can change the interpretation.
+The Python cases extend the comparison to weighted and partially directed
+outputs, continuous acyclicity conditions and learned structural models.
+Their separate examples test different ways an effect interpretation can be
+lost; they do not rank engines on unmatched default outputs.
+
+
+
+% SOURCE docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/98420ef47dccdada.tex CHAR 0
+\hypertarget{java-discovery-the-statistical-contract-before-the-engine}{%
+\section{Java discovery: the statistical contract before the
+engine}\label{java-discovery-the-statistical-contract-before-the-engine}}
+
+\label{exec13:java-discovery}
+
+For a funding desk, an attractive discovery interface accepts a table of
+account histories and returns a diagram. The hard question is what that
+diagram means. An undirected link can represent unresolved orientation,
+a selected classifier can point an outcome toward its predictors, and a
+directed optimization result can depend on its variable scale. A Java
+boundary must preserve these differences before the proposal can use its
+output in an intervention analysis. The comparison therefore follows the
+statistical operation from input preparation through search, graph
+representation and failure handling.
+
+The primary comparison covers selected Tetrad sources at the 22
+September 2026 revision, the discontinued Weka 3.8 mirror at its 10
+August 2022 revision, Aitiotita at its 9 September 2023 revision, and a
+Banjo derivative at its 13 August 2026 revision. These are different
+kinds of evidence. The Weka mirror expressly directs users to the
+official Waikato repository, while the Banjo derivative supplies an
+application and selected inherited implementation files rather than an
+authenticated original distribution. Revision-specific findings cannot
+establish what every current release provides. The comparison below uses
+inspected technical text; it contains no execution results from these
+Java packages.
+\citep{exec13_java_tetrad,exec13_java_weka,exec13_java_aitiotita,exec13_java_banjo}
+
+\hypertarget{four-search-families-answer-different-questions}{%
+\subsection{Four search families answer different
+questions}\label{four-search-families-answer-different-questions}}
+
+Constraint-based discovery searches for conditional independences and
+then orients what the assumed graph family and those independences
+permit. Tetrad's PC documentation specifies sufficiency, acyclicity and
+faithfulness, accepts a separate independence test, and returns a CPDAG.
+Sufficiency excludes unmeasured common causes in that model;
+faithfulness rules out distributional cancellations that hide graph
+connections. Neither property follows from a spreadsheet containing many
+variables. A funding table that omits a relationship manager's private
+assessment may therefore fall outside the declared PC model even when
+every measured field is complete. \citep{exec13_java_tetrad}
+
+Score-based search compares statistical representations using a selected
+score. The inspected FGES constructor takes that score as an input and
+the search alternates forward and backward passes, with processing for a
+completed partially directed graph. The inspected SEM-BIC score is
+documented for an IID linear Gaussian model, with \[
+ S(G)=2\ell_G-c k_G\log n.
+\] Here \(\ell_G\) is the fitted log likelihood, \(k_G\) its parameter
+count, \(n\) the sample size and \(c\) a penalty multiplier, initialized
+to one in the reviewed score. Increasing \(c\) changes the preference
+for added parameters; it does not create a known probability that every
+returned edge is correct. Accounts repeated across months do not become
+IID observations because the score accepts the number of table rows as
+\(n\). A proposal using that score must first choose the observation
+unit, sampling regime and treatment of dependence.
+\citep{exec13_java_tetrad}
+
+Functional discovery adds assumptions about the structural equations and
+their disturbances. In Tetrad's inspected DirectLingam path, variables
+are standardized, an exogeneity criterion chooses a next variable,
+remaining variables are residualized, and a supplied score enters a
+subsequent grow-shrink parent selection. Thus the selected order and the
+selected parent sets are distinct parts of the computation. A directed
+result carries the consequences of that functional model. Counting its
+directed edges against the partially oriented output of PC would reward
+an additional assumption without asking whether the banking mechanism
+supports it. \citep{exec13_java_tetrad}
+
+Continuous optimization offers another implementation route. The
+inspected Tetrad DAGMA constructor starts from the data covariance,
+initializes a sparsity penalty of 0.05 and a weight threshold of 0.1,
+and defaults to a CPDAG result. Its conversion routine thresholds
+absolute weights, adds an edge from variable \(i\) to variable \(j\) for
+a retained \(W_{ij}\), and optionally applies a DAG-to-CPDAG
+transformation. The graph output consequently does not itself retain the
+signed coefficient matrix. The optimization schedule and a valid acyclic
+output are separate from an empirical guarantee that the selected causal
+structure is correct. This is a source-level description of the Java
+path, not a new theoretical review or numerical validation of DAGMA.
+\citep{exec13_java_tetrad}
+
+For the proposed library these families should remain explicit choices.
+A request should name the observation law, graph class, allowed latent
+structure, functional restrictions, test or score, search bounds, and
+the role of prior knowledge. The returned object should name its class
+as well. A selected DAG, a CPDAG and a PAG cannot share a field whose
+only interpretation is ``the causal graph.'\,' The preceding
+observational-equivalence example explains why this is consequential for
+the effect; the Java implementations show where that distinction can be
+lost in an adapter.
+
+\hypertarget{conditional-independence-failure-is-part-of-the-scientific-result}{%
+\section{Conditional-independence failure is part of the scientific
+result}\label{conditional-independence-failure-is-part-of-the-scientific-result}}
+
+\hypertarget{what-fishers-transform-requires}{%
+\subsection{What Fisher's transform
+requires}\label{what-fishers-transform-requires}}
+
+In the inspected Tetrad Fisher-Z computation, the conditional sample
+correlation \(r_{XY\mid Z}\) is transformed using \[
+ z_F=\sqrt{n_{\mathrm{eff}}-3-|Z|}\,
+       \operatorname{atanh}(|r_{XY\mid Z}|),\qquad
+ p=2\{1-\Phi(z_F)\}.
+\] The normal-tail calculation is the implementation's reference test,
+with \(n_{\mathrm{eff}}\) the configured effective sample size and
+\(|Z|\) the conditioning-set cardinality. It does not supply an
+automatic solution for serially dependent customer histories, heavy
+tails or selection into an observed table. A user who changes the
+effective sample size has changed a calculation; a justification for
+that value still has to come from the sampling design.
+\citep{exec13_java_tetrad}
+
+The missing-data policy also changes what is tested. The constructor can
+fail on missing data, delete rows listwise, use an EM covariance route,
+or use a testwise route. Its documented legacy behavior uses testwise
+deletion with a warning when no explicit policy is supplied. Different
+tests can then use different observed subsets. For example, a funding
+variable available only after a customer responds makes the complete
+cases a selected population. The proposed adapter must report the
+selection and policy; reporting only the nominal input row count would
+conceal a change in the population supporting the graph. Multiple
+imputation is explicitly delegated to a wrapper rather than implemented
+by a single Fisher-Z test. \citep{exec13_java_tetrad}
+
+Failure semantics deserve equal attention. The inspected
+\texttt{checkIndependence} method catches a singular-matrix exception
+and returns dependence with \(p=0\). A different public path,
+\texttt{getResult}, propagates the singular-matrix exception. The main
+calculation also rejects inadequate degrees of freedom in its ordinary
+finite-correlation branch. Consequently an apparent strongest possible
+dependence decision can arise from a numerical failure path. A banking
+example is the inclusion of both total balances and all their exact
+accounting components: the singularity says something about the
+representation, not necessarily about evidence for a causal edge.
+\citep{exec13_java_tetrad}
+
+The appropriate integration design is a typed test result containing the
+statistic, conditioning variables, effective observations and a
+computation status. If the chosen package method does not expose whether
+a zero value came from a singularity, the adapter must select an API
+that does, instrument a qualified wrapper, or decline that stronger
+interpretation. Checking covariance rank once at input is useful but
+does not reproduce every numerical condition inside every conditional
+test. A specification that promises complete failure provenance from the
+unmodified method would exceed the inspected interface.
+
+\hypertarget{why-conditioning-on-every-neighbour-is-not-a-safe-shortcut}{%
+\subsection{Why conditioning on every neighbour is not a safe
+shortcut}\label{why-conditioning-on-every-neighbour-is-not-a-safe-shortcut}}
+
+Aitiotita exposes the correlation measure, arrow-finding component,
+graph constraints, maximum conditioning size, and stable, conservative
+and acyclicity settings separately. Its inspected PC skeleton routine
+adds a consequential shortcut once the conditioning depth exceeds two.
+For each remaining pair it tests conditioning on the union of their
+neighbours. If dependence persists, it marks the link undeletable before
+enumerating the smaller subsets at that depth. This rule would need the
+implication that failure of the largest conditioning set rules out every
+smaller separator. Conditional independence does not have that
+monotonicity property. \citep{exec13_java_aitiotita}
+
+An exact project example makes the issue visible in a banking setting.
+Let \(Z_1,Z_2,Z_3\) be three independent baseline funding factors, \(X\)
+a rate concession, \(Y\) a balance response, and \(C\) a later
+reconciliation score. For this diagnostic, deliberately stipulate no
+causal effect of \(X\) on \(Y\). Use independent, centered,
+unit-variance Gaussian inputs and \[
+ X=Z_1+Z_2+Z_3+\varepsilon_X,\qquad
+ Y=Z_1+Z_2+Z_3+\varepsilon_Y,\qquad
+ C=X+Y+\varepsilon_C.
+\] The shared baselines confound the observational relation, and the
+later score is a collider. Conditioning on all three baselines leaves
+independent residuals \(\varepsilon_X,\varepsilon_Y\), so \[
+ \operatorname{cov}(X,Y\mid Z_1,Z_2,Z_3)=0.
+\] After those baselines are held fixed, conditioning additionally on
+\(C\) conditions on \(\varepsilon_X+\varepsilon_Y+\varepsilon_C\).
+Gaussian conditioning gives \[
+ \operatorname{cov}(X,Y\mid Z_1,Z_2,Z_3,C)
+   =0-\frac{1\cdot1}{3}=-\frac13,
+ \qquad
+ \operatorname{var}(X\mid Z_1,Z_2,Z_3,C)=\frac23.
+\] The variance for \(Y\) is also \(2/3\), hence the partial correlation
+is \(-1/2\). Adding information reopens a path that the baseline
+separator had closed. \citep{exec13_java_examples}
+
+This example is deliberately constructed to reach depth three. If \(k\)
+baseline factors remain unconditioned, then the residual covariance of
+\(X,Y\) is \(k\), each residual variance is \(k+1\), their residual
+covariance with \(C\) is \(2k+1\), and the residual variance of \(C\) is
+\(4k+3\). Conditioning on \(C\) therefore changes that covariance to \[
+ k-\frac{(2k+1)^2}{4k+3}=-\frac{k+1}{4k+3}.
+\] Every candidate set of size at most two, drawn from
+\(\{Z_1,Z_2,Z_3,C\}\), leaves nonzero covariance. The exact calculation
+enumerates all eleven such subsets; the three baseline variables are the
+first separator. The all-neighbour set includes \(C\) and produces
+dependence instead. The population calculation thus invalidates the
+general shortcut even before finite-sample testing errors are
+considered. It does not claim a compiled Aitiotita run or identify the
+behavior of every delegated component.
+\citep{exec13_java_examples,exec13_java_aitiotita}
+
+The exact-oracle comparison in Section~\ref{repair29:discovery} now tests
+this repair on 1,381 declared cases. Full subset search recovers every
+reference skeleton in that suite, while the screened candidate fails on 49;
+the depth-two candidate leaves 165 incorrect skeletons, all explicitly
+marked incomplete. The derivation here explains the same witness used in
+that comparison, rather than a new independent replication. These project
+searches do not execute the Java distribution or establish statistical
+calibration. A specialized oracle could justify the shortcut only with its
+own restriction and proof. Aitiotita therefore remains a comparison and
+conditional component candidate; direct adoption still requires native
+execution, graph-mutation and orientation checks. Its Apache 2.0 license
+does not establish the statistical correctness of the path.
+\citep{exec13_java_aitiotita}
+
+\hypertarget{a-classifier-graph-and-a-funding-intervention}{%
+\section{A classifier graph and a funding
+intervention}\label{a-classifier-graph-and-a-funding-intervention}}
+
+\hypertarget{wekas-useful-role-and-its-causal-boundary}{%
+\subsection{Weka's useful role and its causal
+boundary}\label{wekas-useful-role-and-its-causal-boundary}}
+
+Weka's Bayesian-network classifier provides a useful alternative
+precisely because its objective is explicit in the source. The inspected
+\texttt{BayesNet} first removes records with missing class, normalizes
+the data, builds a structure, and estimates conditional probability
+tables. The normalization imports a supervised discretizer and a
+replacement filter for missing values. The default search object is K2.
+The common search class initializes the maximum parent count to one and
+the naive-Bayes option to true; that initialization adds arrows from the
+class variable to every other attribute. \citep{exec13_java_weka}
+
+Suppose the class is twelve-month deposit retention and the attributes
+include income recorded before an offer. An arrow from retention to
+prior income can be an entirely legitimate predictive factorization. It
+is not evidence that intervening on retention changes previously
+recorded income. Discretizing continuous attributes with information
+from the class similarly serves the classifier objective; it requires a
+separate argument before becoming an unsupervised causal-discovery
+transformation. Rows removed because the class is missing also change
+the analyzed population. The proposed system should retain Weka as a
+predictive comparator with an explicit preparation pipeline, and reject
+automatic conversion of its default graph into a causal diagram.
+\citep{exec13_java_weka}
+
+Selecting an algorithm whose name includes conditional independence does
+not remove these questions. In the inspected \texttt{CISearchAlgorithm},
+the test compares the local score of \(X\) with parents \(Z\) to the
+score with \(Y\) added as a parent. It declares independence if the
+extra parent fails to improve the score. The reviewed local-score class
+defaults to a Bayesian score, and the IC search's maximum conditioning
+cardinality is initialized to two. These source observations do not
+describe a Fisher-Z test with an interchangeable significance level. An
+optional Markov-blanket classifier correction is another reason to
+retain the complete search configuration. \citep{exec13_java_weka}
+
+The inspected test class inherits a general classifier test and returns
+the default \texttt{BayesNet}. This is useful evidence about the testing
+interface, but it is not a campaign measuring correct causal
+orientation, identification or effect coverage. The current official
+Weka source must also be acquired before extrapolating the old mirror's
+defaults to a current proposal. The mirror's GPL text and Java 8 build
+profile are recorded facts about those bytes; neither proves successful
+installation in the proposed Java runtime. \citep{exec13_java_weka}
+
+\hypertarget{a-matrix-transpose-can-survive-an-acyclicity-check}{%
+\subsection{A matrix transpose can survive an acyclicity
+check}\label{a-matrix-transpose-can-survive-an-acyclicity-check}}
+
+Consider a second project diagnostic with liquidity pressure \(L\), rate
+concession \(R\), retained balances \(B\), and net funding cost \(K\).
+Use centered, independent disturbances and normalized model units: \[
+ R=0.5L+\varepsilon_R,\qquad
+ B=0.3L+0.8R+\varepsilon_B,\qquad
+ K=0.1R-0.2B+\varepsilon_K.
+\] The coefficients are stipulated examples. The direct rate cost is
+offset by the reduction in alternative funding cost associated with
+retained balances. An intervention increasing \(R\) by one model unit
+changes balances by \(0.8\) and changes cost by \(0.1-0.2(0.8)=-0.06\).
+This is a total intervention response under the specified equations, not
+an observational regression result. \citep{exec13_java_examples}
+
+With rows denoting sources and columns targets, in the order
+\((L,R,B,K)\), the coefficient matrix is \[
+ W=\begin{pmatrix}
+ 0&0.5&0.3&0\\
+ 0&0&0.8&0.1\\
+ 0&0&0&-0.2\\
+ 0&0&0&0
+ \end{pmatrix},\qquad x=W^{\mathsf T}x+\varepsilon.
+\] For a surgical intervention, replace the treatment equation, remove
+its incoming coefficients and solve the remaining linear system.
+Treating \(W^{\mathsf T}\) as though it used the same source-row
+convention reverses all edges. The new graph is still acyclic and has
+the same number of links, but \(R\) no longer has a directed path to
+\(B\) or \(K\). Its modeled cost response is zero. An adapter test that
+checks only shape, diagonal zeros, edge counts and cycles would accept
+this scientifically wrong conversion. \citep{exec13_java_examples}
+
+There is a second independent failure. If absolute weights are treated
+as coefficients, the cost response becomes \(0.1+0.2(0.8)=0.26\),
+reversing the decision implied by the original example. Tetrad's
+inspected DAGMA conversion uses absolute weights to decide which
+unweighted edges to retain; that is not a promise to return a signed
+linear model. The adapter must preserve any available coefficient matrix
+separately and must not reconstruct coefficients from the graph.
+Tetrad's directed-edge constructor places a tail at the source and an
+arrowhead at the target, while its endpoint type also distinguishes
+circles. Endpoint semantics and numerical coefficients both require
+explicit interchange contracts.
+\citep{exec13_java_examples,exec13_java_tetrad}
+
+Units add another test. If \(x'_i=d_i x_i\), where each \(d_i>0\) is a
+unit conversion, then the source-row coefficient becomes \[
+ W'_{ij}=\frac{d_j}{d_i}W_{ij}.
+\] An absolute threshold applied to those coefficients can retain a
+different graph after expressing deposits in dollars instead of
+thousands of dollars. Standardization can fix a declared computational
+convention, but the adapter must retain its fitted transformation and
+translate intervention responses back to meaningful units. The proposed
+conformance example should therefore include an asymmetric signed
+matrix, a variable permutation, a unit change, and explicit DAG versus
+CPDAG output. These are separate tests of direction, identity, scale and
+retained ambiguity, not repeated checks of one serializer.
+
+\hypertarget{functional-parity-restricted-derivatives-and-adoption-choices}{%
+\section{Functional parity, restricted derivatives and adoption
+choices}\label{functional-parity-restricted-derivatives-and-adoption-choices}}
+
+\hypertarget{an-implementation-name-does-not-establish-numerical-parity}{%
+\subsection{An implementation name does not establish numerical
+parity}\label{an-implementation-name-does-not-establish-numerical-parity}}
+
+The inspected DirectLingam helper supplies a small but revealing parity
+question. After standardizing its input it calculates \[
+ b_1=\frac1n\sum_i\frac{x_i^2}{2},\qquad
+ b_2=\frac1n\sum_i x_i\exp(-x_i^2/2),
+\] and uses these moments in an entropy-style expression. For unit
+population variance, \(b_1=1/2\) regardless of the distribution's shape.
+For a sample containing symmetric positive-negative pairs, the odd
+second ingredient is zero. With sample-variance standardization the
+common first ingredient becomes \((n-1)/(2n)\), so equal-length
+symmetric samples still share it. This is an observation about the exact
+source expression, which is more specific than its accompanying
+description of a log-cosh-style approximation.
+\citep{exec13_java_tetrad}
+
+For example, standardizing \((-3,-1,1,3)\) and \((-1,-1,1,1)\) gives
+fourth moments \(41/25\) and \(1\), respectively, under population
+normalization. The two ingredients above are nevertheless identical. The
+reproduced project calculation establishes that this helper cannot
+distinguish these shapes from those ingredients alone. It does not
+establish the selected order for a full dataset, the intended reference
+expression, or a failure frequency of the complete algorithm. Those
+stronger questions require authentic reference derivations and matched
+execution, including residualization and parent selection. The proposed
+adoption decision is to investigate this path before claiming parity
+with another implementation bearing the same algorithm name.
+\citep{exec13_java_examples,exec13_java_tetrad}
+
+\hypertarget{banjo-preserve-the-original-rights-and-the-application-boundary}{%
+\subsection{Banjo: preserve the original rights and the application
+boundary}\label{banjo-preserve-the-original-rights-and-the-application-boundary}}
+
+The inspected Banjo lead is a derivative whose README describes dynamic
+gene-network analysis. It constructs pseudotime from single-cell
+measurements, uses lag one, a stated discretization policy and a maximum
+parent count, and selects gene subsets using supplied gold-standard
+connectivity. The selected greedy-search source includes time, iteration
+and restart termination. These are descriptions of an application and
+its implementation choices; they are not banking benchmarks or evidence
+that an inferred order is the recorded time of a bank action. Selecting
+variables with reference to supplied graph truth would also have to be
+disclosed when interpreting that application's evaluation.
+\citep{exec13_java_banjo}
+
+The source notice preserves Duke University and Alexander Hartemink's
+rights. It says that non-commercial use may be licensed under a
+non-commercial license and directs commercial users to contact the
+rights holders. Public availability of the derivative therefore does not
+support classifying it as an unrestricted open-source component. The
+original official distribution, full terms and derivative changes remain
+necessary for a reuse decision. Until those are established, the
+proposal should compare the documented search family while holding
+redistribution and commercial adoption. Rewriting only an interface
+would not resolve the rights of copied implementation code.
+\citep{exec13_java_banjo}
+
+\hypertarget{what-to-integrate-what-to-retain-as-a-baseline-and-what-to-investigate}{%
+\subsection{What to integrate, what to retain as a baseline, and what to
+investigate}\label{what-to-integrate-what-to-retain-as-a-baseline-and-what-to-investigate}}
+
+Tetrad is the leading candidate in this inspected Java subset for a
+narrow PC/FGES integration because the chosen paths expose graph
+semantics, tests, scores and configuration separately. The proposed
+first implementation should use a pinned Java process with an explicit
+request and response schema. This keeps its runtime and dependencies
+identifiable and avoids immediately maintaining a second numerical port.
+It does not remove GPL obligations or settle which runtime is required:
+the inspected root compiler setting and bridge README name different
+Java requirements. The actual dependency and bridge combination needs
+its own build check. \citep{exec13_java_tetrad}
+
+Weka should be retained for a separately labeled predictive comparison,
+with current official sources obtained before promising current-release
+behavior. Aitiotita offers a permissively licensed alternative whose
+separation of components may be useful. The completed exact-oracle comparison
+rejects its all-neighbour shortcut for the general Gaussian-oracle route;
+the remaining delegated and native paths still need qualification before
+direct adoption. The
+Banjo derivative supplies an additional search-family lead, with
+original rights and technical identity still unresolved. A source port
+is justified only when a specific integration constraint outweighs the
+cost of preserving and validating the mathematical behavior. It is not
+the default response to having several implementation languages.
+\citep{exec13_java_weka,exec13_java_aitiotita,exec13_java_banjo}
+
+The next prototype comparison should separate deterministic conformance
+from statistical assessment. Deterministic cases check the funding
+matrix, endpoint roundtrips, oracle separating sets, duplicate
+accounting columns and typed numerical failures. Statistical cases
+subsequently vary sample size, minimum signal, graph density,
+non-Gaussianity, missingness and departures from the declared graph
+class, with common generated truth and fixed replication budgets. A
+single seeded package test can support a regression check; it cannot
+estimate whole-graph error rates. The inspected Tetrad tests include
+oracle-graph fixtures and a seeded chain/collider simulation, and one
+test expressly calls its expected graph a regression snapshot. They
+motivate these distinct levels of validation rather than replacing them.
+\citep{exec13_java_tetrad}
+
+Scale should be assessed at the same scientific boundary. A skeleton
+search over \(p\) variables with at most \(d\) neighbours and depth
+bound \(k\) can face a workload proportional to
+\(p^2\sum_{j=0}^{k}\binom{d-1}{j}\) candidate tests before accounting
+for pruning and the cost of each test. That expression is a planning
+envelope, not a runtime measurement or a tight bound for every
+algorithm. Dense graphs and expensive conditional tests can dominate the
+result. Thread settings must be recorded from the selected code path:
+the inspected FGES field and constructor initialize one worker even
+though a nearby comment says all processors, and a setter can change
+that value. Observed runtime, peak memory, interrupted requests and
+retained failures should be measured only after a specific runtime and
+workload are chosen. \citep{exec13_java_tetrad}
+
+The resulting proposal is actionable without treating source review as a
+finished product. It identifies a first Java boundary, preserves Weka's
+predictive role, connects Aitiotita's mathematical obstruction to its tested
+project repair,
+states the Banjo rights dependency, and defines the tests that would
+distinguish a successful adapter from an attractive but scientifically
+altered output. \label{exec13:java-discovery-end}
+
+
+% SOURCE docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/395da4fe9e846bd9.tex CHAR 0
+\section{Python discovery: choosing a computation that preserves the question}
+\label{exec13:python-discovery}
+
+A funding analyst can obtain three apparently plausible answers from the same
+table: a partially directed graph, a matrix of regression coefficients, and a
+distribution over neural structural models. Their common Python interface does
+not make these answers interchangeable. The first can preserve directions that
+the data have not resolved. The second can describe one selected ordering. The
+third can express uncertainty conditional on a generative model, its prior and
+an approximation to its posterior. A product that converts all three into a
+single directed network would discard precisely the distinctions needed to
+decide whether changing a quoted rate is supported by evidence.
+
+The comparison below examines nine implementation families at identified source
+revisions preceding the 7 October 2026 cutoff: causal-learn, pgmpy, LiNGAM,
+NOTEARS, DAGMA, gCastle, CausalNex, Causica and the CausalDiscoveryToolbox (CDT).
+It develops selected static discovery paths, rather than attributing every
+algorithm advertised by a package to the code inspected. These are proposed
+reuse choices supported by primary implementation and documentation. The
+financial and mathematical examples are reproducible project calculations;
+they are not fitted outputs from these engines. Broader Python search coverage,
+some delegated implementations and empirical comparisons remain open.
+
+\subsection{The funding calculation establishes the matrix contract}
+
+Consider three variables measured over a fixed decision horizon. Let \(F\) be a
+change in a quoted funding rate, in percentage points, \(R\) the change in
+retained funding, in millions of US dollars, and \(C\) the corresponding change
+in contribution margin, in the same monetary units. A hypothetical structural
+model is
+\begin{equation}
+ F=\varepsilon_F,\qquad R=4F+\varepsilon_R,\qquad
+ C=-F+\tfrac12R+\varepsilon_C.
+ \label{exec13:pydisc-funding}
+\end{equation}
+The disturbances are centered and mutually independent, and intervention on
+\(F\) replaces its first equation. These assumptions define the illustration;
+the coefficients are not estimated bank responses. The direct margin cost of
+raising the rate is offset by the margin earned on retained funding. A rate
+increase of \(0.25\) percentage points therefore changes expected retention by
+USD~1 million and expected margin by USD~0.25 million.
+
+For a data matrix whose columns have order \((F,R,C)\), write the row convention
+as \(X=XW+E\), with \(W_{ij}\) the coefficient on the edge \(i\to j\). The
+corresponding column-vector structural convention is \(x=Bx+e\), where
+\(B=W^\top\). In this example,
+\begin{equation}
+ W=\begin{pmatrix}0&4&-1\\0&0&1/2\\0&0&0\end{pmatrix},\qquad
+ T=I+W+W^2=(I-W)^{-1}
+  =\begin{pmatrix}1&4&1\\0&1&1/2\\0&0&1\end{pmatrix}.
+\end{equation}
+Thus \(T_{FC}=1=-1+4(1/2)\) is the total margin response per percentage point.
+The matrix identity holds because \(W^3=0\). More generally, a finite DAG with
+\(d\) nodes has a nilpotent weighted adjacency matrix and a finite path sum
+\(I+W+\cdots+W^{d-1}\). This algebra concerns a supplied linear structural
+model; it is not a discovery or identification theorem.
+
+The reference NOTEARS and DAGMA linear losses predict columns through \(XW\).
+The inspected LiNGAM adjacency routine instead assigns coefficients to
+\texttt{B[target,predictors]} and its path helper multiplies entries in that
+convention \citep{exec13_pydisc_notears,exec13_pydisc_dagma,exec13_pydisc_lingam}.
+An adapter that interprets LiNGAM's matrix as \(W\) reports zero for the
+\(F\to C\) response in this example and invents the reversed path response.
+Both matrices are acyclic, both have identical dimensions, and both pass a
+check that merely counts edges. Node order, direction convention and units
+must therefore be carried as data, verified before any intervention query.
+
+Endpoint matrices require a separate decoder. In causal-learn's PC/GES return
+contract, entries \((G_{ij},G_{ji})=(-1,1)\) denote \(i\to j\); a pair of
+minus ones denotes an undirected edge. These entries are endpoint marks, not
+negative and positive causal coefficients \citep{exec13_pydisc_causallearn}.
+Treating them as weights would invent both magnitudes and interventions. The
+proposed common result must distinguish a weighted DAG, a partially directed
+graph and a posterior over structural models before it exposes any common
+plotting or effect-evaluation interface.
+
+\subsection{A finite landscape of complementary mechanisms}
+
+Table~\ref{tab:exec13-pydisc} records a proposed role for each inspected family.
+The recommendations depend on the scientific target, not on a single numerical
+ranking. A package can be useful as a comparison engine without being the
+default dependency, and a method can be worth retaining even when it cannot
+resolve the bank's current ambiguity.
+
+\begingroup\small
+\begin{longtable}{P{0.16\textwidth}P{0.36\textwidth}P{0.40\textwidth}}
+\caption{Selected Python discovery paths and proposed reuse. These are source
+comparisons, not measured engine rankings.}\label{tab:exec13-pydisc}\\
+\toprule Family & Inspected mechanism & Proposed role and condition \\
+\midrule\endfirsthead
+\toprule Family & Inspected mechanism & Proposed role and condition \\
+\midrule\endhead
+causal-learn & PC endpoint graph; GES with selectable scores & Integrate selected
+paths with explicit CI, score, collider and graph-type contracts. \\
+pgmpy & PC; equivalence search with forward, backward and turning phases &
+Integrate the pinned graph API; request partially directed output explicitly. \\
+LiNGAM & DirectLiNGAM order selection; coefficient and total-path helpers &
+Integrate within a declared linear, non-Gaussian, causally sufficient model;
+preserve the target-row convention. \\
+NOTEARS & Linear loss, exponential acyclicity and sparsity penalty & Retain
+the compact reference as a numerical baseline before considering a port. \\
+DAGMA & Linear loss with log-determinant acyclicity and domain control & Retain
+a separate baseline; check domain, final topology, input mutation and constraints. \\
+gCastle & Selected PC and polynomial-constraint NOTEARS paths & Retain a
+matched alternative with method-specific semantics and thresholds. \\
+CausalNex & StructureModel and NOTEARS variants with tabu constraints & Reject
+as a default new dependency; retain conditional archival comparison. \\
+Causica & Learned structural functions, noise and graph distribution & Retain
+an experimental generative-model option; evaluate effects conditionally. \\
+CDT & Selected PC/GES wrappers invoking R packages & Defer default adoption
+and porting until delegated versions, ordering and terms are resolved. \\
+\bottomrule
+\end{longtable}
+\endgroup
+
+The selected PC/GES sources support the first two rows
+\citep{exec13_pydisc_causallearn,exec13_pydisc_pgmpy}.
+The functional and continuous comparison draws on the LiNGAM and NOTEARS
+implementations \citep{exec13_pydisc_lingam,exec13_pydisc_notears}, together
+with DAGMA and gCastle \citep{exec13_pydisc_dagma,exec13_pydisc_gcastle}.
+The remaining rows draw on the selected CausalNex, Causica and CDT paths
+\citep{exec13_pydisc_causalnex,exec13_pydisc_causica,exec13_pydisc_cdt}.
+\texttt{castle} is the import namespace of gCastle; it is not an additional
+independent implementation. The repository \texttt{cdt15/lingam} and CDT are
+distinct projects despite their similar names. Repository names and import
+aliases should be resolved before counting competitors or estimating the
+cost of integration.
+
+\subsection{Constraint and score methods preserve different qualifications}
+
+The selected causal-learn PC interface exposes the significance threshold,
+conditional-independence test, stable skeleton option, collider rule, conflict
+priority, background knowledge and conditioning-set bound. It also has a
+separate missing-value route. These arguments control substantive choices in
+the graph construction. They should appear in the result's explanation whenever
+they affect the decision, rather than disappearing into an undifferentiated
+``PC'' label \citep{exec13_pydisc_causallearn}.
+
+For its ordinary Fisher test, the source computes a partial correlation from
+an inverse correlation submatrix, then forms
+\begin{equation}
+ Z=\sqrt{n-|S|-3}\,\bigl|\operatorname{atanh}(\widehat r_{ij\mid S})\bigr|,
+ \qquad p=2\{1-\Phi(Z)\}.
+\end{equation}
+Here \(S\) is the conditioning set, \(n\) the row count and \(\Phi\) the
+standard normal distribution function. The Gaussian independent-row sampling
+model motivates this reference approximation; correlation zero does not imply
+conditional independence for an arbitrary non-Gaussian distribution. The code
+raises an error for a singular correlation submatrix and clips a computed
+correlation at the numerical boundary. Neither clipping nor returning a
+number establishes adequate information. A sensible adapter must reject
+nonpositive \(n-|S|-3\), constant columns and singular designs with an
+explanation, not translate failure into an independence finding.
+
+Repeated observations from one account also challenge this reference law. If a
+correlation of \(0.1\) is supplied with 100 independent units, the displayed
+statistic is approximately \(0.988\). Substituting 1,000 duplicated rows gives
+approximately \(3.168\), although the duplicated data contain no new
+independent information. The example compares the formula under two declared
+row counts; it does not propose a universal effective-sample-size correction
+\citep{exec13_pydisc_examples}. A panel or time-series request must use a
+sampling argument appropriate to that dependence, or be declined by this
+static interface.
+
+The inspected pgmpy PC path defaults to a partially directed graph and limits
+conditioning sets to five variables unless configured otherwise. Its optional
+DAG is one completion of the learned partial graph. Its documented background
+knowledge includes required and forbidden directions, while collider conflicts
+can still generate a warning. Consequently the proposed adapter should check
+the returned graph against declared constraints instead of treating the mere
+presence of an expert-knowledge argument as proof that every input condition
+was satisfied \citep{exec13_pydisc_pgmpy}. A five-variable search limit is a
+computational scope choice, not an assertion that larger separators cannot
+matter in the bank's model.
+
+Score methods make a different tradeoff. causal-learn GES accepts several
+local scores, including Gaussian BIC, discrete BDeu and regression-based
+alternatives. Its inspected BIC routine computes residual variance and can use
+a pseudoinverse or a small positive replacement for a nonpositive numerical
+variance. pgmpy's inspected GES performs forward, backward and turning moves,
+uses a minimum improvement threshold, and converts its final equivalence graph
+to a DAG only if requested
+\citep{exec13_pydisc_causallearn,exec13_pydisc_pgmpy}. A larger score in one
+engine cannot be compared directly with a number from another engine without
+matching sign, constants, likelihood, penalties and preprocessing. The
+proposal should compare graph/effect consequences under matched assumptions,
+not select an engine because its default score is numerically larger.
+
+\subsection{Functional restrictions can orient graphs, but must be stated}
+
+LiNGAM is attractive when the banking question justifies a linear acyclic model
+with independent non-Gaussian disturbances and no unobserved confounders. Those
+are explicit premises in the original work, including independent repeated
+observations from the same model \citep{exec13_pydisc_shimizu2006}. The original
+paper describes an ICA route; the current DirectLiNGAM implementation inspected
+here selects an ordering through residual comparisons, then estimates
+coefficients using that order. The original result should not be quoted as
+if it had independently verified every modern option and integration.
+
+The selected helper standardizes variables for an adaptive-Lasso pruning step,
+uses a BIC criterion, and refits the retained predictors in original units.
+The separate total-effect helper sums directed path products and checks that
+variables along those paths satisfy its continuous-variable condition
+\citep{exec13_pydisc_lingam}. These are valuable implementation details for a
+funding adapter: they explain where a sparse edge set comes from and how the
+reported monetary slope is recovered. They do not show that bank disturbances
+are independent or non-Gaussian. Heavy tails in an observed balance series
+alone do not establish the required disturbance model after conditioning on
+the structural parents.
+
+The observational ambiguity introduced earlier provides an exact adverse case.
+For a standardized pair, consider two centered Gaussian models,
+\begin{align}
+ \mathcal M_{\to}:&\quad X=U,\quad Y=0.6X+V,
+     &\operatorname{var}(U)&=1,&\operatorname{var}(V)&=0.64,\\
+ \mathcal M_{\leftarrow}:&\quad Y=\widetilde U,\quad X=0.6Y+\widetilde V,
+     &\operatorname{var}(\widetilde U)&=1,&\operatorname{var}(\widetilde V)&=0.64.
+\end{align}
+Disturbances are independent within each model. Both laws have covariance
+\(\left(\begin{smallmatrix}1&0.6\\0.6&1\end{smallmatrix}\right)\), so the
+complete observational distributions coincide, not just a selected correlation.
+The effect of intervening on \(X\) is nevertheless \(0.6\) in the first model
+and zero in the second. Within this declared two-model class the effect set is
+\(\{0,0.6\}\); the interval \([0,0.6]\) is its convex hull, not an assertion
+that every intermediate effect belongs to the two-model class.
+
+No algorithm using observations alone can distinguish these two Gaussian laws
+reliably in both worlds. A non-Gaussian identifying premise, a justified
+temporal direction, or an intervention changes the available information.
+An optimizer's ability to return one orientation does not. The proposed
+DirectLiNGAM integration therefore retains this example as a refusal or
+assumption-failure case, rather than interpreting a selected order as empirical
+proof of its own premises.
+
+\subsection{Continuous acyclicity is a numerical condition with a domain}
+
+Continuous methods replace a combinatorial acyclicity constraint by a smooth
+one. Let \(S=W\circ W\), the entrywise square of \(W\). NOTEARS uses
+\begin{equation}
+ h_{\exp}(W)=\operatorname{tr}(\exp S)-d
+             =\sum_{k\geq1}\frac{\operatorname{tr}(S^k)}{k!}.
+\end{equation}
+Because \(S\) is nonnegative, its diagonal powers accumulate nonnegative
+closed-walk products. A directed cycle creates a positive term; in a DAG all
+such terms vanish. This is the exact-zero characterization developed in
+\citet{notears2018}. Its numerical implementation uses tolerances, iteration
+limits and thresholding, each of which must be distinguished from the exact
+statement.
+
+The source inspected for gCastle's class named \texttt{Notears} instead uses
+the polynomial expression
+\begin{equation}
+ h_{\rm poly}(W)=\operatorname{tr}\{(I+S/d)^d\}-d.
+\end{equation}
+The reference NOTEARS linear implementation uses a matrix exponential. The
+two expressions share an exact-zero acyclicity property but have different
+values, derivatives and numerical scaling away from zero. gCastle also keeps
+the weighted estimate separately from a binary matrix formed with the strict
+comparison \(|W_{ij}|>\tau\), whereas the reference removes weights satisfying
+\(|W_{ij}|<\tau\). At equality, the reference retains the edge and gCastle's
+binary output does not \citep{exec13_pydisc_gcastle,exec13_pydisc_notears}.
+A benchmark that silently compares one weighted matrix with another binary
+matrix can mistake a representation choice for a scientific result.
+
+DAGMA uses the log-determinant characterization
+\begin{equation}
+ h_{\log,s}(W)=-\log\det(sI-S)+d\log s,
+ \qquad s>\rho(S),
+\end{equation}
+where \(\rho(S)\) is the spectral radius. The domain ensures that \(sI-S\) is
+a nonsingular M-matrix. The domain condition is part of the theorem, not an
+optional numerical detail \citep{exec13_pydisc_dagma2022}. For example, within
+this domain one can expand the log determinant as
+\(\sum_{k\geq1}\operatorname{tr}(S^k)/(k s^k)\); its nonnegative cycle terms
+again explain the zero condition. Computing a log absolute determinant outside
+the domain does not justify the same conclusion.
+
+The inspected linear DAGMA implementation uses inverse-matrix checks and
+backtracking in its optimization. Its documentation explicitly allows the
+possibility that the finite output is cyclic and states that requested included
+edges are not guaranteed to survive. It also centers the supplied array in
+place and saves a final residual before thresholding
+\citep{exec13_pydisc_dagma}. These findings motivate copying the input,
+retaining the full optimization configuration, and recomputing topology and
+residual diagnostics on the actual returned graph. They establish a proposed
+adapter requirement; they do not establish a measured failure rate.
+
+A small exact counterexample illustrates why a tolerance cannot replace a
+topological check. Set
+\(W=\left(\begin{smallmatrix}0&\epsilon\\\epsilon&0\end{smallmatrix}\right)\)
+with \(\epsilon=0.005\). This is a two-cycle. Nevertheless,
+\begin{align}
+ h_{\exp}(W)&=2\{\cosh(\epsilon^2)-1\}\simeq6.25\times10^{-10},\\
+ h_{\rm poly}(W)&=\epsilon^4/2=3.125\times10^{-10},\\
+ h_{\log,1}(W)&=-\log(1-\epsilon^4)\simeq6.25\times10^{-10}.
+\end{align}
+All are below \(10^{-8}\). A threshold of \(0.001\) retains both edges. The
+reference default threshold of \(0.3\) removes both; this example is therefore
+not a claim that a default solver necessarily returns this cycle. It shows
+why the numerical residual, thresholded support and scientific effect are
+three distinct objects \citep{exec13_pydisc_examples}.
+
+\subsection{Units and centering can change the selected orientation}
+
+In the preceding two-model Gaussian example, the population least-squares
+loss \(\tfrac12\sum_j\operatorname{var}(\varepsilon_j)\) is \(0.82\) in
+both orientations, and the coefficient \(\ell_1\) penalty is \(0.6\) in both.
+Both graphs are acyclic. Thus neither perfect acyclicity nor this matched
+population objective distinguishes the two causal effects. Scores that add
+other model restrictions may distinguish them, but those restrictions must be
+declared and defended.
+
+Now express \(Y\) in units ten times as large numerically, \(Y'=10Y\), while
+leaving \(X\) unchanged. The forward coefficient becomes \(6\), the reverse
+coefficient becomes \(0.06\), and their residual-variance sums become \(65\)
+and \(100.64\), respectively. The corresponding least-squares losses are
+\(32.5\) and \(50.32\). The physical observational ambiguity is unchanged,
+but the unweighted loss and sparsity tradeoff have changed
+\citep{exec13_pydisc_examples}. This matters when a funding dataset mixes
+percentage points, currency, duration and account counts. Standardization is a
+modeling decision that must be recorded and reversed when reporting monetary
+responses; it does not independently supply causal identification.
+
+CausalNex's selected unpenalized NOTEARS path applies its squared-error
+criterion to the supplied numeric array without the centering performed in the
+reference NOTEARS least-squares path. It provides tabu edges and prohibited
+parent/child nodes as optimization bounds, and its StructureModel records edge
+origins. The same graph object has an explicit operation that repeatedly drops
+the smallest absolute-weight edge until a DAG remains, with a warning about
+different units \citep{exec13_pydisc_causalnex}. Dropping an edge changes the
+model used by an intervention query. It must not be treated as invisible file
+cleanup, and the thresholded model should be assessed on its own assumptions.
+
+The pinned CausalNex package declares Python versions from 3.8 to below 3.11.
+That declaration does not prove installation failure in every newer
+environment, but it is sufficient to reject an unqualified promise that the
+current common Python environment can adopt it directly. The maintenance
+review in Section~\ref{exec14:causalnex} further rules it out as a default new
+dependency under the inspected end-of-life notice. An isolated process remains
+a possible archival comparison when a concrete reproducibility need justifies
+an accountable maintainer and the additional environment. For the simpler
+linear reference comparison, wrapping NOTEARS directly is a substantive
+alternative that avoids introducing that framework dependency merely to
+obtain a DAG matrix.
+
+\subsection{Causica connects discovery and effects through a learned model}
+
+Causica's inspected DECI path jointly learns a distribution over graphs,
+functional relationships and noise. Its training step samples a relaxed graph,
+evaluates a data log density, incorporates the graph distribution's entropy
+and a graph prior, and adds an acyclicity penalty. Suppressing implementation
+scaling details, the statistical part has the form
+\begin{equation}
+ -\mathbb E_{q_\phi(G)}\log p_\theta(X\mid G)
+ +\operatorname{KL}\{q_\phi(G)\,\|\,p(G)\}.
+\end{equation}
+Here \(q_\phi\) is an approximating graph distribution, \(\theta\) parameterizes
+the structural functions and noise, and \(p(G)\) contains graph preferences.
+The actual module uses minibatches, relaxed samples and scaled penalties;
+this expression explains their statistical roles, not an assertion of exact
+posterior computation. The inspected prior includes sparsity and an optional
+weighted discrepancy from a supplied expert graph
+\citep{exec13_pydisc_causica}.
+
+For an assumed structural model, simulation after replacing an intervention
+equation can estimate a model-implied ATE. The Causica documentation describes
+this workflow, while the inspected test methods separately evaluate graph
+reconstruction, observational likelihood, interventional likelihood and effect
+errors when appropriate reference data are supplied. These distinctions are
+useful for the proposed product. A model may predict observed balances well
+while choosing the wrong intervention direction in an observationally ambiguous
+case; graph uncertainty under \(q_\phi\) is conditional on the model family,
+prior and approximation. It is not automatically a confidence set with
+frequentist coverage for a bank effect.
+
+In particular, an expert graph supplied by a language model should retain its
+origin and uncertainty. A strong prior favoring a rate-to-balance direction can
+concentrate a fitted graph distribution without providing new assignment
+evidence. A suitable prototype would compare the same task under an empty
+prior, a justified restricted prior and a deliberately wrong prior, preserving
+the resulting change in intervention conclusions. Such a comparison is a
+proposed experiment, not a result of this source review.
+
+The exact revision also matters for capability claims. Its README states that
+Rhino and DDECI were removed from the refactored codebase and points to an older
+release. Their historical association with Causica cannot be used to claim
+that the inspected DECI path currently implements general temporal or
+latent-confounded inference. A missingness or latent-variable claim needs the
+corresponding implementation and assumptions, examined in its own right.
+
+\subsection{A Python wrapper can carry another language's scientific contract}
+
+CDT's selected PC and GES classes illustrate why language should be recorded
+at both the public interface and the computational backend. PC checks for
+\texttt{pcalg}, \texttt{kpcalg} and \texttt{RCIT}; GES checks for
+\texttt{pcalg}. The wrappers construct files, dispatch R templates and read
+results into Python graph objects \citep{exec13_pydisc_cdt}. A Python package
+pin alone therefore does not freeze the statistical engine, the R environment
+or its graph encoding. A direct R adapter is a serious alternative if it
+preserves the same semantics with fewer conversion layers.
+
+There are two concrete reasons to defer a default CDT recommendation. First,
+its GES documentation labels one option as categorical, while the code maps
+the corresponding \texttt{int} key to \texttt{GaussL0penIntScore}. The selected
+Python wrapper does not establish a discrete likelihood merely because of
+that prose label. Section~\ref{sec:exec28-bp} follows the selected R template:
+it constructs the score from the data alone. The separately inspected pcalg
+class is Gaussian, with default empty intervention targets. This narrows
+the capability question but does not establish which pcalg version a CDT
+installation resolves. The wrapper also relabels graph nodes using sorted
+column names in a selected path. The later exact permutation example explains
+why deliberately unsorted columns require a native conversion test before
+banking use. \citep{exec28_bp_cdt}
+
+Second, the repository's saved license text is MIT, while the saved setup
+metadata names Apache~2.0. Both observations are retained. Neither is a reason
+to invent a single reconciled distribution license or to assume delegated
+R packages inherit the wrapper's terms. This is a local adoption question,
+not a reason to stop comparisons of unrelated Python implementations. The
+other selected primary terms are Apache~2.0 for NOTEARS, DAGMA and the inspected
+gCastle root; CausalNex supplies Apache terms and separate trademark text;
+Causica, LiNGAM and the pinned pgmpy license supply MIT text. causal-learn's
+MIT text was acquired on the cutoff date from a mutable-main snapshot and
+should be checked at the technical pin before distribution. These observations
+guide dependency review; they do not constitute a complete transitive-license
+opinion.
+
+\subsection{Selection and missingness change what a discovery table means}
+
+A funding table may contain only customers who were successfully contacted,
+retained an account or completed a follow-up. Treating the remaining rows as a
+random sample can create edges even before choosing a discovery algorithm.
+For an exact generated illustration, let \(F\) and \(N\) be independent
+standard normal variables and observe only rows satisfying \(F+N>0\). Define
+\(U=(F+N)/\sqrt2\) and \(V=(F-N)/\sqrt2\). Before selection, \(U\) and \(V\)
+are independent standard normals. After selection, \(U\) is half-normal with
+variance \(1-2/\pi\), while \(V\) still has variance one. It follows that
+\begin{equation}
+ \operatorname{cov}(F,N\mid F+N>0)=-1/\pi,\qquad
+ \operatorname{corr}(F,N\mid F+N>0)=-\frac1{\pi-1}.
+\end{equation}
+The selected correlation is about \(-0.467\), despite population independence
+\citep{exec13_pydisc_examples}. A graph of the selected table can correctly
+describe its associations while misleading a population intervention query.
+
+This example gives practical meaning to the distinction between a missing-value
+option and an argument for selection recovery. A package-specific route must
+state which response mechanism it handles and what observations identify its
+correction. Imputation, complete-case analysis and a generative missing-data
+model make different commitments. The proposed request should carry the
+sampling unit, observation window, selection indicators, and relevant
+conditioning events. If these are unavailable, the product can still support
+exploratory associations and alternative diagrams, but its intervention
+conclusion must retain the unresolved selection assumption.
+
+\subsection{An adapter contract and an economical prototype choice}
+
+The proposed static-discovery boundary first validates the question and data:
+units, node order, information timing, row dependence, missingness, allowed
+interventions and model family. It then configures one pinned engine and
+retains its native result. A second step decodes that result into a typed graph
+or structural-model object. Only a subsequent identification step may turn
+that object into a causal effect or effect set. For a partially directed
+result, selecting one completion is an explicit additional assumption; for a
+neural SEM, reporting simulation output is conditional on the selected learned
+model and uncertainty representation.
+
+Useful deterministic acceptance cases follow directly from the comparison.
+The funding model tests a transpose and a deliberate permutation of columns.
+The two Gaussian orientations test whether an interface preserves unresolved
+effects. The weak two-cycle tests support-level acyclicity independently of a
+floating-point residual. A coefficient exactly on the threshold tests the
+inequality convention. A singular CI input tests refusal, while duplicated
+rows test whether the declared sampling unit is preserved. These cases check
+the proposed boundary; they are not substitutes for a prospectively designed
+empirical evaluation of discovery accuracy or uncertainty.
+
+The initial prototype should therefore favor a small, interpretable set of
+mechanisms: one PC/GES path that preserves equivalence, one functional path
+with explicit non-Gaussian assumptions, and separate NOTEARS/DAGMA numerical
+references. gCastle can test the cost of a broader algorithm catalog.
+CausalNex remains an archival option under the maintenance conditions in
+Section~\ref{exec14:causalnex}. CDT remains conditional on a consumer need
+that justifies its additional dependency and conversion burden. Causica supplies a distinct
+generative-model experiment, whose contribution should be judged on matched
+intervention questions and negative cases rather than an attractive graph
+alone. Porting a numerical core becomes worthwhile only when measured
+deployment constraints or performance needs exceed the cost of validating a
+second implementation.
+
+These choices make the proposal concrete without assigning a fictional bank
+ROI. Their economic comparison must include environment maintenance, source
+and assumption review, translation errors, failed requests and the cost of
+resolving consequential graph ambiguity. The known routes are exact interface
+tests, scoped primary-source completion and prospectively designed public or
+generated comparisons. The unresolved scientific question is whether the
+information available for a particular bank decision supports the required
+intervention claim. Adding another optimizer does not answer that question.
+\label{exec13:python-discovery-end}
+
+
+% SOURCE docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/f4a7a966d885f66a.tex CHAR 6879
+
+
+\section{Symbolic identification and numerical evaluation}
+
+The graph comparisons establish what an output can mean before it enters an
+intervention calculation. The next distinction concerns that calculation
+itself: a graph can support an identifying expression even when the supplied
+data or implementation cannot evaluate it. Conversely, an implementation
+failure supplies no proof that the effect is unidentified.
+
+aGrUM's inspected \texttt{CausalModel} documentation permits a causal DAG with
+an optional observational Bayesian network. Structural operations, including
+backdoor/frontdoor queries and construction of do-calculus expressions, can
+be available when conditional probability tables are absent. Operations that
+read those tables then raise an unavailable-operation exception. This is a
+useful separation: a funding query can be identified relative to a supplied
+graph before a distribution has been fitted. It does not follow that the
+effect can already be reported numerically. \cite{v12_sw_agrum}
+
+The selected \texttt{CausalImpact} implementation first attempts appropriate
+backdoor and frontdoor paths, then invokes a do-calculus routine. The inspected
+dispatch supports a comparison of these routes; it is not a verification of
+the full ID or IDC algorithm. A particularly consequential detail is the
+handling of failures. A not-yet-implemented method and a hedge exception are
+caught in different branches, but each produces a formula with no expression
+tree. Their explanation strings differ. An adapter that reads only the boolean
+\texttt{isIdentified} would erase the distinction between an unavailable
+implementation and a causal nonidentification result. \cite{v12_sw_agrum}
+
+These outputs should instead be represented as separate states:
+\begin{center}
+\begin{tabular}{p{.29\textwidth}p{.60\textwidth}}
+\toprule
+State & Required scientific meaning\\
+\midrule
+Identified expression & A functional has been obtained under the declared graph and assumptions.\\
+Numerical result unavailable & The expression may exist, but distributions, estimators or numerical prerequisites are absent.\\
+Method unsupported & This implementation cannot perform the requested method or graph operation.\\
+Nonidentified in the model & The supplied causal model and information do not determine the requested functional, with the relevant reason retained.\\
+Computational failure & The attempted operation failed; the failure supplies no causal conclusion.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+pgmpy's guide also separates identification from estimation and uses annotated
+graph roles. Its adjustment interface returns a graph or collection of graphs
+and a success indicator. Source inspection narrows what the guide alone would
+suggest: the \texttt{minimal\_variance} branch raises
+\texttt{NotImplementedError}, despite the guide's description of variance-optimal
+adjustment. The minimal branch rejects multiple exposures or outcomes. The
+selected implementation contains a graph-type TODO, so the broad graph-type
+docstring does not by itself qualify every graph class. \cite{v12_sw_pgmpy}
+
+An unsuccessful adjustment search is also narrower than failure of general
+causal identification. The package guide discusses a frontdoor route as a
+distinct alternative. The proposed product should retain the method attempted
+and its applicability rather than mapping every false adjustment indicator to
+``causal effect impossible.'' For a bank analyst, that distinction determines
+whether the next action is to consider another identifying functional, obtain
+additional information, or correct an unsupported request.
+
+\section{Effect candidates, hulls and confidence sets}
+
+Tetrad's inspected IDA constructor requires a legal partially directed acyclic
+graph and continuous data. Its total-effect routine produces regression-based
+candidates across eligible parent configurations. Candidate-specific exceptions
+are caught and logged without a typed failed-candidate object in the returned
+list. Consequently, the downstream interface needs enough information to
+distinguish a genuinely small candidate set from a larger intended calculation
+whose members partly failed. \cite{v12_sw_tetrad}
+
+Three numerical objects must remain distinct. A candidate multiset records
+effects attached to graph alternatives. Its convex hull fills all values
+between the smallest and largest candidate. A confidence set is a random set
+with a stated coverage interpretation under a sampling law. Neither the
+candidate list nor its hull becomes a confidence set merely because it has
+endpoints.
+
+The inspected IDA distance helper illustrates the distinction. For project
+values \(S=\{0,0.8\}\) and hypothetical truth \(\theta=0.4\),
+\[
+ d(\theta,S)=\min_{s\in S}|\theta-s|=0.4,
+ \qquad d(\theta,\operatorname{hull}(S))=0.
+\]
+The selected helper uses the minimum--maximum interval, so it computes the
+second quantity. Its empty-list branch returns the supplied true effect, which
+could even be negative. These are static observations about that helper,
+accompanied by project arithmetic; no Tetrad execution is claimed. They imply
+that evaluation and transport must define their set object before choosing a
+distance metric. An empty set of available estimates requires an explicit
+unavailable or failed state, not an arbitrary scalar score. \cite{v12_sw_tetrad}
+
+The initial adoption preference is therefore to evaluate the existing Java
+engine through a narrow process boundary, with endpoint roundtrips and typed
+failure handling. Porting an isolated helper would omit the graph semantics
+that make its output meaningful. For aGrUM, the existing C++ core and Python
+wrapper deserve comparison before any reimplementation. Its saved build files
+declare version 3.2.0 and C++20; these are environment requirements to test,
+not evidence that the proposed binary or wrapper already works.
+
+

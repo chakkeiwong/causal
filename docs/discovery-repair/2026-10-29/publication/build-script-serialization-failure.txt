@@ -1,0 +1,211 @@
+"""Freeze the current reader, then publish the discovery study independently."""
+from pathlib import Path
+from collections import Counter
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+
+R = Path(__file__).resolve().parents[1]
+D = R / 'docs'
+O = D / 'discovery-repair/2026-10-29'
+S = O / 'publication/snapshot/docs'
+ORIGINAL = 'causal_banking_integrated_argument_2026-10-29'
+NAMES = {'full': 'causal_banking_discovery_integrated_2026-10-29',
+         'short': 'causal_banking_discovery_repair_2026-10-29'}
+INPUT = re.compile(r'\(?:input|include){([^}]+)}')
+BIB = re.compile(r'\bibliography{([^}]+)}')
+STYLE = re.compile(r'\bibliographystyle{([^}]+)}')
+GRAPHIC = re.compile(r'\includegraphics(?:[[^]]*])?{([^}]+)}')
+NEW_CHAPTER = 'discovery-repair/2026-10-29/chapter.tex'
+ANCHOR = r'input{writing-repair/2026-10-29/src/715d8b709beaf962.tex}'
+
+def sha(p):
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+def save(p, obj):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(obj, indent=2) + '\n')
+
+def source_path(root, name, suffix='.tex'):
+    p = root / name
+    if not p.suffix:
+        p = p.with_suffix(suffix)
+    assert p.is_file(), str(p)
+    return p
+
+def tree(root, p, stack=()):
+    assert p not in stack, 'Circular input: ' + str(p)
+    result = [p]
+    for name in INPUT.findall(p.read_text()):
+        result += tree(root, source_path(root, name), stack + (p,))
+    return result
+
+def prepare():
+    assert not (O / 'publication/baseline.json').exists(), 'Snapshot already exists; retain it.'
+    root = D / (ORIGINAL + '.tex')
+    source_files = tree(D, root)
+    raw = root.read_text()
+    assert raw.count(ANCHOR) == 1
+    files = set(source_files)
+    bibs = []
+    for p in source_files:
+        text = p.read_text()
+        for group in BIB.findall(text):
+            for name in group.split(','):
+                q = source_path(D, name.strip(), '.bib')
+                bibs.append(q); files.add(q)
+        for name in STYLE.findall(text):
+            files.add(source_path(D, name, '.bst'))
+        for name in GRAPHIC.findall(text):
+            q = D / name
+            choices = [q] if q.suffix else [q.with_suffix(s) for s in ['.pdf', '.png', '.jpg', '.jpeg']]
+            selected = next((x for x in choices if x.is_file()), None)
+            assert selected, 'Missing graphic: ' + name
+            files.add(selected)
+    files.add(D / NEW_CHAPTER)
+    files.add(O / 'refs.bib')
+    # The recorder catches local support files that are not direct inputs.
+    fls = D / ('writing-repair/2026-10-29/build-full/' + ORIGINAL + '.fls')
+    for line in fls.read_text().splitlines():
+        if line.startswith('INPUT '):
+            p = Path(line[6:])
+            p = (p if p.is_absolute() else D / p).resolve()
+            if p.is_relative_to(D) and p.suffix in {'.tex', '.pdf', '.png', '.jpg', '.sty', '.cls', '.bst'}:
+                files.add(p)
+    hashes = {}
+    for p in sorted(files):
+        relative = p.relative_to(D)
+        q = S / relative
+        q.parent.mkdir(parents=True, exist_ok=True)
+        data = p.read_bytes()
+        q.write_bytes(data)
+        hashes[str(relative)] = hashlib.sha256(data).hexdigest()
+    changed = [name for name, digest in hashes.items() if sha(D / name) != digest]
+    assert not changed, 'Source changed during snapshot: ' + repr(changed)
+    # Transform only the frozen root: preserve all inherited text and ordering.
+    full = raw.replace(ANCHOR, ANCHOR + '\n' + r'input{' + NEW_CHAPTER + '}')
+    full = BIB.sub(lambda m: r'ibliography{' + m[1] + ',discovery-repair/2026-10-29/refs}', full)
+    (S / (NAMES['full'] + '.tex')).write_text(full)
+    prefix = raw.split(r'egin{document}', 1)[0]
+    short = prefix + '\n' + r'''	itle{sffamilyfseriescolor{ink}Causal discovery for banking\[14pt]Large Search completeness and adjustment}
+hypersetup{pdftitle={Causal discovery for banking: Search completeness and adjustment}}
+egin{document}
+rontmatter
+maketitle
+mainmatter
+input{discovery-repair/2026-10-29/chapter.tex}
+ackmatter
+ibliographystyle{program/execution/2026-10-13/interfaces/causalplainnat}
+ibliography{discovery-repair/2026-10-29/refs}
+end{document}
+'''
+    (S / (NAMES['short'] + '.tex')).write_text(short)
+    save(O / 'publication/baseline.json', {
+        'source_root': str(root.relative_to(R)),
+        'source_pdf_sha256': sha(D / (ORIGINAL + '.pdf')),
+        'source_occurrences': [str(p.relative_to(D)) for p in source_files],
+        'files': hashes, 'bibliographies': [str(p.relative_to(D)) for p in bibs],
+        'snapshot': str(S.relative_to(R)),
+        'insertion': 'After existing discovery treatment, before observation-process treatment',
+        'scope': 'Exact inherited source snapshot; one added chapter and one bibliography',
+        'source_changed_during_capture': changed})
+    print(json.dumps({'snapshot_files': len(hashes), 'tex_occurrences': len(source_files), 'ready': list(NAMES)}), flush=True)
+
+def build(kind):
+    assert (O / 'publication/baseline.json').is_file()
+    stem = NAMES[kind]
+    folder = O / ('publication/build-' + kind)
+    folder.mkdir(parents=True, exist_ok=True)
+    assert not (folder / 'passes.json').exists(), 'Retain old build; inspect before retry.'
+    command = ['pdflatex', '-interaction=nonstopmode', '-halt-on-error',
+               '-file-line-error', '-recorder', '-output-directory=' + str(folder), stem + '.tex']
+    commands = [command, ['bibtex', str(folder / stem)], command, command]
+    results = []
+    for i, cmd in enumerate(commands, 1):
+        log = folder / f'pass-{i}.txt'
+        start = time.monotonic()
+        with log.open('w') as f:
+            p = subprocess.run(cmd, cwd=S, stdout=f, stderr=subprocess.STDOUT, timeout=300)
+        result = {'pass': i, 'returncode': p.returncode,
+                  'seconds': round(time.monotonic() - start, 2), 'log': str(log.relative_to(R))}
+        results.append(result); save(folder / 'passes.json', results)
+        print(json.dumps(result), flush=True)
+        if p.returncode:
+            print('\n'.join(log.read_text(errors='replace').splitlines()[-25:]))
+            raise SystemExit(p.returncode)
+    target = D / (stem + '.pdf')
+    assert not target.exists(), 'Do not overwrite published PDF.'
+    shutil.copyfile(folder / (stem + '.pdf'), target)
+    print(json.dumps({'pdf': str(target.relative_to(R)), 'sha256': sha(target)}), flush=True)
+
+def audit():
+    base = json.loads((O / 'publication/baseline.json').read_text())
+    issues = []
+    changed = [name for name, digest in base['files'].items() if sha(S / name) != digest]
+    if changed:
+        issues.append('Snapshot files changed')
+    original = (S / (ORIGINAL + '.tex')).read_text()
+    expected = original.replace(ANCHOR, ANCHOR + '\n' + r'input{' + NEW_CHAPTER + '}')
+    expected = BIB.sub(lambda m: r'ibliography{' + m[1] + ',discovery-repair/2026-10-29/refs}', expected)
+    if (S / (NAMES['full'] + '.tex')).read_text() != expected:
+        issues.append('Unexpected root edit')
+    inherited = Counter(base['source_occurrences'][1:])
+    actual = Counter(str(p.relative_to(S)) for p in tree(S, S / (NAMES['full'] + '.tex'))[1:])
+    missing = dict(inherited - actual)
+    added = dict(actual - inherited)
+    if missing or added != {NEW_CHAPTER: 1}:
+        issues.append('Unexpected input difference')
+    reports = {}
+    for kind, stem in NAMES.items():
+        folder = O / ('publication/build-' + kind)
+        pdf = D / (stem + '.pdf')
+        log = (folder / (stem + '.log')).read_text(errors='replace')
+        warnings = {w: len(re.findall(w, log, re.I)) for w in ['undefined', 'multiply defined', 'Overfull', 'Underfull', 'Label.*changed']}
+        if any(warnings[w] for w in warnings if w != 'Underfull'):
+            issues.append(kind + ' unresolved build warning')
+        textfile = folder / 'rendered.txt'; xml = folder / 'geometry.xml'
+        subprocess.run(['pdftotext', '-layout', str(pdf), str(textfile)], check=True)
+        subprocess.run(['pdftotext', '-bbox', str(pdf), str(xml)], check=True)
+        clean = re.sub(r'[ --]', '', xml.read_text())
+        pages = [x for x in ET.fromstring(clean).iter() if x.tag.endswith('page')]
+        outside = []; empty = []
+        for i, page in enumerate(pages, 1):
+            words = [x for x in page.iter() if x.tag.endswith('word')]
+            if not words: empty.append(i)
+            for w in words:
+                a = w.attrib
+                if float(a['xMin']) < 0 or float(a['yMin']) < 0 or float(a['xMax']) > float(page.get('width')) + .1 or float(a['yMax']) > float(page.get('height')) + .1:
+                    outside.append(i); break
+        text = textfile.read_text()
+        if outside or empty or '??' in text:
+            issues.append(kind + ' page geometry or unresolved marker')
+        actual_inputs = set()
+        for line in (folder / (stem + '.fls')).read_text().splitlines():
+            if line.startswith('INPUT '):
+                p = Path(line[6:]); actual_inputs.add((p if p.is_absolute() else S / p).resolve())
+        uncompiled = [str(p.relative_to(S)) for p in tree(S, S / (stem + '.tex')) if p.resolve() not in actual_inputs]
+        if uncompiled: issues.append(kind + ' source not compiled')
+        reports[kind] = {'path': str(pdf.relative_to(R)), 'sha256': sha(pdf), 'pages': len(pages),
+                         'warnings': warnings, 'outside_page': outside, 'empty_pages': empty,
+                         'uncompiled_inputs': uncompiled,
+                         'chapter_pdf_pages': [i for i, page in enumerate(text.split(''), 1) if 'A faster graph search can' in page]}
+    report = {'status': 'pass' if not issues else 'fail', 'issues': issues,
+              'snapshot_files': len(base['files']), 'snapshot_changes': changed,
+              'inherited_input_occurrences': sum(inherited.values()), 'missing_inputs': missing, 'added_inputs': added,
+              'exact_root_replay': not ('Unexpected root edit' in issues), 'publications': reports,
+              'visual_review': 'pending', 'independent_acceptance': False}
+    save(O / 'publication/verification.json', report)
+    print(json.dumps(report, indent=2), flush=True)
+    if issues: raise SystemExit(1)
+
+if __name__ == '__main__':
+    import sys
+    for action in sys.argv[1:]:
+        if action == 'prepare': prepare()
+        elif action == 'audit': audit()
+        elif action in NAMES: build(action)
+        else: raise SystemExit('Unknown action: ' + action)

@@ -1,0 +1,749 @@
+      Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+
+Nan Jiang                                                                                         NANJIANG @ UMICH . EDU
+Computer Science & Engineering, University of Michigan
+Lihong Li                                                                                    LIHONGLI @ MICROSOFT. COM
+Microsoft Research
+
+
+                         Abstract                                 value evaluation is a form of counterfactual reasoning that
+                                                                  infers the causal effect of a new intervention from historical
+     We study the problem of off-policy value evalu-
+                                                                  data (Holland, 1986; Pearl, 2009).
+     ation in reinforcement learning (RL), where one
+     aims to estimate the value of a new policy based             There are roughly two classes of approaches to off-policy
+     on data collected by a different policy. This prob-          value evaluation. The first is to fit an MDP model from data
+     lem is often a critical step when applying RL to             via regression, and evaluate the policy against the model.
+     real-world problems. Despite its importance, ex-             Such a regression based approach has a relatively low vari-
+     isting general methods either have uncontrolled              ance and works well when the model can be learned to
+     bias or suffer high variance. In this work, we               satisfactory accuracy. However, for complex real-world
+     extend the doubly robust estimator for bandits to            problems, it is often hard to specify a function class in re-
+     sequential decision-making problems, which gets              gression that is efficiently learnable with limited data while
+     the best of both worlds: it is guaranteed to be un-          at the same time has a small approximation error. Further-
+     biased and can have a much lower variance than               more, it is in general impossible to estimate the approx-
+     the popular importance sampling estimators. We               imation error of a function class, resulting in a bias that
+     demonstrate the estimator’s accuracy in several              cannot be easily quantified. The second class of approaches
+     benchmark problems, and illustrate its use as a              are based on the idea of importance sampling (IS), which
+     subroutine in safe policy improvement. We also               corrects the mismatch between the distributions induced by
+     provide theoretical results on the inherent hard-            the target policy and by the behavior policy (Precup et al.,
+     ness of the problem, and show that our estimator             2000). Such approaches have the salient properties of being
+     can match the lower bound in certain scenarios.              unbiased and independent of the size of the problem’s state
+                                                                  space, but its variance can be too large for the method to be
+                                                                  useful when the horizon is long (Mandel et al., 2014).
+1. Introduction                                                   In this work, we propose a new off-policy value evaluation
+We study the off-policy value evaluation problem, where one       estimator that can achieve the best of regression based ap-
+aims to estimate the value of a policy with data collected by     proaches (low variance) and importance sampling based
+another policy (Sutton & Barto, 1998). This problem is crit-      approaches (no bias). Our contributions are three-fold:
+ical in many real-world applications of reinforcement learn-        1. A simple doubly robust (DR) estimator is proposed for
+ing (RL), whenever it is infeasible to estimate policy value           RL that extends and subsumes a previous off-policy
+by running the policy because doing so is expensive, risky,            estimator for contextual bandits.
+or unethical/illegal. In robotics and business/marketing ap-        2. The estimator’s statistical properties are analyzed,
+plications, for instance, it is often risky (thus expensive) to        which suggests its superiority over previous ap-
+run a policy without an estimate of the policy’s quality (Li           proaches. Furthermore, in certain scenarios, we prove
+et al., 2011; Bottou et al., 2013; Thomas et al., 2015a). In           that the estimator’s variance matches the Cramer-Rao
+medical and public-policy domains (Murphy et al., 2001;                lower bound for off-policy value evaluation.
+Hirano et al., 2003), it is often hard to run a controlled          3. On benchmark problems, the new estimator is much
+experiment to estimate the treatment effect, and off-policy            more accurate than importance sampling baselines,
+                                                                       while remaining unbiased in contrast to regression-
+Proceedings of the 33 rd International Conference on Machine           based approaches. As an application, we show how
+Learning, New York, NY, USA, 2016. JMLR: W&CP volume 48.               such a better estimator can benefit safe policy iteration
+Copyright 2016 by the author(s).
+                                                                       with a more effective policy improvement step.
+                               Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+2. Related Work                                                          by µ and π as follows: s1 ∼ µ, and for t = 1, . . . , H,
+                                                                         at ∼ π0 (st ), st+1 ∼ P (·|st , at ), and rt has mean R(st , at )
+This paper focuses on off-policy value evaluation in finite-             conditioned on (st , at ). We refer to such a distribution as
+horizon problems, which are often a natural way to model                 τ ∼ (µ, π) in short. The H-step discounted value of π is
+real-world problems like dialogue systems. The goal is to
+                                                                                                             H
+estimate the expected return of start states drawn randomly                                                 hX              i
+from a distribution. This differs from (and is somewhat                                v π,H := Eτ ∼(µ,π)           γ t−1 rt .         (1)
+                                                                                                              t=1
+easier than) the setting considered in some previous work,
+often known as off-policy policy evaluation, which aims                  When the value of π is conditioned on s1 = s (and a1 =
+to estimate the whole value function (Precup et al., 2000;               a), we define it as the state (and action) value function
+2001; Sutton et al., 2015). Both settings find important yet             V π,H (s) (and Qπ,H (s, a)). In some discounted problems
+different uses in practice, and share the same core difficulty           the true horizon is infinite, but for the purpose of policy
+of dealing with distribution mismatch.                                   value evaluation we can still use a finite H (usually set to be
+                                                                         on the order of O(1/(1 − γ))) so that v π,H approximates
+The DR technique was first studied in statistics (Rotnitzky              v π,∞ with a bounded error that diminishes as H increases.
+& Robins, 1995) to improve the robustness of estimation
+against model misspecification, and a DR estimator has been              3.2. Off-policy Value Evaluation
+developed for dynamic treatment regime (Murphy et al.,
+2001). DR was later applied to policy learning in contextual             For simplicity, we assume that the data (a set of length-H
+bandits (Dudı́k et al., 2011), and its finite-time variance              trajectories) is sampled using a fixed stochastic policy1 π0 ,
+is shown to be typically lower than IS. The DR estimator                 known as the behavior policy. Our goal is to estimate v π1 ,H ,
+in this work extends the work of Dudı́k et al. (2011) to                 the value of a given target policy π1 from data trajectories.
+sequential decision-making problems. In addition, we show                Below we review two popular families of estimators for
+that in certain scenarios the variance of DR matches the                 off-policy value evaluation.
+statistical lower bound of the estimation problem.                       Notation Since we are only interested in the value of π1 ,
+An important application of off-policy value evaluation is               the dependence of value functions on policy is omitted. In
+to ensure that a new policy to be deployed does not have                 terms like V π1 ,H−t+1 (st ), we also omit the dependence
+degenerate performance in policy iteration; example al-                  on horizon and abbreviate as V (st ), assuming there are
+gorithms for this purpose include conservative policy it-                H + 1 − t remaining steps. Also, all (conditional) expecta-
+eration (Kakade & Langford, 2002) and safe policy iter-                  tions are taken with respect to the distribution induced by
+ation (Pirotta et al., 2013). More recently, Thomas et al.               (µ, π0 ), unless
+                                                                                     stated
+                                                                                            otherwise. Finally, we       use the short-
+(2015a) incorporate lower confidence bounds with IS in ap-               hand: Et · := E · s1 ,a1 , . . . , st−1 , at−1 for conditional
+proximate policy iteration to ensure that the computed policy            expectations, and Vt · for variances similarly.
+meets a minimum value guarantee. Our work compliments
+their interesting use of confidence intervals by providing               3.2.1. R EGRESSION E STIMATORS
+DR as a drop-in replacement of IS. We show that after such
+                                                                         If the true parameters of the MDP are known, the value
+a replacement, an agent can accept good policies more ag-
+                                                                         of the target policy can be computed recursively by the
+gressively hence obtain higher reward, while maintaining
+                                                                         Bellman equations: let V 0 (s) ≡ 0, and for h = 1, 2, . . . , H,
+the same level of safety against bad policies.
+                                                                             Qh (s, a) := Es0 ∼P (·|s,a) R(s, a) + γV h−1 (s0 ) , (2)
+                                                                                                                              
+
+3. Background                                                                  V h (s) := Ea∼π1 (·|s) Qh (s, a) .
+                                                                                                               
+                                                                                                                                      (3)
+3.1. Markov Decision Processes                                           This suggests a two-step, regression based procedure for
+An MDP is defined by M = hS, A, P, R, γi, where S is the                 off-policy value evaluation: first, fit an MDP model M c from
+state space, A is the action space, P : S × A × S → R                    data; second, compute the value function from Eqn.(3) using
+is the transition function with P (s0 |s, a) being the prob-             the estimated parameters Pb and R.  b Evaluating the resulting
+                                                                                            H
+ability of seeing state s0 after taking action a at state s,             value function, V (s), on a sample of initial states and the
+                                                                                          b
+R : S × A → R is the mean reward function with R(s, a)                   average will be an estimate of v π1 ,H . (Alternatively, one
+being the immediate goodness of (s, a), and γ ∈ [0, 1]                   could generate artificial trajectories for evaluation without
+is the discount factor. Let µ be the initial state distribu-             explicitly referring to a model (Fonteneau et al., 2013).)
+tion. A (stationary) policy π : S × A → [0, 1] assigns                   When an exact state representation is used and each state-
+each state s ∈ S a distribution over actions, where a ∈ A                action pair appears sufficiently often in the data, such regres-
+has probability π(a|s). The distribution of a H-step tra-                    1
+                                                                               Analyses in this paper can be easily extended to handle data
+jectory τ = (s1 , a1 , r1 , . . . , sH , aH , rH , sH+1 ) is specified   trajectories that are associated with different behavior policies.
+                              Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+sion estimators have provably low variances and negligible              3.3. Doubly Robust Estimator for Contextual Bandits
+biases (Mannor et al., 2007), and often outperform alterna-
+                                                                        Contextual bandits may be considered as MDPs with hori-
+tives in practice (Paduraru, 2013).
+                                                                        zon 1, and the sample trajectories take the form of (s, a, r).
+However, real-world problems usually have a large or even               Suppose now we are given an estimated reward function
+infinite state space, and many state-action pairs will not              R,
+                                                                        b possibly from performing regression over a separate
+be observed even once in the data, rendering the necessity              dataset, then the doubly robust estimator for contextual ban-
+of generalization in model fitting. To generalize, one can              dits (Dudı́k et al., 2011) is defined as:
+either apply function approximation to fitting M  c (Jong &                                                         
+                                                                                     VDR := Vb (s) + ρ r − R(s, b a) ,            (8)
+Stone, 2007; Grünewälder et al., 2012), or to fitting the
+value function directly (Bertsekas & Tsitsiklis, 1996; Sutton
+                                                                        where ρ := ππ01 (a|s)
+                                                                                        (a|s)              P
+                                                                                              and Vb (s) := a π1 (a|s)R(s,
+                                                                                                                         b a). It is
+& Barto, 1998; Dann et al., 2014). While the use of function                                                         
+approximation makes the problem tractable, it can introduce             easy to verify that Vb (s) = Ea∼π0 ρR(s,
+                                                                                                               b a) , as long as Rb
+bias to the estimated value when the MDP parameters or the              and ρ are independent, which implies the unbiasedness of
+value function cannot be represented in the corresponding               the estimator. Furthermore, if R(s,
+                                                                                                         b a) is a good estimate of
+function class. Such a bias is in general hard to quantify              r, the magnitude of r − R(s, a) can be much smaller than
+                                                                                                   b
+from data, thus breaks the credibility of estimations given             that of r. Consequently, the variance of ρ(r − R(s,
+                                                                                                                        b a)) tends
+by regression based approaches (Farahmand & Szepesvári,                to be smaller than that of ρr, implying that DR often has a
+2011; Marivate, 2015; Jiang et al., 2015).                              lower variance than IS (Dudı́k et al., 2011).
+                                                                        In the case where the importance ratio ρ is unknown, DR
+3.2.2. I MPORTANCE S AMPLING E STIMATORS
+                                                                        estimates both ρ and the reward function from data using
+The IS estimator provides an unbiased estimate of π1 ’s                 some parametric function classes. The name “doubly robust”
+value by averaging the following function of each trajec-               refers to fact that if either function class is properly specified,
+tory (s1 , a1 , r1 , . . . , sH+1 ) in the data: define the per-step    the DR estimator is asymptotically unbiased, offering two
+importance ratio as ρt := π1 (at |st )/π       Qt0 (at |st ), and the
+                                                                        chances to ensure consistency. In this paper, however, we
+cumulative importance ratio ρ1:t := t0 =1 ρt0 ; the basic               are only interested in DR’s variance-reduction benefit.
+(trajectory-wise) IS estimator, and an improved step-wise
+                                                                        Requirement of independence In practice, the target pol-
+version are given as follows:
+                                                                        icy π1 is often computed from data, and for DR to stay unbi-
+                                      PH t−1 
+                 VIS := ρ1:H ·           t=1 γ    rt ,            (4)   ased, π1 should not depend on the samples used in Eqn.(8);
+                                  PH t−1                                the same requirement applies to IS. While R  b should be in-
+                    Vstep-IS := t=1 γ ρ1:t rt .                   (5)
+                                                                        dependent of such samples as well, it is not required that
+Given a dataset D, the IS estimator is simply the average               π1 and R b be independent of each other. For example, we
+                                        1
+                                           P      (i)                   can use the same dataset to compute π1 and R, b although an
+estimate over the trajectories, namely |D|  i=1 VIS , where
+                                                  (i)                   independent dataset is still needed to run the DR estimator
+|D| is the number of trajectories in D and VIS is IS applied
+                                                                        in Eqn.(8). In other situations where π1 is given directly,
+to the i-th trajectory. (This averaging step will be omitted for
+                                                                        to apply DR we can randomly split the data into two parts,
+the other estimators in the rest of this paper, and we will only
+                                                                        one for fitting Rb and the other for applying Eqn.(8). The
+specify the estimate for a single trajectory). Typically, IS
+                                                                        same requirements and procedures apply to the sequential
+(even the step-wise version) suffers from very high variance,
+                                                                        case (discussed below). In Section 6, we will empirically
+which easily grows exponentially in horizon.
+                                                                        validate our extension of DR in both kinds of situations.
+A variant of IS, weighted importance sampling (WIS), is a
+biased but consistent estimator, given as follows together              4. DR Estimator for the Sequential Setting
+                                          P|D| (i)
+with its step-wise version: define wt = i=1 ρ1:t /|D| as
+the average cumulative important ratio at horizon t in a                4.1. The Estimator
+dataset D, then from each trajectory in D, the estimates                We now extend the DR estimator for bandits to the sequen-
+given by trajectory-wise and step-wise WIS are respectively             tial case. A key observation is that Eqn.(5) can be written in
+                              PH t−1                                                              0
+               VWIS = ρw1:H
+                          H     t=1 γ    rt ,           (6)             a recursive form. Define Vstep-IS := 0, and for t = 1, . . . , H,
+                           PH t−1 ρ1:t                                                                               
+               Vstep-WIS = t=1 γ                                                        H+1−t                    H−t
+                                       wt rt .          (7)                           Vstep-IS := ρt rt + γVstep-IS     .             (9)
+WIS has lower variance than IS, and its step-wise version                                      H
+                                                                        It can be shown that Vstep-IS is equivalent to Vstep-IS given
+is considered as the most practical point estimator in the IS           in Eqn.(5). While the rewriting is straight-forward, the
+family (Precup, 2000; Thomas, 2015). We will compare to                 recursive form provides a novel and interesting insight that
+the step-wise IS/WIS baselines in the experiments.
+                            Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+                                                                                     q
+is key to the extension of the DR estimator: that is, we can      value is at most b 2n  1
+                                                                                           log 2δ with probability at least 1 − δ.
+view the step-wise importance sampling estimator as dealing       In the case of DR, n = |D| is the number of trajectories,
+with a bandit problem at each horizon t = 1, . . . , H, where     δ the chosen confidence level, and b the range of the esti-
+st is the context, at is the action taken, and the observed       mate, which is a function of the maximal magnitudes of rt ,
+                               H−t
+stochastic return is rt + γVstep-IS , whose expected value is      b t , at ), ρt and γ. The application of more sophisticated
+                                                                  Q(s
+Q(st , at ). Then, if we are supplied with Q,
+                                            b an estimate of      bounds for off-policy value evaluation in RL can be found
+Q (possibly via regression on a separate dataset), we can         in Thomas et al. (2015a). In practice, however, strict CIs
+apply the bandit DR estimator at each horizon, and obtain         are usually too pessimistic, and normal approximations are
+                                              0
+the following unbiased estimator: define VDR    := 0, and         used instead (Thomas et al., 2015b). In the experiments, we
+   H+1−t
+                           
+                                      H−t
+                                                                 will see how DR with normally approximated CIs can lead
+VDR        := Vb (st ) + ρt rt + γVDR     − Q(s
+                                             b t , at ) . (10)
+                                                                  to more effective and reliable policy improvement than IS.
+                                                    H
+The DR estimate of the policy value is then VDR := VDR .
+                                                                  4.4. An Extension
+4.2. Variance Analysis                                            From Theorem 1, it is clear that DR only reduces the vari-
+In this section, we analyze the variance of DR in Theorem 1       ance due to action stochasticity, and may suffer a large
+and show that DR is preferable than step-wise IS when a           variance even with a perfect Q-value function Q           b = Q, as
+good value function Q b is available. The analysis is given in    long as the MDP has substantial stochasiticity in rewards
+the form of the variance of the estimate for a single trajec-     and/or state transitions. It is, however, possible to address
+tory, and the variance of the estimate averaged over a dataset    such a limitation. For example, one modification of DR that
+D will be that divided by |D| due to the i.i.d. nature of D.      further reduces the variance in state transitions is:
+                                                                                                     
+Due to space limit, the proof is deferred to Appendix A.                     H+1−t                                H−t
+                                                                           VDR-v2    = Vb (st ) + ρt rt + γVDR-v2
+                                                                                                                            
+Theorem 1. VDR is an unbiased estimator of v π1 ,H , whose                      b t , at ) − γ Vb (st+1 ) Pb(st+1 |st ,at ) ,
+                                                                             − R(s                                               (12)
+                                                                                                          P (st+1 |st ,at )
+variance is given recursively as follows: ∀t = 1, . . . , H,
+      H+1−t                      h                      i   where Pb is the transition probability of the MDP model that
+  Vt VDR         = Vt V (st ) + Et Vt ρt ∆(st , at ) st
+                                                                  we use to compute Q.b While we can show that this estimator
+          h          i        h           H−t i
+     + Et ρ2t Vt+1 rt + Et γ 2 ρ2t Vt+1 VDR            , (11)     is unbiased and reduces the state-transition-induced variance
+                                                                  with a good reward & transition functions R  b and Pb (we omit
+                      b t , at ) − Q(st , at ) and
+where ∆(st , at ) := Q(s                                         proof), it is impractical as the true transition function P is
+                                                                  unknown. However, in problems where we are confident
+         0
+                      
+VH+1 VDR sH , aH = 0.
+                                                                  that the transition dynamics can be estimated accurately
+                                                                  (but the reward function may be poorly estimated), we can
+On the RHS of Eqn.(11), the first 3 terms are variances
+                                                                  assume that P (·) = Pb(·), and the last term in Eqn.(12)
+due to different sources of randomness at time step t: state
+transition randomness, action stochasticity in π0 , and reward    becomes simply γ Vb (st+1 ). This generally reduces more
+randomness, respectively; the 4th term contains the variance      variance than the original DR at the cost of introducing a
+from future steps. The key conclusion is that DR’s variance       small bias. The bias is bounded in Proposition 1, whose
+depends on Q b via the error function ∆ = Q b − Q in the 2nd      proof is deferred to Appendix B. In Section 6.1.3 we will
+term, hence DR with a good Q   b will enjoy reduced variance,     demonstrate the use of such an estimator by an experiment.
+and in general outperform step-wise IS as the latter is simply    Proposition 1. Define  = maxs,a kPb(·|s, a)−P (·|s, a)k1 .
+DR’s special case with a trivial value function Q b ≡ 0.          Then, the bias of DR-v2, computed by Eqn.(12) P       with the
+                                                                                                                          H
+                                                                  approximation Pb/P ≡ 1, is bounded by Vmax t=1 γ t ,
+4.3. Confidence Intervals                                         where Vmax is a bound on the magnitude of Vb .
+
+As mentioned in the introduction, an important motivation         5. Hardness of Off-policy Value Evaluation
+for off-policy value evaluation is to guarantee safety before
+deploying a policy. For this purpose, we have to charac-          In Section 4.4, we showed the possibility of reducing vari-
+terize the uncertainty in our estimates, usually in terms of      ance due to state transition stochasticity in a special scenario.
+a confidence interval (CI). The calculation of CIs for DR         A natural question is whether there exists an estimator that
+is straight-forward, since DR is an unbiased estimator ap-        can reduce such variance without relying on strong assump-
+plied to i.i.d. trajectories and standard concentration bounds    tions like Pb ≈ P . In this section, we answer this question
+apply. For example, Hoeffding’s inequality states that for        by providing hardness results on off-policy value evaluation
+random variables with bounded range b, the deviation of           via the Cramer-Rao lower bound (or C-R bound for short),
+the average from n independent samples from the expected          and comparing the C-R bound to the variance of DR.
+                            Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+Before stating the results, we emphasize that, as in other         the tree case. The two cases share almost identical proofs,
+estimation problems, the C-R bound depends crucially on            and below we give a concise proof of Theorem 2; readers
+how the MDP is parameterized, because the parameteriza-            can consult Appendix C for a fully expanded version.
+tion captures our prior knowledge about the problem. In            Proof of Theorem 2. In the proof, it will be convenient to
+general, the more structural knowledge is encoded in pa-           index rows and columns of a matrix (or vector) by histories,
+rameterization, the easier it is to recover the true parameters    so that Ah,h0 denotes the (h, h0 ) entry of matrix A. Further-
+from data, and the lower the C-R bound will be. While              more, given a real-valued function f , [f (h, h0 )]h,h0 denotes
+strong assumptions (e.g., parametric form of value function)       a matrix whose (h, h0 ) entry is given by f (h, h0 ).
+are often made in the training phase to make RL problems
+tractable, one may not want to count them as prior knowl-          We parameterize a discrete tree MDP by µ(o) and P (o|h, a),
+edge in evaluation, as every assumption made in evaluation         for h of length 1, . . . , H. For convenience, we treat µ(o)
+decreases the credibility of the value estimate. (This is          as P (o|∅), and the model parameters can be encoded as a
+why regression-based methods are not trustworthy; see Sec-         vector θ with θhao = P (o|h, a), where ha contains |ha| =
+tion 3.2.1.) Therefore, we first present the result for the        0, . . . , H alternating observations & actions.
+hardest case when no assumptions (other than discrete deci-        These parameters are subject to the normalization con-
+sions & outcomes) – especially the Markov assumption that          straints that have to be taken
+                                                                                             P into consideration in the C-
+the last observation is a state – are made, to ensure the most     R bound, namely ∀h, a, o∈O P (o|h, a) = 1. In matrix
+credible estimate. A relaxed case is discussed afterwards.         form, we have F θ = 1, where F is a block-diagonal ma-
+Definition 1. An MDP is a discrete tree MDP if                     trix with each block being a row vector of 1’s; specifically,
+• State is represented by history: that is, st = ht , where        Fha,h0 a0 o = 1{ha = h0 a0 }. Note that F is the Jacobian
+  ht := o1 a1 · · · ot−1 at−1 ot . The ot ’s are called observa-   of the constraints. Let U be a matrix whose column vec-
+  tions. We assume discrete observations and actions.              tors consist of an orthonormal basis for the null space of F .
+• Initial states take the form of s = o1 . Upon taking action      From Moore Jr (2010, Eqn. (3.3) and Corollary 3.10), we
+  a, a state s = h can only transition to a next state in the      obtain a Constrained Cramer-Rao Bound (CCRB):
+  form of s0 = hao, with probability P (o|h, a).                                         KU (U > IU )−1 U > K > ,                        (14)
+• As a simplification, we assume γ = 1, and non-zero
+  rewards only occur at the end of each trajectory. An addi-       where I is the Fisher Information Matrix (FIM) without tak-
+  tional observation oH+1 encodes the reward randomness            ing the constraints into consideration, and K the Jacobian of
+  so that reward function R(hH+1 ) is deterministic, and an        the quantity v π1 ,H that we want to estimate. Our calculation
+  MDP is solely parameterized by transition probabilities.         of the CCRB consists of four main steps.
+Theorem 2. For discrete tree MDPs, the variance of any             1) Calculation of I: By definition, the FIM I is com-
+                                                                               h                                  > i
+unbiased off-policy value estimator is lower bounded by            puted as E ∂ log P∂θ0 (hH+1 )    ∂ log P0 (hH+1 )
+                                                                                                                         , with
+               H+1                                                                                         ∂θ
+               X h                        i
+                    E ρ21:(t−1) Vt V (st ) .                       P0 (hH+1 ) := µ(o1 )π0 (a1 |o1 )P (o2 |o1 , a1 ) . . . P (oH+1 |hH , aH )
+                                  
+                                                      (13)
+                t=1                                                being the probability of observing hH+1 under policy π0 .
+Observation 1. The variance of DR applied to a discrete            Define a new notation g(hH+1 ) as a vector of indica-
+tree MDP when Q   b = Q is equal to Eqn.(13).                      tor functions, such that g(hH+1 )hao = 1 whenever
+Proof of Obs.1. The result follows directly by unfolding
+                                                        the      hao is a prefix of hH+1 . Using this notation, we
+recursion in Eqn.(11) and noticing that
+                                        ∆  ≡   rt ≡
+                                              0, V t+1             have ∂ log P∂θ0 (hH+1 )
+                                                                                              = θ◦−1 ◦ g(hH+1 ), where ◦ de-
+0 for t < H, and VH+1 V (sH+1 ) = VH+1 rH .                        notes element-wise      power/multiplication. We rewriteithe
+                                                                                     h
+                                                                   FIM as I = E [θh−1 θh−1                                         >
+                                                                                                                                       
+Implication When minimal prior knowledge is available,                                         0 ]h,h0 ◦ g(hH+1 )g(hH+1 )                     =
+the lower bound in Theorem 2 equals the variance of DR               −1 −1
+                                                                                                                >
+                                                                                                                   
+                                                                   [θh θh0 ]h,h0 ◦ E g(hH+1 )g(h     H+1 ) . Now we com-
+with a perfect Q-value function, hence the part of variance                                        >
+                                                                   pute E g(hH+1 )g(hH+1 ) . This matrix takes 0 in
+due to state transition stochasticity (which DR fails to im-
+                                                                   all the entries indexed by hao and h0 a0 o0 when nei-
+prove even with a good Q-value function) is intrinsic to the
+                                                                   ther of the two strings is a prefix of the other. For
+problem and cannot be eliminated without extra knowledge.
+                                                                   the other entries, without loss of generality, assume
+Moreover, the more accurate Q   b is, the lower the variance
+                                                                   h0 a0 o0 is a prefix of hao; the other case is similar as
+DR tends to have. A related hardness result is given by Li
+                                                                   I is symmetric. Since g(hH+1 )hao g(hH+1 )h0 a0 o0 =
+et al. (2015a) for MDPs with known transition probabilities.
+                                                                   1 if and only if hao is a prefix         of hH+1 , we have
+Relaxed Case In Appendix C, we discuss a relaxed case              E g(hH+1 )(hao) · g(hH+1 )(h0 a0 o0 ) = P0 (hao), and conse-
+where the MDP has a Directed Acyclic Graph (DAG) struc-                                                P0 (hao)
+                                                                   quently I(hao),(h0 a0 o0 ) = P (o|h,a)P                    P0 (ha)
+                                                                                                            (o0 |h0 ,a0 ) = P (o0 |h0 ,a0 ) .
+ture, allowing different histories of the same length to be
+identified as the same state, making the problem easier than       2) Calculation of (U > IU )−1 : Since I is quite dense, it
+                               Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+is hard to compute the inverse of U > IU directly. Note,                    1. (IS) Step-wise IS of Eqn.(5);
+however, that for any matrix X with matching dimensions,                    2. (WIS) Step-wise WIS of Eqn.(7);
+U > IU = U > (F > X > + I + XF )U , because by definition                   3. (REG) Regression estimator (details to be specified for
+U is orthogonal to F . Observing this, we design X to make                     each domain in the “model fitting” paragraphs);
+D = F > X > + I + XF diagonal so that U > DU is easy                        4. (DR) Doubly robust estimator of Eqn.(10);
+to invert. This is achieved by letting X(h0 a0 o0 ),(ha) = 0                5. (DR-bsl) DR with a state-action independent Q.b
+except when h0 a0 o0 is a prefix of ha, in which case we set
+                        P0 (ha)
+X(h0 a0 o0 ),(ha) = − P (o0 |h0 ,a0 ) . It is not hard to verify that D   6.1. Comparison of Mean Squared Errors
+is diagonal with D(hao),(hao) = I(hao),(hao) = PP(o|h,a)
+                                                  0 (ha)
+                                                         .                In these experiments, we compare the accuracy of the point
+                                        >       −1         >       −1     estimate given by each estimator. For each domain, a policy
+With the above trick, we have (U IU ) = (U DU ) .
+                                                                          πtrain is computed as the optimal policy of the MDP model
+Since CCRB is invariant to the choice of U , we choose
+                                                                          estimated from a training dataset Dtrain (generated using
+U to be diag({U(ha) }), where U(ha) is a diagonal block
+                                                                          π0 ), and the target policy π1 is set to be (1 − α)πtrain + απ0
+with columns forming an orthonormal basis of the null
+                                                                          for α ∈ {0, 0.25, 0.5, 0.75}. The parameter α controls
+space of the none-zero part of F(ha),(·) (an all-1 row vec-
+                                                                          similarity between π0 and π1 . A larger α tends to make
+tor). It is easy to verify that such U exists and is column
+                                                                          off-policy evaluation easier, at the cost of yielding a more
+orthonormal, with F U = [0](ha),(ha) . We also rewrite
+                                                                          conservative policy when πtrain is potentially of high quality.
+D = diag({D(ha) }) where D(ha) is a diagonal matrix with
+(D(ha) )o,o = PP(o|h,a)
+                   0 (ha)
+                          , and we have U (U > IU )−1 U > =               We then apply the five estimators on a separate dataset Deval
+                 >
+                                  −1 >                                   to estimate the value of π1 , compare the estimates to the
+diag({U(ha) U(ha)     D(ha) U(ha)    U(ha) }).                            groundtruth value, and take the average estimation errors
+The final step is to notice that each block in the expression             across multiple draws of Deval . Note that for the DR estima-
+                    1                                                     tor, the supplied Q-value function Q b should be independent
+above is simply P0 (ha) times the CCRB of a multinomial dis-
+tribution p = P (·|h, a), which is diag(p) − pp> (Moore Jr,               of the data used in Eqn.(10) to ensure unbiasedness. We
+2010, Eqn. (3.12)).                                                       therefore split Deval further into two subsets Dreg and Dtest ,
+                                                                          estimate Q b from Dreg and apply DR on Dtest .
+                  K: Recall P
+3) Calculation of P         that we want to estimate
+    v = v π1 ,H = o1 µ(o1 ) a1 π1 (a1 |o1 ) · · ·                         In the above procedure, DR does not make full use of data,
+                  P                                                       as the data in Dreg do not go into the sample average in
+                   oH+1 P (oH+1 |hH , aH )R(hH+1 ) .                      Eqn.(10). To address this issue, we propose a more data-
+Its Jacobian, K = ∂v/∂θ, can be computed by                               efficient way of applying DR in the situation when Q b has to
+K(hao) = P1 (ha)V (hao), where P1 (o1 a1 · · · ot at ) :=                 be estimated from (a subset of) Deval , and we call it k-fold
+µ(o1 )π1 (a1 ) · · · P (ot |ht−1 , at−1 )π1 (at |ht ) is the probabil-    DR, inspired by k-fold cross validation in supervised learn-
+ity of observing a sequence under policy π1 .                             ing: we partition Deval into k subsets, apply Eqn.(8) to each
+                                                                          subset with Qb estimated from the remaining data, and finally
+4) The C-R bound: Putting all the pieces together,                        average the estimate over all subsets. Since the estimate
+Eqn.(14) is equal to                                                     from each subset is unbiased, the overall average remains
+      P P1 (ha)2 P                           2
+        ha P0 (ha)       o P (o|h, a)V (hao)                              unbiased, and has lower variance since all trajectories go
+               P                        2                               into the sample average. We only show the results of 2-fold
+           −      o P (o|h, a)V (hao)                                     DR as model fitting is time-consuming.
+      PH P                            2
+   = t=0 |ha|=t P0 (ha) P       1 (ha)
+                                                     
+                               P0 (ha)2 V V (hao) h, a .                  6.1.1. M OUNTAIN C AR
+           P P1 (ha)/P0 (ha) is the cumulative importance
+Noticing that
+                                                                          Domain description Mountain car is a popular RL bench-
+ratio, and |ha|=t P0 (ha)(·) is taking expectation over sam-
+                                                                          mark problem with a 2-dimensional continuous state space,
+ple trajectories, the lower bound is equal to
+ H                                                                        3 discrete actions, and deterministic dynamics (Singh & Sut-
+X      h                   i H+1
+                                X h                         i            ton, 1996). We set the horizon to be 100 time steps, and the
+     E ρ21:t Vt+1 V (st+1 ) =         E ρ21:(t−1) Vt V (st ) .
+                                                   
+t=0                                   t=1                                 initial state distribution to uniformly random. The behavior
+                                                                          policy is uniformly random over the 3 actions.
+6. Experiments                                                            Model fitting We use state aggregations: the two state
+                                                                          variables are multiplied by 26 and 28 respectively, and the
+Throughout this section, we will be concerned with the com-
+                                                                          rounded integers are treated as the abstract state. We then
+parison among the following estimators. For compactness,
+                                                                          estimate an MDP model from data using a tabular approach.
+we drop the prefix “step-wise” from step-wise IS & WIS.
+Further experiment details can be found in Appendix D.                    Data sizes & other details We choose |Dtrain | = 2000 and
+                                                                 Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+                                            π1 = πtrain                          π1 = 0.75 πtrain + 0.25 π0                                               π1 = πtrain                          π1 = 0.75 πtrain + 0.25 π0
+                             0                                          0                                                                0.5                                        0.5
+  Log10 of relative RMSE
+
+
+
+
+                                                                                                                Log10 of relative RMSE
+                                                                                                                                           0                                          0
+                           -0.5                                       -0.5
+
+                                                                                                                                         -0.5                                       -0.5
+                            -1                                         -1
+                                                            DR                                                                            -1                               DR        -1
+                                                            IS                                                                                                             IS
+                           -1.5                             WIS       -1.5                                                                                                 WIS
+                                                                                                                                         -1.5                                       -1.5
+                                                            REG                                                                                                            REG
+                                                            DR-bsl                                                                                                         DR-bsl
+                            -2                                         -2                                                                 -2                                         -2
+                                  0        2000           4000               0          2000         4000                                       0        1000           2000               0          1000         2000
+
+
+                                      π1 = 0.5 πtrain + 0.5 π0                   π1 = 0.25 πtrain + 0.75 π0                                         π1 = 0.5 πtrain + 0.5 π0                   π1 = 0.25 πtrain + 0.75 π0
+                             0                                          0                                                                0.5                                        0.5
+  Log10 of relative RMSE
+
+
+
+
+                                                                                                                Log10 of relative RMSE
+                                                                                                                                           0                                          0
+                           -0.5                                       -0.5
+
+                                                                                                                                         -0.5                                       -0.5
+                            -1                                         -1
+                                                                                                                                          -1                                         -1
+
+                           -1.5                                       -1.5
+                                                                                                                                         -1.5                                       -1.5
+
+                            -2                                         -2                                                                 -2                                         -2
+                                  0        2000           4000               0          2000         4000                                       0        1000           2000               0          1000         2000
+                                             |Dtest|                                      |Dtest|                                                          |Dtest|                                      |Dtest|
+
+
+
+Figure 1. Comparison of the methods as point estimators on Moun-                                              Figure 2. Comparison of the methods as point estimators on Sailing
+tain Car. 5000 trajectories are generated for off-policy evaluation,                                          (4000 runs). 2500 trajectories are used in off-policy evaluation.
+and all the results are from over 4000 runs. The subgraphs corre-
+spond to the target policies produced by mixing πtrain and π0 with
+different portions. X-axes show the size of Dtest , the part of the                                                    b t , at ) = Rmin /2 · (1 − γ H−t+1 )/(1 − γ).
+                                                                                                              constant Q(s
+data used for IS/WIS/DR/DR-bsl. The remaining data are used by
+the regression estimator (REG; DR uses it as Q).
+                                               b Y-axes show the                                              Results See Fig.2. The results are qualitatively similar to
+RMSE of the estimates divided by the true value in logarithmic                                                Mountain Car results in Fig.1, except that: (1) WIS is as
+scale. We also show the error of 2-fold DR as an isolated point ().                                          good as DR in the 2nd and 3rd graph; (2) in the 4th graph,
+                                                                                                              DR with a 3:2 split outperforms all the other estimators (in-
+                                                                                                              cluding the regression estimator) with a significant margin,
+|Deval | = 5000. DR-bsl uses the step-dependent constant                                                      and a further improvement is achieved by 2-fold DR.
+ b t , at ) = Rmin (1 − γ H−t+1 )/(1 − γ).
+Q(s
+                                                                                                              6.1.3. KDD C UP 1998 D ONATION DATASET
+Results See Fig.1 for the errors of IS/WIS/DR-bsl/DR on
+Dtest , and REG on Dreg . As |Dtest | increases, IS/WIS gets                                                  In the last domain, we use the donation dataset from KDD
+increasingly better, while REG gets worse as Dreg contains                                                    Cup 1998 (Hettich & Bay, 1999), which records the email
+less data. Since DR depends on both halves of the data,                                                       interactions between an agent and potential donators. A
+it achieves the best error at some intermediate |Dtest |, and                                                 state contains 5 integer features, and there are 12 discrete
+beats using all the data for IS/WIS in all the 4 graphs. DR-                                                  actions. All trajectories are 22-steps long and there is no
+bsl shows the accuracy of DR with Q  b being a constant guess,                                                discount. Since no groundtruth values are available for the
+and it already outperforms IS/WIS most of the time.                                                           target policies, we fit a simulator from the true data (see
+                                                                                                              appendix for details), and use it as groundtruth for every-
+6.1.2. S AILING                                                                                               thing henceforward: the true value of a target policy is
+                                                                                                              computed by Monte-Carlo roll-outs in the simulator, and the
+Domain description The sailing domain (Kocsis &
+                                                                                                              off-policy evaluation methods also use data generated from
+Szepesvári, 2006) is a stochastic shortest-path problem,
+                                                                                                              the simulator (under a uniformly random policy). Among
+where the agent sails on a grid. A state contains 4 inte-
+                                                                                                              the compared estimators, we replace DR with DR-v2 (Sec-
+ger variables, each representing location
+                                    √     or direction. There
+                                                                                                              tion 4.4; reason explained below), and use the 2-fold trick.
+are 8 actions, and Rmin = −3 − 4 2 and Rmax = 0.
+                                                                                                              The MDP model used to compute Q   b is estimated as follows:
+Model fitting We apply Kernel-based Reinforcement
+                                                                                                              each state variable is assumed to evolve independently (a
+Learning (Ormoneit & Sen, 2002) with smoothing kernel
+                                                                                                              reasonable assumption for this dataset), and the marginal
+exp(−k · k/0.25), where k · k is the `2 -distance in S × A.
+                                                                                                              transition probabilities are estimated using a tabular ap-
+Data sizes & other details The data sizes are |Dtrain | =                                                     proach, which is exactly how the simulator is fit from real
+1000 and |Deval | = 2500. DR-bsl uses the step-dependent                                                      data. Reward function, on the other hand, is fit by linear
+                                            Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+                                  0                                                                            good policies                     bad policies
+                                                                     IS                             12
+                                                                     WIS                                     C=0         DR
+                                                                     DR-v2                          10                                  0
+                                                                                                             C=1         IS
+                                                                     DR-bsl
+       Log10 of relative RMSE
+
+                                -0.5
+
+
+
+
+                                                                                Value improvement
+                                                                     REG                             8       C=2
+
+                                                                                                     6                                −0.5
+
+                                 -1                                                                  4
+
+                                                                                                     2                                 −1
+
+                                                                                                     0
+                                -1.5
+                                                                                                    −2                                −1.5
+                                                                                                         0     2000            4000          0   2000           4000
+                                                                                                                   |D|                               |D|
+
+                                 -2
+                                       0   0.25             0.5    0.75
+                                           Mixture (0: π train )                Figure 4. Safe policy improvement in Mountain Car. X-axis shows
+                                                                                the size of data and y-axis shows the true value of the recommended
+Figure 3. Results on the donation dataset, averaged over about                  policy subtracted by the value of the behavior policy.
+5000 runs. DR-v2 is the estimator given in Eqn.(12) with the 2-
+fold trick. The whole dataset is applied to other estimators. X-axis
+shows the portion of which π0 is mixed into πtrain .                            agent gets more and more data. The candidate policies are
+                                                                                generated as follows: we split |D| so that |Dtrain |/|D| ∈
+regression using the first 3 state features (on the contrast, all               {0.2, 0.4, 0.6, 0.8}; for each split, we compute optimal
+the 5 features are used when fitting the simulator’s reward                     πtrain from the model estimated on Dtrain , mix πtrain and π0
+function). Consequently, we get a model with an almost                          with rate α ∈ {0, 0.1, . . . , 0.9}, compute their confidence
+perfect transition function and a relatively inaccurate reward                  bounds by applying IS/DR on D \ Dtrain , and finally pick
+function, and DR-v2 is supposed to work well in such a                          the policy with the highest score over all splits and α’s.
+situation. The results are shown in Fig.3, where DR-v2 is                       The results are shown on the left panel of Fig.4. From the
+the best estimator in all situations: it beats WIS when π1 is                   figure, it is clear that DR’s value improvement largely outper-
+far from π0 , and beats REG when π1 and π0 are close.                           forms IS, primarily because IS is not able to accept a target
+                                                                                policy that is too different from π0 . However, here πtrain
+6.2. Application to Safe Policy Improvement                                     is mostly a good policy (except when |D| is very small),
+                                                                                hence the more aggressive an algorithm is, the more value it
+In this experiment, we apply the off-policy value evaluation
+                                                                                gets. As evidence, both algorithms achieve the best value
+methods in safe policy improvement. Given a batch dataset
+                                                                                with C = 0, raising the concern that DR might make unsafe
+D, the agent uses part of it (Dtrain ) to find candidate poli-
+                                                                                recommendations when πtrain is poor.
+cies, which may be poor due to data insufficiency and/or
+inaccurate approximation. The agent then evaluates these                        To falsify this hypothesis, we conduct another experiment in
+candidates on the remaining data (Dtest ) and chooses a pol-                    parallel, where we have πtrain minimize the value instead of
+icy based on the evaluation. In this common scenario, DR                        maximizing it, resulting in policies worse than the behavior
+has an extra advantage: Dtrain can be reused to estimate Q,    b                policy, and the results are shown on the right panel. Clearly,
+and it is not necessary to hold out part of Dtest for regression.               as C becomes smaller, the algorithms become less safe,
+                                                                                and with the same C DR is as safe as IS if not better at
+Due to the high variance of IS and its variants, acting greed-
+                                                                                |D| = 5000. Overall, we conclude that DR can be a drop-in
+ily w.r.t. the point estimate is not enough to promote safety.
+                                                                                replacement for IS in safe policy improvement.
+A typical approach is to select the policy that has the highest
+lower confidence bound (Thomas et al., 2015b), and hold
+on to the current behavior policy if none of the bounds is                      7. Conclusions
+better than the behavior policy’s value. More specifically,
+                                                                                We proposed a doubly robust (DR) estimator for off-policy
+the bound is V† − Cσ† , where V is the point estimate, σ
+                                                                                value evaluation, and showed its high accuracy as a point
+is the empirical standard error, and C ≥ 0 controls confi-
+                                                                                estimator and usefulness in safe policy improvement. Hard-
+dence level. † is a placeholder for any method that works
+                                                                                ness results on the problem are also provided, and the vari-
+by averaging a function of sample trajectories; examples
+                                                                                ance of DR can match the lower bound in certain scenarios.
+considered in this paper are the IS and the DR estimators.
+                                                                                Building on a preliminary version of this work, Thomas
+The experiment is conducted in Mountain Car, and most                           & Brunskill (2016) showed that our DR estimator can be
+of the setting is the same as Section 6.1.1. Since we                           viewed as an application of control variates for variance
+do not address the exploration-exploitation problem, we                         reduction, and designed more advanced DR-based estima-
+keep the behavior policy fixed as uniformly random, and                         tors. Future work includes applying such DR techniques to
+evaluate the recommended policy once in a while as the                          real-world problems to access its effectiveness in practice.
+                           Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+Acknowledgements                                                 Hirano, Keisuke, Imbens, Guido W., and Ridder, Geert.
+                                                                   Efficient estimation of average treatment effects using
+We thank Xiujun Li for his help on the KDD donation                the estimated propensity score. Econometrica, 71(4):
+dataset experiment. We also thank Satinder Singh, Michael          1161–1189, 2003.
+Littman, Susan Murphy, Emma Brunskill, and the anony-
+mous reviewers for their detailed and helpful comments, as       Holland, Paul W. Statistics and causal inference. Journal
+well as Philip Thomas for an independent implementation            of the American Statistical Association, 81(6):945–960,
+and verification of the algorithm.                                1986.
+Most of this work was done during Nan Jiang’s internship         Jiang, Nan, Kulesza, Alex, and Singh, Satinder. Abstraction
+in Microsoft Research. The work was partially supported             Selection in Model-based Reinforcement Learning. In
+by NSF grant IIS 1319365 for Nan Jiang in University of             Proceedings of the 32nd International Conference on
+Michigan. Any opinions, findings, conclusions, or recom-            Machine Learning, pp. 179–188, 2015.
+mendations expressed here are those of the authors and do
+not necessarily reflect the views of the sponsors.               Jong, Nicholas K and Stone, Peter. Model-based function
+                                                                   approximation in reinforcement learning. In Proceed-
+                                                                   ings of the 6th International Conference on Autonomous
+References                                                         Agents and Multiagent Systems, pp. 95, 2007.
+Bertsekas, Dimitri P and Tsitsiklis, John N. Neuro-Dynamic       Kakade, Sham and Langford, John. Approximately Optimal
+  Programming (Optimization and Neural Computation                 Approximate Reinforcement Learning. In Proceedings of
+  Series, 3). Athena Scientific, 1996.                             the 19th International Conference on Machine Learning,
+                                                                   volume 2, pp. 267–274, 2002.
+Bottou, Léon, Peters, Jonas, Quiñonero-Candela, Joaquin,
+  Charles, Denis Xavier, Chickering, D. Max, Portugaly,          Kocsis, Levente and Szepesvári, Csaba. Bandit based monte-
+  Elon, Ray, Dipankar, Simard, Patrice, and Snelson, Ed.           carlo planning. In Machine Learning: ECML 2006, pp.
+  Counterfactual Reasoning and Learning Systems: The               282–293. Springer Berlin Heidelberg, 2006.
+  Example of Computational Advertising. Journal of Ma-
+                                                                 Li, Lihong, Chu, Wei, Langford, John, and Wang, Xuanhui.
+  chine Learning Research, 14:3207–3260, 2013.
+                                                                   Unbiased Offline Evaluation of Contextual-bandit-based
+Dann, Christoph, Neumann, Gerhard, and Peters, Jan. Pol-           News Article Recommendation Algorithms. In Proceed-
+  icy evaluation with temporal differences: A survey and           ings of the 4th International Conference on Web Search
+  comparison. The Journal of Machine Learning Research,            and Data Mining, pp. 297–306, 2011.
+ 15(1):809–883, 2014.                                            Li, Lihong, Munos, Remi, and Szepesvári, Csaba. Toward
+                                                                   minimax off-policy value estimation. In Proceedings
+Dudı́k, Miroslav, Langford, John, and Li, Lihong. Doubly           of the Eighteenth International Conference on Artificial
+  Robust Policy Evaluation and Learning. In Proceedings of         Intelligence and Statistics (AISTATS-15), pp. 608–616,
+  the 28th International Conference on Machine Learning,           2015a.
+  pp. 1097–1104, 2011.
+                                                                 Li, Xiujun, Li, Lihong, Gao, Jianfeng, He, Xiaodong, Chen,
+Farahmand, Amir-massoud and Szepesvári, Csaba. Model              Jianshu, Deng, Li, and He, Ji. Recurrent reinforcement
+  selection in reinforcement learning. Machine learning,            learning: A hybrid approach, 2015b. arXiv:1509.03044.
+  85(3):299–332, 2011.
+                                                                 Mandel, Travis, Liu, Yun-En, Levine, Sergey, Brunskill,
+Fonteneau, Raphael, Murphy, Susan A., Wehenkel, Louis,            Emma, and Popovic, Zoran. Offline policy evaluation
+  and Ernst, Damien. Batch mode reinforcement learning            across representations with applications to educational
+  based on the synthesis of artificial trajectories. Annals of    games. In Proceedings of the 13th International Confer-
+  Operations Research, 208(1):383–416, 2013.                      ence on Autonomous Agents and Multi-Agent Systems, pp.
+                                                                  1077–1084, 2014.
+Grünewälder, S, Lever, G, Baldassarre, L, Pontil, M, and       Mannor, Shie, Simester, Duncan, Sun, Peng, and Tsitsik-
+  Gretton, A. Modelling transition dynamics in MDPs               lis, John N. Bias and variance approximation in value
+  with RKHS embeddings. In Proceedings of the 29th                function estimates. Management Science, 53(2):308–322,
+  International Conference on Machine Learning, pp. 535–          2007.
+  542, 2012.
+                                                                 Marivate, Vukosi N. Improved Empirical Methods in
+Hettich, S. and Bay, S. D. The UCI KDD Archive. http:             Reinforcement-Learning Evaluation. PhD thesis, Rut-
+ //kdd.ics.uci.edu, 1999.                                         gers University, New Brunswick, NJ, 2015.
+                          Doubly Robust Off-policy Value Evaluation for Reinforcement Learning
+
+Moore Jr, Terrence Joseph. A theory of Cramer-Rao bounds       Thomas, Philip and Brunskill, Emma. Data-Efficient Off-
+ for constrained parametric models. PhD thesis, Univer-          Policy Policy Evaluation for Reinforcement Learning.
+ sity of Maryland, College Park, 2010.                           In Proceedings of the 33rd International Conference on
+                                                                 Machine Learning, 2016.
+Murphy, Susan A., van der Laan, Mark, and Robins,
+ James M. Marginal Mean Models for Dynamic Regimes.            Thomas, Philip, Theocharous, Georgios, and Ghavamzadeh,
+ Journal of the American Statistical Association, 96(456):       Mohammad. High Confidence Off-Policy Evaluation. In
+ 1410–1423, 2001.                                                Proceedings of the 29th AAAI Conference on Artificial
+                                                                 Intelligence, 2015a.
+Ormoneit, Dirk and Sen, Śaunak. Kernel-based reinforce-
+  ment learning. Machine learning, 49(2-3):161–178,            Thomas, Philip, Theocharous, Georgios, and Ghavamzadeh,
+  2002.                                                          Mohammad. High Confidence Policy Improvement. In
+                                                                 Proceedings of the 32nd International Conference on
+Paduraru, Cosmin. Off-policy Evaluation in Markov Deci-          Machine Learning, pp. 2380–2388, 2015b.
+  sion Processes. PhD thesis, McGill University, 2013.
+
+Pearl, Judea. Causality: Models, Reasoning, and Inference.
+  Cambridge University Press, 2nd edition, 2009. ISBN
+  052189560X.
+
+Pirotta, Matteo, Restelli, Marcello, Pecorino, Alessio, and
+  Calandriello, Daniele. Safe policy iteration. In Proceed-
+  ings of the 30th International Conference on Machine
+  Learning, number 3, pp. 307–317, 2013.
+
+Precup, Doina. Temporal abstraction in reinforcement learn-
+  ing. PhD thesis, University of Massachusetts Amherst,
+  2000.
+
+Precup, Doina, Sutton, Richard S., and Singh, Satinder P.
+  Eligibility Traces for Off-Policy Policy Evaluation. In
+  Proceedings of the 17th International Conference on Ma-
+  chine Learning, pp. 759–766, 2000.
+
+Precup, Doina, Sutton, Richard S., and Dasgupta, Sanjoy.
+  Off-Policy Temporal-Difference Learning with Funtion
+  Approximation. In Proceedings of the 18th International
+  Conference on Machine Learning, pp. 417–424, 2001.
+
+Rotnitzky, Andrea and Robins, James M. Semiparamet-
+  ric regression estimation in the presence of dependent
+  censoring. Biometrika, 82(4):805–820, 1995.
+
+Singh, Satinder P and Sutton, Richard S. Reinforcement
+  learning with replacing eligibility traces. Machine learn-
+  ing, 22(1-3):123–158, 1996.
+
+Sutton, Richard S. and Barto, Andrew G. Reinforcement
+  Learning: An Introduction. MIT Press, Cambridge, MA,
+  March 1998. ISBN 0-262-19398-1.
+
+Sutton, Richard S., Mahmood, Ashique Rupam, and
+  White, Martha. An emphatic approach to the prob-
+  lem of off-policy temporal-difference learning. CoRR
+  abs/1503.04269, 2015.
+
+Thomas, Philip. Safe Reinforcement Learning. PhD thesis,
+  University of Massachusetts Amherst, 2015.
+

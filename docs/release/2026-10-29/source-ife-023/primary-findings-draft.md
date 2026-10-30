@@ -1,0 +1,13 @@
+# Selected ife uncertainty boundary: working findings
+
+Primary files authenticated:15 at dc43de2b030ebd9ae48e725002556bf2b9b9ac00 (2026-07-01), declared0.2.5. The retained lmtp caller is a separate May2026 revision importing ife>=0.2.0; this is a source composition, not a resolved installed environment. NEWS attributes cluster fixes to0.2.1 and0.2.5; do not infer every allowed dependency version shares current behavior.
+
+The constructor stores the supplied eif without centering. Its standard-error method multiplies it by weights, then either uses the sample-variance delegate divided by the number of rows or sums by cluster, multiplies by K/n and takes the cluster sample variance divided by K. The source's own tests explicitly state this mathematical convention. Exactly one cluster deliberately falls back to independent rows.
+
+The retained lmtp theta_dr caller supplies an uncentered sequential pseudo-outcome after affine rescaling, along with mean-normalized weights and subject/cluster IDs. Its eif expression adds the initial shifted prediction to weighted residuals; it does not subtract theta. A constant disappears from iid unit-weight sample variance, but not after unequal weighting or unequal cluster-size aggregation. Therefore centering is a scientific requirement at this boundary. Test with an affine outcome-origin change, not merely expected numeric equality between implementations sharing the same formula.
+
+Arithmetic methods preserve paired eif vectors and require identical weight/ID arrays; this retains covariance when entries really represent the same individuals. Cluster ID equality alone is not proof of individual row alignment. Scalar addition changes the estimate but leaves the eif unchanged, which is sensible for a centered influence function but differs from rebuilding a caller object after shifting the outcome origin.
+
+Ratio/exp/log transformations have delta-method derivatives and symmetric Wald intervals on the current object scale. Taking exp of a log object yields a new symmetric interval; exponentiating the already computed log interval yields different, positive endpoints. Machine-epsilon denominator rejection is not a statistical weak-denominator criterion. Printed95% wording is fixed although critical_value is configurable. These are specific source observations, not executed package outputs or coverage estimates.
+
+Next: independently derive small weighted and unequal-cluster location-invariance witnesses, then develop a focused banking subsection with practical alternatives. Inspect complete lmtp contrast caller if available to ensure the final call semantics are not repaired there.

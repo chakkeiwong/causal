@@ -1,0 +1,923 @@
+Received 13 May 2024, accepted 27 May 2024, date of publication 5 June 2024, date of current version 13 June 2024.
+Digital Object Identifier 10.1109/ACCESS.2024.3409745
+
+
+
+
+Measuring and Improving the Energy Efficiency
+of Large Language Models Inference
+MAURICIO FADEL ARGERICH                                 AND MARTA PATIÑO-MARTÍNEZ
+Escuela Técnica Superior de Ingenieros Informáticos, Universidad Politécnica de Madrid, 28040 Madrid, Spain
+Corresponding author: Mauricio Fadel Argerich (mauricio.fadel@alumnos.upm.es)
+This work was supported in part by the Project QoSDATA PID2020-119461GB-I00 funded by MCIN/AEI/10.13039/501100011033,
+and in part by the Project AI4PublicPolicy funded by the European Union’s Horizon 2020 Research and Innovation Program under
+Grant 101004480.
+
+
+
+
+  ABSTRACT Recent improvements in the accuracy of machine learning (ML) models in the language domain
+  have propelled their use in a multitude of products and services, touching millions of lives daily. These
+  new levels of accuracy have been attained mainly through exponential growth in model size, creating a
+  new category of models known as Large Language Models (LLMs) and leading to a substantial increase in
+  computing and energy demands. While recent studies have focused on measuring and improving the energy
+  consumption of LLMs during training, inference has received little attention. In this article, we present an
+  approach to profile the energy consumption of LLMs during inference and leverage it to improve energy
+  efficiency. For this, we deploy several state-of-the-art LLMs and observe how model size, number of layers,
+  parallelized attention, and even vocabulary size affect their energy consumption. In addition, we leverage
+  input batch size and different quantization levels to optimize their inference energy efficiency and latency.
+
+
+  INDEX TERMS Energy consumption, energy efficiency, machine learning, deep learning, large language
+  models.
+
+
+I. INTRODUCTION                                                                                 just one year later had 175 billion parameters [6]; and GPT-4,
+Machine learning (ML) is dramatically transforming the                                          released in 2023, is estimated to have more than a trillion
+world we live in. From reading AI-generated news sum-                                           parameters [7]. Due to these staggering sizes, the latest
+maries [1], to developing software with AI assistants [2],                                      language models, including the GPT family, have become
+to using AI-powered tools to generate images for business                                       popularly known as Large Language Models (LLMs.)
+presentations [3], to enjoying personalized recommendations                                        This growth in size has caused a dramatic increase in
+of movies and series [4], we interact with ML-based                                             the computing and electric power required for training and
+applications several times every day. All of these services are                                 inference, and consequently, a higher environmental impact
+powered by large ML models, whose size – defined by the                                         due to CO2 emissions. For instance, paper [8] estimated
+number of trainable parameters – has exponentially grown in                                     that training GPT-3 required 1287 MWh, equivalent to
+recent years in the quest for better accuracy.                                                  the mean yearly energy consumption of 420 persons [9].
+   Research shows that since 2018, the size of ML models                                        Energy consumption of LLMs has recently gained attention
+has doubled every 8 months, mainly driven by models in                                          in both the academic community [10], [11] and industry [12].
+the language domain [5]. We can observe this trend in the                                       However, the focus is usually put on tracking and reducing
+transformer-based language models introduced by OpenAI                                          the energy – and corresponding CO2 emissions – used for
+in the past few years: the first GPT model introduced in                                        training models while disregarding their energy consumption
+2018 had 117 million parameters; its continuation GPT-2,                                        during inference.
+released in 2019, had 1.7 billion parameters; GPT-3, released                                      While the energy consumption during inference is less
+                                                                                                intensive than during training, we argue that energy
+   The associate editor coordinating the review of this manuscript and                          consumption during inference is more important for a number
+approving it for publication was Mouloud Denai              .                                   of reasons. First, models are generally trained only once while
+                                                  2024 The Authors. This work is licensed under a Creative Commons Attribution 4.0 License.
+80194                                                    For more information, see https://creativecommons.org/licenses/by/4.0/                   VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+TABLE 1. List of abbreviations.                                                       2) We design and implement a software tool to easily
+                                                                                         measure the energy consumption of any code on Linux,
+                                                                                         capable of distinguishing the consumption of CPU,
+                                                                                         memory, GPU and storage (Section IV). To the best
+                                                                                         of our knowledge, this is the first pure software tool
+                                                                                         to measure the energy consumption of the storage on
+                                                                                         Linux.
+                                                                                      3) We deploy multiple, state-of-the-art LLMs and observe
+                                                                                         how model size, architecture, batch size, and weights
+                                                                                         quantization affect their inference energy consumption
+                                                                                         and latency in Sections IV and VI.
+                                                                                      4) We provide several insights learnt which will be useful
+                                                                                         to monitor and reduce the energy consumption of LLMs
+                                                                                         in Section VII.
+                                                                                       The rest of the paper is organized as follows. Section II
+                                                                                    introduces the basics and challenges of measuring the
+                                                                                    energy consumption of software and LLMs. Related work
+                                                                                    is described in Section III. Section IV describes the design
+                                                                                    and implementation of an energy meter for monitoring the
+                                                                                    energy consumption of the main components of a computer.
+                                                                                    In Section VI, we outline several experiments to profile the
+they are used for inference thousands if not millions of times.
+                                                                                    inference energy efficiency of LLMs with our energy meter
+For instance, ChatGPT – a chatbot based on GPT-3 – was
+                                                                                    and present their results. Section VII discusses how our
+reported to have 13 million daily visitors during January
+                                                                                    observations extrapolate to other deployment environments
+2023 [13]. Assuming the model was queried only once per
+                                                                                    and presents recommendations to improve the energy effi-
+visit, this translates into more than 400 million queries in
+                                                                                    ciency of LLMs inference. We present our conclusions in
+just one month. Based on the reported average consumption
+                                                                                    Section VIII.
+of a similar-sized model called Bloom, which consumes
+approximately 3.96 Wh per request [14], we project that
+                                                                                    II. BACKGROUND
+ChatGPT energy consumption was over 1500 MWh during
+                                                                                    Energy consumption is measured in joules (J) or watts per
+January 2023. This is already higher than the energy used for
+                                                                                    hour (Wh), being 1 Wh = 3600 J, which corresponds to one
+its training. Secondly, training can be deferred to times when
+                                                                                    joule per second, i.e., 1 W = 1 J/s. It is straightforward to
+energy is generated from a higher proportion of low-carbon
+                                                                                    measure the total energy consumption of a physical device
+or renewable sources, reducing the CO2 emissions related to
+                                                                                    through a power meter or power monitor as long as there is
+the model training while inference is usually time-sensitive
+                                                                                    physical access to the device. However, measuring the energy
+and its execution cannot be delayed. Finally, training can also
+                                                                                    consumption of software is a far more complicated task:
+be run on low-carbon intensity geographical regions, while
+                                                                                      A) Many times software runs on servers or machines that
+on the contrary, the location where the model is deployed
+                                                                                          cannot be accessed, e.g., on the cloud. Additionally, the
+for inference is usually conditioned by different requirements
+                                                                                          software might be running on a virtualized instance,
+such as latency, network bandwidth, data privacy and
+                                                                                          using a fraction of, or multiple physical servers at once.
+legislation.
+                                                                                          In these cases, it is impossible to use a power meter.
+   In this paper, we profile the energy consumption of LLMs
+                                                                                      B) Even if there is physical access to the computer where
+to obtain insights to improve their energy consumption when
+                                                                                          the software runs, separating the energy usage between
+deploying and running inferences on these models. We focus
+                                                                                          its different hardware components, e.g., CPU, memory,
+our attention on LLMs because their energy consumption
+                                                                                          GPU, hard disk, is impossible unless individual power
+is significantly higher than that of traditional software and
+                                                                                          monitors are connected to each of these devices and
+other ML models due to two main factors: (1) LLMs
+                                                                                          synchronise them to measure the consumption while the
+represent most of the largest models currently in use [5],
+                                                                                          software runs.
+computing billions of operations to answer every request
+                                                                                      C) Modern computers are multi-core and run several
+they receive, and (2) LLMs have millions of daily requests
+                                                                                          processes in a parallel or semi-parallel way. In order
+and end users through applications such as ChatGPT [15],
+                                                                                          to accurately estimate the energy consumption of a
+Microsoft 365 Copilot [16], and others. Our contributions are
+                                                                                          particular piece of software, we need to keep track of
+the following:
+                                                                                          the exact time at which the software executes, usually to
+  1) We analyze the current challenges of monitoring the                                  a precision of milliseconds.
+     energy consumption of software, and in particular,                                Several software tools have emerged to deal with these lim-
+     LLMs, in Section II.                                                           itations, allowing the measurement of energy consumption
+
+VOLUME 12, 2024                                                                                                                               80195
+                                                                M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+of applications without the need for any additional hard-             Scaphandre [19] is a Rust tool that estimates the energy
+ware. Nonetheless, they still face multiple challenges and         consumption of individual processes by tracking the amount
+constraints that limit their usage:                                of time that the processor spends on a given process and
+ D) They depend on low-level libraries and sensors, and            combining it with RAPL measurements. Scaphandre exports
+    are usually constrained by the hardware architecture           these metrics to Prometheus [25] and, when deployed on a
+    in which they run. E.g., Intel Running Average Power           bare metal instance with virtual instances running on top,
+    Limit (RAPL) [17] measures the energy consumption              is capable of propagating energy metrics from the bare metal
+    through sensors on the vendor’s processors that are            to the virtual instances to estimate their energy consumption.
+    not available on other architectures. Additionally, these      Even though Scaphandre successfully deals with challenges
+    low-level dependencies are only accessible on bare             A, B, C, it still requires to be deployed on the bare metal host
+    metal instances due to their high coupling with specific       to propagate the metrics to the virtual instances. In addition,
+    hardware and are not compatible with virtualized               it only provides metrics for CPU and memory.
+    instances.                                                        Kubernetes-based Efficient Power
+ E) These software tools are generally constrained by the          Level Exporter (Kepler) [18] uses eBPF [26] to probe
+    platforms on which they run, such as the operating             CPU performance counters and Linux kernel tracepoints to
+    system. E.g., Kubernetes-based Efficient Power Level           estimate the energy consumption of Kubernetes clusters,
+    Exporter (Kepler) [18] is a tool for measuring the energy      exporting them to Prometheus. Kepler utilizes RAPL and
+    consumption of Kubernetes clusters and cannot be used          nvidia-smi when available; otherwise, it estimates the energy
+    on other settings; Scaphandre [19], a tool to measure the      usage of CPU, GPU and memory by combining eBPF probes
+    energy consumption of any software, works on Linux             and pretrained linear regression models. Kepler is limited
+    and has limited functionality on Windows, with no              to Kubernetes clusters (challenge F.) CodeCarbon [27] is a
+    support for Mac.                                               Python package that estimates the total CO2 emissions of a
+ F) For ML models such as LLMs, things get more                    computer by tracking its energy consumption and combining
+    complicated as libraries take advantage of hardware            it with the carbon intensity of geographic regions. It tracks
+    acceleration, e.g., running on GPUs. Multiple software         the energy consumption of the CPU, memory, and GPU,
+    tools are needed to measure the energy consumption             using RAPL and nvidia-smi if available, otherwise utilizing
+    of each device. For instance, RAPL only provides               linear regression models to estimate their consumption.
+    measurements for CPU and (sometimes) memory,                   CodeCarbon does not individualize the energy consumed by
+    nvidia-smi [20] only measures the energy consumption           individual processes (challenge C) and it has issues that affect
+    of NVIDIA GPUs.                                                its accuracy for measuring memory energy consumption [28].
+                                                                      Paper [29] is, to the best of our knowledge, the first
+  For these reasons energy consumption is ignored by               to focus on measuring, reporting, and reducing the energy
+software developers and users.                                     consumption of ML models. The paper analyzes the energy
+                                                                   consumption of CNNs, commonly used for computer vision
+III. RELATED WORK                                                  tasks, with a maximum size of 200 million parameters. This
+This section presents several approaches to facilitate the         paper was published one year before the first Transformer
+measurement of energy consumption and the environmental            neural network architecture was published [30]. Since then,
+impact of software.                                                the growth in the number of parameters in ML models and
+   Intel Running Power Average Limit (RAPL) [17] reports           their energy consumption have dramatically accelerated [5].
+the energy consumed (in joules) by different power domains            Article [31] presents a software framework to measure the
+of Intel processors during an interval of time. RAPL’s             total energy consumption of ML experiments. It uses metrics
+measurements have shown a high accuracy, with an error             obtained from NVML and RAPL to calculate the energy
+lower than 2% on the Haswell architecture through different        consumption of the CPU and the GPU, and estimates the
+experiments [21]. The latest AMD processors implement              corresponding carbon emissions. This framework is used to
+a semi-compatible RAPL interface; however, the power               run several experiments on the energy usage of convolutional
+domains used by AMD differ from those of Intel and their           neural networks (CNNs) and reinforcement learning agents.
+measurements are not as accurate [22]. pyRAPL [22] allows             Paper [11] provides a detailed analysis of the environ-
+the access to RAPL metrics in Python. NVIDIA NVML                  mental impact of training LLMs. It estimates that training
+is a C-based API for monitoring and managing various               BERT [32] – a transformer-based model with 110 million
+states of NVIDIA GPU devices [23]. The NVIDIA CLI,                 parameters – is roughly equivalent to a transcontinental flight.
+‘nvidia-smi’ [20], provides access to the current power            When neural architecture search is used, the CO2 footprint
+draw in watts. NVML can be easily accessed from Python             grows more than 300 times. Similarly, [8] analyzes the
+through pyNVML [24]. Even though RAPL and the NVIDIA               energy consumption and the carbon footprint generated for
+CLI provide useful and accurate energy readings, their             training transformer architectures. Among other recommen-
+measurements are not provided for individual processes             dations, they propose to place the training in carbon-free
+(challenge C).                                                     or low-carbon areas to significantly reduce the associated
+80196                                                                                                                            VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+CO2 emissions. Paper [10] proposes the use of power-capping                         energy measurement. The energy measurement starts when
+to significantly reduce the energy consumption of training                          the method energy_meter.begin() is called. The
+LLMs while maintaining accuracy and marginally increasing                           invocation to the method energy_meter.end() stops
+training time.                                                                      the measurements and provides the EnergyMeter metrics: the
+   While providing insights for reducing the energy consump-                        total joules used by the system, its distribution in the different
+tion and consequent environmental cost of LLMs during                               components (total joules used by the CPU, memory, GPU,
+training, these works ignore the inference phase, which as                          and storage), and the duration of the measurement period in
+we have discussed, has a considerably higher environmental                          seconds.
+impact. Supporting our claim, Amazon Web Services (AWS)                                In our tests, EnergyMeter adds no perceptible overhead
+has estimated that 90% of the infrastructure costs associated                       while the measurements are taken. There is only a small
+with using ML in production are devoted to inference while                          constant overhead of around 300 ms to calculate the energy
+only 10% to training [33].                                                          metrics after the measurement finishes.
+   Some recent research papers also consider the energy                                EnergyMeter implements a combination of some of the
+consumption of LLMs during inference. Article [34] analyzes                         previously described tools to obtain the energy consumption
+the environmental impact of data, experimentation, training,                        of the following components:
+and inference of ML models used for language translation,
+recommendation and ranking at Meta. The results show                                1) CPU
+a drastic reduction of CO2 emissions derived from the                               We leverage pyRAPL to estimate the total energy used by the
+energy usage of these models by leveraging multiple software                        CPU. We use RAPL for two reasons. First, it has proven to be
+and hardware optimizations. Paper [35] surveys numerous                             accurate on the latest generations of Intel processors, thanks
+optimization techniques for transformers, measuring their                           to specific sensors used for energy measurements. Secondly,
+effects in terms of inference time and energy, and comparing                        it adds no overhead to the task being measured, as it only
+these effects to the ones seen on CNNs. They apply neural                           queries the number of joules used by the CPU before and after
+architectural search and hardware co-design to optimize the                         running the task of interest.
+inference time and energy consumption of a transformer-                                As discussed in Section III, RAPL also comes with
+based architecture, similar to BERT or GPT-2, achieving an                          the drawback of being fully compatible only with Intel
+improvement of 88x in energy consumption.                                           processors and requires to be run on bare metal instances.
+   In this article we analyze how energy consumption                                Consequently, this is also a limitation of EnergyMeter.
+is impacted by the model architecture, batch size and
+quantization on different sizes of open-source LLM                                  2) GPU
+architectures.                                                                      We use pyNVML [24] to access nvidia-smi and sample the
+                                                                                    power draw of the GPU during the measurement period.
+IV. MEASURING THE ENERGY CONSUMPTION OF LLMS                                        The sampling interval is set by default to 500ms and it
+After considering the challenges of measuring the energy                            can be defined by the user to other values. During the
+consumption of software and the limitations of current                              measurement period, we run a thread that polls the GPU
+approaches, we have designed and implemented an energy-                             utilization percentage and its power draw via pyNVML at
+measuring Python module, EnergyMeter, for measuring the                             every specified sampling interval (e.g., every 500 ms) and
+energy consumption of state-of-the-art LLMs. Notably, our                           stores these samples in memory. Once the user invokes the
+approach is the first to the best of our knowledge to measure                       energy_meter.end() method, the total energy used by
+the energy consumption of CPU, memory, GPU, and storage                             the GPU is calculated as the mean power draw (µPGPU )
+in environments with Intel processors, NVIDIA GPUs,                                 applied along the duration of the measurement period (T )
+and Linux operating systems. Consequently, our approach                             using the formula:
+overcomes challenges A, B, E, and F while we mitigate                                                          Z T
+challenges C and D with our deployment environment.                                                    EGPU =      µPGPU (t)dt              (1)
+   In the following, we describe the design of Ener-                                                              0
+gyMeter, the particular methods used to estimate the energy                            The user can decide if the energy used when the GPU is
+consumption of CPU, GPU, memory, and storage, and its                               idle should be accounted for. By default, the energy used
+limitations.                                                                        when idle is ignored; to do this, we remove the power draw
+                                                                                    samples when the GPU utilization percentage was 0 from
+A. ENERGYMETER                                                                      the calculation of µPGPU and reduce the time interval (0, T )
+EnergyMeter is a Python module that combines RAPL,                                  accordingly.
+NVIDIA-SMI, and eBPF to estimate the energy consumption
+of the main components of a computer with only three lines of                       3) MEMORY
+code. EnergyMeter is open source software and is available at                       RAPL provides measurements for the DRAM sockets on Intel
+https://github.com/maufadel/EnergyMeter. The user initial-                          processors, so we leverage once again pyRAPL to measure
+izes an energy_meter object that will be in charge of the                           the energy consumed by the system memory.
+
+VOLUME 12, 2024                                                                                                                                 80197
+                                                                    M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+4) STORAGE                                                             consumption of LLMs varies with the following parameters
+EnergyMeter is the first tool to our knowledge to measure              and settings:
+the energy consumption of the storage on Linux. We have                 A) Model size. The size of an ML model is the number
+implemented an approach identical to Joulemeter [36]                        of free parameters that need to be fit to the data.
+(a Microsoft tool only compatible with Windows) that                        This defines the number of operations that need to be
+calculates the energy used by the storage based on the amount               calculated during training and inference as well as how
+of time it was active and, optionally, idle:                                much memory is required to load the model. Recent
+                                                                            LLMs reach staggering model sizes. We will analyze
+                EHD = tactive eactive + tidle eidle          (2)            how the energy consumption varies according to the
+                                                                            model size during the inference phase.
+where                                                                   B) Model architecture. While two models might have
+      tactive : time (seconds) the storage was active,                      the same number of parameters, they could still have
+      tidle : time (seconds) the storage was idle,                          different architectures, e.g., different embedding sizes,
+      eactive : energy used by the storage (joules) while active,           different number of layers, or different number of
+      as defined in its specification,                                      attention heads. We will analyze if these parameters also
+      eidle : energy used by the storage (joules) while idle,               affect energy consumption.
+      as defined in its specification.                                  C) Batch size. Increasing the batch size increases memory
+   Since it is not possible to directly observe the state of the            usage while reducing the inference (and training)
+storage in common operating systems, we calculate the time                  latency, thanks to the parallelization of operations to be
+that the storage was active by tracking the storage IO. To this             performed. This also impacts the energy usage of LLMs.
+end, we leverage eBPF through custom bpftrace probes that               D) Quantization. Quantization reduces the memory foot-
+track the total bytes read and written during an interval of                print and processing needed for inference (and training)
+time. Once the measurement period finishes, we estimate                     of models by changing the data type of parameters in
+the total time that the storage was active and replace this in              the model, e.g., from FP16 to INT8. Even though the
+Equation 2 to calculate the total energy consumed:                          accuracy of the model is also affected, the performance
+                   bread   bwritten                                         decrease is often marginal. We will evaluate how
+           EHD =         +          eactive + tidle eidle    (3)            quantization to different data types affects the energy
+                   sread    swrite
+                                                                            used by LLMs.
+where                                                                   E) Energy usage of a typical Question Answering (QA)
+     bread : total bytes read during the measurement period,                application. Several organizations are implementing
+     sread : storage reading speed in bytes per second,                     Retrieval QA or ChatBot applications using frameworks
+     bwritten : total bytes written during the measurement                  that enable the fast development of LLM-based applica-
+     period,                                                                tions. We will implement a QA application and observe
+     swritten : storage writing speed in bytes per second.                  its energy consumption during setup and QA.
+  Due to the tools used for estimating energy consumption,
+EnergyMeter has some limitations:                                       VI. ENERGY AND PERFORMANCE EVALUATION
+   • Hardware requirements: EnergyMeter is based on RAPL               The goal of the evaluation is to measure how model size,
+     and NVIDIA NVML therefore, it is only compatible                  architecture, batch size, and weights quantization affect
+     with Intel processors and NVIDIA GPUs. RAPL pro-                  the energy consumption and latency of LLMs inference
+     vides energy consumption estimations on some AMD                  for text generation. For that purpose, we implement the
+     processors but in this case, the measurement is less              above-described experiments using HuggingFace Transform-
+     accurate [22].                                                    ers [37], a popular Python library that provides access to
+   • Software requirements: EnergyMeter uses eBPF to                   several pre-trained LLMs, and monitor their performance
+     access low-level metrics for the storage and is based             using EnergyMeter. For each experiment, we report the
+     on Linux systems. Additionally, EnergyMeter needs to              inference energy consumption in joules and the inference
+     be run on bare metal instances to have access to RAPL             latency in milliseconds. We further specify the energy
+     metrics.                                                          consumption per component for CPU, GPU, memory and
+  In addition, EnergyMeter does not provide metrics for                storage measured by EnergyMeter.
+individual processes yet and this is considered future work.              We evaluate the following pre-trained model families from
+                                                                       HuggingFace’s hub:
+V. MEASURING AND IMPROVING THE ENERGY                                    1) Pythia [38]: a suite of 8 different sizes of Transformer
+EFFICIENCY OF LLMS WITH ENERGYMETER                                         models trained on the same public data ranging in size
+This section describes the scenarios and parameters used                    from 70M to 12B parameters.
+for the evaluation of the energy consumption of LLMs                     2) Bloom [39]: a Transformer language model, essentially
+during inference, finding opportunities to improve their                    similar to GPT-3 (auto-regressive model for next
+energy and computing efficiency. We analyze how the energy                  token prediction), trained on the ROOTS corpus [40],
+
+80198                                                                                                                                VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+TABLE 2. Main architectural characteristics of the LLMs used in the evaluation.
+
+
+
+
+     comprising hundreds of sources in 46 natural and                               values for energy used when active and idle states reported by
+     13 programming languages. There are different versions                         AnandTech [47].
+     of the model ranging from 560M to 176B parameters.
+  3) Dolly v2 [41]: a language model based on the
+     EleutherAI Pythia family and fine-tuned on a cus-                              A. MODEL SIZE
+     tom, high-quality human-generated instruction dataset,                         One of the main differences between the different
+     crowdsourced among Databricks employees. The largest                           open-source LLMs is their size in number of parameters.
+     Dolly v2 model has 12B parameters and there are                                Even though larger models are usually more accurate, they
+     smaller versions, also based on Pythia and fine-tuned on                       also require more computing resources, which affects energy
+     the Dolly dataset. Even though Dolly is based on Pythia,                       consumption. To measure how the energy consumption of
+     the architecture is not identical in the input and output                      LLMs varies with their size, we have run an experiment
+     layers as it uses a different vocabulary size.                                 with models from the Pythia suite [38]. This is a suite of
+  4) RedPajama [42]: another family of models based on                              LLMs with different sizes and the same base architecture,
+     Pythia with 7B and 3B parameters, fine-tuned on a                              which has been created to analyze how size affects model
+     dataset with the same name as the model, with over                             performance. We tested 7 models of the Pythia suite with up
+     100B text documents coming from 84 CommonCrawl                                 to 6.9B parameters due to the memory size of the GPU.
+     snapshots. Similar to Dolly, RedPajama’s architecture is                          The standard procedure for querying LLMs with Hugging
+     not identical to Pythia. It has a different vocabulary size                    Face Transformers is the following. We instantiate a model
+     and disables a mechanism for the parallel calculation of                       object and a tokenizer object indicating the model name,
+     residuals for the models’ attention heads.                                     e.g., EleutherAI/pythia-70m. In our tests we utilize the
+  5) LLaMA 2: the second version of LLaMA (Large                                    default configuration provided for each model unless stated
+     Language Model Meta AI), a state-of-the-art LLM                                otherwise. The model object is a wrapper around the neural
+     published by Meta with a custom architecture and                               network (in our case the PyTorch module) that offers methods
+     trained on 1 trillion tokens. We use LLaMA 2 in three                          for loading, saving the model and its weights, and running
+     different variants (Llama 2 [43], Open LLaMA 2 [44],                           inference with a given input. It is possible to load the model
+     and a quantized set of Llama models by ‘‘TheBloke’’                            on main memory or on the GPU memory; in our case,
+     [45].)                                                                         we utilize the GPU memory. The tokenizer, on the other
+                                                                                    hand, is always stored in main memory and is an object that
+                                                                                    converts a string representing text in natural language into a
+The specific models and selected architecture characteristics                       sequence of tokens that can be used as input for the model.
+are shown in Table 2.                                                               A token can be a word, subword, character or symbol, e.g.,
+   We have run all the experiments on a single node equipped                        the tokenizer used by Pythia-70M converts the string ‘‘It’s
+with Intel(R) Core(TM) i9-9900K @ 3.60GHz, 32 GB RAM,                               7 degrees outside.’’ into [1147, 434, 818, 7759, 3345, 15],
+a single NVIDIA GeForce RTX 4090 (24GB RAM) and 1TB                                 where 1147 corresponds to It, 434 to ’s, 818 to 7, 7759 to
+SSD (Samsung 970 EVO). This provides a consistent setting                           degrees, 3345 to outside, and 15 to the period. Given a natural
+for our experiments and ensures EnergyMeter will obtain                             language text, we use the tokenizer to convert the text into
+accurate metrics from RAPL (RAPL is not accurate on AMD                             a sequence of tokens and then feed it to the model object
+processors [22]). In addition, to have storage measurements                         calling the generate(input) method to run inference
+as accurate as possible, we benchmark the storage writing                           on the neural network. The exact implementation of the
+and reading rate using Flexible IO tester [46] and utilize the                      generate(input) method varies from model to model
+
+VOLUME 12, 2024                                                                                                                              80199
+                                                                  M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+but in its basic form it feeds the full sequence of tokens to
+the neural network to generate a new token, and then, the
+new token is incorporated at the end of the input and this is
+fed to the neural network again to generate the next token.
+This continues until a certain stopping criterion is met, e.g.,
+a maximum number of tokens have been generated or the
+neural network outputs a special token to indicate the end of
+the text. The result is a new text formed by the concatenation
+of the text given as input followed by the text generated by
+the model.
+   In this experiment, we load the weights of each model on
+the GPU memory in 16 bits (i.e., float16) and its tokenizer
+on the main memory. We then use the tokenizer to convert a
+short text sampled from The Pile [48], an 825 GB English text
+corpus used to train several LLMs, to a sequence of tokens
+and feed it to the model through the generate(input)
+method. For the generation, we set the maximum number of
+tokens for the output to be 100, which includes the original
+input tokens that in our case, are 8. In most cases, the output
+is shorter than 100 tokens because the generation is stopped
+when the model outputs an end-of-text token. We repeat this
+process 10 times for each model using the same input text and
+monitor the energy consumption using EnergyMeter. Note
+that even though the input is always the same, the output of
+the model is not the same because the text generation is a
+                                                                     FIGURE 1. Energy consumption and inference latency per token for each
+stochastic process where each next word is sampled from a            model of the Pythia suite from 70M upto 6.9B parameters. Batch size = 1.
+probability distribution over all words. Because the number
+of tokens generated in each sample varies, we calculate the
+energy and latency (execution time) required per token by
+dividing the total energy used to generate the output divided
+in the number of tokens generated. Figure 1 presents the
+energy consumed per token for different model sizes and the
+execution time.
+   We can observe that the energy consumed per token and
+latency grow as the model size increases, except for Pythia-
+410M (410 million parameters) which uses roughly the same
+energy than the larger Pythia-1B model (1 billion parameters)
+and even has a longer inference latency. In addition,
+we observe that the main energy consumer is the GPU and
+its energy consumption grows linearly with the number of
+parameters. The CPU is the second energy consumer and
+while its consumption also grows linearly, its growth rate           FIGURE 2. Energy consumption per token for CPU, GPU and, memory
+is notably slower. The energy consumption of the memory              (DRAM) for models from Pythia suite from 70M to 6.9B parameters, batch
+                                                                     size= 1.
+(DRAM) is close to 0 and is constant for all model sizes.
+   The number of parameters define the number of operations
+that need to be executed to generate each token so, it is            the operations of Pythia-1B executed faster than those of
+reasonable that for most models, the larger their size, the          Pythia-410M?
+higher their energy consumption and inference latency.                  Apart from their size, the only difference between these
+However, this logic does not apply when going from                   models is that Pythia-410M has 24 layers while Pythia-1B
+Pythia-410M to Pythia-1B. As described in PaLM [49],                 has 16 layers. Usually, deeper models, i.e., models with a
+we can approximate the number of operations executed                 higher number of deep layers like Pythia-410M, limit the
+to generate each token as twice the number of param-                 number of operations that can be parallelized as compared to
+eters. So, we see that for Pythia-410M around 820M                   broader models, i.e., models with a lower number of layers
+operations are executed in 19.93ms while for Pythia-1B               but a higher number of neurons per layer like Pythia-1B.
+approximately 2B operations are executed in 16.19ms.                 This is because all of the operations of layer n need to
+Both models have the same base architecture, so why are              be fully executed before being able to execute any of the
+
+80200                                                                                                                              VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+operations in layer n + 1 as the output of layer n is the
+input for layer n + 1. In practice, this means that when
+executing the operations of Pythia-1B, the GPU can execute
+more operations in parallel than for Pythia-410M, resulting in
+a shorter inference latency. Even though Pythia-1B is faster,
+both models consume almost the same energy per token,
+which means the energy consumption per unit of time of
+Pythia-1B is higher. This is because the GPU parallelizes the
+operations in more cores, requiring more energy per second.
+   We observe that even though latency and energy consump-
+tion are highly correlated, they are not perfectly correlated:
+Pythia-2.8B consumes more than 37% more energy than
+Pythia-1.4B but its latency is only 3.5% higher, and a
+similar situation happens with Pythia-410M and Pythia-1.4B.
+Moreover, there is a sub-linear relationship between the
+number of parameters and the energy consumed for inference.
+However, this relationship does not depend only on the
+number of parameters but also seems to be related to other
+architectural features like the number of layers. We analyze
+this further in the following experiments.
+
+B. MODEL ARCHITECTURE
+In this experiment, we analyze how the model architecture
+influences the inference time and energy consumption of
+LLMs. In particular, we will look at the number of layers, the
+parallelization of layers (e.g., the attention and feedforward
+layers in Pythia), the storing of attention weights, and finally,
+the reduction of key/query scores needed to be calculated
+thanks to the chosen modelling task in Llama v2. For
+                                                                                    FIGURE 3. Energy used, inference latency per token, and GPU utilization
+that purpose, we use two groups of different models that                            with a batch size of 1 for 3B models.
+have roughly the same number of parameters but different
+architectures:
+                                                                                    RedPajama-INCITE-3B has a latency 83% higher than
+  1) Models with 3B parameters: Pythia-2.8B, Bloom-3B,
+                                                                                    Bloom’s.
+     Open LlaMA v2 3B, Dolly v2 3B, and
+                                                                                       Bloom 3B and Open LLaMA 3B v2 are the two most
+     RedPajama-INCITE-3B.
+                                                                                    efficient models and share a characteristic: they both have
+  2) Models with 7B parameters: Pythia-6.9B, Bloom-7B,
+                                                                                    a higher GPU utilization percentage than the other models
+     Open Llama v2 7B, Dolly v2 7B, and
+                                                                                    (46.33% and 48.16% respectively), meaning they have a
+     RedPajama-INCITE-7B.
+                                                                                    higher parallelization than Pythia 2.8B, Dolly v2 3B, and
+   We load each of the models on the GPU using float16,                             RedPajama. This higher parallelization of Bloom 3B and
+query each model 10 times with the same input as for                                Open LLaMA v2 is achieved in part thanks to having fewer
+the previous experiment, and measure how the energy                                 layers than the other models. Bloom 3B has 30 layers
+is distributed among CPU, GPU, and memory per token                                 and LLaMA 3B 26, while Pythia-2.8B, Dolly v2 3B, and
+produced.                                                                           RedPajama have 32 layers.
+                                                                                       However, there are other factors in play, after all, Bloom 3B
+1) MODELS WITH 3B PARAMETERS                                                        with 30 layers is still 15% more energy and latency efficient
+Even though all models in this experiment are called ‘‘3B’’                         than Open LLaMA 3B with 26 layers. If we look at the total
+models, their sizes range from 2.77B to 3.4B parameters.                            number of parameters in Table 2, Bloom 3B has roughly 10%
+Figure 3 shows that there are significant differences in                            less parameters than Open LLaMA 3B, which is translated
+energy consumption and latency among the tested models.                             in 10% less operations that need to be calculated during
+Bloom 3B is the most efficient one, both in terms of                                inference time. This explains why Bloom 3B requires less
+energy and latency (even though it is the second largest                            energy and achieves a lower inference latency than Open
+model in terms of parameters) while RedPajama-INCITE-                               LLaMA 3B.
+3B was the least efficient one. The energy consumption of                              Interestingly, even though Dolly v2 and RedPajama-
+RedPajama-INCITE-3B is 47% higher than that of Bloom                                INCITE-3B-Base are based on the architecture of Pythia-
+3B, and this is even more extreme for latency, where                                2.8B, the energy consumption and inference latency between
+
+VOLUME 12, 2024                                                                                                                                       80201
+                                                                          M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+                                                                             computing the key/query scores that are masked due to the
+                                                                             causal nature of the language modelling task [43], which also
+                                                                             reduces its inference time.
+
+                                                                              C. BATCH SIZE
+                                                                             The batch size defines the number of samples (i.e., prompts
+                                                                             in the case of LLMs) that are processed at once in the neural
+                                                                             network and is among the most commonly tuned parameters
+                                                                             in ML because of its great impact on training and inference
+                                                                             times. In this experiment, we evaluate how the batch size
+                                                                             affects inference time and energy consumption per token in
+                                                                             LLMs. The procedure for the test is similar to the one used
+                                                                             in the previous experiments: loading the models on the GPU
+                                                                             with FP16 and using short prompts (less than 10-tokens long)
+                                                                             randomly sampled from The Pile to match the desired batch
+                                                                             size.
+                                                                                By increasing the batch size during inference, the inference
+                                                                             time per token decreases thanks to the parallelization of
+                                                                             operations. However, this comes at the cost of memory (main
+                                                                             memory or GPU memory). The maximum batch size possible
+                                                                             depends on the memory available in the specific hardware
+                                                                             used. Even though energy consumption is highly correlated
+                                                                             with latency, the higher utilization of the GPU also increases
+                                                                             the power draw per time unit.
+                                                                                Figure 5 shows the relative and total energy consumed per
+                                                                             token as the batch size increases from 1 to 100 for models
+                                                                             of the Pythia suite. We see that the energy consumption
+                                                                             decreases when the batch size increases for Pythia models
+                                                                             of all sizes. However, the reduction in energy consumption
+FIGURE 4. Energy used, inference latency per token, and GPU utilization      is greater for small models, reaching up to 20x for Pythia-
+with a batch size of 1 for different models with 7B parameters.
+                                                                             70m while ‘‘only’’ 3x for Pythia-6.9B. We also observe that
+                                                                             the inference latency per token drops significantly for all
+them differ by 10% and 11%, respectively. The Pythia suite                   models when their batch size increases (Figure 5). Again, this
+uses a technique introduced with GPT-J [50], that places                     has a greater impact on smaller models: on Pythia-70m, the
+the attention and feedforward layers in parallel to improve                  inference is 50x faster by increasing the batch size from 1 to
+its throughput by about 15%. RedPajama-INCITE-3B has                         100 prompts, while on Pythia-6.9B this is improved 7x.
+disabled this mechanism and therefore the attention and                         The latency is reduced more aggressively than the energy
+feedforward layers are not run in parallel, which explains its               consumption because the GPU requires more power to run
+slower performance compared to the other two models.                         a higher number of operations in parallel when the batch
+                                                                             size is larger, i.e., the higher the utilization, the higher
+2) MODELS WITH 7B PARAMETERS                                                 the power draw per time unit. In addition, the benefits of
+The behaviour is similar for models with 7B parameters                       increasing the batch size are less important for large models
+but the differences among them are even higher than among                    because the number of parallel operations executed in the
+the models with 3B parameters. In particular, the energy                     GPU reach the limit at lower batch sizes; from that point,
+consumption increases up to 53% from the most efficient and                  even though more operations could be run in parallel, this
+the least efficient model (for the 3B models this was 47%),                  is not possible because all GPU cores are busy. We observe
+and latency of the slowest model is almost double the one of                 this in the GPU percentage utilization recorded during the
+the slowest model (for the 3B models this was 83%).                          experiments, shown in Figure 5.
+   There is also an important difference with the previous                      We repeat the experiment with the group of models with
+case. Llama v2 7B is the most efficient model in terms                       7B parameters to analyze how different architectures interact
+of energy consumption but, not in latency, where Bloom                       with a changing number of prompts per batch. Figure 6
+7B is the fastest. This shows that even though there is a                    shows the results. We can observe that in all cases, a larger
+high correlation between latency and energy consumption,                     batch size reduces the energy consumption per token just
+latency cannot be directly taken as a measurement of energy                  like for the Pythia family. The proportion of energy and
+consumption. Llama implements several improvements for                       inference time reduced by using a larger batch size varies
+its training such as not storing the attention weights and not               across different architectures: Llama v2 7B has the greatest
+
+80202                                                                                                                                      VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+                                                                                    FIGURE 6. Relative latency and energy per token, and average and max
+                                                                                    GPU utilization for different batch sizes and 7B parameters models. 100%
+                                                                                    latency and energy correspond to a batch size equal to 1.
+
+
+                                                                                    D. QUANTIZATION
+                                                                                    HuggingFace offers the possibility to load any model in 8-
+                                                                                    and 4-bits to memory using bitsandbytes [51]. This reduces
+                                                                                    the memory footprint by 4x for 8 bits as compared to using
+                                                                                    32 bits, and up to 8x when using 4 bits. However, due to
+FIGURE 5. Relative and total energy per token for different batch sizes
+with models of the Pythia suite. 100% latency and energy correspond to a            the implementation details of bitsandbytes, inference latency
+batch size equal to 1.                                                              increases when using quantized models with a precision
+                                                                                    lower than 16 bits [52], which also increases the energy
+benefit reducing the latency per token up to 95% when                               consumption in our tests.
+using a batch size of 20 instead of 1. As explained in                                 Another option to run quantized models is to use models
+the previous experiment, Llama v2 7B implements several                             whose weights have already been quantized. We found a
+optimizations in its architecture that make it achieve the best                     model repository that has quantized the weights of Llama
+energy and latency performance when increasing its batch                            v2 7B to 8, 5, 4, 3 and 2-bit versions in GGUF format [45].
+size.                                                                               This format has been recently created to support quantization
+   In contrast, Bloom 7B shows the least benefit when                               of models and can be run on ctransformers, a port of
+increasing its batch size, ending up with a similar perfor-                         transformers that uses C++ and GGML as its backend
+mance to RedPajama-INCITE-BASE-7B when both use a                                   machine learning framework. We have tested these versions
+batch size of 20. We can see why in the GPU utilization                             and the original Llama v2 7B from HuggingFace (run with the
+percentage: when Bloom 7B uses a batch size of 5, its GPU                           original transformers library with its backend on Pytorch).
+utilization is 99% so, increasing the batch size from that                             Quantization not only decreases the memory footprint of
+point on shows no improvement. This shows that there is                             the models but also their inference energy usage and latency
+a plateau in the benefits obtained by increasing the batch                          (Figure 7). Latency always decreases from 16 bits to 2 bits,
+size that is reached when the GPU utilization is close to                           while the energy consumption savings seem to reach their
+100%, at this point increasing the batch size does not offer                        efficiency peak at 4 bits (after that the energy consumption
+any reduction in latency or energy consumption. Instead,                            remains almost constant).
+RedPajama-INCITE-BASE-7B has a low parallelization of
+operations as explained in Subsection VI-B, therefore, it is                        E. ENERGY USAGE OF A TYPICAL QUESTIONS AND
+necessary to increase the batch size to higher values than for                      ANSWERS APPLICATION
+other models to take full advantage of the GPU parallelization                      We have implemented a QA application using LangChain
+of operations.                                                                      [53], one of the most popular frameworks for the
+
+VOLUME 12, 2024                                                                                                                                      80203
+                                                                   M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+                                                                      FIGURE 8. Total energy used during vector database creation and its
+                                                                      distribution among the different components for our QA Application that
+                                                                      leverages LangChain, Transformers and ChromaDB.
+
+
+
+
+                                                                         We separate this pipeline into two stages: the first three
+                                                                      steps, which we will call the setup stage, are performed
+                                                                      only the first time the application is launched and may be
+                                                                      re-run for eventual updates. This stage is expected to be run
+                                                                      much less frequently than the second stage, called the QA
+                                                                      stage, which will be run for answering the user’s questions.
+                                                                      The setup stage is expected to be more energy-intensive and
+                                                                      computing-demanding than the QA stage because it needs to
+                                                                      load, preprocess, vectorize and store a large dataset. However,
+                                                                      the QA stage will be run much more frequently and it includes
+                                                                      querying an LLM, so it is even more important to consider its
+FIGURE 7. Energy consumption and latency per token for different
+                                                                      energy and computing demand.
+quantization configurations of the Llama v2 7B model                     We run the setup stage in our instance and use the
+(meta-llama/Llama-2-7b-chat-hf for 16 bits and                        EnergyMeter to monitor it. This is a compute-intensive task as
+TheBloke/Llama-2-7B-GGUF for all others).
+                                                                      58GB of text needs to be preprocessed, embedded, and finally
+                                                                      stored in the vector store. The whole stage took 6 hours and
+                                                                      20 minutes and used a total of 1.9 million joules or 526 Wh.
+development of LLM-based applications, Transformers [54],             In Figure 8, we can see the main energy consumption comes
+and ChromaDB [55]. Our application follows the pipeline               from the GPU, concentrating 86% of all the energy used
+proposed for QA applications by LangChain:                            during this stage. Apart from the GPU, the CPU uses around
+ 1) Loading: loading texts from unstructured files, in our            11%, the memory less than 2% and the storage (disk in this
+    case PDF files published on Arxiv during August 2023,             case) only 0.03% even though the operation reads more than
+    extracted from the Arxiv dataset [56]. This dataset               58GB and creates the database with a size of 15GB.
+    contains 18870 files with a total size of 58GB.                      Once we have run the setup stage, the QA stage starts.
+ 2) Splitting: the text is split into chunks of 1000 characters       A user asks a question and the application will reply using
+    with an overlap of 200 characters within chunks. For this         the knowledge base (i.e., the vector store) and an LLM. As we
+    operation, we use the ‘RecursiveCharacterTextSplitter‘            have seen previously, the most efficient LLM was Llama v2
+    from LangChain, which splits the texts into paragraphs            7B, so we utilize this model for our application. We utilize
+    or sentences with the given character length.                     a batch size of 1 and measure the energy consumption for
+ 3) Storage: the chunks are converted to 384-dimensional              answering 10 questions we have manually generated based
+    vectors using the model ‘‘all-MiniLM-L6-v2’’ from                 on a random sample of ten papers contained in the dataset.
+    HuggingFace Transformers (loaded on the GPU), which               The questions are the following:
+    is optimized for text similarity. These vectors are then            1) What is the bowtie framework?
+    stored in the vector store ChromaDB [55].                           2) What is a non-Hermitian system?
+ 4) Retrieval: when the user types a question, the appli-               3) How can continual learning improve complex facial
+    cation queries the vector store, which finds the most                  expression recognition?
+    similar chunks of text to the question using Euclidean              4) How can we increase the kilohertz sensitivity of a
+    distance.                                                              gravitational-wave interferometer?
+ 5) Generation: the user question and the n most similar                5) Is it possible to forecast the dynamics of BTC with
+    text chunks are given to the LLM Llama-2-7b-chat-hf,                   Markov Chains?
+    which is in charge of generating an answer.                         6) What are metal nanoclusters?
+
+80204                                                                                                                               VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+  7) What’s the hierarchical NAS framework (HNAS-Reg)?                              always remain as the most energy-consuming component
+  8) What optimization techniques can you use in deep                               when using LLMs, followed by the CPU. In addition, in
+     learning?                                                                      our measurements we are ignoring the energy consumed
+  9) What’s a Haldane model?                                                        by other components such as the cooling of the machine.
+ 10) What’s retrieval augmentation?                                                 This is usually measured as a by-product of the energy
+The energy consumption for querying the database and                                used for computing, e.g., by multiplying the energy used for
+answering a question with this LLM is shown in Figure 9.                            computing by the Power Usage Effectiveness (PUE) ratio,
+The component that utilizes the most energy is the GPU,                             so it is possible to estimate the total energy used by only
+which is needed to run inference on the LLM. On the other                           monitoring the energy devoted to computing. This means that
+extreme, the disk uses less than 0.01% of the total energy.                         if we only aim at improving the energy efficiency of the
+This is because the index used for queries in ChromaDB is                           software (instead of obtaining a concrete number of joules
+loaded in memory, so it is only necessary to read the four most                     or Wh used by the instance where the software runs,) we can
+similar chunks to the query from the disk. These chunks are                         ignore the PUE and focus on improving the energy used by
+of 1000 characters (defined in step 2) so, their size is roughly                    the computing.
+1kB each.
+                                                                                    A. STRATEGY FOR EFFICIENTLY RUNNING INFERENCE
+                                                                                    WITH LLMS
+                                                                                    Leveraging the insights obtained during the development of
+                                                                                    this work, we have put together a simple strategy for running
+                                                                                    inference with LLMs efficiently, both in terms of energy and
+                                                                                    latency (i.e., throughput). The strategy is as follows:
+                                                                                     1) Select the most efficient LLM for your task. There
+                                                                                        are several LLMs available on online platforms such as
+                                                                                        Hugging Face, published with the accuracy scores they
+                                                                                        have achieved for different tasks, e.g., on the Hugging
+FIGURE 9. Total energy for answering 10 questions with batch_size=1                     Face LLM Leaderboard [58]. It is important to choose
+with meta-llama/Llama-2-7b-chat-hf from HuggingFace.
+                                                                                        the best model not only based on its accuracy score for
+   Most of the energy consumed by the QA application in both                            the task of interest, but also the most efficient one by
+stages is attributed to the LLM. It becomes evident that we                             considering its energy efficiency and inference latency.
+have to focus on the LLM component to improve the energy                                For this, define a minimum accuracy score threshold
+efficiency of the whole application.                                                    and from all the models with a higher score than the
+                                                                                        threshold, choose the one with the smallest number
+VII. DISCUSSION                                                                         of parameters. Even though more parameters usually
+Throughout this work, we have intentionally ignored the                                 translate into a better accuracy, this is not always the
+accuracy of the LLMs we have tested. We have done this                                  case (e.g., Pythia-12B has an accuracy of 39.59 on
+because of different reasons. First, in most works, the focus                           ARC, a set of grade-school science questions [59],
+is put on the accuracy of the models and how to improve                                 while the smaller Llama-2-7b-chat-hf has an accuracy
+them while largely ignoring our topic of interest: their                                of 53.07 on the same test [58].) If there are multiple
+energy consumption. Secondly, there are several metrics to                              models with the same accuracy score and the same
+measure the accuracy of LLMs depending on the task they                                 size, use the model with the lowest number of layers as
+need to solve, so we believe it is better to perform an                                 this reduces inference latency and energy consumption
+accuracy evaluation when a specific use case is considered;                             during inference.
+energy consumption is use case agnostic instead. In addition,                        2) If available, use a quantized version of the model.
+increasing the batch size during inference only alters the                              This saves memory and has the potential to improve its
+number of operations run in parallel so this technique only                             energy efficiency up to 2x and reducing its inference
+affects energy consumption and inference time, not the                                  latency more than 3x.
+generated text or its accuracy. Finally, quantization of the                         3) Increase the batch size until reaching a GPU utiliza-
+weights in models has been shown to have detrimental effects                            tion close to 100% or until the memory is full. In
+on their accuracy [57], but how much the accuracy decreases                             Experiment VI-C, we have shown that increasing the
+depends on several factors including the specific model used,                           batch size reduces the energy consumption for all model
+the use case, and the evaluation metric.                                                families and sizes up to 20x. For interactive applications
+   Moreover, the precise distribution of energy usage among                             with a dynamic number of requests, it is possible to
+CPU, memory, GPU, and storage will vary in other machines                               batch several requests in time windows, e.g., all requests
+depending on the specific hardware they utilize. However,                               in a window of X seconds are put in a batch. In this
+we do not expect this distribution to greatly vary; GPU should                          way, an LLM can serve multiple concurrent requests
+
+VOLUME 12, 2024                                                                                                                             80205
+                                                                 M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+     with a sub-linear growth of its energy consumption and              depends heavily on the quantization implementation and
+     inference latency per request.                                      there is a point at which the energy consumption does
+                                                                         not decrease anymore.
+VIII. CONCLUSION                                                       We hope this work will contribute to the scientific
+We presented EnergyMeter, a software-based approach for             community and the industry to increase the energy efficiency
+measuring the energy consumption of different hardware              of software, and in particular LLMs, reducing their associated
+components, and evaluated the different parameters that             environmental impact. In the future, we plan to work in the
+affect the energy consumption during inference of LLMs.             development of software for dynamically modifying the con-
+   EnergyMeter is an open-source Python tool that simplifies        figuration of LLMs so their energy consumption, inference
+the measurement of the total energy used by any software            time and resource usage are automatically optimized.
+or code chunk, providing the energy consumed by the CPU,
+memory, GPU, and storage. To the best of our knowledge,              REFERENCES
+EnergyMeter is the first tool to measure the energy consump-         [1] Concise: The New Way to Read News. Accessed: Aug. 3, 2023. [Online].
+tion of storage on Linux systems thanks to its use of eBPF.              Available: https://www.concise.app
+                                                                     [2] Introducing Microsoft 365 Copilot: Your Copilot for Work. Accessed:
+EnergyMeter does not add any significant overhead while                  Aug. 3, 2023. [Online]. Available: https://blogs.microsoft.com/blog/2023/
+the measurements are taken. However, EnergyMeter has two                 03/16/introducing-microsoft-365-copilot-your-copilot-for-work/
+limitations: (1) it requires Intel processors and NVIDIA             [3] A. Borji, ‘‘Generated faces in the wild: Quantitative comparison of stable
+                                                                         diffusion, midjourney and DALL-E 2,’’ 2022, arXiv:2210.00586.
+GPUs, and (2) it requires Linux and bare metal systems. This         [4] H. Ko, S. Lee, Y. Park, and A. Choi, ‘‘A survey of recommendation
+last drawback is the most significant as many applications run           systems: Recommendation models, techniques, and application fields,’’
+on virtualized cloud instances but as discussed in Section VI,           Electronics, vol. 11, no. 1, p. 141, Jan. 2022.
+                                                                     [5] P. Villalobos, J. Sevilla, T. Besiroglu, L. Heim, A. Ho, and M. Hobbhahn,
+in many cases it is possible to profile the application on a             ‘‘Machine learning model sizes and the parameter gap,’’ 2022,
+local deployment using EnergyMeter before deploying it on                arXiv:2207.02852.
+the virtualized cloud instance.                                      [6] W. Xin Zhao et al., ‘‘A survey of large language models,’’ 2023,
+                                                                         arXiv:2303.18223.
+   Moreover, we have used EnergyMeter to profile the energy          [7] Gpt-4 Architecture, Datasets, Costs and More Leaked. Accessed:
+consumption of several state-of-the-art LLMs. Through                    Aug. 3, 2023. [Online]. Available: https://the-decoder.com/gpt-4-
+several experiments, we have obtained the following insights:            architecture-datasets-costs-and-more-leaked/
+                                                                     [8] D. Patterson, J. Gonzalez, Q. Le, C. Liang, L.-M. Munguia, D. Rothchild,
+   • It is possible to monitor the energy consumption of
+                                                                         D. So, M. Texier, and J. Dean, ‘‘Carbon emissions and large neural network
+      software with purely software-based approaches. Even               training,’’ 2021, arXiv:2104.10350.
+      though the accuracy of the approaches varies depending         [9] U.S. Energy Information Admin. Electricity Consumption by Coun-
+                                                                         try. Accessed: Aug. 3, 2023. [Online]. Available: https://www.eia.gov/
+      on the component to be monitored and the specific                  international/data/world/electricity/electricity-consumption
+      hardware used, the measurements provide valuable              [10] J. McDonald, B. Li, N. Frey, D. Tiwari, V. Gadepally, and S. Samsi, ‘‘Great
+      information to optimize energy efficiency.                         power, great responsibility: Recommendations for reducing energy for
+                                                                         training language models,’’ 2022, arXiv:2205.09646.
+   • Latency is not enough to estimate the energy consump-
+                                                                    [11] E. Strubell, A. Ganesh, and A. McCallum, ‘‘Energy and policy considera-
+      tion of LLMs. In Section VI, we have observed that                 tions for modern deep learning research,’’ in Proc. AAAI Conf. Artif. Intell.,
+      inference latency and energy consumption are correlated            vol. 34, 2020, pp. 13693–13696.
+                                                                    [12] Hugging Face. Displaying Carbon Emissions for Your Model. Accessed:
+      but in some cases, a model might have a higher energy              Aug 8, 2023. [Online]. Available: https://huggingface.co/docs/hub/model-
+      consumption and a lower inference latency than another             cards-co2
+      model.                                                        [13] Chatgpt Sets Record for Fastest-Growing User Base: Analyst Note.
+                                                                         Accessed: Aug. 3, 2023. [Online]. Available: https://www.reuters.com/
+   • Increasing the number of parameters of LLMs increases
+                                                                         technology/chatgpt-sets-record-fastest-growing-user-base-analyst-note-
+      inference latency and energy consumption sub-linearly.             2023-02-01/
+      Energy consumption grows at a higher rate than latency        [14] A. Sasha Luccioni, S. Viguier, and A.-L. Ligozat, ‘‘Estimating the
+                                                                         carbon footprint of Bloom, a 176B parameter language model,’’ 2022,
+      because the parallelization of the model operations                arXiv:2211.02001.
+      reduces latency but increases energy consumption per          [15] OpenAI. ChatGPT: Get Instant Answers, Find Creative Inspiration, and
+      time unit.                                                         Learn Something New. Accessed: Aug. 3, 2023. [Online]. Available:
+                                                                         https://openai.com/chatgpt
+   • Model architecture plays an essential role in the ability
+                                                                    [16] Introducing Microsoft 365 Copilot—Your Copilot for Work, Microsoft,
+      of parallelizing model operations. Models with the                 Redmond, WA, USA, Mar. 2023.
+      same number of parameters and a higher parallelization        [17] H. David, E. Gorbatov, U. R. Hanebutte, R. Khanna, and C. Le, ‘‘RAPL:
+                                                                         Memory power estimation and capping,’’ in Proc. ACM/IEEE Int. Symp.
+      capability are more efficient in terms of both their
+                                                                         Low-Power Electron. Design (ISLPED), Aug. 2010, pp. 189–194.
+      inference latency and energy consumption.                     [18] Kepler. (2022). Sustainable Computing IO. [Online]. Available: https://
+   • Increasing the batch size for LLMs significantly reduces            github.com/sustainable-computing-io/kepler
+      the energy used per token. The energy savings stop            [19] B. Petit, ‘‘Scaphandre,’’ Version V1.0, 2023. [Online]. Available: https://
+                                                                         github.com/hubblo-org/scaphandre
+      once the GPU is fully utilized, as it is not possible to      [20] Nvidia System Management Interface. Accessed: Aug. 8, 2023. [Online].
+      parallelize operations any further.                                Available:        https://developer.nvidia.com/nvidia-system-management-
+   • While quantization effectively reduces the memory                   interface
+                                                                    [21] K. N. Khan, M. Hirki, T. Niemi, J. K. Nurminen, and Z. Ou, ‘‘RAPL in
+      footprint, its energy consumption and latency does not             action: Experiences in using RAPL for power measurements,’’ ACM Trans.
+      always decrease with higher levels of quantization. This           Model. Perform. Eval. Comput. Syst., vol. 3, no. 2, pp. 1–26, Jun. 2018.
+
+80206                                                                                                                                 VOLUME 12, 2024
+M. F. Argerich, M. Patiño-Martínez: Measuring and Improving the Energy Efficiency
+
+
+
+
+[22] R. Schöne, T. Ilsche, M. Bielert, M. Velten, M. Schmidl, and                   [47] B. Tallis, ‘‘The Samsung 970 EVO SSD review: The 64-layer refresh,’’
+     D. Hackenberg, ‘‘Energy efficiency aspects of the AMD Zen 2 architec-               AnandTech, Apr. 2018. Accessed: Aug. 20, 2023. [Online]. Avail-
+     ture,’’ in Proc. IEEE Int. Conf. Cluster Comput. (CLUSTER), Sep. 2021,              able: https://www.anandtech.com/show/12670/the-samsung-970-evo-ssd-
+     pp. 562–571.                                                                        review
+[23] (2021). NVIDIA Developer Nvidia Management Library (NVML).                     [48] L. Gao, S. Biderman, S. Black, L. Golding, T. Hoppe, C. Foster,
+     Accessed: Aug. 10, 2023. [Online]. Available: https://developer.nvidia.             J. Phang, H. He, A. Thite, N. Nabeshima, S. Presser, and C. Leahy, ‘‘The
+     com/management-library-nvml                                                         pile: An 800GB dataset of diverse text for language modeling,’’ 2021,
+[24] A. Benoit, A. Noureddine, and R. Rouvoy. (2023). PyNVML: Python                     arXiv:2101.00027.
+     Bindings To the Nvidia Management Library. Accessed: Aug. 10, 2023.            [49] A. Chowdhery, S. Narang, J. Devlin, M. Bosma, G. Mishra, A. Roberts,
+     [Online]. Available: https://pypi.org/project/pynvml/                               P. Barham, H. W. Chung, C. Sutton, S. Gehrmann, and P. Schuh, ‘‘PaLM:
+[25] B. Rabenstein and J. Volz, ‘‘Prometheus: A next-generation monitoring               Scaling language modeling with pathways,’’ J. Mach. Learn. Res., vol. 24,
+     system (Talk),’’ 2015.                                                              no. 240, pp. 1–113, 2023.
+[26] A. Starovoitov and D. Borkmann, EBPF: A Technology for Dynamic Ker-            [50] B. Wang and A. Komatsuzaki. (2021). GPT-J-6B: A 6 Billion
+     nel Programming. Linux Foundation. [Online]. Available: https://ebpf.io/.           Parameter Autoregressive Language Model. [Online]. Available:
+[27] B. Courty et al., ‘‘MLCO2/codecarbon: V2.4.1,’’ Zenodo, Version v2.4.1,             https://arankomatsuzaki.wordpress.com/2021/06/04/gpt-j/
+     May 2024, doi: 10.5281/zenodo.11171501.                                        [51] T. Dettmers, A. Pagnoni, A. Holtzman, and L. Zettlemoyer, ‘‘Qlora:
+[28] MLCO2 and BCG GAMMA Codecarbon: Methodology. Accessed:                              Efficient finetuning of quantized LLMS,’’ in Proc. Adv. Neural Inf.
+     Aug. 9, 2023. [Online]. Available: https://mlco2.github.io/codecarbon/              Process. Syst., vol. 36, 2024.
+     methodology.html                                                               [52] T. Dettmers. (2021). How to Use Bitsandbytes With Pytorch. [Online].
+[29] D. Li, X. Chen, M. Becchi, and Z. Zong, ‘‘Evaluating the energy efficiency          Available: https://github.com/TimDettmers/bitsandbytes/issues/6
+     of deep convolutional neural networks on CPUs and GPUs,’’ in Proc.             [53] H. Chase, ‘‘LangChain,’’ Oct. 2022. [Online]. Available:
+     IEEE Int. Conf. Big Data Cloud Comput. (BDCloud), Social Comput.                    https://github.com/langchain-ai/langchain
+     Netw. (SocialCom), Sustain. Comput. Commun. (SustainCom) (BDCloud-             [54] T. Wolf, ‘‘Transformers: State-of-the-art natural language process-
+     SocialCom-SustainCom), Oct. 2016, pp. 477–484.                                      ing,’’in Proc. Conf. Empirical Methods Natural Lang. Process., Syst.
+[30] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez,             Demonstrations. Association for Computational Linguistics, Oct. 2020,
+     Ł. Kaiser, and I. Polosukhin, ‘‘Attention is all you need,’’ in Proc. Adv.          pp. 38–45. [Online]. Available: https://www.aclweb.org/anthology/2020.
+     Neural Inf. Process. Syst., 2017, pp. 1–19.                                         emnlp-demos.6
+[31] P. Henderson, J. Hu, J. Romoff, E. Brunskill, D. Jurafsky, and J. Pineau,      [55] C. Core, ‘‘Chroma: The AI-native open-source embedding database,’’
+     ‘‘Towards the systematic reporting of the energy and carbon footprints of           Version 0.4.10. Accessed: Aug. 31, 2021. [Online]. Available:
+     machine learning,’’ J. Mach. Learn. Res., vol. 21, no. 1, pp. 10039–10081,          https://github.com/chroma-core/chroma
+     2020.                                                                          [56] Arxiv Dataset. Kaggle, 2023. [Online]. Available: https://www.kaggle.
+[32] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, ‘‘BERT: Pre-training              com/dsv/6443346, doi: 10.34740/KAGGLE/DSV/6443346.
+     of deep bidirectional transformers for language understanding,’’ 2018,         [57] T. Dettmers and L. Zettlemoyer, ‘‘The case for 4-bit precision: K-
+     arXiv:1810.04805.                                                                   bit inference scaling laws,’’ in Proc. Int. Conf. Mach. Learn., 2023,
+[33] G. Hutt, V. Viswanathan, and A. Nadolski, ‘‘Deliver high performance ml             pp. 7750–7774.
+     inference with aws inferentia,’’ 2019.                                         [58] E. Beeching, C. Fourrier, N. Habib, S. Han, N. Lambert, N. Rajani,
+[34] C.-J. Wu, ‘‘Sustainable AI: Environmental implications, challenges and              O. Sanseviero, L. Tunstall, and T. Wolf. (2023). Open Llm Leaderboard.
+     opportunities,’’ Proc. Mach. Learn. Syst., vol. 4, pp. 795–813, Aug. 2022.          [Online]. Available: https://huggingface.co/spaces/HuggingFaceH4/open_
+[35] S. Kim, C. Hooper, T. Wattanawong, M. Kang, R. Yan, H. Genc, G. Dinh,               llm_leaderboard
+     Q. Huang, K. Keutzer, M. W. Mahoney, Y. S. Shao, and A. Gholami,               [59] P. Clark, I. Cowhey, O. Etzioni, T. Khot, A. Sabharwal, C. Schoenick, and
+     ‘‘Full stack optimization of transformer inference: A survey,’’ 2023,               O. Tafjord, ‘‘Think you have solved question answering? Try ARC, the
+     arXiv:2302.14017.                                                                   AI2 reasoning challenge,’’ 2018, arXiv:1803.05457.
+[36] A. Kansal, F. Zhao, J. Liu, N. Kothari, and A. A. Bhattacharya, ‘‘Virtual                                MAURICIO FADEL ARGERICH received the
+     machine power metering and provisioning,’’ in Proc. 1st ACM Symp. Cloud
+                                                                                                              degree in information systems engineering from
+     Comput., Jun. 2010, pp. 39–50.
+                                                                                                              Universidad Tecnológica Nacional, Argentina,
+[37] T. Wolf et al., ‘‘Transformers: State-of-the-art natural language process-
+     ing,’’ in Proc. Conf. Empirical Methods Natural Lang. Processing: Syst.                                  in 2014, and the M.S. degree in data science
+     Demonstrations, 2020, pp. 38–45.                                                                         from the Sapienza University of Rome, Italy,
+[38] S. Biderman, H. Schoelkopf, Q. G. Anthony, H. Bradley, K. O’Brien,                                       in 2018. He is currently pursuing the Ph.D. degree
+     E. Hallahan, M. A. Khan, S. Purohit, U. S. Prashanth, E. Raff, A. Skowron,                               in software, systems, and computing with Uni-
+     L. Sutawika, and O. Van Der Wal, ‘‘Pythia: A suite for analyzing                                         versidad Politécnica de Madrid, Spain. In 2013,
+     large language models across training and scaling,’’ in Proc. Int. Conf.                                 he received the Summer Research Scholarship
+     Mach. Learn., 2023, pp. 2397–2430.                                                                       from The University of Auckland, New Zealand,
+[39] B. Workshop et al., ‘‘Bloom: A 176B-parameter open-access multilingual         to carry out a research project in automatic link generation as a Visiting
+     language model,’’ 2022, arXiv:2211.05100.                                      Student. He has multiple years of experience as a Software Engineer and
+[40] H. Laurençon, ‘‘The bigscience roots corpus: A 1.6TB composite                 a Researcher. He has published his work at multiple international IoT and AI
+     multilingual dataset,’’ in Proc. Adv. Neural Inf. Process. Syst., vol. 35,     conferences and symposia. His current research interest includes leveraging
+     2022, pp. 31809–31826.                                                         AI algorithms for optimizing the energy efficiency of distributed applications
+[41] M. Conover, M. Hayes, A. Mathur, J. Xie, J. Wan, S. Shah,
+                                                                                    on edge and cloud.
+     A. Ghodsi, P. Wendell, M. Zaharia, and R. Xin, ‘‘Free dolly:
+     Introducing the world’s first truly open instruction-tuned llm,’’ Com-                                  MARTA PATIÑO-MARTÍNEZ is currently the
+     pany Blog Databricks, Apr. 2023. Accessed: Nov. 2023. [Online].                                         Director of the Distributed Systems Laboratory
+     Available: https://www.databricks.com/blog/2023/04/12/dolly-first-open-                                 and a Professor with Universidad Politécnica
+     commercially-viable-instr uction-tuned-llm                                                              de Madrid. She is also coordinating the
+[42] Together AI. (2021). Redpajama Models V1. [Online]. Available:                                          AI4PublicPolicy European Project delivering an
+     https://www.together.ai/blog/redpajama-models-v1                                                        Open Cloud platform for automated, scalable,
+[43] H. Touvron et al., ‘‘Llama 2: Open foundation and fine-tuned chat models,’’                             transparent, and citizen-centric policy manage-
+     2023, arXiv:2307.09288.
+                                                                                                             ment based on AI technologies. She has published
+[44] X. Geng and H. Liu. (2023). Openllama: An Open Reproduction of Llama.
+     [Online]. Available: https://github.com/openlm-research/open_llama                                      several papers on these topics in international
+[45] TheBloke, ‘‘Llama-2-7B-GGUF,’’ Hugging Face, 2023. Accessed:                                            conferences and journals. Her research interests
+     Nov. 12, 2023. [Online]. Available: https://huggingface.co/TheBloke/           include data management, distributed systems, scalability, and fault-tolerant
+     Llama-2-7B-GGUF                                                                systems. She has served on the program committee of several conferences,
+[46] J. Axboe. (2021). FIO: Flexible I/O Tester, 2021. Accessed: Nov. 30, 2023.     including VLDB, ICDCS, ICDE, middleware, SRDS, and EDCC.
+     [Online]. Available: https://fio.readthedocs.io/en/latest/
+
+VOLUME 12, 2024                                                                                                                                            80207
+

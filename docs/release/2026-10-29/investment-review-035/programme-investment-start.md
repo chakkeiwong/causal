@@ -1,0 +1,10 @@
+## Current continuation — verified batch031 and investment review
+
+Batch031 contains 122 exact edits and a 1,905-page reader; the four-page sponsor is unchanged. Forty-five complete contextual author-review records retain their exact scopes. Twenty-one independent numerical reconstruction groups pass. The final panel chapter includes the GMM uncertainty and pseudo-true-target comparison; the complete observation and recent-learning chapters have also been read. Windmeijer's original remains a bounded omission. All earlier panel studies and adverse findings survive.
+
+Post-build preservation and source checks pass. Source traceability covers 1,491 keys, 10,252 bindings and 281 distinct genuine scholarly PDFs. Compiler warnings, unresolved references and text-bound issues remain zero. The historical master checker also passes within its explicitly older scope. Frozen batch026 manuscript and numerical packages still refer to the earlier candidate and require final renewal.
+
+Next, complete the investment and recommendation review. Chapters88–91 have been read in full; record their actual findings after checking consequential arithmetic and the inherited qualification boundaries. Continue through chapters92–100, testing whether audit precision, empirical calibration, complete-workflow costs and the final recommendation are supported by the retained evidence. Reuse already verified calculations rather than regenerate old experiments. Make manuscript changes only for demonstrated defects, preserve adverse findings and keep important theory inside the reader.
+
+Plan review: author reading and exact arithmetic can strengthen publication readiness but cannot provide visual, independent or bank acceptance. The route remains sound because the statistical and economic claims are tested before changing the recommendation. Do not mutate the manuscript during builds or preservation audits. Renew affected source/PDF-bound reviews and deletion checks after any manuscript change. Final source, numerical and package identities must agree. Stop opening investigations at 01:58:35 UTC and deliver by 02:58:35 UTC.
+

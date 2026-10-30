@@ -1,0 +1,212 @@
+\section{Choosing difference-in-differences software}
+\label{sec:exec24-panel-reuse}
+A bank introducing a collections policy in selected branches needs a statement
+about whose outcome changes, over which dates, and under which counterfactual
+trend. A two-period comparison and a staggered event study are different
+contracts even when both return a coefficient labelled a treatment effect.
+The earlier software survey establishes the documented roles of DRDID and
+did2s. Inspection of the pinned implementations now makes the proposed reuse
+choice more precise: retain their original R implementations as conditional
+references, with explicit sample and uncertainty contracts. Neither package is
+admitted as a verified native capability by this source review.
+\citep{v12_sw_drdid,v12_sw_did2s,exec24_drdid_reuse_source,exec24_did2s_reuse_source}
+
+\subsection{The target precedes the computation}
+Let $D$ indicate membership in the group treated after the baseline date,
+$Y_t(d)$ denote the outcome at date $t$ under treatment $d$, and $X$ collect
+pre-treatment information. The two-period target is
+\[
+ \tau_T=\mathbb E[Y_1(1)-Y_1(0)\mid D=1].
+\]
+A causal reading requires a suitable consistency and interference regime,
+no anticipation in the baseline outcome, support for comparison, and a
+conditional parallel-trend restriction such as
+\[
+ \mathbb E[Y_1(0)-Y_0(0)\mid D=1,X]
+ =\mathbb E[Y_1(0)-Y_0(0)\mid D=0,X].
+\]
+For an observed panel, writing $\Delta Y=Y_1-Y_0$, this gives the conditional
+comparison $\mathbb E[\Delta Y\mid D=1,X]-\mathbb E[\Delta Y\mid D=0,X]$
+then averaged over the treated population. Repeated cross-sections require
+an additional account of population composition across dates; replacing
+matched changes by independent snapshots is not a storage-only change.
+The package's documented ATT and separate panel/cross-section modes preserve
+these distinctions; software output does not certify the identifying
+restrictions.~\citep{v12_sw_drdid,exec24_drdid_reuse_source}
+
+An authored financial example shows why the target field is mandatory.
+Suppose two equally prevalent borrower strata have gains of USD 20 and USD 100,
+while treatment probabilities are $4/5$ and $1/5$. The population ATE is
+USD 60, but the treated-population effect is
+$(4/5)20+(1/5)100=36$ dollars. With a stipulated cost of USD 40 per treated
+borrower, substituting the ATE reports a margin of USD 20 where the intended
+ATT margin is USD $-4$. These are exact consequences of an invented law,
+not measured collections benefits or native package estimates.
+\citep{exec24_panel_reuse_reference}
+
+\subsection{DRDID: modes, retained observations and nuisance contracts}
+The selected DRDID 1.3.0 source is commit
+\texttt{b63f66d7e35bb6940a139a03cb2d38988555986a}.
+The top-level call dispatches separately to improved and traditional panel
+and repeated-cross-section routines. It returns the ATT, uncertainty,
+bootstrap draws when requested, and an influence function when requested;
+the improved path also returns a propensity-fit flag. A wrapper should
+retain these diagnostics and the actual resolved options. In the inspected
+preprocessor, an unrecognised estimation mode warns and changes to the
+improved mode, and an unsupported bootstrap mode can warn and change to the
+weighted mode. An API that stores only the user's requested option would
+therefore misdescribe the calculation.~\citep{exec24_drdid_reuse_source}
+
+The preprocessor requires numeric time, treatment and supplied identifiers,
+checks duplicate identifier--time cells and group constancy, sorts rows,
+and accepts exactly two dates and two observed treatment groups. The
+implementation uses the numeric treatment indicator algebraically; the
+proposed adapter must explicitly validate the documented zero/one coding
+rather than infer correctness from the count of distinct values. In the
+panel path it requests a balanced panel and checks invariant covariates,
+group membership and weights. It then warns about missing values, removes
+incomplete rows and drops collinear covariates using a QR tolerance of
+$10^{-6}$. The returned before/after outcome vectors no longer carry the
+original keys in this routine. The sample contract must record each exclusion
+and verify the paired keys after every filtering step, including asymmetric
+missing outcomes. Static inspection identifies a qualification case; it does
+not establish an observed native misalignment.~\citep{exec24_drdid_reuse_source}
+
+The improved panel routine caps fitted propensities at $1-10^{-6}$ and
+applies the default $0.995$ trimming threshold to controls. It constructs
+\[
+ \widehat\tau_{\rm imp}
+ =\frac{\mathbb P_n[ w_i s_i
+       \{1-(1-D_i)/(1-\widehat p_i)\}
+       (\Delta Y_i-\widehat m_i)]}{\mathbb P_n[w_iD_i]},
+\]
+where $\mathbb P_n$ is the sample mean, $w_i$ is the normalized input weight,
+$s_i$ is the retained indicator, $\widehat p_i$ the capped propensity, and
+$\widehat m_i$ the fitted control change. The traditional panel path instead
+normalizes its treated and odds-weighted control components separately and
+includes nuisance-estimation terms in its influence calculation. The improved
+repeated-cross-section path includes four group/date regressions and extra
+adjustment terms; it is not the panel expression with the identifier deleted.
+\citep{exec24_drdid_reuse_source}
+
+A supplied-nuisance fixture makes the normalization distinction visible.
+Take two treated residual changes $(10,14)$, two control residual changes
+$(2,4)$, unit weights, and control propensities $(1/2,999/1000)$. The control
+odds are $(1,999)$. Without trimming, the improved-style expression is
+$(24-2-999\cdot4)/2=-1987$, whereas the separately normalized expression is
+$12-(2+999\cdot4)/1000=4001/500$. Removing the high-propensity control gives
+11 and 10 respectively. These nuisance values are supplied to a mathematical
+fixture; they are not claimed to satisfy either routine's fitted calibration
+equations. The example neither ranks the estimators nor refutes double
+robustness. It requires an adapter to preserve the actual threshold,
+normalization and nuisance method instead of silently interchanging them.
+\citep{exec24_drdid_reuse_source,exec24_panel_reuse_reference}
+
+The inspected analytic paths compute standard errors from the individual
+influence vector, while the multiplier helper draws one multiplier per vector
+entry. There is no branch-cluster argument in these inspected signatures.
+A panel subject is not automatically a branch-independent sampling unit.
+A bank using branch assignment must establish the appropriate uncertainty
+procedure, or decline to report qualified uncertainty. The traditional path
+also warns on propensity nonconvergence and stops on missing coefficients or
+singular designs. Native qualification must distinguish a returned point
+estimate from an accepted fit and from accepted uncertainty.
+\citep{exec24_drdid_reuse_source}
+
+\subsection{did2s: generated outcomes retain first-stage uncertainty}
+The selected did2s 1.2.1 source is commit
+\texttt{31febce3581304c3f6e8a8ef91d07e20175d7c41}.
+It estimates the first-stage outcome relation on untreated observations,
+predicts the untreated outcome for the full data, and regresses the resulting
+residual outcome on the second-stage design. Let $X$ be the first-stage
+matrix, $X_0$ its untreated-row version with treated rows zeroed, and $Z$ the
+second-stage matrix. In an illustrative full-rank unweighted case,
+\[
+ \widehat\gamma=(X_0'X_0)^{-1}X_0'Y,
+ \qquad
+ \widehat\beta=(Z'Z)^{-1}Z'(Y-X\widehat\gamma).
+\]
+Consequently the response to an outcome perturbation $dY$ contains both
+$(Z'Z)^{-1}Z'dY$ and the correction
+$-(Z'Z)^{-1}Z'X(X_0'X_0)^{-1}X_0'dY$.
+Treating the generated baseline as fixed deletes the second term.
+The inspected analytic path combines first- and second-stage influences,
+then sums them within the supplied cluster before forming outer products.
+Its bootstrap path resamples clusters and refits both stages.
+\citep{exec24_did2s_reuse_source}
+
+For a minimal authored illustration, estimate a constant untreated baseline
+from two independent unit-variance observations and subtract it from the mean
+of two independent treated observations. Conditional on a fixed baseline,
+the variance is $1/2$. With the estimated independent baseline, the variance
+is $1/2+1/2=1$. This exact variance identity motivates preserving the first
+stage; it is not a replication of did2s inference or a universal factor-of-two
+correction. Actual clustered event-study inference depends on the design,
+first-stage support and sampling law.~\citep{exec24_panel_reuse_reference}
+
+The source also exposes conversion and numerical obligations. Rows removed
+by the second-stage fit are used to align the data and first-stage residuals;
+weights enter through square roots in the analytic covariance. The returned
+object is a \texttt{fixest} summary with a replacement covariance, so exporting
+only coefficients and ordinary regression standard errors loses the method's
+uncertainty. Both fitting calls suppress selected warnings/notes, and the
+final summary suppresses warnings; an operator must retain explicit support,
+rank and failure diagnostics rather than equate silence with qualification.
+\citep{exec24_did2s_reuse_source}
+
+The helper named \texttt{robust\_solve\_XtX} is documented as QR based, but its
+body forms $X'X$, attempts a direct solve and falls back on an SVD of that
+cross-product after an error. Its matrix right-hand side is interpreted by
+shape: the row-count branch precedes the column-count branch. If $X$ is a
+square diagonal matrix with diagonal $(2,3)$ and an identity matrix is supplied
+as an already formed right-hand side, the intended solution has diagonal
+$(1/4,1/9)$; interpreting that matrix as raw responses gives $(1/2,1/3)$.
+This algebraic witness motivates an explicit right-hand-side representation
+and numerical qualification. Reachability from an actual full-rank did2s
+fit has not been established; no native failure is claimed.
+\citep{exec24_did2s_reuse_source,exec24_panel_reuse_reference}
+
+The separate event-study convenience function provides a further reason to
+qualify narrow entrypoints. Its did2s branch sets the cluster variable to the
+unit identifier; its neighbouring estimator branches have their own calls,
+sample handling and reference periods. An array of estimates under a common
+plotting interface is therefore not automatically a matched comparison.
+The proposed initial profile uses an explicit did2s call, declared cluster,
+first-stage support, omitted periods and event aggregation, with simultaneous
+path inference separately justified.~\citep{exec24_did2s_reuse_source}
+
+\subsection{Reuse choices, distribution and qualification}
+For both packages, an original R worker is the conditional integration route:
+it preserves the inspected calculations and their ecosystem. A direct Python,
+Java or C++ port would also inherit responsibility for formula expansion,
+rank decisions, first-stage support, covariance and failure propagation. No
+measured benefit currently justifies that full port. The existing did,
+fixest, PyFixest and supplied-equation references remain alternatives selected
+by target and assumptions; sharing an estimator label does not establish parity.
+\citep{exec24_drdid_reuse_source,exec24_did2s_reuse_source,v12_sw_drdid,v12_sw_did2s}
+
+DRDID declares GPL-3, R at least 3.5, and dependencies including trust, BMisc,
+Rcpp and fastglm, with compilation required. The GPL text's source,
+modification, notice and corresponding-source provisions are retained as
+review obligations for any proposed distribution. did2s declares MIT plus its
+package notice, R at least 3.5.0 and fixest at least 0.13.2, with further
+imports including boot, Matrix, did and other estimators. Its own package
+metadata says compilation is unnecessary; that is not a statement about the
+entire dependency environment. The package notice and standard MIT text are
+inspected together. Neither review clears every transitive artifact or decides
+the legal status of a future combined distribution. A process boundary alone
+is not treated as a rights determination.~\citep{exec24_drdid_reuse_source,exec24_did2s_reuse_source}
+
+A method owner must approve the target, counterfactual trend, interference and
+sampling regime. An integration maintainer must preserve keys, resolved
+options, diagnostics and exact environment; a rights reviewer must resolve
+distribution and dependency obligations; and an evaluation owner must register
+matched public/generated trials. Those trials include duplicate and missing
+panel cells, nonbinary coding, changing weights, unsupported overlap,
+nonconvergence, rank loss, unseen fixed-effect support, cluster resampling,
+failed replicates and event-path covariance. Complete costs include source
+and dependency maintenance, data conversion, both fitting stages, covariance,
+resampling, failed attempts and review. No price, speed advantage or bank ROI
+is inferred here. The decisions close the proposal's reference disposition
+only; native integration, empirical performance and broad survey completion
+remain open.~\citep{exec24_drdid_reuse_source,exec24_did2s_reuse_source}

@@ -1,0 +1,606 @@
+                        Adapting Text Embeddings for Causal Inference
+
+
+
+               Victor Veitch∗                          Dhanya Sridhar∗                            David M. Blei
+
+                                Department of Statistics and Department of Computer Science
+                                                    Columbia University
+
+
+
+                             Abstract                             1    INTRODUCTION
+
+                                                                  This paper is about causal inference on text.
+       Does adding a theorem to a paper affect its
+       chance of acceptance? Does labeling a post                 Example 1.1. Consider a corpus of scientific papers sub-
+       with the author’s gender affect the post pop-              mitted to a conference. Some have theorems; others do
+       ularity? This paper develops a method to es-               not. We want to infer the causal effect of including a the-
+       timate such causal effects from observational              orem on paper acceptance. The effect is confounded by
+       text data, adjusting for confounding features of           the subject of the paper—more technical topics demand
+       the text such as the subject or writing quality.           theorems, but may have different rates of acceptance. The
+       We assume that the text suffices for causal ad-            data does not explicitly list the subject, but it does include
+       justment but that, in practice, it is prohibitively        each paper’s abstract. We want to use the text to adjust
+       high-dimensional. To address this challenge,               for the subject and estimate the causal effect.
+       we develop causally sufficient embeddings, low-            Example 1.2. Consider comments from Reddit.com, an
+       dimensional document representations that pre-             online forum. Each post has a popularity score and the
+       serve sufficient information for causal identi-            author of the post may (optionally) report their gender.
+       fication and allow for efficient estimation of             We want to know the direct effect of a ‘male’ label on
+       causal effects. Causally sufficient embeddings             the score of the post. However, the author’s gender may
+       combine two ideas. The first is supervised di-             affect the text of the post, e.g., through tone, style, or topic
+       mensionality reduction: causal adjustment re-              choices, which also affects its score. Again, we want to
+       quires only the aspects of text that are predictive        use the text to accurately estimate the causal effect.
+       of both the treatment and outcome. The second
+       is efficient language modeling: representations            In these two examples, the text encodes features such as
+       of text are designed to dispose of linguistically          the subject of a scientific paper or the writing quality of
+       irrelevant information, and this information is            a Reddit comment. These features bias the estimation of
+       also causally irrelevant. Our method adapts lan-           causal effects from observed text documents. By assump-
+       guage models (specifically, word embeddings                tion, the text carries sufficient information to identify the
+       and topic models) to learn document embed-                 causal effect; we can use adjustment methods from causal
+       dings that are able to predict both treatment and          inference to estimate the effects. But in practice we have
+       outcome. We study causally sufficient embed-               finite data and the text is high dimensional, prohibiting
+       dings with semi-synthetic datasets and find that           efficient causal inference. The challenge is to reduce
+       they improve causal estimation over related em-            the text to a low-dimensional representation that suffices
+       bedding methods. We illustrate the methods by              for causal identification and enables efficient estimation
+       answering the two motivating questions—the                 from finite data. We refer to these text representations as
+       effect of a theorem on paper acceptance and the            causally sufficient embeddings.
+       effect of a gender label on post popularity. Code
+                                                                  The method for learning causally sufficient embeddings
+       and data available at github.com/vveitch/causal-
+                                                                  is based on two ideas. The first comes from examin-
+       text-embeddings-tf2.
+                                                                  ing causal adjustment. Causal adjustment only requires
+                                                                  the parts of text that are predictive of the treatment and
+   ∗
+       Equal contribution.                                        outcome. Causally sufficient embeddings preserve such
+
+Proceedings of the 36th Conference on Uncertainty in Artificial
+Intelligence (UAI), PMLR volume 124, 2020.
+predictive information while discarding the parts of text
+that are irrelevant for causal adjustment. We use super-
+vised dimensionality reduction to learn embeddings that
+predict the treatment and outcome.
+The second idea for learning the embeddings comes from
+research on language modeling [e.g., Mik+13b; Mik+13a;
+Dev+18; Pet+18]. Outcomes such as paper acceptance or              Figure 1: Models for the ATT (left) and NDE (right).
+comment popularity are judgments made by humans, and
+human judgments stem from processing natural language.
+                                                               estimate treatment effects when confounders are observed,
+Thus, when performing causal adjustment for text, the
+                                                               but missing or noisy treatments are inferred from text. In
+confounding aspects must be linguistically meaningful.
+                                                               contrast, we are concerned with text as the confounder.
+Consequently, causally sufficient embeddings model the
+language structure in text.                                    A second area of related work addresses causal inference
+                                                               with unobserved confounding when there is an observed
+We combine these two ideas to adapt modern methods for
+                                                               proxy for the confounder [KM99; Pea12; KP14; Mia+18;
+language modeling — BERT [Dev+18] and topic models
+                                                               Kal+18]. They usually assume that the observed proxy
+[Ble+03] — in service of causal inference. Informally, we
+                                                               variables are noisy realizations of the unobserved con-
+learn embeddings of text documents that retain only in-
+                                                               founder, and then derive conditions under which causal
+formation that is predictive of the treatment and outcome,
+                                                               identification is possible. One view of our problem is
+and relevant for language understanding.
+                                                               that each unit has a latent attribute (e.g., topic) such that
+We empirically study these methods. Any empirical eval-        observing it would suffice for causal identification, and
+uation must use semi-synthetic data since ground truth         the text is a proxy for this attribute. Unlike the proxy vari-
+causal effects are not available in real data. A key chal-     able approach, however, we assume the text fully captures
+lenge is that text is hard to simulate, and realistic models   confounding. Our interest is in methods for finite-sample
+that explicitly relate text to confounding aspects are not     estimation rather than infinite-data identification.
+available. We show how to circumvent these issues by
+                                                               Finally, there is work on adapting representation learning
+using real text documents and extra observed features of
+                                                               for effect estimation by directly optimizing causal criteria
+the documents as confounders. The empirical evaluation
+                                                               such as balance and overlap [Joh+16; Joh+18; Joh+19;
+demonstrates the advantages of supervised dimensionality
+                                                               Joh+20; DF]. As in this paper, Shi et al. [Shi+19] and
+reduction and language modeling for producing causally
+                                                               Veitch et al. [Vei+19] learn representations by predicting
+sufficient embeddings. Code and data to reproduce the
+                                                               the treatment and outcome. We extend these ideas to learn
+studies will be publicly available.
+                                                               text representations.
+Contributions. The contributions of this paper are the
+following: 1) Adapting modern text representation learn-
+ing methods to estimate causal effects from text doc-
+                                                               2   BACKGROUND
+uments; 2) Establishing the validity of this estimation
+procedure; 3) A new approach for empirically validat-          We begin by fixing notation and recalling some ideas from
+ing causal estimation problems with text, based on semi-       the estimation of causal effects. Each statistical unit is
+synthetic data.                                                a document represented as a tuple Oi = (Yi , Ti , Wi ),
+                                                               where Yi is the outcome, Ti is the treatment, and Wi is
+Related work. This paper connects to several areas of          the sequence of words. The observed dataset contains
+related work.                                                  n observations drawn independently and identically at
+The first area is causal inference for text. Roberts et al.    random from a distribution, Oi ∼ P .
+[Rob+18] also discuss how to estimate effects of treat-        We review estimation of the average treatment effect on
+ments applied to text documents. They rely (in part) on        the treated (ATT) and the natural direct effect (NDE).
+topic modeling to reduce the dimension of the text. In         For both, we assume that the words are sufficient for
+this paper, we adapt topic modeling to produce represen-       adjustment.
+tations that predict the treatment and outcome well, and
+demonstrate empirically that this strategy improves upon       ATT. The ATT is
+unsupervised topic modeling for causal effect estimation.
+                                                               ψ = E[Y | do(T = 1), T = 1]−E[Y | do(T = 0), T = 1].
+In other work, Egami et al. [Ega+18] reduce raw text to
+interpretable outcomes; Wood-Doughty et al. [WD+18]            Pearl’s do notation indicates that the effect of interest is
+                                                               causal: what happens if we intervene by adding a theorem
+to a paper, given that we observe that it has a theorem?          3    CAUSAL TEXT EMBEDDINGS
+We assume that the words Wi carry sufficient information
+to adjust for confounding (common causes) between Ti              Following the previous section, we want to produce esti-
+and Yi . Figure 1 on the left depicts this assumption. We         mates of the propensity score g(zi ) and the conditional
+define Zi = f (Wi ) to be the part of Wi which blocks             expected outcome Q(ti , zi ). We assume that some prop-
+all ‘backdoor paths’ between Yi and Ti . The causal effect        erties of the text zi = f (wi ) suffice for identification.
+is then identifiable from observational data as:                  These properties are generally lower-dimensional than the
+ ψ = E[E[Y | Z, T = 1] − E[Y | Z, T = 0] | T = 1].                text wi itself and are linguistically meaningful (i.e., they
+                                              (2.1)               have to do with what the language means) But, we do not
+                                                                  directly observe the confounding features zi . Instead, we
+Our task is to estimate the ATT ψ from a finite data sam-         observe the raw text.
+ple. Define Q(t, z) = E[Y | t, z] to be the conditional
+expected outcome and Q̂ to be an estimate for Q. Define           A simple approach is to abandon zi and learn models
+g(z) = P(T = 1 | z) to be the propensity score and ĝ to          for the propensities and conditional outcomes directly
+be an estimate for g. The “plugin” estimator of 2.1 is            from the words wi . Since wi contains all information
+                                                               about zi , the direct adjustment will also render the causal
+             1 Xh                          i           1          effect identifiable. Indeed, in an infinite-data setting this
+ψ̂ plugin =
+                                                         P
+                    Q̂(1, zi ) − Q̂(0, zi ) ĝ(zi )/       i ti . approach would be sound. However, the text is high-
+             n i                                       n
+                                                          (2.2)   dimensional and with finite data, this approach produces
+Here ψ is estimated by a two-stage procedure: First esti-         a high-variance estimator.
+mate Q̂ and ĝ with predictive models; then plug Q̂ and ĝ        To this end, our goal is to reduce the words wi to a feature
+into a pre-determined statistic to compute the estimate of        zi that contains sufficient information to render the causal
+the ATT. What is important is that the estimator depends          effect identifiable and that allows us to efficiently learn
+on zi only through Q̂(t, zi ) and ĝ(zi ).                        the propensity scores and conditional outcomes with a
+The Q-only estimator, which only uses the conditional             finite sample of data.
+expected outcomes, is                                             Our strategy is to use the words of each document to
+                1    X     h                        i             produce an embedding vector λ(w) that captures the con-
+       ψ̂ Q = P          ti Q̂(1, zi ) − Q̂(0, zi ) .     (2.3)   founding aspects of the text. Using the embedding, the
+                i ti i
+                                                                  propensity score is is g(λ(w)) = P(T = 1 | λ(w)). The
+                                                                  conditional outcomes are Q(t, λ(w)) = E[Y | t, λ(w)].
+NDE. The direct effect is the expected change in out-             The embeddings λ(w) are causally sufficient if we can
+come if we apply the treatment while holding fixed any            use them to estimate the propensities and conditional out-
+mediating variables that are affected by the treatment and        comes required by the downstream effect estimator. This
+that affect the outcome. Figure 1 on the right depicts the        result builds on [RR83]; Theorem 3.1 makes this formal.
+text as mediator of the treatment and outcome. For the
+estimation of the direct effect, we take Z = f (W) to be          In finite sample, additional domain knowledge is useful
+the parts of Wi that mediate T and Y . The natural direct         for finding these embeddings more efficiently. With text
+effect of treatment β is average difference in outcome            in particular, we assume that features that are useful for
+induced by giving each unit the treatment, if the distribu-       language understanding are also useful for eliminating
+tion of Z had been as though each unit received treatment.        confounding. The reason is that humans interpret the
+That is,                                                          language and then produce the outcome based on aspects
+                                                                  such as topic, writing quality or sentiment.
+β = EZ|T =1 [E[Y | Z, do(T = 1)]−E[Y | Z, do(T = 0)]].
+                                                                  To produce causally sufficient embeddings, we will adapt
+In the Reddit example, this is the expected difference in         models for language understanding and refine the rep-
+score between a post labeled as written by a man versus           resentations they produce to predict the treatment and
+labeled as written by a woman, where the expectation is           outcome. Informally, these models take in words wi and
+taken over the distribution of posts written by men.              produce a tuple (λi , Q̃(ti , λi ), g̃(λi )), which contains an
+                                                                  embedding λi and estimates of g and Q that use that em-
+Mathematically, β is equivalent to ψ in (2.1). The causal
+                                                                  bedding. Such models provide an effective black-box tool
+parameters have different interpretations depending on
+                                                                  for both distilling the words into the information relevant
+the graph. Under minimal conditions, the NDE may be
+                                                                  to prediction problems, and for solving those prediction
+estimated from observational data [Pea14]. The estima-
+                                                                  problems.
+tors for β are the same as those for the ATT, given in (2.2)
+and (2.3) [LR11, Ch. 8].                                          Finally, to estimate the average treatment effect, we follow
+the strategy of Section 2. Fit the embedding-based predic-        held-out units. For example, using the plug-in estimator
+tion model to produce estimated embeddings λ̂i , propen-          (2.2),
+sity scores g̃(λ̂i ) and conditional outcomes Q̃(ti , λ̂i ).
+                                                                              1X
+Then, plug these values into a downstream estimator.                ψ̂ Q :=       Q̃(1, λ̂n,i ; γ̂nQ ) − Q̃(0, λ̂n,i ; γ̂nQ ). (3.1)
+                                                                              n i
+We develop two methods that produce causally sufficient
+document embeddings: causal BERT and the causal topic             The estimation procedure is the same for the NDE.
+model.
+                                                                  Causal Amortized Topic Model. We adapt the standard
+Causal BERT. We modify BERT, a state-of-the-art                   topic model [Ble+03], a generative model of text docu-
+language model [Dev+18]. Each input to BERT is the                ments. Formally, a document wi (a sequence of word
+document text, a sequence of word-piece tokens wi =               tokens) is generated from k latent topics by:
+(wi1 , . . . , wil ). The model is tasked with producing three
+kinds of outputs: 1) document-level embeddings, 2) a                                      ri ∼ N (0, I)
+map from the embeddings to treatment probability, 3) a                                   θi = softmax(ri )
+map from the embeddings to expected outcomes for the
+                                                                                        wij ∼ Cat(θi> β)
+treated and untreated.
+The model assigns an embedding ξw to each word-piece              The vector θi represents the document’s topic proportions,
+w. It then produces a document-level embedding for                drawn from log normal prior distribution. It is the embed-
+document text wi as λi = f ((ξwi1 , . . . , ξwil ), γ U ) for a   ding λ(wi ) of the document. The parameters β represent
+particular function f . The embeddings and global pa-             topics.
+rameter γ U are trained by minimizing an unsupervised             Typically, this model is fit with variational inference,
+objective, denoted as LU (wi ; ξ, γ U ). Informally, random       which seeks to maximize a lower bound of the marginal
+word-piece tokens are censored from each document and             log likelihood of the documents. It is a sum of per-
+the model is tasked with predicting their identities.1            document bounds. Each is
+Following Devlin et al. [Dev+18], we use a fine-tuning
+                                                                  Li (β, η) = Eq(θ;η) [p(wi | θi ; β)] − DKL (q(θi ; η), p(θi )).
+approach to solve the prediction problem. We add a logit-
+linear layer mapping λi → g̃(λi ; γ g ) and a 2-hidden            The first term pushes the variational distribution over doc-
+layer neural net for each of λi → Q̃(0, λi ; γ Q0 ) and           ument representations q(θ; η) to reconstruct the observed
+λi → Q̃(1, λi ; γ Q1 ). We learn the parameters for the           documents well. This term encourages language model-
+embedding model and the prediction model jointly. This            ing.
+supervised dimensionality reduction adapts the embed-
+dings to be useful for the downstream prediction task, i.e.,      We use amortized inference to define a variational family
+for causal inference.                                             q(θ | w; η) that depends on the observed documents.
+                                                                  It uses a feedforward neural network called an encoder
+We write γ for the full collection of global parameters.          with parameters η to produce a representation θ. For
+The final model is trained as:                                    each document, the encoder produces two vectors (µi , Σi )
+                                                                  such that q(θi | w; η) = N (µi , Σi ). This is the amortized
+             λ̂i = f ((ξˆn,wi1 , . . . , ξˆn,wil ), γ̂ U )
+                                                                  topic model (ATM).
+            ˆ γ̂ = argmin 1
+                                 X
+            ξ,                          L(wi ; ξ, γ),             We adapt the training objective of this model to produce
+                      ξ,γ    n i
+                                                                  representations that predict the treatment and outcome
+where the objective is designed to predict both the treat-        well. A logit linear mapping θi → g̃(θi ; γ g ) produces
+ment and outcome. It is                                           propensity scores from the document representation. A
+                                            2                    linear mapping θi → Q̃(ti , θi ; γ Q ) produces expected
+        L(wi ; ξ, γ) = yi − Q̃(ti , λi ; γ)                       outcomes from the document representations. The final
+                                                                  loss is
+                                                 
+                       + CrossEnt ti , g̃(λi ; γ)
+                           + LU (wi ; ξ, γ).                          L(wi ; η, β, γ) = −Li (β, η)
+                                                                                       + Eq(θ|w;η) [CrossEnt ti , g̃(θi ; γ)]
+Effect estimation. Computing causal effect estimates
+simply requires plugging in the propensity scores and                                  + Eq(θ|w;η) [yi − Q̃(ti , θi ; γ)2 ].
+expected outcomes that the trained model predicts on the          It encourages good reconstruction of both the observed
+   1
+    BERT also considers a ‘next sentence’ prediction task,        documents, and the treatment and outcome under the
+which we do not use.                                              learned representation. The objective is minimized with
+stochastic optimization, forming noisy gradients using the         there is some function λ of the words such that
+reparameterization trick. We refer to this model as the
+                                                                       1. (identification) λ satisfies the condition of Theo-
+causal amortized topic model (Causal ATM).
+                                                                          rem 3.1.
+Validity. The central idea of the method is that instead               2. (consistency) kη(λ(Wi )) − η̃(λ̂i )kP,2 → 0 as n →
+of adjusting for all of the information in w it suffices                  ∞, where η̃ is the estimated conditional outcome
+to adjust for the limited information in λ(w). We now                     and propensity model.
+formalize this observation and establish the validity of               3. (well-behaved estimator) k∇η φ(t, y, η)k2 ≤ C for
+our estimation procedure. To avoid notational overload,                   some constant C ∈ R+ ,
+we state the result for only the ATT. The same arguments                                          p
+carry through for the NDE as well.                                 then, ψ̃({(ti , yi , λ̂i )}; η̃) −→ ψ.
+                                                                   Remark 3.3. The requirement that the estimator ψ̂ be-
+A key observation is that for z to be confounding, it must
+                                                                   haves asymptotically as a sample mean is not an impor-
+causally influence both treatment assignment and the out-
+                                                                   tant restriction; most commonly used estimators have this
+come. Accordingly, z must be predictive of both the
+                                                                   property [Ken16]. The third condition is a technical re-
+treatment and outcome. Put differently: any information
+                                                                   quirement on the estimator. In the cases we consider, it
+in w that is not predictive for both T and Y is not relevant
+                                                                   suffices that the range of Y and Q are bounded and that g
+for z, is not confounding, and may be safely excluded
+                                                                   is bounded away from 0 and 1. This later requirement is
+from λ(w). Or, if λ(w) carries the relevant information
+                                                                   the common ‘overlap’ condition, and is anyway required
+for the prediction task then it is also causally sufficient.
+                                                                   for the estimation of the causal effects.
+The next result formalizes the observation that predictive
+sufficiency is also causal sufficiency.                            The proof is given in the appendix.
+Theorem 3.1. Suppose λ(w) is some function of the                  As with all causal inference, the validity of the procedure
+words such that at least one of the following is λ(W)-             relies on uncheckable assumptions that the practitioner
+measurable:                                                        must assess on a case-by-case basis. Particularly, we
+  1. (Q(1, W), Q(0, W)),                                           require that:
+  2. g(W),
+  3. g((Q(1, W), Q(0, W)))                                   or        1. (properties z of) the document text renders the effect
+     (Q(1, g(W)), Q(0, g(W))).                                            identifiable,
+If adjusting for W suffices to render the ATT identifiable             2. the embedding method extracts semantically mean-
+then adjusting for only λ(W) also suffices. That is, ψ =                  ingful text information relevant to the prediction of
+E[E[Y | λ(W), T = 1] − E[Y | λ(W), T = 0]].                               both t and y,
+
+In words: the random variable λ(W) carries the infor-                  3. the conditional outcome and propensity score models
+mation about W relevant to the prediction of both the                     are consistent.
+propensity score and the conditional expected outcome.
+While λ(W) will typically throw away much of the infor-            Only the second assumption is non-standard. In practice,
+mation in the words, Theorem 3.1 says that adjusting for           we use the best possible embedding method and take the
+it suffices to estimate causal effects. Item 1 is immediate        strong performance on (predictive) natural language tasks
+from (2.1), and says it suffices to preserve information           in many contexts as evidence that the method effectively
+about Y . Item 2 is a classic result of [RR83, Thm. 3],            extracts information relevant to prediction tasks. Addi-
+and says it suffices to preserve information about T . Item        tionally, we use the domain knowledge that features which
+3 weakens our requirements further: we can even throw              are useful for language understanding are also relevant
+away information relevant to Y , so long as this informa-          for adjusting for confounding. Informally, assumption 2
+tion is not also relevant to T (and vice versa).                   is satisfied if we use a good language model, so we satisfy
+                                                                   it by using the best available model.
+The next result extends this identification result to es-
+timation, establishing conditions for the validity of our
+estimation procedure.                                              4        EXPERIMENTS
+Theorem 3.2. Let η(z) = (E[Y | T = 0, z], E[Y | T =
+1, z], P[T = 1 | z)) be the conditional outcomes and               We now empirically study the causally sufficient embed-
+                                                                   dings produced by causal BERT and causal ATM.2 The
+propensities    given z. Suppose that ψ̂({(ti , yi , zi )}; η) =
+ 1
+   P
+      i φ(ti , yi , η(zi ))+op (1) is some consistent estimator
+                                                                        2
+n                                                                     Code and data available at github.com/vveitch/causal-text-
+for the average treatment effect ψ. Further suppose that           embeddings-tf2
+question of interest is whether supervised dimensionality      4.1   Empirical Setup
+reduction and language modeling produce embeddings
+that admit efficient causal estimation.                        Empirical evaluation of causal estimation procedures re-
+                                                               quires semi-synthetic data because ground truth causal
+Empirically validating effect estimation is difficult since    effects are usually not available. We want semi-synthetic
+known causal effects in text are unavailable. We address       data to be reflective of the real world. This is challeng-
+this gap with semi-synthetic data We use real text docu-       ing in the text setting: it is difficult to generate text on
+ments and simulate an outcome that depends on both the         the basis of confounding aspects such as topic or writing
+treatment of interest and a confounder.                        quality.
+We find: 1) modeling language improves effect estima-          We use real text and metadata —subreddit and title
+tion; 2) supervised representations perform better than        buzziness—as the confounders z̃ for the simulation. We
+their unsupervised counterparts; 3) the causally sufficient    checked that these confounders are related to the text. We
+representations proposed in this paper effectively adjust      simulate only the outcomes, using the treatment and the
+for confounding.                                               confounder. We compute the true propensity score π(z̃)
+Finally, we apply causal BERT to the two motivating ex-        as the proportion of units with ti = 1 in each strata of z̃.
+amples in the introduction. We estimate causal effects on      Then, Yi is simulated from the model:
+paper acceptance and post popularity on Reddit.com. Our           Yi = ti + b1 (π(z˜i ) − 0.5) + εi     εi ∼ N (0, γ).
+application suggest that much of the apparent treatment
+effects is attributable to confounding in the text. Code and   Or, for binary outcomes,
+data to reproduce all studies will be publicly available.            Yi ∼ Bernoulli(σ(0.25ti + b1 (π(z˜i ) − 0.2)))
+PeerRead. PeerRead is a corpus of computer-science             The parameter b1 controls the level of confounding;
+papers [Kan+18]. We consider a subset of the corpus            e.g., the bias of the unadjusted difference E[Y |T =
+consisting of papers posted to the arXiv under cs.cl,          1] − E[Y |T = 0] increases with b1 . For PeerRead, we
+cs.lg, or cs.ai between 2007 and 2017 inclusive.               report estimates of the ATE for binary simulated out-
+The data only includes papers which are not cross listed       comes. For Reddit, we compute the NDE for simulated
+with any non-cs categories and are within a month of           real-valued outcomes.
+the submission deadline for a target conferences. The
+conferences are: ACL, EMNLP, NAACL, EACL, TACL,                Methods. The goal is to study the utility of language
+NeurIPS, ICML, ICLR and AAAI. A paper is marked                modeling and supervision in representation learning. We
+as accepted if it appeared in one of the target venues.        use Causal BERT (C-BERT) and Causal ATM (C-ATM),
+Otherwise, the paper is marked as rejected. The dataset        explained in Section 3, to test these ideas.
+includes 11,778 papers, of which 2,891 are accepted.           First, we compare the methods to two that omit language
+For each paper, we consider the text of abstract, the ac-      modeling. We fit C-BERT and C-ATM without the loss
+cept/reject decision, and two attributes that can be pre-      terms that encourage language modeling: in BERT, it
+dicted from the abstract text:                                 is the censored token prediction and in ATM, it is the
+                                                               expected reconstruction loss. They amount to fitting
+                                                               attention-based or multi-layer feedforward supervised
+  1. buzzy: the title contains any of ‘deep’, ‘neural’,
+                                                               models. We refer to these baselines as BERT (sup. only)
+     ‘embed’, or ‘adversarial net’.
+                                                               and NN.
+  2. theorem: the word ‘Theorem’ appears in the pa-            Second, we consider methods that omit supervised repre-
+     per.                                                      sentation learning. These include fitting regression mod-
+                                                               els for the expected outcomes and propensity scores with
+                                                               fixed representations of documents. We compare four: 1)
+Reddit. Reddit is an online forum divided into topic-
+                                                               bag-of-words (BOW), 2) out-of-the-box BERT embed-
+specific subforums called ‘subreddits’. We consider three
+                                                               dings, 3) the document-topic proportions produced by
+subreddits: keto, okcupid, and childfree. In
+                                                               latent Dirichlet allocation (LDA), 4) and the document
+these subreddits, we identify users whose username flair
+                                                               representation produced by ATM. To produce document-
+includes a gender label (usually ‘M’ or ‘F’). We collect
+                                                               level embeddings from BERT, the embeddings for each
+all top-level comments from these users in 2018. We use
+                                                               token in the document are summed together.
+each comment’s text and score, the number of likes minus
+dislikes from other users. The dataset includes 90k com-       Estimator. For each experiment, we consider two down-
+ments in the selected subreddits. We consider the direct       stream estimators: the plugin estimator (2.2) and the Q-
+effect of the labeled gender on posts’ scores.                 only estimator (2.3). For all estimators, we exclude units
+ that have a predicted propensity score greater than 0.97      ATM and C-BERT over BERT suggests that combining
+ or less than 0.03.                                            language modeling with supervision works best.
+ BERT pre-processing. For BERT models, we truncate             Methods adjust for confounding. Tables 2 and 3 show
+ PeerRead abstracts to 250 word-piece tokens, and Red-         the quality of effect estimation as the amount of confound-
+ dit posts to 128 word-piece tokens. We begin with a           ing increases. For Reddit, the confounding setting β1
+ BERT model pre-trained on a general English language          varies across 1.0, 10.0, 100.0 and the noise γ varies across
+ corpus. We further pre-train a BERT model on each             1.0 and 4.0. For PeerRead, β1 varies across 1.0, 5.0, 25.0.
+ dataset, running training on the unsupervised objective       Results from the NN method are shown as a baseline.
+ until convergence.
+                                                               Compared to the unadjusted estimate, all methods per-
+                                                               form adjustments that reduce confounding. However,
+                                                               C-BERT and C-ATM recover the most accurate causal
+                                                               estimate in all settings. In the Reddit setting, C-ATM per-
+                                                               forms best when the outcome variance is higher (γ = 4.0).
+                                                               However, C-BERT is best when the outcome variance is
+                                                               lower (γ = 1.0). In the PeerRead setting, C-BERT per-
+                                                               forms best.
+                                                               The effect of exogeneity. We assume that the text car-
+                                                               ries all information about the confounding (or mediation)
+                                                               necessary to identify the causal effect. In many situations,
+                                                               this assumption may not be fully realistic. For example,
+                                                               in the simulations just discussed, it may not be possible to
+                                                               exactly recover the confounding from the text. We study
+                                                               the effect of violating this assumption by simulating both
+Figure 2: The method improves the unadjusted estimator even
+with exogeneous mediatiors. Plot shows estimates of NDE from   treatment and outcome from a confounder that consists
+simulated data based on Reddit. Ground truth is 1.             of a part that can be fully inferred from the text and part
+                                                               that is wholly exogenous.
+                                                               The challenge is finding a realistic confounder that can be
+ 4.2   Results
+                                                               exactly inferred from the text. Our approach is to (i) train
+ Semi-synthetic data is used to investigate three questions    BERT to predict the actual treatment of interest, produc-
+ about causal adjustment: 1) does language modeling help?      ing propensity scores ĝi for each i, and (ii) use ĝi as the
+ 2) does supervised dimensionality reduction help? 3)          inferrable part of the confounding. Precisely, we simulate
+ do C-BERT and C-ATM produce embeddings that suffi-            propensity scores as logit gsim = (1 − p) logit ĝi + pξi ,
+                                                                       iid
+ ciently adjust for confounding? Results are summarized        with ξi ∼ N(0, 1). The outcome is simulated as above.
+ in Tables 1 to 3.                                             When p = 0, the simulation is fully-inferrable and closely
+ Language modeling helps. The left table in Table 1            matches real data. Increasing p allows us to study the
+ illustrates the point that representations that model lan-    effect of exogeneity; see Section 4.1. As expected, the
+ guage produce better causal estimates. C-ATM and C-           adjustment quality decays. Remarkably, the adjustment
+ BERT recover the simulated treatment effect in Reddit         improves the naive estimate at all levels of exogeneity—
+ and PeerRead more accurately than NN and BERT (sup.           the method is robust to violations of the theoretical as-
+ only) . Among them, C-BERT performs best. This exper-         sumptions.
+ iment uses the confounding setting β1 = 10.0, γ = 1.0         Application We apply causal BERT to estimate the treat-
+ for Reddit and β1 = 5.0 for PeerRead.                         ment effect of buzzy and theorem, and the effect of
+ Supervision helps. The right table in Table 1 sum-            gender on log-score in each subreddit. Although unad-
+ marizes effect estimation for fixed representations that      justed estimates suggest strong effects, our results show
+ are used to fit expected outcomes and propensity scores.      this is in large part explainable by confounding or medi-
+ Among these, LDA, ATM and BERT model language                 ating. See Tables 4 and 5. On PeerRead, both estimates
+ structure. No method estimates the treatment effects as       suggest a positive effect from including a theorem on
+ accurately as C-BERT or C-ATM. The finding suggests           paper acceptance. On Reddit, both estimates suggest a
+ supervising representations to discard information not        positive effect from labeling a post as female on its score
+ relevant to predicting the treatment or outcome is useful     in okcupid and childfree.
+ for effect estimation. The improvement of C-ATM over
+      Table 1: Comparisons on semi-simulated data show that effect estimation is improved by: (a) language modeling (left);
+      (b)supervised dimensionality reduction (right). (a) C-BERT and C-ATM improve effect estimation over NN and BERT
+      (sup. only), which do not model language structure. (b) C-BERT and C-ATM improve effect estimation over BOW,
+      BERT, LDA and ATM, which produce representations that are not supervised to predict the treatment and outcome. The
+      tables report estimated NDE for Reddit and estimated ATT for PeerRead. Shaded numbers are closest to the ground
+      truth. The simulation setting used is β1 = 10.0, γ = 1.0 for Reddit and β1 = 5.0 for PeerRead.
+
+                        (a) Language Modeling Helps                             (b) Supervision Helps
+                                  Dataset:     Reddit     PeerRead             Dataset:     Reddit    PeerRead
+                                               (NDE)       (ATT)                            (NDE)      (ATT)
+               Ground truth                     1.00         0.06        Ground truth        1.00        0.06
+               Unadjusted                       1.24         0.14        Unadjusted          1.24        0.14
+               NN ψ̂ Q                          1.17         0.10        BOW ψ̂ Q            1.17       0.13
+               NN ψ̂ plugin                     1.17         0.10        BOW ψ̂ plugin       1.18       0.14
+               BERT (sup. only) ψ̂ Q            0.93         0.19        BERT ψ̂ Q          -15.0       -0.25
+               BERT (sup. only) ψ̂ plugin       1.17         0.18        BERT ψ̂ plugin     -14.1       -0.28
+               C-ATM ψ̂ Q                       1.16         0.10        LDA ψ̂ Q            1.20       0.07
+               C-ATM ψ̂ plugin                  1.13         0.10        LDA ψ̂ plugin       1.20       0.09
+               C-BERT ψ̂ Q                      1.07         0.07        ATM ψ̂ Q            1.17       0.08
+               C-BERT ψ̂ plugin                 1.15         0.09        ATM ψ̂ plugin       1.17       0.08
+
+
+      Table 2: Embedding adjustment recovers the NDE on Reddit. This persists even with high confounding and high
+      noise. Table entries are estimated NDE. Columns are labeled by confounding level. Low, Med., and High correspond to
+      β1 = 1.0, 10.0 and 100.0.
+
+
+                                    Noise:                γ = 1.0                          γ = 4.0
+                              Confounding:      Low      Med. High                 Low     Med. High
+                     Ground truth                1.00      1.00      1.00          1.00      1.00     1.00
+                     Unadjusted                  1.03      1.24      3.48          0.99      1.22     3.51
+                     NN ψ̂ Q                     1.03      1.18      2.04          0.89      1.08     2.24
+                     NN ψ̂ plugin                1.03      1.18      1.40          0.85      1.05     2.07
+                     C-ATM ψ̂ Q                  1.01      1.16      2.45          1.04      1.04     1.72
+                     C-ATM ψ̂ plugin             1.01      1.13      2.09          0.95      0.94     1.11
+                     C-BERT ψ̂ Q                 1.07      1.07      1.14          1.50      0.95     1.12
+                     C-BERT ψ̂ plugin            1.08      1.15      0.94          2.07      1.07     1.27
+
+
+
+5    DISCUSSION                                                     studies in this simulated setting validate the representa-
+                                                                    tion learning insights of this paper. The application to real
+                                                                    data completes the demonstration of our methods.
+We have examined the use of black box embedding meth-
+ods for causal inference with text. The challenge is to             There are several directions for future work. First, the
+produce a low-dimensional representation of text that is            black box nature of the embedding methods makes it
+sufficient for causal adjustment. We adapt two modern               difficult for practitioners to assess whether the causal as-
+tools for language modeling — BERT and topic modeling               sumptions hold: is it possible to develop visualizations
+— to produce representations that predict the treatment and         and sensitivity analyses to aid these judgments? Second,
+outcome well. This marries two ideas to produce causally            we require both the treatment and outcome to be external
+sufficient text representations: modeling language and              to the text. How can the approach here be extended to
+supervision relevant to causal adjustment. We propose a             estimate the causal effect of (or on) aspects of the writing
+methodology for empirical evaluation that uses real text            itself? Third, the deep learning methods we have used are
+documents to simulate outcomes with confounding. The                mainly geared towards predictive performance. Are there
+     Table 3: Embedding adjustment recovers the ATT on PeerRead. This persists even with high confounding. Table entries
+     are estimated ATT. Columns are labeled by confounding level. Low, Med., and High correspond to β1 = 1.0, 5.0 and
+     25.0.
+
+
+                                              Confounding:      Low       Med.      High
+                                     Ground truth                0.06      0.05     0.03
+                                     Unadjusted                  0.08      0.15     0.16
+                                     NN ψ̂ Q                     0.05      0.10     0.30
+                                     NN ψ̂ plugin                0.05      0.10     0.30
+                                     C-ATM ψ̂ Q                  0.07      0.10     0.32
+                                     C-ATM ψ̂ plugin             0.07      0.10     0.32
+                                     C-BERT ψ̂ Q                 0.09      0.07     0.04
+                                     C-BERT ψ̂ plugin            0.10      0.09     0.05
+
+
+     Table 4: Embedding adjustment reduces estimated treatment effects in PeerRead. Entries are estimated treatment effect
+     and 10-fold bootstrap standard deviation.
+
+
+                                                       buzzy                      theorem
+                             Unadjusted                  0.08 ± 0.01                0.21 ± 0.01
+                             C-BERT ψ̂ Q                −0.03 ± 0.01                0.16 ± 0.01
+                             C-BERT ψ̂ plugin           −0.02 ± 0.01                0.18 ± 0.02
+
+
+     Table 5: Embedding adjustment reduces estimated direct effects in Reddit. Entries are estimated treatment effect and
+     10-fold bootstrap standard deviation.
+
+
+                                        okcupid                  childfree                     keto
+                Unadjusted                −0.18 ± 0.01              −0.19 ± 0.01               −0.00 ± 0.00
+                C-BERT ψ̂ Q               −0.10 ± 0.04              −0.10 ± 0.04               −0.03 ± 0.02
+                C-BERT ψ̂ plugin          −0.15 ± 0.05              −0.16 ± 0.05               −0.01 ± 0.00
+
+
+
+improvements that will help with estimation accuracy?             References
+For example, should we adapt methods that specifically
+                                                                   [1]   D. M. Blei, A. Y. Ng, and M. I. Jordan, “Latent
+target well-calibrated predictions? Finally, how can meth-
+                                                                         Dirichlet allocation,” Journal of machine Learning
+ods in this domain be reliably empirically evaluated? We
+                                                                         research, 2003.
+have developed a new strategy for realistic semi-synthetic
+simulations in this paper. Can our approach be extended            [2]   A. D’Amour and A. Franks, “Covariate reduction
+to a complete approach for benchmarking?                                 for weighted causal effect estimation with decon-
+                                                                         founding scores,”
+                                                                   [3]   J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova,
+6   ACKNOWLEDGEMENTS                                                     “BERT: pre-training of deep bidirectional trans-
+                                                                         formers for language understanding,” arXiv e-
+This work was supported by ONR N00014-15-1-2209,                         prints, arXiv:1810.04805, 2018.
+ONR N00014-17-1-2131 , NIH 1U01MH115727-01,
+NSF CCF-1740833, DARPA SD2 FA8750-18-C-0130,                       [4]   N. Egami, C. J. Fong, J. Grimmer, M. E. Roberts,
+the Alfred P. Sloan Foundation, 2Sigma, and the govern-                  and B. M. Stewart, “How to make causal inferences
+ment of Canada through NSERC. The GPUs used for this                     using texts,” arXiv preprint arXiv:1802.02163,
+                                                                         2018.
+research were donated by the NVIDIA Corporation.
+                                                                   [5]   F. Johansson, U. Shalit, and D. Sontag, “Learn-
+                                                                         ing representations for counterfactual inference,”
+       in International conference on machine learning,          [20] M. E. Peters, M. Neumann, M. Iyyer, M. Gardner,
+       2016.                                                          C. Clark, K. Lee, and L. Zettlemoyer, “Deep con-
+ [6]   F. D. Johansson, N. Kallus, U. Shalit, and D.                  textualized word representations,” arXiv e-prints,
+       Sontag, “Learning weighted representations for                 arXiv:1802.05365, 2018.
+       generalization across designs,” arXiv preprint            [21] M. E. Roberts, B. M. Stewart, and R. A. Nielsen,
+       arXiv:1802.08598, 2018.                                        Adjusting for confounding with text matching,
+ [7]   F. D. Johansson, R. Ranganath, and D. Sontag,                  2018.
+       “Support and invertibility in domain-invariant rep-       [22] P. R. Rosenbaum and D. B. Rubin, “The central
+       resentations,” arXiv preprint arXiv:1903.03448,                role of the propensity score in observational studies
+       2019.                                                          for causal effects,” Biometrika, no. 1, 1983.
+ [8]   F. D. Johansson, U. Shalit, N. Kallus, and D. Son-        [23] C. Shi, D. Blei, and V. Veitch, “Adapting neural
+       tag, “Generalization bounds and representation                 networks for the estimation of treatment effects,”
+       learning for estimation of potential outcomes and              in Advances in Neural Information Processing Sys-
+       causal effects,” arXiv preprint arXiv:2001.07426,              tems, 2019.
+       2020.                                                     [24] V. Veitch, Y. Wang, and D. Blei, “Using embed-
+ [9]   N. Kallus, X. Mao, and M. Udell, “Causal infer-                dings to correct for unobserved confounding in
+       ence with noisy and missing covariates via matrix              networks,” in Advances in Neural Information Pro-
+       factorization,” in Advances in Neural Information              cessing Systems, 2019.
+       Processing Systems, 2018.                                 [25] Z. Wood-Doughty, I. Shpitser, and M. Dredze,
+[10]   D. Kang, W. Ammar, B. Dalvi, M. van Zuylen,                    “Challenges of using text classifiers for causal infer-
+       S. Kohlmeier, E. Hovy, and R. Schwartz, “A                     ence,” in Empirical Methods in Natural Language
+       dataset of peer reviews (PeerRead): Collection,                Processing, 2018.
+       insights and nlp applications,” arXiv e-prints,
+       arXiv:1804.09635, 2018.
+[11]   E. H. Kennedy, “Semiparametric theory and em-
+       pirical processes in causal inference,” in Statistical
+       Causal Inferences and their Applications in Public
+       Health Research, 2016.
+[12]   M. Kuroki and M. Miyakawa, “Identifiability crite-
+       ria for causal effects of joint interventions,” Journal
+       of the Japan Statistical Society, no. 2, 1999.
+[13]   M. Kuroki and J. Pearl, “Measurement bias and
+       effect restoration in causal inference,” Biometrika,
+       no. 2, 2014.
+[14]   M. van der Laan and S. Rose, Targeted Learning:
+       Causal Inference for Observational and Experi-
+       mental Data. 2011.
+[15]   W. Miao, Z. Geng, and E. J. Tchetgen Tchetgen,
+       “Identifying causal effects with proxy variables of
+       an unmeasured confounder,” Biometrika, no. 4,
+       2018.
+[16]   T. Mikolov, I. Sutskever, K. Chen, G. Corrado, and
+       J. Dean, “Distributed representations of words and
+       phrases and their compositionality,” in Advances
+       in Neural Information Processing Systems, 2013.
+[17]   T. Mikolov, K. Chen, G. Corrado, and J. Dean, “Ef-
+       ficient estimation of word representations in vector
+       space,” arXiv preprint arXiv:1301.3781, 2013.
+[18]   J. Pearl, “On measurement bias in causal inference,”
+       arXiv e-prints, arXiv:1203.3504, 2012.
+[19]   J. Pearl, “Interpretation and identification of causal
+       mediation,” Psychological methods, 2014.
+

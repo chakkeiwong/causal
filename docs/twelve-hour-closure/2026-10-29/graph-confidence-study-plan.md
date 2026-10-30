@@ -1,0 +1,12 @@
+# From language-model scores to causal uncertainty
+
+Question: What extra claims are required before a language-model score can be used as an edge probability, a distribution over causal graphs and a confidence interval for a lending effect? The recovered Molero Pérez thesis is a concrete end-to-end comparator. It is not evidence of bank performance.
+
+1. Inspect its equations 14–19, topology algorithm, benchmark choice, interval definition and public repository at the latest pre-cutoff commit. Recover the cited information-bound original if available; never assign the thesis interpretation to that original without reading it.
+2. Derive the direction of the complement of an upper bound on success. Check a numerical Bernoulli-KL example by two independent solvers. Keep the stronger question of whether prompt information lift bounds true correctness separate.
+3. Enumerate the eight possible subsets of a three-arrow cycle. Compare independent Bernoulli marginals with rejection of cycles. Establish the acyclic marginal inequality analytically; do not claim the thesis actually generated cycles.
+4. Construct two Gaussian structural worlds with identical observational covariance but different intervention effects. Show that interval agreement with a fitted reference can be perfect while the common interval misses the effect in the other world. Separate model agreement, seed spread and repeated-sample coverage. No paid model calls or downloaded-code execution.
+5. Give a constructive alternative: retain a class of admissible graphs, establish class coverage and simultaneous within-graph coverage separately, then take the union of identified effect sets or intervals. Prove the elementary union-bound guarantee and document where unidentified graphs require wide sets or refusal.
+6. Write economic interpretation, equations, an explanatory figure and concrete software recommendation. Integrate into the preserved scientific reader, compile and visually inspect a short successor and affected integrated pages.
+
+Review: this is a logical and reproducible counterexample study, not a re-evaluation of unpublished thesis runs. Report what the source measured fairly; do not infer a false experimental result from an unsupported general interpretation. Original-source discrepancies and unavailable implementation remain explicit. The result closes the proposal design choice, not general calibrated LLM causal inference.

@@ -1,18 +1,23 @@
-# Current causal banking proposal
+# Causal inference for banking
 
-This workspace develops a scholarly monograph and product/investment proposal.
-It is unfinished and does not establish an accepted bank product.
+## Active release candidate
 
-- [Current master program and execution rules](program/execution/current-program.md)
-- [Proposal scope and public-data portfolio](program/master-program-proposal.md)
-- [Mission Control](mission-control.md) · [HTML dashboard](mission-control.html)
-- [Canonical machine state](program/state.json)
-- [Working monograph — 1,247 pages](causal_proposal_detailed_workflow_reviewed_2026-10-23.pdf)
-- [Paired working sponsor proposal — 52 pages](sponsor_proposal_detailed_workflow_reviewed_2026-10-23.pdf)
-- [Public-data survey](program/public-data-v15/public-data-survey.pdf)
+[Release reader](causal_banking_release_candidate_2026-10-29.pdf) · [Aligned sponsor](causal_banking_sponsor_release_candidate_2026-10-29.pdf) · [Current evidence and programme](mission-control.md).
 
-Run `python3 tools/run_program_checkpoint_v3.py status`, `check`, and `next` from the repository root.
+The release candidate preserves the complete integrated argument and adds the discovery-search repair. Publication and preservation checks pass; fresh visual and independent acceptance remain open. The twelve-hour release programme continues through 30 October 2026, 10:58:35 Asia/Shanghai. The editions described below are preserved predecessors.
 
-The pair passed preservation, source, arithmetic and extracted-text reviews. Coverage,
-mandatory repairs, fresh visual review and final proposal acceptance remain open.
-The current program records further live progress separately from the paired release.
+## Preserved scientific edition
+
+[Current integrated monograph](causal_banking_scientific_progress_2026-10-29.pdf) · [26-page scientific additions](causal_banking_public_evidence_2026-10-29.pdf) · [Preserved sponsor proposal](causal_banking_sponsor_rewrite_2026-10-29.pdf).
+
+The current 1,859-page edition adds eight scientific chapters to the preserved developmental rewrite. New evidence includes a 445-person public experiment, 3,800 generated replications, derived linkage and measurement limits, matched R/Python fitting, actual summary inference through three interfaces, three frontier-paper inspections and official vendor comparisons. [Results and remaining gaps](scientific-gap-closure/2026-10-29/README.md).
+
+The following account describes the preserved 1,836-page predecessor.
+
+Four complete banking journeys lead through assumptions, identification, estimation, uncertainty and financial consequences to explicit software choices and a conditional investment decision. Detailed mathematical, comparative and operating treatments remain in the complete 1,836-page PDF.
+
+[Execution plan](program/monograph-rewrite-2026-10-29.md) · [Terminal review](reviews/monograph-rewrite-terminal-review-2026-10-29.md) · [Post-execution deletion audit](developmental-rewrite/2026-10-29/deletion-audit.md) · [Reproduction](developmental-rewrite/2026-10-29/README.md).
+
+The preservation audit passes: 444 inherited TeX files compiled once, 1,511 protected files unchanged, and no unaccounted substantive loss. Fresh visual/human and independent scientific acceptance remain pending. The full survey and bank adoption programme are not closed by this delivery.
+
+[Active master](program/master-live.md) · [Scientific priorities](program/scientific-priorities.json) · [Earlier editorial review](reading-edition/editorial-review.md).

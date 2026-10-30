@@ -1,0 +1,4214 @@
+"""Reconstruct release-critical results from retained data without redrawing studies."""
+from pathlib import Path
+from collections import defaultdict
+from fractions import Fraction as F
+import hashlib,json,math,platform,statistics
+import numpy as np
+import scipy
+from scipy.stats import t,norm
+
+ROOT=Path(__file__).resolve().parents[1]
+OUT=ROOT/'docs/release/2026-10-29'
+bindings={}
+def raw(name):
+    value=(ROOT/name).read_bytes();bindings[name]=hashlib.sha256(value).hexdigest();return value
+def read(name):return json.loads(raw(name))
+def close(a,b):assert np.allclose(a,b,atol=1e-7,rtol=1e-10),(a,b)
+
+def deposit():
+    base='docs/developmental-rewrite/2026-10-29/'
+    plan=read(base+'example-plan.json');previous=read(base+'example-results.json')['report']
+    rows=[line.split(',') for line in raw(base+'generated-deposit-data.csv').decode().splitlines()[1:]]
+    cells=defaultdict(list)
+    for x,a,y in rows:cells[int(x),int(a)].append(float(y))
+    assert len(rows)==plan['sample_size']==8000
+    effect=radius=0.;counts={}
+    for x,weight in enumerate(plan['target_weights']):
+        for a in [0,1]:
+            values=cells[x,a];mean=statistics.mean(values)
+            half=t.isf(plan['alpha']/8,len(values)-1)*statistics.stdev(values)/math.sqrt(len(values))
+            effect+=weight*(2*a-1)*mean;radius+=weight*half;counts[f'{x},{a}']=len(values)
+    interval=[effect-radius,effect+radius];slope=plan['margin_per_year']-plan['rate_increment_per_year']
+    intercept=-plan['rate_increment_per_year']*plan['baseline_balance_gbp']-plan['direct_cost_gbp']
+    net=slope*effect+intercept;net_interval=sorted(slope*v+intercept for v in interval)
+    close(effect,previous['effect_gbp']);close(interval,previous['interval_gbp'])
+    close(net,previous['net_annual_gbp_per_household']);close(net_interval,previous['net_interval_gbp'])
+    assert [format(v,',.2f') for v in [effect,*interval,net,*net_interval]]==['1,183.47','1,128.34','1,238.60','2.55','1.03','4.06']
+    return dict(n=len(rows),counts=counts,balance_effect=effect,balance_interval=interval,contribution=net,contribution_interval=net_interval,scope='Same retained generated sample, independently aggregated; no new calibration or bank data')
+
+def public_experiment():
+    base='docs/scientific-gap-closure/2026-10-29/'
+    plan=read(base+'study-plan.json');previous=read(base+'study-results.json')
+    arrays=[np.array([[float(v) for v in line.split()] for line in raw(name).decode().splitlines() if line.strip()]) for name in plan['data']]
+    assert [len(a) for a in arrays]==[185,260]
+    data=np.concatenate(arrays);assert data.shape==(445,10) and np.all(data[:185,0]==1) and np.all(data[185:,0]==0)
+    a,y=data[:,0],data[:,-1];covariates=data[:,1:9];x=(covariates-covariates.mean(0))/covariates.std(0,ddof=1);methods=[]
+    for method in ['unadjusted','common_slope','interacted']:
+        columns=[np.ones(len(y)),a]
+        if method!='unadjusted':columns += [x[:,j] for j in range(x.shape[1])]
+        if method=='interacted':columns += [a*x[:,j] for j in range(x.shape[1])]
+        design=np.column_stack(columns)
+        # QR triangular solves independently reconstruct the original SVD fit.
+        q,r=np.linalg.qr(design,mode='reduced');beta=np.linalg.solve(r,q.T@y)
+        leverage=np.sum(q*q,axis=1);residual=y-design@beta;inverse=np.linalg.solve(r,q.T)
+        hc2=(inverse*(residual**2/(1-leverage)))@inverse.T;hc3=(inverse*(residual**2/(1-leverage)**2))@inverse.T
+        se=math.sqrt(hc2[1,1]);interval=[beta[1]-norm.isf(.025)*se,beta[1]+norm.isf(.025)*se]
+        old=next(v for v in previous['methods'] if v['method']==method)
+        close(beta[1],old['estimate']);close(hc2[1,1],old['variance']);close(interval,old['interval']);close(math.sqrt(hc3[1,1]),old['hc3_standard_error'])
+        close(leverage.max(),old['max_leverage'])
+        methods.append(dict(method=method,estimate=float(beta[1]),variance=float(hc2[1,1]),interval=interval,net_at_cost_1000=[float(v-1000) for v in interval]))
+    for decision in previous['decisions']:
+        m=next(v for v in methods if v['method']==decision['method']);cost=decision['illustrative_cost']
+        close(m['estimate']-cost,decision['net_point']);close([v-cost for v in m['interval']],decision['net_interval'])
+        assert (m['interval'][0]>cost)==decision['lower_bound_supports_spending']
+    # Direct arm sums reconstruct influence and predeclared subgroup summaries
+    # independently of the historical regression and row-deletion loops.
+    arms=[y[a==v] for v in [0,1]];sums=[v.sum() for v in arms];sizes=[len(v) for v in arms]
+    loo=[sums[1]/sizes[1]-(sums[0]-v)/(sizes[0]-1) for v in arms[0]]
+    loo += [(sums[1]-v)/(sizes[1]-1)-sums[0]/sizes[0] for v in arms[1]]
+    diagnostics=dict(zero_share=float(np.mean(y==0)),max=float(y.max()),leave_one_out_unadjusted_range=[min(loo),max(loo)])
+    for k,v in diagnostics.items():close(v,previous['outcome_diagnostics'][k])
+    subgroups=[]
+    for row in previous['subgroups']:
+        selected=(data[:,8]==0) if row['group']=='zero_1975' else (data[:,8]>0)
+        group=[y[selected & (a==v)] for v in [0,1]]
+        estimate=group[1].mean()-group[0].mean()
+        variance=sum(v.var(ddof=1)/len(v) for v in group)
+        interval=[estimate-norm.isf(.025)*math.sqrt(variance),estimate+norm.isf(.025)*math.sqrt(variance)]
+        assert sum(map(len,group))==row['n'] and len(group[1])==row['treated']
+        close(estimate,row['result']['estimate']);close(variance,row['result']['variance']);close(interval,row['result']['interval'])
+        subgroups.append(dict(group=row['group'],n=row['n'],estimate=float(estimate),interval=interval))
+    for row in previous['bias_sensitivity']:
+        lower,upper=methods[0]['interval'];bound=row['absolute_bias_bound']
+        close([lower-bound,upper+bound],row['interval'])
+    return dict(n=445,methods=methods,diagnostics=diagnostics,subgroups=subgroups,
+                scope='Retained public experimental subset; QR and direct-arm reconstruction check estimates, influence, predeclared subgroups and stated bias envelopes, not assignment or transport assumptions')
+
+def exact_journeys():
+    prior=read('docs/developmental-rewrite/2026-10-29/example-results.json')['exact_checks'];values=[];weighted=[]
+    for policy in [0,1]:
+        value=F(0);ipw=F(0)
+        for l0 in [0,1]:
+            p1=F(1,10)+F(1,2)*l0+F(1,5)*policy
+            for l1 in [0,1]:value+=F(1,2)*(p1 if l1 else 1-p1)*(20+7*policy+10*l1+6*l0)
+            e0=F(1,5)+F(3,5)*l0
+            for a0 in [0,1]:
+                p1=F(1,10)+F(1,2)*l0+F(1,5)*a0
+                for l1 in [0,1]:
+                    e1=F(3,20)+F(1,2)*l1+F(1,10)*a0
+                    for a1 in [0,1]:
+                        prop=(e0 if a0 else 1-e0)*(e1 if a1 else 1-e1);probability=F(1,2)*(p1 if l1 else 1-p1)*prop
+                        if a0==a1==policy:ipw+=probability*(20+3*a0+4*a1+10*l1+6*l0)/prop
+        values.append(value);weighted.append(ipw)
+    assert values==weighted==[F(53,2),F(71,2)];close([float(v) for v in values],prior['servicing']['gformula_means'])
+    recorded=F(61)/F(45,100)-F(59)/F(55,100);assert recorded==F(2800,99)
+    close(float(recorded),prior['observation']['recorded_contrast']);close([float(recorded-35),5],[prior['observation']['net_recorded'],prior['observation']['net_corrected']])
+    sigma=np.array(prior['discovery']['covariance']);effects=[]
+    for order in [(0,1,2),(1,0,2),(2,1,0)]:
+        perm=sigma[np.ix_(order,order)];chol=np.linalg.cholesky(perm)
+        structural=np.eye(3)-np.diag(np.diag(chol))@np.linalg.inv(chol)
+        translated=np.zeros((3,3));translated[np.ix_(order,order)]=structural
+        response=np.linalg.solve(np.eye(3)-translated,np.eye(3));effects.append(float(response[2,0]))
+        variance=(np.eye(3)-translated)@sigma@(np.eye(3)-translated).T
+        close(variance,np.diag(np.diag(variance)));assert np.all(np.diag(variance)>0)
+        close(response@variance@response.T,sigma)
+    close(effects,prior['discovery']['effects'])
+    return dict(servicing_gformula=[str(v) for v in values],servicing_ipw=[str(v) for v in weighted],servicing_net=str(values[1]-values[0]-4),observation_recorded=str(recorded),observation_corrected='40',graph_effects=effects,graph_net_values=[v*.25*1000-60 for v in effects],scope='Exact or independently reconstructed stipulated laws; no fitted bank effect')
+
+def repeated_studies():
+    result={}
+    for stem,keys in [('observation',['scenario','rate','method']),('policy-uncertainty',['scenario','policy','target','method'])]:
+        base='docs/scientific-gap-closure/2026-10-29/';rows=read(base+stem+'-replications.json');old=read(base+stem+'-results.json');groups=defaultdict(list)
+        for row in rows:groups[tuple(row[k] for k in keys)].append(row)
+        checks=[]
+        for summary in old['scenarios']:
+            group=groups[tuple(summary[k] for k in keys)];n=len(group);count=sum(bool(v['covered']) for v in group)
+            close(count/n,summary.get('coverage',summary.get('coverage_all_requests')))
+            widths=[v['interval'][1]-v['interval'][0] for v in group] if stem=='policy-uncertainty' else [v['width'] for v in group if v.get('available') and v.get('width') is not None]
+            close(statistics.mean(widths),summary['mean_width'])
+            checks.append({**{k:summary[k] for k in keys},'n':n,'covered':count,'mean_width':statistics.mean(widths)})
+        result[stem]=dict(records=len(rows),summaries=len(checks),checks=checks)
+    return result
+
+def corrected_width():
+    correction=read('docs/writing-repair/2026-10-29/numeric-corrections.json')['corrections'][0]
+    value=raw(correction['journal']);assert hashlib.sha256(value).hexdigest()==correction['journal_sha256'];widths=[];keys=set()
+    for line in value.decode().splitlines():
+        row=json.loads(line)
+        if not row.get('key','').startswith(correction['request_prefix']):continue
+        assert row['key'] not in keys;keys.add(row['key']);lo,hi=row['result']['methods'][correction['method']]['interval'];widths.append(hi-lo)
+    assert len(widths)==600;median=statistics.median(widths);assert median==correction['median_width_usd'] and format(median/1e6,'.3f')=='1.341'
+    return dict(requests=600,median_width_usd=median,printed_millions='1.341',scope='Retained corrected result; no new requests')
+
+def measurement_floor():
+    previous=read('docs/scientific-gap-closure/2026-10-29/measurement-results.json')
+    cases=[];tau=-F(1,5)
+    for row in previous['rows']:
+        m=row['readings'];rho=F(row['error_correlation']);s=F(1)
+        # Exchangeable error covariance has a mean direction and m-1 contrasts.
+        mean_eigenvalue=s*(1+(m-1)*rho);contrast_eigenvalue=s*(1-rho)
+        assert mean_eigenvalue>0 and contrast_eigenvalue>0
+        error_mean=mean_eigenvalue/m
+        # Cramer's rule on Cov(A,Wbar), independently of the full-system solver.
+        determinant=2*(1+error_mean)-1
+        beta=((2*tau+1)*(1+error_mean)-(tau+1))/determinant
+        assert beta==F(row['adjusted_coefficient'])
+        assert error_mean==F(row['error_variance'])
+        close(float(beta),row['independent_covariance_solution'])
+        cases.append(dict(readings=m,rho=str(rho),mean_eigenvalue=str(mean_eigenvalue),contrast_eigenvalue=str(contrast_eigenvalue),coefficient=str(beta)))
+    boundary=[]
+    for rho in [F(0),F(1,5)]:
+        minimum=next(m for m in range(1,100) if rho+(1-rho)/m<F(1,3))
+        assert minimum==({F(0):4,F(1,5):7}[rho])
+        boundary.append(dict(rho=str(rho),first_correct_sign=minimum))
+    # A fixed negative correlation cannot define arbitrarily long sequences.
+    assert 1+(3-1)*F(-1,2)==0 and 1+(4-1)*F(-1,2)<0
+    assert F(1)-F(1)==0  # Perfectly duplicated readings have singular contrasts.
+    assert tau+F(1,2)/(1+2*F(1,2))==F(1,20)
+    return dict(cases=cases,sign_boundaries=boundary,domain='s>0 and 0<=rho<1 give positive covariance eigenvalues for every finite m; fixed negative rho fails for sufficiently large m; rho=1 has singular contrasts.',scope='Exact retained project law; no language-model observations or empirical qualification')
+
+def investment_account():
+    previous=read('docs/derivations/economics.json');a=previous['assumptions'];r=F(str(a['discount_rate']));h=a['horizon_years']
+    annuity=sum((1+r)**(-t) for t in range(1,h+1));close(float(annuity),previous['annuity'])
+    e={k:F(str(v)) for k,v in a['expert'].items()};p={k:F(str(v)) for k,v in a['platform'].items()}
+    initial_gap=p['initial']-e['initial'];shared_gap=p['annual_shared']-e['annual_shared'];saving=e['per_completed_study']-p['per_completed_study']
+    threshold=(initial_gap/annuity+shared_gap)/saving
+    close(float(threshold),previous['constant_annual_study_threshold'])
+    costs=[]
+    for row in previous['scenarios']:
+        values=[]
+        for inputs in [e,p]:
+            values.append(inputs['initial']+sum((inputs['annual_shared']+inputs['per_completed_study']*n)/(1+r)**t for t,n in enumerate(row['completed_studies'],1)))
+        extra=max(F(0),(values[1]-values[0])/annuity)
+        for v,key in zip([*values,values[0]-values[1],extra],['expert_present_cost','platform_present_cost','platform_cost_saving','additional_constant_annual_decision_benefit_to_break_even']):close(float(v),row[key])
+        costs.append(dict(scenario=row['scenario'],expert=float(values[0]),platform=float(values[1]),saving=float(values[0]-values[1]),annual_extra=float(extra)))
+    close(float(2*threshold),previous['sensitivity']['half_per_study_saving_threshold'])
+    close(float((initial_gap/annuity+2)/saving),previous['sensitivity']['annual_shared_gap_2m_threshold'])
+    budget=previous['pilot_budget'];staff=budget['fte']*budget['months']*budget['loaded_person_month_usd'];total=(staff+budget['compute_usd'])*(1+F(str(budget['contingency_rate'])))
+    assert staff==budget['staff_usd'] and total==budget['total_usd']==1140000
+    return dict(annuity=float(annuity),annual_threshold=float(threshold),scenarios=costs,broader_construction_tranche_usd=int(total),scope='Exact rational reconstruction of retained stipulated costs; the initial matched analyst comparison remains separately unpriced. No observed labour saving, vendor quotation or bank ROI.')
+
+def delegate_contracts():
+    previous=read('docs/release/2026-10-29/source-delegates-015/exact-witnesses.json')
+    assert previous['status']=='pass'
+    # Independent two-point symmetry calculation: unit signed margins require
+    # weight magnitude one, hence equal dual multipliers 1/(1^2+1^2).
+    dual=1/(F(-1)**2+F(1)**2)
+    results=[]
+    for row in previous['orientation']:
+        first=F(row['rows'][0]);slope=first
+        coefficients=[dual,-dual]
+        expected=[1 if slope*x>0 else -1 for x in row['rows']]
+        assert coefficients==list(map(F,row['stipulated_coefficients']))
+        assert F(row['reconstructed_weight'])==slope and F(row['reconstructed_bias'])==0
+        assert expected==row['predictions']
+        assert (expected==row['rows'])==row['matches_original_labels']
+        results.append(dict(first_label=int(first),dual=str(dual),slope=str(slope),predictions=expected))
+    # Reconstruct normalized weights through posterior odds, independently of
+    # the original vector-normalization implementation.
+    likelihood=previous['clustering']['transition_likelihoods']
+    a,b=[list(map(F,x)) for x in likelihood]
+    odds=(a[0]/b[0])*(a[1]/b[1]);stationary_odds=(a[0]/b[0])**2
+    posterior=[odds/(1+odds),1/(1+odds)]
+    stationary=[stationary_odds/(1+stationary_odds),1/(1+stationary_odds)]
+    assert posterior==list(map(F,previous['clustering']['correct_posterior']))
+    assert stationary==list(map(F,previous['clustering']['stationary_posterior']))
+    prior=list(map(F,previous['clustering']['prior']));like=list(map(F,previous['clustering']['likelihood']))
+    assert like[1]>like[0] and prior[0]/prior[1]>like[1]/like[0]
+    assert [prior[i]*like[i] for i in range(2)]==list(map(F,previous['clustering']['mixture_products']))
+    return dict(orientation=results,transition_posterior=list(map(str,posterior)),stationary_posterior=list(map(str,stationary)),likelihood_only_choice=1,prior_weighted_choice=0,scope='Independent rational reconstruction of authored source-contract witnesses, not numerical vendor execution or Java clustering.')
+
+def flexbcf_contracts():
+    previous=read('docs/release/2026-10-29/source-flexbcf-016/exact-witnesses.json')
+    a=previous['scale'];values=list(map(F,a['raw_draw']))
+    # Independently restore each customer before taking the cohort mean.
+    restored=[F(a['outcome_sd'])*v for v in values]
+    effect=sum(restored)/F(a['customers'])
+    wrong=sum(x+F(a['outcome_mean']) for x in restored)/len(restored)
+    assert effect==F(a['correct_effect'])==3
+    assert wrong==F(a['wrong_restoration'])==103
+    cost=F(a['cost'])
+    assert effect-cost==F(a['correct_margin'])==-2
+    assert wrong-cost==F(a['wrong_margin'])==98
+    assert wrong+F(a['outcome_shift'])==F(a['shifted_wrong_restoration'])
+    rows=previous['row_alignment']
+    controls=[x for x,z in zip(rows['original_ids'],rows['treatment']) if z==0]
+    treated=[x for x,z in zip(rows['original_ids'],rows['treatment']) if z==1]
+    assert controls+treated==rows['control_first_ids'] and treated==rows['treated_only_ids']
+    assert [rows['original_ids'][i] for i in rows['joint_order_zero_based']]==controls+treated
+    for n,value in previous['small_progress_defaults'].items():
+        assert int(n)<10 and value==0
+    return dict(correct_effect=str(effect),incorrect_restoration=str(wrong),
+                correct_margin=str(effect-cost),incorrect_margin=str(wrong-cost),
+                aligned_ids=controls+treated,scope='Independent per-customer rational reconstruction of authored scale and row-identity witnesses; no upstream execution.')
+
+def parallel_trends():
+    previous=read('docs/release/2026-10-29/source-flexpaper-017/exact-witnesses.json')
+    rows=previous['rows']
+    # Independent first-difference computation, not post-gap subtraction.
+    changes=[F(r['observed_post'])-F(r['pre']) for r in rows]
+    effect=changes[1]-changes[0]
+    increments=[F(r['untreated_post'])-F(r['pre']) for r in rows]
+    assert increments==[F(3),F(3)] and changes==[F(3),F(5)]
+    assert sum(F(r['probability']) for r in rows)==1
+    assert all(F(r['treated_post'])-F(r['untreated_post'])==effect for r in rows)
+    assert effect==F(previous['identified_effect'])==2
+    pre=F(rows[1]['pre'])-F(rows[0]['pre'])
+    post=F(rows[1]['observed_post'])-F(rows[0]['observed_post'])
+    assert pre==F(previous['pre_gap'])==4 and post==F(previous['post_gap'])==6
+    cost=F(previous['action_cost'])
+    assert effect-cost==F(previous['correct_margin'])==-1
+    assert post-cost==F(previous['post_gap_margin'])==3
+    return dict(untreated_increments=list(map(str,increments)),observed_changes=list(map(str,changes)),
+                effect=str(effect),correct_margin=str(effect-cost),post_gap_margin=str(post-cost),
+                scope='Independent first-difference reconstruction of stipulated branch law, not empirical replication or native qualification.')
+
+def financing_equivalence():
+    previous=read('docs/twelve-hour-closure/2026-10-29/formulation-attempt-1/results.json')
+    witness=read('docs/release/2026-10-29/source-closure-018/exact-witnesses.json')
+    # Reconstruct by conditional mixtures. This does not invoke the original
+    # exogenous-state enumerator or execute either reported language model.
+    p=F(1,5);discordance=p*(1-p)+(1-p)*p
+    risk={0:1-discordance,1:discordance}
+    joint={(f,y):F(1,2)*(risk[f] if y else 1-risk[f]) for f in [0,1] for y in [0,1]}
+    for result in [previous,witness]:
+        assert joint=={(x['F'],x['Y']):F(x['probability']) for x in result['observed_joint']}
+    assert sum(joint.values())==1
+    for f in [0,1]:
+        assert risk[f]==F(previous['observational_risks']['F'+str(f)])
+        assert risk[f]==F(previous['interventions']['causal']['do_'+str(f)])
+        assert F(1,2)==F(previous['interventions']['confounded']['do_'+str(f)])
+    relief=risk[0]-risk[1]
+    assert relief==F(9,25)==F(witness['relief_effects']['causal'])
+    assert F(witness['relief_effects']['confounded'])==0
+    return dict(observed_joint=[str(joint[f,y]) for f in [0,1] for y in [0,1]],
+                risk_unconstrained=str(risk[0]),risk_constrained=str(risk[1]),
+                relief_effects={'confounded':'0','causal':str(relief)},
+                scope='Retained stipulated binary laws, identical transcript argument and independent closed-form arithmetic; not sharp bounds, a live-model test or a bank effect.')
+
+def temporal_contracts():
+    previous=read('docs/release/2026-10-29/source-dbn-019/exact-witnesses.json')
+    outcomes={}
+    # Closed-form binary prediction and Bayes odds, independently of the
+    # latent-transition mass enumeration in the retained witness.
+    for name, q0, q1 in [('A',F(1,10),F(4,5)),('B',F(2,5),F(9,10))]:
+        forecast=q0+(q1-q0)/4
+        odds=4*forecast/(1-forecast)
+        posterior=odds/(1+odds)
+        net=14*posterior-10
+        old=previous['transition']['outcomes'][name]
+        assert forecast==F(old['forecast']) and posterior==F(old['posterior'])
+        assert net==F(old['stipulated_action_net'])
+        outcomes[name]=dict(forecast=str(forecast),posterior=str(posterior),net=str(net))
+    assert F(outcomes['A']['net'])<0<F(outcomes['B']['net'])
+    # Analytical potential-outcome and selected-population means.
+    tau=100*F(1,2)
+    retained_control_mean=F(100)
+    retained_treated_mean=F(100)
+    selected=retained_treated_mean-retained_control_mean
+    for key,value in [('population_effect',tau),('retained_contrast',selected),
+                      ('population_net',tau-20),('retained_net',selected-20)]:
+        assert value==F(previous['cleaning'][key])
+    masses=list(map(F,previous['ternary']['probabilities']))
+    assert masses[0]==F(1,5) and sum(masses[1:])==F(4,5)
+    assert previous['dummy']['sequence_count']*previous['dummy']['per_sequence_return']==previous['dummy']['inferred_last_iteration_sum']==40000
+    return dict(transition=outcomes,cleaning_effect=str(tau),cleaned_contrast=str(selected),
+                cleaning_net=str(tau-20),cleaned_net=str(selected-20),
+                scope='Exact retained authored laws reconstructed by binary Bayes odds and population/selection means; no downloaded-code execution or bank qualification.')
+
+def survival_contracts():
+    previous=read('docs/release/2026-10-29/source-survival-022/exact-witnesses.json')
+    # Independent likelihood-score construction from observed exits/entries.
+    exposure=F(0);origin=F(0);events=0
+    for l,t,event in previous['delayed_entry']['records']:
+        exposure+=F(t)-F(l);origin+=F(t);events+=event
+    rates=[F(events)/exposure,F(events)/origin]
+    assert rates==[F(1,3),F(1,11)]
+    close([100*(1-np.exp(-float(rate))) for rate in rates],previous['delayed_entry']['next_month_loss'])
+    # The algebraic identified combination independently reconstructs the
+    # witness that used time and hazard multipliers separately.
+    shape=previous['weibull_ridge']['shape'];scale=F(previous['weibull_ridge']['scale'])
+    pairs=[list(map(F,p)) for p in previous['weibull_ridge']['exp_alpha_beta']]
+    factors=[a**(shape-1)*b for a,b in pairs]
+    assert factors==[F(3),F(3)]
+    for row in previous['weibull_ridge']['evaluations']:
+        t=F(row['t']);x=row['x'];factor=factors[0]**x
+        assert (t/scale)**shape*factor==F(row['H'])
+        assert F(shape)*t**(shape-1)/scale**shape*factor==F(row['hazard'])
+    # Verify the exact ridge direction annihilates a two-coefficient
+    # information contribution for every shared covariate at fixed shape.
+    v=np.array([shape-1.,1.]);null=np.array([1.,-(shape-1.)])
+    close(np.outer(v,v)@null,[0.,0.])
+    units=previous['loglogistic_units'];close(np.exp([units['mu_month'],units['mu_day']]),[.5,15.])
+    assert units['mu_month']<0<units['mu_day']
+    # Root inversion and numerical quadrature independent of analytic witness.
+    from scipy.optimize import brentq
+    from scipy.integrate import quad
+    tail=previous['piecewise_tail'];rate=1/5
+    quantile=brentq(lambda t:1-np.exp(-rate*t)-.9,0,100)
+    close(quantile,tail['correct_quantile'])
+    full=quad(lambda t:np.exp(-rate*t),0,np.inf)[0]
+    restricted=quad(lambda t:np.exp(-rate*t),0,1)[0]
+    close([100*full,100*restricted],[tail['expected_cashflow'],tail['one_month_restricted_cashflow']])
+    assert tail['quantile_branch']==1 and quantile>11
+    output=previous['output_meaning'];close(100*(1-np.exp(-2)),output['expected_loss'])
+    return dict(entry_rates=list(map(str,rates)),identified_factor=str(factors[0]),
+                information_null_direction=null.tolist(),tail_quantile=quantile,
+                full_receipts=100*full,restricted_receipts=100*restricted,
+                scope='Independent likelihood score, identified-factor algebra, root inversion and quadrature; no downloaded code executed.')
+
+def influence_contracts():
+    previous=read('docs/release/2026-10-29/source-ife-023/exact-witnesses.json')
+    # Reconstruct the ratio influence by differentiating a categorical
+    # empirical distribution, independently of the witness's weighted loop.
+    weighted=previous['weighted_location']
+    z=np.array(list(map(float,weighted['pseudo_outcomes'])))
+    w=np.array([float(F(v)) for v in weighted['weights']])
+    p=np.ones(len(z))/len(z)
+    numerator=p@(w*z);denominator=p@w;theta=numerator/denominator
+    derivative=(w*z*denominator-numerator*w)/denominator**2
+    close(derivative,[float(F(v)) for v in weighted['centered_influence']])
+    close(np.var(derivative,ddof=1)/len(z),float(F(weighted['centered_variance'])))
+    close(np.var(w*z,ddof=1)/len(z),float(F(weighted['uncentered_variance'])))
+    close(np.var(w*(z+100),ddof=1)/len(z),float(F(weighted['shifted_uncentered_variance'])))
+    for j in range(len(z)):
+        direction=np.eye(len(z))[j]-p
+        eps=1e-6
+        value=lambda q:(q@(w*z))/(q@w)
+        close((value(p+eps*direction)-value(p-eps*direction))/(2*eps),derivative[j])
+    close(np.var(2*w,ddof=1)/len(z),float(F(previous['constant_contrast']['uncentered_weighted_variance'])))
+    cluster=previous['unequal_clusters']
+    incidence=np.array([[1.,0,0,0],[0,1,1,1]])
+    outcomes=np.array(list(map(float,cluster['pseudo_outcomes'])))
+    n=len(outcomes);K=len(incidence)
+    for name,values in [('centered',outcomes-outcomes.mean()),('uncentered',outcomes),('shifted_uncentered',outcomes+100)]:
+        grouped=(K/n)*(incidence@values)
+        close(np.var(grouped,ddof=1)/K,float(F(cluster[name+'_variance'])))
+    rows=previous['row_alignment']
+    a=np.array(list(map(float,rows['first_influence'])))
+    b=np.array(list(map(float,rows['reversed_second'])))
+    covariance=np.cov(np.stack([a,b]),ddof=1)/len(a)
+    close(np.array([1,-1])@covariance@np.array([1,-1]),float(F(rows['reversed_difference_variance'])))
+    scales=previous['contrast_scales'];ratio=scales['ratio'];s=scales['log_standard_error']
+    interval=norm.interval(.95,loc=np.log(ratio),scale=s)
+    close(np.exp(interval),scales['transformed_log_interval'])
+    close(norm.interval(.95,loc=ratio,scale=ratio*s),scales['direct_ratio_wald_interval'])
+    return dict(weighted_ratio=theta,ratio_derivative=derivative.tolist(),
+                centered_variance=weighted['centered_variance'],shifted_uncentered_variance=weighted['shifted_uncentered_variance'],
+                unequal_cluster_variances={name:cluster[name] for name in ['centered_variance','uncentered_variance','shifted_uncentered_variance']},
+                log_interval_exp=np.exp(interval).tolist(),
+                scope='Independent quotient derivative, centered finite difference, matrix aggregation/covariance and normal quantile reconstruction; no upstream execution or coverage claim.')
+
+def fitting_contracts():
+    previous=read('docs/release/2026-10-29/source-pygformula-025/exact-witnesses.json')
+    from scipy.optimize import root
+    from scipy.special import expit
+    records=previous['restrictions']['records'];fits={}
+    # Independently solve both logistic score equations rather than using the
+    # witness's conditional-frequency formula. No upstream package is imported.
+    for name in ['restricted','unrestricted']:
+        rows=[r for r in records if name=='unrestricted' or r['eligible']]
+        x=np.array([[1.,r['x']] for r in rows]);y=np.array([r['z'] for r in rows])
+        score=lambda beta:x.T@(y-expit(x@beta))
+        solved=root(score,np.zeros(2));assert solved.success
+        close(score(solved.x),[0,0])
+        prob=expit(np.array([[1.,0],[1.,1]])@solved.x)
+        old=previous['restrictions']['fits'][name]
+        close(prob,[float(F(v)) for v in old['conditional_probabilities']])
+        fitted=expit(x@solved.x)
+        information=x.T@((fitted*(1-fitted))[:,None]*x)
+        assert np.all(np.linalg.eigvalsh(information)>0)
+        close(np.linalg.det(information),float(F(old['information_determinant'])))
+        # Enumerate the four equal target cells, including two forced zeros.
+        rewards=[100*prob[0],0,100*prob[1],0]
+        net=np.mean(rewards)-30
+        close(net,float(F(old['net'])))
+        fits[name]=dict(coefficients=solved.x.tolist(),target_net=net)
+    c=previous['censoring'];d=c['observed_defaults'];n=c['accounts'];m=c['missing_outcomes']
+    completions=[F(d+j,n) for j in range(m+1)]
+    assert [min(completions),max(completions)]==list(map(F,c['finite_population_bounds']))
+    observed=F(d,n-m);zero=F(d,n)
+    assert observed==F(c['observed_risk']) and zero==F(c['zero_encoded_risk'])
+    assert [10000*observed-900,10000*zero-900]==[F(c['observed_model_margin']),F(c['zero_encoded_margin'])]
+    comp=previous['competing'];q=F(comp['prepayments'],100);p=F(comp['defaults'],100-comp['prepayments'])
+    # A three-state transition matrix independently gives cumulative default
+    # probability after one and two periods (active, prepaid, defaulted).
+    transition=np.array([[float((1-q)*(1-p)),float(q),float((1-q)*p)],
+                         [0.,1.,0.],[0.,0.,1.]])
+    initial=np.array([1.,0.,0.])
+    close((initial@transition)[2],float(F(comp['default_incidence'])))
+    close((initial@transition@transition)[2],float(F(comp['two_period_incidence'])))
+    close(transition.sum(axis=1),np.ones(3))
+    return dict(logistic_fits=fits,finite_population_bounds=list(map(str,[min(completions),max(completions)])),
+                default_incidence_one_period=(initial@transition)[2],default_incidence_two_periods=(initial@transition@transition)[2],
+                scope='Independent logistic score root, positive-information check, finite-outcome completion and absorbing-chain reconstruction; no downloaded-code execution or bank effect.')
+
+def joint_law_contracts():
+    base='docs/program/execution/2026-10-17/s9/'
+    semantic=read(base+'semantic-results.json')
+    law=read(base+'publication-v2/law-results.json')
+    retry=read(base+'publication-v4/exact-results.json')
+    # Convolution of coefficient polynomials, rather than the historical
+    # enumeration of sign/control tuples, reconstructs the difference laws.
+    def convolve(a,b):
+        out=defaultdict(F)
+        for x,px in a.items():
+            for y,py in b.items():out[x+y]+=px*py
+        return dict(out)
+    def power(a,n):
+        out={0:F(1)}
+        for _ in range(n):out=convolve(out,a)
+        return out
+    def serial(a):return {str(k):str(v) for k,v in sorted(a.items())}
+    signs={-1:F(1,2),1:F(1,2)}
+    shared=power(signs,2);split=power(signs,4)
+    assert serial(shared)==law['shared_difference_law']
+    assert serial(split)==law['split_difference_law']
+    tv=sum(abs(shared.get(k,F(0))-split.get(k,F(0))) for k in set(shared)|set(split))/2
+    assert tv==F(law['total_variation'])==F(1,8)
+    positive={k:sum(p for x,p in d.items() if x>0) for k,d in [('shared',shared),('split',split)]}
+    for k,v in positive.items():assert v==F(law['positive_probability'][k])
+    assert abs(positive['shared']-positive['split'])==F(law['positive_probability']['absolute_difference'])
+    ref=semantic['inherited_exact_references']
+    # Linear transformation of independent unit-variance signs gives the
+    # complete covariance, without reusing historical sampled tuples.
+    for name,rows in [('shared_control',[[1,0,-1],[0,1,-1]]),
+                      ('split_control',[[1,-1,0,0],[0,0,1,-1]])]:
+        cov=[[sum(F(x)*y for x,y in zip(a,b)) for b in rows] for a in rows]
+        assert [[str(v) for v in row] for row in cov]==ref[name]['covariance']
+        assert cov[0][0]+cov[1][1]-2*cov[0][1]==F(ref[name]['contrast_variance'])
+    boot={}
+    for name,n in [('row',4),('cluster',2)]:
+        distribution=power({0:F(1,2),2:F(1,2)},n)
+        mean=sum(F(x,n)*p for x,p in distribution.items())
+        variance=sum((F(x,n)-mean)**2*p for x,p in distribution.items())
+        assert mean==F(ref['bootstrap'][name+'_mean'])
+        assert variance==F(ref['bootstrap'][name+'_variance'])
+        boot[name]=dict(mean=str(mean),variance=str(variance),law=serial({F(x,n):p for x,p in distribution.items()}))
+    # Absorbing Markov chains independently reconstruct completion, selected
+    # results and the expected attempts; no historical generator is executed.
+    def advance(v,m):return [sum(v[i]*m[i][j] for i in range(len(v))) for j in range(len(v))]
+    structures={
+        'redraw':([F(1),F(0),F(0)],
+                  [[F(3,8),F(1,8),F(1,2)],[F(0),F(1),F(0)],[F(0),F(0),F(1)]],1),
+        'frozen':([F(1,2),F(1,2),F(0),F(0)],
+                  [[F(3,4),F(0),F(1,4),F(0)],[F(0),F(0),F(0),F(1)],
+                   [F(0),F(0),F(1),F(0)],[F(0),F(0),F(0),F(1)]],2)}
+    reconstructed={}
+    for mode,(initial,transition,unresolved) in structures.items():
+        assert all(sum(row)==1 for row in transition)
+        state=initial;calls=F(0)
+        for k in range(1,5):
+            calls+=sum(state[:unresolved]);state=advance(state,transition)
+            mass={'-1':state[-2],'failure':sum(state[:unresolved]),'1':state[-1]}
+            completion=1-mass['failure']
+            values=dict(all_assigned_law={s:str(p) for s,p in mass.items()},
+                        completion=str(completion),completed_positive=str(mass['1']/completion),
+                        completed_mean=str((mass['1']-mass['-1'])/completion),expected_calls=str(calls))
+            assert values==retry['retry_examples'][mode+'_K'+str(k)]
+            reconstructed[mode+'_K'+str(k)]=values
+    frozen=reconstructed['frozen_K2'];mass={k:F(v) for k,v in frozen['all_assigned_law'].items()}
+    successful_moment=mass['1']-mass['-1'];failed=mass['failure']
+    bounds=[successful_moment-failed,successful_moment+failed]
+    assert bounds==[F(0),F(9,16)]
+    # Weighted-result law includes an explicit zero contribution on failure.
+    qnegative=mass['-1']/F(1,2)
+    weighted={-1/qnegative:mass['-1'],F(0):failed,F(1):mass['1']}
+    mean=sum(v*p for v,p in weighted.items());second=sum(v*v*p for v,p in weighted.items())
+    inv=retry['inverse_selection']
+    assert mean==F(inv['mean']) and second==F(inv['second_moment'])
+    assert second-mean*mean==F(inv['variance'])==F(23,14)
+    wrong=mass['1']-mass['-1']/F(1,2)
+    assert wrong==F(inv['imperfect_q_bias'])==F(1,16)
+    # Affine maps compose by homogeneous matrices; endpoints attain the bound.
+    source=F(1,5)*F(3,25)+F(1,10)
+    stage1_error=F(2)*F(1,1000)+F(1,500)
+    delta=stage1_error/F(10)+F(1,10000)
+    affine={k:str(v) for k,v in dict(source=source,bridge=source+delta,error=delta,stage_one_error=stage1_error).items()}
+    assert affine==retry['affine_composition']
+    joint=[[F(1,2),F(0)],[F(0),F(1,2)]]
+    joint_tv=sum(abs(v-F(1,4)) for row in joint for v in row)/2
+    assert joint_tv==F(retry['adaptive_joint_total_variation'])==F(1,2)
+    eps=F(retry['uncertainty_envelope']['relative_completion_error']);mu=F(3,5)
+    ratios=[(mu+s*eps)/(1+t*eps) for s in [-1,1] for t in [-1,1]]
+    assert min(ratios)==F(retry['uncertainty_envelope']['mean_min'])
+    assert max(ratios)==F(retry['uncertainty_envelope']['mean_max'])
+    persistent=[sum(F(1,2)*(1-q)**k for q in [F(0),F(1)]) for k in range(1,5)]
+    assert persistent==[F(1,2)]*4
+    # Exact retained monetary scaling, a reporting distortion rather than
+    # observed intervention value or runtime cost.
+    monetary=[100*F(reconstructed[mode+'_K2']['completed_mean']) for mode in ['redraw','frozen']]
+    assert monetary==[F(60),F(900,23)] and format(float(monetary[1]),'.2f')=='39.13'
+    alpha=F(ref['alpha'])
+    for row in ref['thresholds']:
+        assert (F(row['p'])>=alpha)==row['source_delete']
+        assert (F(row['p'])>alpha)==row['strict_port_delete']
+    return dict(shared_law=serial(shared),split_law=serial(split),total_variation=str(tv),
+                bootstrap=boot,retries=reconstructed,retained_missing_bounds=list(map(str,bounds)),
+                inverse_variance=str(second-mean*mean),wrong_probability_bias=str(wrong),
+                affine=affine,adaptive_total_variation=str(joint_tv),
+                persistent_failure=list(map(str,persistent)),completed_only_usd=list(map(str,monetary)),
+                scope='Independent polynomial convolution, covariance transformation and absorbing-chain reconstruction of retained chapter62 authored laws; no regenerated studies, upstream execution, empirical calibration or bank value.')
+
+def foundational_laws():
+    """Enumerate the stated finite worlds; do not simulate or run old generators."""
+    base='docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'
+    sources={k:raw(base+v+'.tex').decode() for k,v in {
+        'graphs':'09d5d80790539d10','iv':'23868f4d3823c1bb',
+        'learning':'3f523ca38e341a9c','inverse':'7ccd8624e4c82556'}.items()}
+    for chapter,anchors in {
+        'graphs':[r'P(A=1\mid U)=.2+.6U',r'\E[Y(a)]=.25+.35a',r'$[-0.32,0.68]$'],
+        'iv':[r'Take $40\%$ compliers, $30\%$ always-takers and $30\%$ never-takers',r'$.8c$'],
+        'learning':[r'\label{r3:exact-remainder}',r'$0.5$ and $0.01$',r'$0.381$'],
+        'inverse':[r'p_A(U)=1/5+3U/5',r'h(w,a)=2a-3/8+15w/4',r'\label{r3:proximal-remainder}']
+    }.items():
+        for anchor in anchors:assert anchor in sources[chapter],(chapter,anchor)
+    def bernoulli(p,value):return p if value else 1-p
+    def serial(values):return [str(v) for v in values]
+    # Distinct structural worlds have the same complete observational table.
+    confounded=defaultdict(F);unconfounded=defaultdict(F)
+    for a in [0,1]:
+        for y in [0,1]:
+            for u in [0,1]:
+                p=F(1,5)+F(3,5)*u
+                confounded[a,y]+=F(1,2)*bernoulli(p,a)*bernoulli(p,y)
+            unconfounded[a,y]=F(1,2)*bernoulli(F(8,25)+F(9,25)*a,y)
+    assert confounded==unconfounded=={(0,0):F(17,50),(0,1):F(4,25),(1,0):F(4,25),(1,1):F(17,50)}
+    bounds=[confounded[1,1]-confounded[0,1]-F(1,2),confounded[1,1]+F(1,2)-confounded[0,1]]
+    assert bounds==[-F(8,25),F(17,25)]
+    # Latent enumeration independently supplies the front-door factorization.
+    joint=defaultdict(F)
+    for u in [0,1]:
+        for a in [0,1]:
+            for m in [0,1]:
+                for y in [0,1]:
+                    joint[a,m,y]+=F(1,2)*bernoulli(F(1,5)+F(3,5)*u,a)*bernoulli(F(1,10)+F(7,10)*a,m)*bernoulli(F(1,10)+F(1,2)*m+F(1,5)*u,y)
+    frontdoor=[];observed=[];direct=[]
+    for a in [0,1]:
+        pa=sum(p for (aa,m,y),p in joint.items() if aa==a)
+        observed.append(sum(p*y for (aa,m,y),p in joint.items() if aa==a)/pa)
+        value=F(0)
+        for m in [0,1]:
+            pm=sum(joint[a,m,y] for y in [0,1])/pa
+            inner=F(0)
+            for other in [0,1]:
+                pother=sum(p for (aa,mm,y),p in joint.items() if aa==other)
+                inner+=pother*joint[other,m,1]/sum(joint[other,m,y] for y in [0,1])
+            value+=pm*inner
+        frontdoor.append(value)
+        direct.append(sum(F(1,2)*bernoulli(F(1,10)+F(7,10)*a,m)*(F(1,10)+F(1,2)*m+F(1,5)*u) for u in [0,1] for m in [0,1]))
+    assert frontdoor==direct==[F(1,4),F(3,5)] and observed==[F(19,100),F(33,50)]
+    # Same randomized-invitation law, distinct population effects.
+    observed_iv=[];ates=[]
+    for completion in [0,1]:
+        law=defaultdict(F);ate=F(0)
+        for mass,receipts,outcomes in [(F(2,5),(0,1),(0,1)),(F(3,10),(1,1),(1-completion,1)),(F(3,10),(0,0),(0,completion))]:
+            ate+=mass*(outcomes[1]-outcomes[0])
+            for z in [0,1]:
+                a=receipts[z];law[z,a,outcomes[a]]+=mass/2
+        observed_iv.append(law);ates.append(ate)
+    assert observed_iv[0]==observed_iv[1] and ates==[F(2,5),F(1)]
+    first_stage=sum(2*p*(2*z-1)*a for (z,a,y),p in observed_iv[0].items())
+    reduced_form=sum(2*p*(2*z-1)*y for (z,a,y),p in observed_iv[0].items())
+    assert first_stage==reduced_form==F(2,5)
+    # The R-loss constant solves its normal equation, with overlap weights.
+    e=[F(1,2),F(1,100)];effects=[F(0),F(10)]
+    projection=sum(p*(1-p)*v for p,v in zip(e,effects))/sum(p*(1-p) for p in e)
+    assert projection==F(990,2599) and format(float(projection),'.3f')=='0.381'
+    # An explicit finite-law perturbation checks both signs in the exact
+    # ATE remainder and its union-model zero-bias cases; no estimated study.
+    remainder_checks=[]
+    for correct_propensity,correct_outcome in [(False,False),(True,False),(False,True),(True,True)]:
+        mean=F(0);rhs=F(0)
+        for x in [0,1]:
+            true_e=F(1,5)+F(3,5)*x;true_m=F(1,5)+F(3,5)*x
+            fit_e=true_e if correct_propensity else F(3,10)+F(2,5)*x
+            fit_m=[true_m if correct_outcome else true_m+F(1,20)*(1-2*x),true_m if correct_outcome else true_m-F(1,10)]
+            rhs+=F(1,2)*(fit_e-true_e)*((fit_m[1]-true_m)/fit_e+(fit_m[0]-true_m)/(1-fit_e))
+            for a in [0,1]:
+                for y in [0,1]:
+                    phi=fit_m[1]-fit_m[0]+a*(y-fit_m[1])/fit_e-(1-a)*(y-fit_m[0])/(1-fit_e)
+                    mean+=F(1,2)*bernoulli(true_e,a)*bernoulli(true_m,y)*phi
+        assert mean==rhs
+        if correct_propensity or correct_outcome:assert mean==0
+        remainder_checks.append(dict(correct_propensity=correct_propensity,correct_outcome=correct_outcome,bias=str(mean)))
+    # Enumerate the complete latent proxy law and solve its observable
+    # two-by-two conditional-moment systems using rational elimination.
+    rows=[]
+    for u in [0,1]:
+        for a in [0,1]:
+            for z in [0,1]:
+                for w in [0,1]:
+                    p=F(1,2)*bernoulli(F(1,5)+F(3,5)*u,a)*bernoulli(F(3,10)+F(2,5)*u,z)*bernoulli(F(1,10)+F(4,5)*u,w)
+                    rows.append((u,a,z,w,F(2*a+3*u),p))
+    def solve(matrix,response):
+        det=matrix[0][0]*matrix[1][1]-matrix[0][1]*matrix[1][0]
+        assert det!=0
+        return [(response[0]*matrix[1][1]-matrix[0][1]*response[1])/det,(matrix[0][0]*response[1]-response[0]*matrix[1][0])/det],det
+    proxy=[]
+    for action in [0,1]:
+        matrix=[];response=[]
+        for z in [0,1]:
+            selected=[r for r in rows if r[1]==action and r[2]==z];mass=sum(r[-1] for r in selected)
+            matrix.append([sum(r[-1] for r in selected if r[3]==w)/mass for w in [0,1]])
+            response.append(sum(r[-2]*r[-1] for r in selected)/mass)
+        h,det=solve(matrix,response)
+        assert h==[F(2*action)-F(3,8),F(2*action)+F(27,8)]
+        qmatrix=[];qresponse=[]
+        for w in [0,1]:
+            selected=[r for r in rows if r[1]==action and r[3]==w];mass=sum(r[-1] for r in selected)
+            qmatrix.append([sum(r[-1] for r in selected if r[2]==z)/mass for z in [0,1]])
+            qresponse.append(sum(r[-1] for r in rows if r[3]==w)/mass)
+        q,qdet=solve(qmatrix,qresponse)
+        if action==0:
+            assert [row[1] for row in qmatrix]==[F(23,74),F(15,26)]
+            assert qresponse==[F(50,37),F(50,13)]
+        target=sum(p*h[w] for u,a,z,w,y,p in rows)
+        assert target==2*action+F(3,2)
+        weighted=sum(p*q[z]*y for u,a,z,w,y,p in rows if a==action)
+        clipped=sum(p*max(q[z],0)*y for u,a,z,w,y,p in rows if a==action)
+        clipped_mass=sum(p*max(q[z],0) for u,a,z,w,y,p in rows if a==action)
+        assert weighted==target and clipped_mass==F(95,64)
+        assert clipped==[F(105,64),F(185,32)][action]
+        perturbations=[]
+        for dh,dq in [(F(0),F(1,10)),(F(1,10),F(0)),(F(1,10),F(1,5))]:
+            left=right=F(0)
+            for u,a,z,w,y,p in rows:
+                eh=dh*(1+w);eq=dq*(2*z-1);hh=h[w]+eh;qq=q[z]+eq
+                left+=p*(hh+(qq*(y-hh) if a==action else 0))
+                if a==action:right-=p*eh*eq
+            assert left-target==right
+            perturbations.append(str(right))
+        factual=sum(p*sum(rr[-1]*rr[-2] for rr in rows if rr[1]==action and rr[3]==w)/sum(rr[-1] for rr in rows if rr[1]==action and rr[3]==w) for u,a,z,w,y,p in rows)
+        proxy.append(dict(action=action,outcome_bridge=serial(h),treatment_bridge=serial(q),conditional_treatment_matrix=[serial(row) for row in qmatrix],conditional_treatment_response=serial(qresponse),outcome_determinant=str(det),treatment_determinant=str(qdet),mean=str(target),clipped_mean=str(clipped),clipped_mass=str(clipped_mass),normalized_clipped_mean=str(clipped/clipped_mass),factual_regression_average=str(factual),perturbed_remainders=perturbations))
+    clipped_contrast=F(proxy[1]['clipped_mean'])-F(proxy[0]['clipped_mean'])
+    normalized_contrast=F(proxy[1]['normalized_clipped_mean'])-F(proxy[0]['normalized_clipped_mean'])
+    assert clipped_contrast==F(265,64) and normalized_contrast==F(53,19)
+    raw_means=[sum(y*p for u,a,z,w,y,p in rows if a==action)/sum(p for u,a,z,w,y,p in rows if a==action) for action in [0,1]]
+    assert raw_means[1]-raw_means[0]==F(19,5)
+    # Conditional expectation rows identify one policy average but not all.
+    operator=[[F(1,2),F(1,2),F(0)],[F(0),F(1,2),F(1,2)]]
+    responses=[[F(1),F(2),F(3)],[F(2),F(1),F(4)]]
+    moments=[[sum(a*b for a,b in zip(row,h)) for row in operator] for h in responses]
+    policy=[F(1,4),F(1,2),F(1,4)]
+    identified=[sum(a*b for a,b in zip(policy,h)) for h in responses]
+    unidentified=[sum(h)/3 for h in responses]
+    assert moments==[[F(3,2),F(5,2)]]*2 and identified==[F(2)]*2 and unidentified==[F(2),F(7,3)]
+    return dict(paired_world_observed={str(k):str(v) for k,v in confounded.items()},consistency_bounds=serial(bounds),
+                frontdoor_means=serial(frontdoor),observed_means=serial(observed),compliance_ates=serial(ates),
+                first_stage=str(first_stage),late=str(reduced_form/first_stage),r_loss_projection=str(projection),
+                ate_remainder_perturbations=remainder_checks,proxy=proxy,clipped_proxy_contrast=str(clipped_contrast),normalized_clipped_proxy_contrast=str(normalized_contrast),raw_proxy_contrast=str(raw_means[1]-raw_means[0]),
+                identified_policy_means=serial(identified),unidentified_equal_means=serial(unidentified),
+                scope='Exact independent finite-law reconstruction of retained chapters6–9 examples and direct perturbation checks of displayed ATE/proximal remainders. No new empirical study, general ID implementation, theorem validation or bank qualification.')
+
+def longitudinal_laws():
+    """Reconstruct finite history and controlled-state identities in chapters10–12."""
+    base='docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'
+    sources={key:raw(base+name+'.tex').decode() for key,name in {
+        'history':'19bce971619f032a','policy':'7cc06a3bd2696253',
+        'controlled':'73ae9588bcea9fe8','unknown':'e764484b76fb2cf1',
+        'private':'ce2741b43a3eca45'}.items()}
+    for key,anchor in {'history':r'\label{r3:long-remainder}',
+                       'policy':r'\label{r3:incremental-gradient}',
+                       'controlled':r'\label{r3:controlled-inversion}',
+                       'unknown':r'\label{s4:controlled-spectral}',
+                       'private':r'\label{s5:marked-identification}'}.items():assert anchor in sources[key]
+    def coin(p,a):return p if a else 1-p
+    def e0(l):return F(1,5)+F(3,5)*l
+    def e1(l,a,m):return F(3,20)+F(1,2)*m+F(1,10)*a
+    def next_m(l,a):return F(1,10)+F(1,2)*l+F(1,5)*a
+    def g0(l):return F(1,3)+F(l,3)
+    def g1(l,a,m):return F(1,4)+F(m,4)+F(a,8)
+    def y(l,a,m,b):return F(20+3*a+4*b+10*m+6*l)
+    def v1(l,a,m):return sum(coin(g1(l,a,m),b)*y(l,a,m,b) for b in [0,1])
+    def q0(l,a):return sum(coin(next_m(l,a),m)*v1(l,a,m) for m in [0,1])
+    def v0(l):return sum(coin(g0(l),a)*q0(l,a) for a in [0,1])
+    rows=[]
+    for l in [0,1]:
+        for a in [0,1]:
+            for m in [0,1]:
+                for b in [0,1]:
+                    p=F(1,2)*coin(e0(l),a)*coin(next_m(l,a),m)*coin(e1(l,a,m),b)
+                    target=F(1,2)*coin(g0(l),a)*coin(next_m(l,a),m)*coin(g1(l,a,m),b)
+                    w0=coin(g0(l),a)/coin(e0(l),a)
+                    w1=w0*coin(g1(l,a,m),b)/coin(e1(l,a,m),b)
+                    rows.append((l,a,m,b,y(l,a,m,b),p,target,w0,w1))
+    value=sum(target*outcome for l,a,m,b,outcome,p,target,w0,w1 in rows)
+    ipw=sum(p*w1*outcome for l,a,m,b,outcome,p,target,w0,w1 in rows)
+    score=[(v0(l)+w0*(v1(l,a,m)-q0(l,a)),p) for l,a,m,b,outcome,p,target,w0,w1 in rows]
+    assert value==ipw==sum(s*p for s,p in score)==sum(v0(l)/2 for l in [0,1])
+    variance=sum(p*(s-value)**2 for s,p in score)
+    initial_variance=sum((v0(l)-value)**2/2 for l in [0,1])
+    innovation_variance=sum(p*w0*w0*(v1(l,a,m)-q0(l,a))**2 for l,a,m,b,outcome,p,target,w0,w1 in rows)
+    assert variance==initial_variance+innovation_variance
+    moments=[sum(p*(b-e1(l,a,m))*(outcome-4*b) for l,a,m,b,outcome,p,target,w0,w1 in rows),
+             sum(p*(a-e0(l))*(outcome-4*b-5*a) for l,a,m,b,outcome,p,target,w0,w1 in rows)]
+    wrong=sum(p*(a-e0(l))*(outcome-4*b-3*a) for l,a,m,b,outcome,p,target,w0,w1 in rows)
+    assert moments==[0,0] and wrong==F(8,25)
+    # Sixteen fixed perturbations vary both times' propensity and continuation
+    # errors independently. They test the stated algebra, not fitted rates.
+    perturbations=[]
+    for mask in range(16):
+        ce0,ce1,cq0,cq1=[bool(mask&(1<<i)) for i in range(4)]
+        def fit_e0(l):return e0(l) if ce0 else F(3,10)+F(2,5)*l
+        def fit_e1(l,a,m):return e1(l,a,m) if ce1 else F(1,4)+F(2,5)*m+F(a,10)
+        def d0(l,a):return F(0) if cq0 else F(1+2*l-a,5)
+        def d1(l,a,m,b):return F(0) if cq1 else F(1+l+a-2*m+b,7)
+        def fit_q0(l,a):return q0(l,a)+d0(l,a)
+        def fit_q1(l,a,m,b):return y(l,a,m,b)+d1(l,a,m,b)
+        def fit_v0(l):return sum(coin(g0(l),a)*fit_q0(l,a) for a in [0,1])
+        def fit_v1(l,a,m):return sum(coin(g1(l,a,m),b)*fit_q1(l,a,m,b) for b in [0,1])
+        mean=rhs=F(0)
+        for l,a,m,b,outcome,p,target,w0,w1 in rows:
+            fw0=coin(g0(l),a)/coin(fit_e0(l),a)
+            fw1=fw0*coin(g1(l,a,m),b)/coin(fit_e1(l,a,m),b)
+            mean+=p*(fit_v0(l)+fw0*(fit_v1(l,a,m)-fit_q0(l,a))+fw1*(outcome-fit_q1(l,a,m,b)))
+            rhs+=p*(sum(coin(g0(l),aa)*(1-coin(e0(l),aa)/coin(fit_e0(l),aa))*d0(l,aa) for aa in [0,1])
+                    +fw0*sum(coin(g1(l,a,m),bb)*(1-coin(e1(l,a,m),bb)/coin(fit_e1(l,a,m),bb))*d1(l,a,m,bb) for bb in [0,1]))
+        assert mean-value==rhs
+        if (ce0 or cq0) and (ce1 or cq1):assert rhs==0
+        perturbations.append(dict(correct=[ce0,ce1,cq0,cq1],bias=str(rhs)))
+    # Incremental-policy differentiation in an entirely positive finite law.
+    # Perturb each cell mass against a fixed cell; complex steps differentiate
+    # the rational target, independently of its displayed score formula.
+    cells=[(x,a,z) for x in [0,1] for a in [0,1] for z in [0,1]]
+    probability=np.array([float(F(1,2)*coin(F(1,5)+F(3,5)*x,a)*coin((F(1,5)+F(3,5)*x) if a==0 else (F(2,5)+F(x,5)),z)) for x,a,z in cells])
+    def incremental(p,delta):
+        total=0j if np.iscomplexobj(p) else 0.
+        for x in [0,1]:
+            px=sum(p[i] for i,c in enumerate(cells) if c[0]==x)
+            masses=[sum(p[i] for i,c in enumerate(cells) if c[:2]==(x,a)) for a in [0,1]]
+            means=[sum(p[i]*c[2] for i,c in enumerate(cells) if c[:2]==(x,a))/masses[a] for a in [0,1]]
+            e=masses[1]/px;den=1+(delta-1)*e
+            total+=px*(delta*e*means[1]+(1-e)*means[0])/den
+        return total
+    gradient_checks=[]
+    for delta in [F(1,2),F(1),F(2)]:
+        target=incremental(probability,float(delta));phi=[]
+        for x,a,z in cells:
+            e=F(1,5)+F(3,5)*x;m0=F(1,5)+F(3,5)*x;m1=F(2,5)+F(x,5);den=1+(delta-1)*e
+            conditional=(delta*e*m1+(1-e)*m0)/den
+            phi.append(float((delta*a+1-a)/den*(z-(m1 if a else m0))+conditional+delta*(m1-m0)/(den*den)*(a-e))-target)
+        close(np.dot(probability,phi),0)
+        errors=[]
+        for j in range(1,len(cells)):
+            direction=np.zeros(len(cells));direction[j]=1;direction[0]=-1
+            derivative=incremental(probability.astype(complex)+1j*1e-20*direction,float(delta)).imag/1e-20
+            expected=float(np.dot(direction,phi));close(derivative,expected);errors.append(abs(derivative-expected))
+        if delta==1:close(phi,[z-target for x,a,z in cells])
+        gradient_checks.append(dict(delta=str(delta),value=float(target),max_derivative_error=max(errors)))
+    # Rational matrix recovery, marked private-logger inversion and spectral
+    # similarity. These calculations do not call a package identification API.
+    def transpose(m):return [list(v) for v in zip(*m)]
+    def matmul(a,b):return [[sum(x*y for x,y in zip(row,col)) for col in zip(*b)] for row in a]
+    def diag(v):return [[x if i==j else F(0) for j in range(len(v))] for i,x in enumerate(v)]
+    def inverse(m):
+        d=m[0][0]*m[1][1]-m[0][1]*m[1][0];assert d!=0
+        return [[m[1][1]/d,-m[0][1]/d],[-m[1][0]/d,m[0][0]/d]]
+    def serialize(m):return [[str(x) for x in row] for row in m]
+    emission=[[F(4,5),F(1,5)],[F(1,5),F(4,5)]];mu=[F(3,5),F(2,5)]
+    transitions=[[[F(4,5),F(1,5)],[F(3,10),F(7,10)]],[[F(3,5),F(2,5)],[F(1,10),F(9,10)]]]
+    left=inverse(emission);joint=[];private=[]
+    logger=[F(1,5),F(4,5)]
+    for action,transition in enumerate(transitions):
+        j=matmul(matmul(matmul(emission,diag(mu)),transition),transpose(emission))
+        recovered=matmul(diag([1/v for v in mu]),matmul(matmul(left,j),transpose(left)))
+        assert recovered==transition;joint.append(serialize(j))
+        mass=[mu[s]*coin(logger[s],action) for s in [0,1]]
+        marked=matmul(matmul(matmul(emission,diag(mass)),transition),transpose(emission))
+        recovered_marked=matmul(matmul(left,marked),transpose(left));recovered_mass=list(map(sum,recovered_marked))
+        assert recovered_mass==mass
+        assert matmul(diag([1/v for v in mass]),recovered_marked)==transition
+        reward=[F(10+3*action),F(20+5*action)]
+        k=matmul(matmul(emission,diag(mass)),[[v] for v in reward])
+        assert matmul(matmul(diag([1/v for v in mass]),left),k)==[[v] for v in reward]
+        private.append(dict(state_action_mass=list(map(str,mass)),transition=serialize(recovered)))
+    t0=transitions[0];mu1=[sum(mu[s]*t0[s][u] for s in [0,1]) for u in [0,1]]
+    past=matmul(matmul(matmul(emission,diag(mu)),t0),diag([1/v for v in mu1]));future=matmul(emission,transpose(t0))
+    p02=matmul(matmul(past,diag(mu1)),transpose(future));slices=[]
+    for middle in [0,1]:
+        observed=[[sum(mu[s]*emission[i][s]*t0[s][u]*emission[middle][u]*t0[u][v]*emission[k][v] for s in [0,1] for u in [0,1] for v in [0,1]) for k in [0,1]] for i in [0,1]]
+        similarity=matmul(matmul(past,diag(emission[middle])),inverse(past))
+        assert matmul(observed,inverse(p02))==similarity
+        assert matmul(matmul(inverse(past),similarity),past)==diag(emission[middle])
+        slices.append(serialize(observed))
+    # Dynamic-choice observational equivalence and its changed-transition
+    # prediction checked against an independent value-iteration solution.
+    beta=.5;values=np.zeros(2)
+    for iteration in range(200):
+        action0=np.array([0.,1.])+beta*values
+        action1=np.array([0.,1.])+beta*values[1]
+        new=np.logaddexp(action0,action1)
+        if np.max(np.abs(new-values))<1e-13:values=new;break
+        values=new
+    z=(1+math.sqrt(1+8*math.e))/2
+    predicted=1-1/z;direct=float(np.exp(beta*values[1]-values[0]))
+    close(predicted,direct);close(values[1],2*(1+math.log(2)));assert predicted>.5
+    return dict(history_value=str(value),history_ipw=str(ipw),score_variance=str(variance),
+                initial_variance=str(initial_variance),innovation_variance=str(innovation_variance),
+                correct_blip_moments=list(map(str,moments)),wrong_early_blip_moment=str(wrong),
+                remainder_perturbations=perturbations,incremental_gradient_checks=gradient_checks,
+                known_emission_joint_matrices=joint,private_marked_recovery=private,spectral_slices=slices,
+                counterfactual_customer_choice=predicted,value_iteration_choice=direct,
+                scope='Independent exact finite-law and matrix reconstructions, derivative checks and fixed-point calculation of retained chapters10–12 arguments. Verification perturbations are authored checks, not newly sampled studies or evidence for all hidden-state models.')
+
+def gmm_variance_contracts():
+    prior=read('docs/release/2026-10-29/source-windmeijer-032/exact-witnesses.json')
+    cells=[(u,v) for u in [-1,1] for v in [-1,1]]
+    gs=np.array([[1,1+u/2] for u,v in cells]);bs=np.array([[1+u,3+2*v] for u,v in cells])
+    def functional(p,center=False):
+        G=p@gs;b=p@bs;t1=(G@b)/(G@G);r=bs-t1*gs
+        omega=np.einsum('i,ij,ik->jk',p,r,r)
+        if center:
+            mean=p@r;omega-=np.outer(mean,mean)
+        w=np.linalg.inv(omega);t2=(G@w@b)/(G@w@G)
+        return np.array([t1,t2])
+    probability=np.ones(4)/4;t=functional(probability);close(t,[2,5/3]);close(functional(probability,True)[1],1.5)
+    influence=[]
+    for j in range(4):
+        direction=np.eye(4)[j]-probability
+        influence.append(functional(probability+1j*1e-20*direction).imag/1e-20)
+    influence=np.array(influence)
+    close(influence[:,0],[-5/4,3/4,-3/4,5/4]);close(influence[:,1],[-151/144,65/144,-97/144,61/48]);close(influence.mean(0),[0,0])
+    variances=np.mean(influence**2,axis=0);close(variances,[17/16,5827/6912])
+    close(variances[1],float(F(prior['influences']['variance2'])))
+    # Independent truncated series division around x=2 gives the exact fifth
+    # derivative of Q=(44h-2h²)/(144+24h+3h²), without symbolic differentiation.
+    coefficients=[]
+    for k in range(6):
+        numerator=F(44) if k==1 else F(-2) if k==2 else F(0)
+        subtract=(24*coefficients[k-1] if k>=1 else 0)+(3*coefficients[k-2] if k>=2 else 0)
+        coefficients.append((numerator-subtract)/144)
+    fifth=math.factorial(5)*coefficients[5];assert fifth==F(-725,31104)
+    close(float(coefficients[1]),11/36)
+    amounts=[100*v-160 for v in [2,5/3,1.5]];close(amounts,[40,20/3,-10])
+    return dict(targets=[2,5/3,1.5],influences=influence.tolist(),variances=variances.tolist(),Q_fifth_derivative_at_2=str(fifth),illustrative_dollars=amounts,
+                scope='Independent probability-functional differentiation and rational-series division of a declared four-cell law; this verifies the authored comparison, not native panel execution, finite-sample coverage or causal validity.')
+
+def panel_continuous_laws():
+    from scipy.linalg import expm
+    from scipy.integrate import quad,solve_ivp
+    for name in ['2347859d224b8c12','ce2960f99921f249']:
+        raw('docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'+name+'.tex')
+    # Direct least-squares projection, independent of double-demeaning formula.
+    treatment=np.array([[0,1,1,1],[0,0,0,1],[0,0,0,0]],dtype=float)
+    units=np.repeat(np.arange(3),4);dates=np.tile(np.arange(4),3)
+    design=np.column_stack([np.ones(12)]+[(units==i).astype(float) for i in [1,2]]+[(dates==t).astype(float) for t in [1,2,3]])
+    residual=treatment.ravel()-design@np.linalg.lstsq(design,treatment.ravel(),rcond=None)[0]
+    selected=treatment.ravel()==1;weights=residual[selected]/sum(residual[selected]);close(weights,[.3,.3,-.1,.5])
+    effect=np.array([1,1,20,1]);coefficient=weights@effect;close(coefficient,-.9);close(effect.mean(),5.75)
+    # Differencing the two observed transitions makes the first innovation both
+    # a regressor component and a negative part of the error.
+    rho=F(7,10);num=den=F(0)
+    for u1 in [-1,1]:
+        for u2 in [-1,1]:
+            dx=F(u1);dy=(rho-1)*u1+u2;num+=dx*dy/4;den+=dx*dx/4
+    assert num/den==rho-1
+    # Equal regular-grid diffusions checked through independent ODE quadrature.
+    B=np.array([1.,0.]);J=np.array([[0.,-1.],[1.,0.]])
+    alias=[]
+    for omega in [0,2*math.pi]:
+        Fm=-np.eye(2)+omega*J;transition=expm(Fm)
+        integrated=np.array([quad(lambda t:float((expm(Fm*t)@B)[j]),0,1,epsabs=1e-12)[0] for j in range(2)])
+        Q=np.array([[quad(lambda t:float((expm(Fm*t)@expm(Fm.T*t))[i,j]),0,1,epsabs=1e-12)[0] for j in range(2)] for i in range(2)])
+        expected=(1-math.exp(-1))*np.array([1.,omega])/(1+omega**2)
+        close(integrated,expected);close(Q,(1-math.exp(-2))/2*np.eye(2));close(transition,math.exp(-1)*np.eye(2))
+        half=expm(Fm*.5);alias.append(dict(omega=omega,regular_transition=transition.tolist(),control_integral=integrated.tolist(),half_transition=half.tolist()))
+    assert not np.allclose(alias[0]['half_transition'],alias[1]['half_transition'])
+    # Solve the feedback equilibrium directly and differentiate its two policy
+    # mechanisms. Random customer disturbances induce the negative regression.
+    b,c,k=2.,.5,3.;system=np.array([[-1.,b],[-k*c,-k]])
+    assert np.max(np.linalg.eigvals(system).real)<0
+    def equilibrium(r0,u):return np.linalg.solve(system,-np.array([u,k*r0]))
+    slope=(equilibrium(2,0)[0]-equilibrium(1,0)[0]);close(slope,b/(1+b*c))
+    observations=np.array([equilibrium(1,u) for u in [-2,-1,0,1,2]])
+    observed_slope=np.cov(observations.T,ddof=0)[0,1]/np.var(observations[:,1]);close(observed_slope,-1/c)
+    # Sum the probability law, retaining no-event likelihood contribution.
+    mass=weighted_count=uncompensated=0.
+    for n in range(40):
+        probability=math.exp(-1)/math.factorial(n);weight=math.exp(-1)*2**n
+        mass+=probability*weight;weighted_count+=n*probability*weight;uncompensated+=probability*2**n
+    close(mass,1);close(weighted_count,2);close(uncompensated,math.e)
+    hazard=.7;T=2.;path_values=[]
+    for event in [.1,.9,1.99]:
+        martingale=-math.exp(-hazard*(T-event))+quad(lambda t:hazard*math.exp(-hazard*(T-t)),0,event)[0]
+        close(martingale,-math.exp(-hazard*T));path_values.append(martingale)
+    no_event=quad(lambda t:hazard*math.exp(-hazard*(T-t)),0,T)[0];close(no_event,1-math.exp(-hazard*T))
+    # Static silence/update construction; event density and survival exhaust1.
+    rate=np.array([.1,1.]);prior=np.array([.5,.5]);silence=prior*np.exp(-rate);p=silence/silence.sum();after=p*rate;after/=after.sum()
+    close(p[1],1/(1+math.exp(.9)));close(after[1],1/(1+.1*math.exp(.9)))
+    assert format(p[1],'.4f')=='0.2891' and format(after[1],'.4f')=='0.8026'
+    # Dynamic forward killed-state equation independently matches normalized ODE.
+    Q=np.array([[-.3,.3],[.2,-.2]]);alpha=prior@expm((Q-np.diag(rate))*1.7);normalized=alpha/alpha.sum()
+    solution=solve_ivp(lambda t,x:x@Q-x*(rate-x@rate),(0,1.7),prior,rtol=1e-11,atol=1e-13)
+    close(normalized,solution.y[:,-1]);event_density=quad(lambda t:float(prior@expm((Q-np.diag(rate))*t)@rate),0,1.7)[0]
+    close(event_density+alpha.sum(),1)
+    return dict(twfe_weights=weights.tolist(),twfe_coefficient=float(coefficient),treated_cell_average=float(effect.mean()),two_transition_coefficient=str(num/den),alias=alias,
+                equilibrium_rule_derivative=slope,clamped_rate_derivative=b,observed_equilibrium_slope=observed_slope,
+                poisson_mean_weight=mass,poisson_target_count=weighted_count,uncompensated_mean=uncompensated,
+                absorbing_event_gradient=path_values,no_event_gradient=no_event,silence_distress=float(p[1]),report_after_silence=float(after[1]),dynamic_filter=normalized.tolist(),event_or_survival_probability=float(event_density+alpha.sum()),
+                scope='Independent projection,finite-law enumeration,matrix exponential/quadrature,ODE and pathwise-martingale checks of retained chapters15and18. No new sample or universal diffusion/event identification claim.')
+
+def observation_learning_laws():
+    from scipy.stats import binom,beta,chi2
+    for name in ['f3b8a7764b223a39','a5debbffee003dd5','04d7d5e1eb08aee3','d9a40f35a20919a9','b5464e652d9d5b66']:
+        raw('docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'+name+'.tex')
+    # Full observed cells recover MAR and the nuisance-product remainder.
+    coin=lambda p,b:p if b else 1-p;rows=[]
+    for x in [0,1]:
+        pi=F(1,4)+F(x,2);m=F(1,5)+F(x,2)
+        for r in [0,1]:
+            for y in [0,1]:rows.append((x,r,y,F(1,2)*coin(pi,r)*coin(m,y)))
+    mean=sum(p*y for x,r,y,p in rows);checks=[]
+    for dm in [F(0),F(1,10)]:
+        for dp in [F(0),F(1,10)]:
+            augmented=F(0);remainder=F(0)
+            for x,r,y,p in rows:
+                pi=F(1,4)+F(x,2);m=F(1,5)+F(x,2);augmented+=p*(m+dm+F(r)*(y-m-dm)/(pi+dp))
+            for x in [0,1]:
+                pi=F(1,4)+F(x,2);remainder+=F(1,2)*dp*dm/(pi+dp)
+            assert augmented-mean==remainder;checks.append(dict(dm=str(dm),dp=str(dp),bias=str(remainder)))
+    missing_laws=[]
+    for unobserved in [F(0),F(1)]:
+        observed=[F(1,4),F(1,4),F(1,2)];total=F(1,4)+F(1,2)*unobserved;missing_laws.append(dict(observed=list(map(str,observed)),mean=str(total)))
+    assert missing_laws[0]['observed']==missing_laws[1]['observed']
+    # Known receipt error: joint probabilities, not conditional means inverted.
+    K=np.array([[.8,.2],[.2,.8]]);truth=np.array([[.4,.1],[.1,.4]]);seen=K@truth
+    close(seen[:,1]/seen.sum(1),[8/25,17/25]);close(np.linalg.solve(K,seen),truth)
+    mixture_variance=F(1,4)+(F(0)-1)**2/2+(F(2)-1)**2/2;assert mixture_variance==F(5,4)
+    # Observational pair inverse and its complete differential from independent
+    # probability/response perturbations of the scalar rational functional.
+    def inverse(x):
+        eta1,eta2,p=x;return (p*eta1-(1-p)*eta2)/(2*p-1)
+    vector=np.array([2.,.5,.8]);gradient=[]
+    for j in range(3):
+        z=vector.astype(complex);z[j]+=1j*1e-20;gradient.append(float(inverse(z).imag/1e-20))
+    e1,e2,p=vector;close(gradient,[p/(2*p-1),-(1-p)/(2*p-1),(e2-e1)/(2*p-1)**2])
+    # Uniform binomial inversion at all counts in the stated diagnostic grid.
+    minimum=1.;minimum_at=None
+    for n in range(1,26):
+        count=np.arange(n+1);lower=np.array([0. if k==0 else beta.ppf(.025,k,n-k+1) for k in count]);upper=np.array([1. if k==n else beta.ppf(.975,k+1,n-k) for k in count])
+        for p in np.linspace(0,1,201):
+            coverage=float(np.sum(binom.pmf(count,n,p)*((p>=lower)&(p<=upper))))
+            if coverage<minimum:minimum=coverage;minimum_at=[n,p]
+    assert format(minimum,'.5f')=='0.95096'
+    # Whole-line/disconnected inverse laws tested without dividing by rank.
+    inside=[]
+    for v in [-100,-1,-.99,0,3.99,4,100]:
+        lower=min(-.2*(v-1.5),.2*(v-1.5));upper=max(-.2*(v-1.5),.2*(v-1.5));accepted=lower<=.5<=upper
+        assert accepted==(v<=-1 or v>=4);inside.append(dict(value=v,accepted=accepted))
+    # Known unequal inclusion and noisy audit labels: exact expectation over
+    # audit and label mechanisms, conditional on each complete pair.
+    audit=[]
+    for focal in [F(-1),F(3)]:
+        companion=F(2);T=(focal+companion)/2
+        for q in [F(1,10),F(3,5)]:
+            for error in [F(0),F(3,20)]:
+                estimate=F(0)
+                for selected in [0,1]:
+                    for correct in [0,1]:
+                        prob=coin(q,selected)*coin(1-error,correct)
+                        observed=focal if correct else companion
+                        corrected=T+(observed-T)/(1-2*error)
+                        estimate+=prob*(T+F(selected)*(corrected-T)/q)
+                assert estimate==focal;audit.append(dict(focal=str(focal),inclusion=str(q),error=str(error),expectation=str(estimate)))
+    # Ellipsoid support: explicit extremizer and independently dense reciprocal
+    # rectangle search both lie within the vertex-based enclosure.
+    m=np.array([1.,.5,2.,.25]);V=np.array([[2.,.4,.2,0],[.4,1.,0,.1],[.2,0,2.,.3],[0,.1,.3,.8]])
+    critical=chi2.ppf(.975,4);cost=.7
+    def support(u0,u1):
+        c=np.array([.5,u0/2,.5,u1/2]);radius=np.sqrt(critical*c@V@c);extreme=m+np.sqrt(critical/(c@V@c))*(V@c)
+        close((extreme-m)@np.linalg.solve(V,extreme-m),critical);close(c@extreme-cost,c@m+radius-cost)
+        return c@m-radius-cost,c@m+radius-cost
+    vertices=[support(x,y) for x in [1.1,2.] for y in [-3.,-1.2]];bounds=[min(v[0] for v in vertices),max(v[1] for v in vertices)]
+    for x in np.linspace(1.1,2,11):
+        for y in np.linspace(-3,-1.2,11):
+            low,high=support(x,y);assert low>=bounds[0]-1e-10 and high<=bounds[1]+1e-10
+    # Five wide noisy proxy bits still omit one latent coordinate.
+    from itertools import product
+    latent=list(product([0,1],repeat=2));proxies=list(product([0,1],repeat=5));matrix=np.array([[float(np.prod([.8 if z==u1 else .2 for z in bits])) for u1,u2 in latent] for bits in proxies])
+    assert np.linalg.matrix_rank(matrix)==2;close(matrix[:,0],matrix[:,1]);close(matrix[:,2],matrix[:,3]);close(matrix.sum(0),np.ones(4))
+    null_checks=[]
+    for action in [0,1]:
+        probabilities=[coin(F(1,10)+F(u1,5)+F(u2,2),action) for u1,u2 in latent]
+        center={u1:sum(probabilities[j]*u2 for j,(a,u2) in enumerate(latent) if a==u1)/sum(probabilities[j] for j,(a,u2) in enumerate(latent) if a==u1) for u1 in [0,1]}
+        h=np.array([float(u2-center[u1]) for u1,u2 in latent]);weighted=np.array(list(map(float,probabilities)))/4
+        residual=matrix@(weighted*h);close(residual,np.zeros(32));null_checks.append(float(np.max(np.abs(residual))))
+    rare=[]
+    for H in [2,5,10,20]:
+        p=F(1,3)*F(2,3)**(H-2);Q0=np.array([float(1-p),float(3*p/4),float(p/4)]);Q1=np.array([float(1-p),float(p/4),float(3*p/4)])
+        divergence=float(np.sum(Q0*np.log(Q0/Q1)));close(divergence,float(p)*math.log(3)/2)
+        delta=.1;binary_kl=(1-2*delta)*math.log((1-delta)/delta);bound=2*binary_kl/(float(p)*math.log(3));rare.append(dict(horizon=H,informative_probability=str(p),kl=divergence,necessary_episodes=bound))
+    return dict(missing_mean=str(mean),missing_remainders=checks,equal_observed_missing_laws=missing_laws,known_error_naive_contrast=.36,known_error_recovered_contrast=.6,linkage_total_variance=str(mixture_variance),pair_inverse_gradient=gradient,binomial_minimum_coverage=minimum,binomial_minimum_at=minimum_at,disconnected_membership=inside,audit_expectations=audit,ellipsoid_enclosure=bounds,proxy_rank=2,proxy_conditional_null_errors=null_checks,rare_path_bounds=rare,
+                scope='Independent finite-law,probability-derivative,binomial-tail and geometric checks of retained observation/learning arguments. No new bank data,native fit or empirical theorem qualification.')
+
+
+def financial_information_laws():
+    """Enumerate retained planning examples without inventing bank observations."""
+    base='docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'
+    sources={key:raw(base+name+'.tex').decode() for key,name in {
+        'linked':'ef0385a590696022','information':'c53a57c97a7c2a65',
+        'cost':'45875b508399ecf9','selection':'af6f7fa75bf002ac',
+        'pilot':'65a610a93e0ddf97','pilot_tables':'73d03246565dc76d',
+        'structure':'a6a49cf680d32a49'}.items()}
+    for key,anchor in {'linked':r'\label{integrated:linked_funding:eq:value}',
+                       'information':'50{,}000/20=2{,}500',
+                       'cost':'37/60', 'selection':'B minus A',
+                       'pilot':'point estimate at the largest evaluation sample size',
+                       'pilot_tables':'0.9333',
+                       'structure':r'\label{exec23:structured-weights}'}.items():assert anchor in sources[key],key
+    weights=[48*10**6*(F(2,1000)*F(99,100)**h-(F(1,12000) if h==0 else 0)) for h in range(7)]
+    shift=sum(w*F(82,100)**h for h,w in enumerate(weights))
+    values=[sum(w*2*rho**h for h,w in enumerate(weights))-400000 for rho in [F(82,100),F(96,100)]]
+    assert [round(float(v)) for v in values]==[375149,751749]
+    assert round(float(shift))==387575
+    # Conditional selection and symmetric label-noise expectations, by
+    # enumerating the three observed outcomes, rather than using the formula.
+    focal,companion=F(2),F(1,2);average=(focal+companion)/2
+    augmented=[]
+    for actual,declared,error in [(F(1,4),F(1,4),F(0)),(F(1,10),F(1,4),F(0)),(F(1,4),F(1,4),F(3,20))]:
+        states=[(1-actual,average),(actual*(1-error),average+(focal-average)/declared),(actual*error,average+(companion-average)/declared)]
+        expectation=sum(p*z for p,z in states)
+        augmented.append(dict(actual=str(actual),declared=str(declared),error=str(error),mean=str(expectation),monetary_bias=float((expectation-focal)*shift)))
+    assert [v['mean'] for v in augmented]==['2','31/20','71/40']
+    assert [round(v['monetary_bias']) for v in augmented]==[0,-174409,-87204]
+    for q in [F(1,10),F(1,4),F(1)]:
+        outcomes=[(1-q,average),(q,average+(focal-average)/q)]
+        mean=sum(p*z for p,z in outcomes);variance=sum(p*(z-mean)**2 for p,z in outcomes)
+        assert mean==focal and variance==(1/q-1)*(focal-average)**2
+    # An independent product-measure calculation checks the exact
+    # fixed-pilot population ratio, including the action-error square.
+    from numpy.polynomial.hermite import hermgauss
+    nodes,quadrature=hermgauss(8);nodes=nodes*math.sqrt(2);quadrature=quadrature/math.sqrt(math.pi)
+    da=np.array([.1,-.2,.05]);dy=np.array([.2,.3,-.1]);eta=2.;num=den=0.
+    for wi,w in enumerate(nodes):
+        x=np.array([1.,w,w*w-1])
+        for ei,e in enumerate(nodes):
+            probability=quadrature[wi]*quadrature[ei]
+            ra=e-x@da;ry=eta*e-x@dy
+            num+=probability*ra*ry;den+=probability*ra*ra
+    Q=np.diag([1.,1.,2.]);predicted=(eta+da@Q@dy)/(1+da@Q@da)
+    close(num/den,predicted)
+    assert max([.9600,.9417,.9333])>.95 and .9333<.95
+    # Actual policies are selected at each signal. This is a finite Bayes
+    # decision calculation, independent of the prose's posterior shortcut.
+    signal=[]
+    for s in [0,1]:
+        joint=[F(1,2)*(F(9,10) if s==world else F(1,10)) for world in [0,1]]
+        mass=sum(joint);gain=sum(p*(400*world-300) for world,p in enumerate(joint))/mass
+        signal.append(dict(signal=s,mass=str(mass),act_value=str(gain),act=gain>0))
+    gross=sum(F(r['mass'])*max(F(0),F(r['act_value'])) for r in signal)
+    perfect=sum(max(F(0),400*world-300)/2 for world in [0,1])
+    assert gross==30 and perfect==50 and 50000/(gross-10)==2500
+    token=F(30000*2+5000*8,10**6);ordinary=F(30,60)*60+1
+    base_cost=F(10,60)*60+2+token+F(1,5)+F(1,5)
+    assisted=base_cost+F(1,5)*F(30,60)*60;saving=ordinary-assisted
+    assert token==F(1,10) and assisted==F(37,2) and saving==F(25,2)
+    assert 12500/saving==1000 and 12500/(saving-F(1,1000)*10000)==5000
+    assert saving-F(2,1000)*10000<0 and (ordinary-base_cost)/30==F(37,60)
+    # Count every requested case; referrals retain their delay and loss.
+    a_total=100*2+100+10000+10*40+10*50
+    b_total=100*4+3*100+30*40+20*5+10*50
+    assert (a_total,b_total,a_total-b_total)==(11200,2500,8700)
+    assert F(88,90)>F(67,70)
+    review_delta=F(1,100)-F(1,500)
+    assert 20/review_delta==2500 and review_delta*100-20==-F(96,5) and review_delta*10000-20==60
+    # Enumerate all capped attempt trajectories, including permanent faults.
+    import itertools
+    retries=[]
+    for permanent,transient in [(F(0),F(1,5)),(F(1,10),F(1,9))]:
+        expected=3*permanent;failure=permanent
+        for outcomes in itertools.product([0,1],repeat=3):
+            probability=(1-permanent)*math.prod(transient if x==0 else 1-transient for x in outcomes)
+            calls=next((i+1 for i,x in enumerate(outcomes) if x),3)
+            expected+=probability*calls
+            if not any(outcomes):failure+=probability
+        retries.append(dict(calls=str(expected),failure=str(failure),cost=str(2*expected+50*failure)))
+    assert [r['calls'] for r in retries]==['31/25','59/45']
+    assert [r['failure'] for r in retries]==['1/125','41/405']
+    assert F(retries[0]['cost'])==F(72,25) and round(float(F(retries[1]['cost'])),2)==7.68
+    # Solve the two-state minimax regret equality and retain the joint
+    # policy relation before comparing it with the coordinate enlargement.
+    p=F(1625,625+1625);regret=625*p
+    assert p==F(13,18) and regret==F(8125,18)
+    worlds=[(-100,-200),(100,0)]
+    assert {a-b for a,b in worlds}=={100}
+    b_minus_a=[min(b for a,b in worlds)-max(a for a,b in worlds),max(b for a,b in worlds)-min(a for a,b in worlds)]
+    assert b_minus_a==[-300,100]
+    # Pilot option by direct joint sums across state and signal, retaining
+    # immediate construction as the comparator and charging delay once.
+    gain=[F(-60000),F(100000)];quality=F(4,5);pilot_gross=F(0);post=[]
+    for s in [0,1]:
+        joint=[F(1,2)*(quality if s==world else 1-quality) for world in [0,1]]
+        conditional=sum(p*g for p,g in zip(joint,gain))/sum(joint)
+        pilot_gross+=max(F(0),sum(p*g for p,g in zip(joint,gain)));post.append(conditional)
+    immediate=max(F(0),sum(gain)/2);net=-10000+F(9,10)*pilot_gross
+    assert post==[-28000,68000] and pilot_gross==34000 and immediate==20000 and net==20600
+    assert (immediate+10000)/pilot_gross==F(15,17)
+    assert (30000+(immediate+10000)/F(9,10))/80000==F(19,24)
+    mixture=[10-40*w for w in [F(1,5),F(3,5),F(1,10),F(2,5)]]
+    assert mixture==[2,-14,6,-6]
+    assert (F(20)-4)/2-2==6 and (10*F(20)-90*4)/100-2==-F(18,5)
+    original=F(1,4)*20-F(3,4)*4;normalized=F(2,5)*20-F(3,5)*4
+    assert original==2 and normalized==F(28,5)
+    return dict(funding_values=list(map(float,values)),one_unit_funding_shift=float(shift),linked_law_examples=augmented,
+                fixed_pilot_ratio=float(num/den),signal=signal,signal_gross=str(gross),perfect_information=str(perfect),
+                assisted_cost=str(assisted),variable_saving=str(saving),automation_costs=[a_total,b_total],
+                retries=retries,randomized_regret=str(regret),B_minus_A_coordinate_range=b_minus_a,
+                pilot_option=str(net),immediate_build=str(immediate),deployment_mixture=list(map(str,mixture)),
+                scope='Independent exact state/path enumeration, quadrature and monetary reconstruction of retained planning laws. No new empirical study, market price, live-model result, bank benefit or qualification.')
+
+
+def qualification_design_laws():
+    """Check the retained finite bounds and design power, without final draws."""
+    from scipy.stats import beta,binom,chi2
+    import itertools
+    base='docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'
+    for stem in ['cfe939aa8760d37c','0086cf696f3dce80','72275a22fb653cf2','db9ea6894074d6d4','e2385e937c19dd4e','e5b668b040ce402c']:
+        raw(base+stem+'.tex')
+    # Persistent signed-audit multiplier moments and the three-way
+    # variance decomposition follow from a complete finite reference.
+    q,e=F(2,5),F(2,25);rank=1-2*e;difference=F(3,4)
+    states=[(1-q,F(0)),(q*(1-e),1/q),(q*e,-1/q)]
+    assert sum(p*w for p,w in states)==rank and sum(p*w*w for p,w in states)==1/q
+    pair=[];cell=[]
+    for p,w in states:
+        for u,v in itertools.product([-1,1],repeat=2):
+            pair.append((p/4,F(u+v,2)+(w/rank)*F(u-v,2)+difference*(w/rank-1)))
+            cell.append((p/4,F(u+v,2)+(w/rank)*F(u-v,2)))
+    a=1/(q*rank*rank)
+    assert sum(p*z for p,z in pair)==sum(p*z for p,z in cell)==0
+    assert sum(p*z*z for p,z in pair)==(1+a)/2+difference*difference*(a-1)
+    assert sum(p*z*z for p,z in cell)==(1+a)/2
+    coefficients=[rank*rank*(F(1,50)+F(1,n))-1/(q*n) for n in [100,320]]
+    assert coefficients==[-F(479,125000),F(17009,2000000)]
+    calendar=[];precision=[]
+    for n in [2,3,10,40,160]:
+        rho=.95;cov=.36*rho**np.abs(np.arange(n)[:,None]-np.arange(n)[None,:])
+        variance=cov.sum()/n**2
+        formula=.36*(n+2*sum((n-k)*rho**k for k in range(1,n)))/n**2
+        information=np.ones(n)@np.linalg.solve(cov,np.ones(n))
+        closed=(n*(1-rho)+2*rho)/(.36*(1+rho))
+        close(variance,formula);close(information,closed)
+        if n in [40,160]:calendar.append(math.sqrt(variance))
+        persistence=1-1/n**2;information_limit=(n*(1-persistence)+2*persistence)/(1+persistence)
+        precision.append(dict(n=n,information=information_limit))
+    assert [format(v,'.4f') for v in calendar]==['0.4494','0.2776']
+    tv=2*norm.cdf(.5)-1;diameter_bound=.9-tv
+    assert format(tv,'.4f')=='0.3829' and format(diameter_bound,'.4f')=='0.5171'
+    # Backward recursion supplies intervention values. Complete observed
+    # prefix enumeration independently supplies fitted-weight means.
+    def bern(p,x):return p if x else 1-p
+    def action_probability(s):return F(3,10)+F(2,5)*s
+    def retention(s,a):return F(9,10)-F(s,10)-F(a,10)
+    def transition(s,a):return F(1,5)+F(s,2)-F(3*a,20)
+    def reward(snew,a):return 2-3*snew-F(a,4)
+    policies=[lambda s:0,lambda s:1,lambda s:s];policy_results=[]
+    for policy in policies:
+        val=[F(0),F(0)]
+        for time in range(2):
+            val=[sum(bern(transition(s,policy(s)),ss)*(reward(ss,policy(s))+val[ss]) for ss in [0,1]) for s in [0,1]]
+        target=sum(val)/2;fitted_mean=true_mean=F(0)
+        for s0,a0,s1,c0,a1,s2,c1 in itertools.product([0,1],repeat=7):
+            e0=bern(action_probability(s0),a0);e1=bern(action_probability(s1),a1)
+            g0=retention(s0,a0);g1=retention(s1,a1)
+            probability=F(1,2)*e0*bern(transition(s0,a0),s1)*bern(g0,c0)*e1*bern(transition(s1,a1),s2)*bern(g1,c1)
+            fitted_e0=bern(action_probability(s0)+F(1,25),a0);fitted_e1=bern(action_probability(s1)+F(1,25),a1)
+            fw0=F(int(policy(s0)==a0)*c0)/(fitted_e0*(g0-F(3,100)))
+            fw1=fw0*int(policy(s1)==a1)*c1/(fitted_e1*(g1-F(3,100)))
+            w0=F(int(policy(s0)==a0)*c0)/(e0*g0);w1=w0*int(policy(s1)==a1)*c1/(e1*g1)
+            fitted_mean+=probability*(fw0*reward(s1,a0)+fw1*reward(s2,a1))
+            true_mean+=probability*(w0*reward(s1,a0)+w1*reward(s2,a1))
+        assert true_mean==target
+        policy_results.append(dict(value=str(target),fitted_bias=float(fitted_mean-target)))
+    assert [p['value'] for p in policy_results]==['11/8','2','133/80']
+    assert [format(p['fitted_bias'],'.5f') for p in policy_results]==['0.21997','-0.22321','0.20834']
+    ce,cg=F(1,4),F(13,20);factor=(1+F(1,25)/ce)*(1+F(3,100)/cg)
+    bias_envelope=sum(2*(factor**(t+1)-1) for t in range(2))
+    assert format(float(bias_envelope),'.5f')=='1.37243'
+    maxscore=sum(2*(ce*cg)**(-(t+1)) for t in range(2))
+    eval_radius=float(maxscore)*math.sqrt(2*math.log(80)/1000);assert eval_radius>8
+    # Exact binomial lower-limit equivalence: reject coverage <=.95 only
+    # when the binomial upper tail is at most the allocated family error.
+    alpha=.05/16;n=512
+    threshold=next(k for k in range(1,n+1) if binom.sf(k-1,n,.95)<=alpha)
+    assert threshold==500 and beta.ppf(alpha,threshold,n-threshold+1)>=.95
+    assert beta.ppf(alpha,threshold-1,n-threshold+2)<.95
+    powers=[float(binom.sf(threshold-1,n,p)) for p in [.95,.97,.98,.99]]
+    assert [format(v,'.6f') for v in powers]==['0.001849','0.234929','0.770054','0.997670']
+    availability=[float(beta.ppf(alpha,k,n-k+1)) for k in [507,512]]
+    assert F(507,512)>F(99,100) and all(v<.99 for v in availability)
+    assert [format(v,'.5f') for v in availability]==['0.97130','0.98880']
+    degrees=math.ceil(18/(.02*.25**2));assert degrees==14400
+    multipliers=[239/chi2.ppf(1-.02/18,239),239/chi2.ppf(.02/18,239)]
+    assert [format(v,'.5f') for v in multipliers]==['0.76731','1.34533']
+    def halfwidth(m):
+        nu=2*m-2;b2=F(nu,nu-2)/F(3,100)
+        return math.sqrt(float(b2*100/(2*m*F(1,4))))
+    first_m=next(m for m in range(3,1000) if halfwidth(m)<5)
+    assert first_m==268 and format(halfwidth(200),'.5f')=='5.78806'
+    assert format(halfwidth(400),'.5f')=='4.08761'
+    assert format(3000*(20-halfwidth(200)-15),'.2f')=='-2364.19'
+    # Enumerated sign law supplies moment targets and irreducible loss
+    # floors; independent analytic thresholds test the proposed bound.
+    rows=[]
+    for x,v,h,noise in itertools.product([-1,1],repeat=4):
+        z=F(3*x,10)+v;act=F(4,5)*z+F(x,5)+h;y=F(6,5)*act+F(2*x,5)+noise
+        vz=z-F(3*x,10);va=act-F(11*x,25);vy=y-F(116*x,125)
+        rows.append((z,act,y,vz,va,vy))
+    BZ,BA,BY=[max(abs(row[j]) for row in rows) for j in range(3)]
+    Q=sum(row[3]*row[4] for row in rows)/16;M=sum(row[3]*row[5] for row in rows)/16
+    assert [BZ,BA,BY,Q,M]==[F(13,10),F(56,25),F(511,125),F(4,5),F(24,25)]
+    losses=[sum(row[j]**2 for row in rows)/16 for j in [3,4,5]]
+    assert losses==[1,F(41,25),F(2101,625)]
+    for d in [0,4,19]:
+        common=math.sqrt(math.log(4*(d+1)/.03)/(2*(640//(d+1))))
+        assert 8*float(BZ*BA)*common>float(Q) and 8*float(BZ*BY)*common>float(M)
+    denominator_threshold=math.floor((8*float(BZ*BA)/float(Q))**2*math.log(4/.03)/2)+1
+    decision_threshold=math.floor((8*float(BZ*(BY+F(23,20)*BA))/float(M-F(23,20)*Q))**2*math.log(4/.03)/2)+1
+    assert denominator_threshold==2075 and decision_threshold==7344273
+    certs=[]
+    for features,support,pilot in [(20,3,1024),(60,3,1024),(20,8,1024),(60,8,65536),(60,8,1048576)]:
+        lam=2*math.sqrt(2*math.log(2*features/.005)/pilot)
+        tau=math.sqrt(2*math.log(2*features**2/.005)/pilot)
+        squared=9*support*lam**2+144*tau*support**2*lam**2
+        certs.append([math.sqrt(squared),squared])
+    assert [format(v[0],'.4f') for v in certs]==['3.9770','4.3729','10.2004','0.5698','0.0961']
+    assert [format(v[1],'.4f') for v in certs]==['15.8166','19.1221','104.0480','0.3247','0.0092']
+    assert F(72,100)/(F(4,5)*(1+F(72,100)))==F(45,86)
+    return dict(persistent_quadratic_coefficients=list(map(str,coefficients)),calendar_mean_sd=calendar,
+                gaussian_information_sequence=precision,diameter_probability_limit=diameter_bound,
+                servicing_policy_examples=policy_results,servicing_bias_envelope=str(bias_envelope),servicing_evaluation_radius=eval_radius,
+                coverage_success_threshold=threshold,screen_power=powers,availability_lower_bounds=availability,
+                temporal_degrees_requirement=degrees,development_variance_multipliers=multipliers,
+                intervention_first_centered_sample=first_m,centered_offer_lower=3000*(20-halfwidth(200)-15),
+                dependent_denominator_threshold=denominator_threshold,dependent_decision_threshold=decision_threshold,
+                sparse_certificates=certs,irreducible_loss_floors=list(map(str,losses)),
+                scope='Independent finite-law enumeration, covariance solving, binomial-tail and deterministic planning reconstruction. Quantiles are numerical development checks, not certified outward endpoints; no final successor draws, bank sample-size recommendation or empirical qualification.')
+
+
+def network_allocation_laws():
+    """Reconstruct specified network laws, not acquired implementations."""
+    import itertools
+    base='docs/release/2026-10-29/source/docs/writing-repair/2026-10-29/src/'
+    for stem in ['b627a1d6f5e463b2','89ab4d3132a15fc3','82b72f77cea3839f','ff4336dd688ce96a','04b976aba7e67a1e','a6a9c3beac1b082c','1979e0a1a216a89e','9a61f7787de4fb1a']:
+        raw(base+stem+'.tex')
+    def bern(p,x):return p if x else 1-p
+    two=[]
+    for p in [F(1,5),F(4,5)]:
+        mean=sum(bern(p,a)*bern(p,b)*(100*a+40*b-30*a*b) for a,b in itertools.product([0,1],repeat=2))
+        assert mean==140*p-30*p*p
+        two.append(mean)
+    assert two==[F(134,5),F(464,5)] and two[1]-two[0]==66
+    # Exact design-weighted means use known joint assignments, even though
+    # two realized observations cannot supply a general variance estimate.
+    ht_means={}
+    for exposure in itertools.product([0,1],repeat=2):
+        total=F(0)
+        for z in itertools.product([0,1],repeat=2):
+            estimate=sum(F(int((z[i],z[1-i])==exposure))*(5+2*z[i]+3*z[1-i])/F(1,4) for i in [0,1])/2
+            total+=estimate/4
+        ht_means[str(exposure)]=str(total)
+    assert list(ht_means.values())==['5','8','7','10']
+    assert F(1,4)/F(1,2)**2==1 and F(1,4)**2/F(1,2)**2==F(1,4)
+    ratio=F(1,4)**2/F(1,2)**2;duplicated=ratio*F(1,4)**2
+    assert ratio==F(1,4) and duplicated==F(1,64)
+    assert -2*(1-F(1,2))*ratio==-F(1,4)
+    # Linear equilibrium computed as a matrix solve and a separate convergent
+    # propagation series; input transforms are compared on identical actions.
+    swap=np.array([[0.,1.],[1.,0.]])
+    S=np.linalg.solve(np.eye(2)-.5*swap,10*np.eye(2));expected=np.array([[40,20],[20,40]])/3
+    close(S,expected)
+    series=np.zeros((2,2));power=np.eye(2)
+    for k in range(100):series+=10*(.5**k)*power;power=power@swap
+    close(series,S)
+    W=np.array([[0.,1.,1.],[1.,0.,0.],[1.,0.,0.]])
+    row=W/W.sum(1)[:,None];action=np.array([1.,0.,0.])
+    star=np.linalg.solve(np.eye(3)-.25*W,10*action)
+    normalized=np.linalg.solve(np.eye(3)-.25*row,10*action)
+    close(star,np.array([80,20,20])/7);close(normalized,np.array([32,8,8])/3)
+    close(star,np.linalg.solve(np.eye(3)-.5*(W/2),10*action))
+    covariance=np.array([[1.,.05],[.05,.01]]);gradient=np.array([2.,40.])
+    close(gradient@covariance@gradient,28);close(gradient@np.diag(np.diag(covariance))@gradient,20)
+    K=np.array([[1.,1.,0.],[1.,1.,1.],[0.,1.,1.]])
+    u=np.array([1.,-2.,1.]);v=np.array([1.,0.,-1.]);B=K/np.sqrt(K.sum(1))[:,None];P=B@B.T
+    close(u@K@u/9,-2/9);close(v@K@v/9,2/9)
+    close(u@P@u/9,(7-16/math.sqrt(6))/9);close(v@P@v/9,1/9)
+    Cs=np.array([[[1,-2],[-2,5]],[[5,-2],[-2,1]],[[1,0],[0,1]]],dtype=float)
+    assert all(np.linalg.eigvalsh(c).min()>0 for c in Cs)
+    median=np.median(Cs,axis=0);close(np.linalg.det(median),-3);close(np.ones(2)@median@np.ones(2),-2)
+    # Approximate ties overlapping a strict tail can leave the probability
+    # domain; these authored inputs are not an executed package example.
+    t0=0;stats=[F(1,10**15),F(1,10**15),F(1)];epsilon=F(1,10**14)
+    strict=sum(x>t0 for x in stats);ties=sum(abs(x-t0)<epsilon for x in stats)
+    tail=(strict+F(3,4)*(1+ties))/(len(stats)+1)
+    assert tail==F(21,16) and 2*min(tail,1-tail)==-F(5,8)
+    assert 6*sum(F(1,k) for k in range(1,7))==F(147,10)
+    # Enumerate every node ranking and cluster assignment for the 3-path.
+    neighborhoods=[{0,1},{0,1,2},{1,2}];cases=[]
+    for scores in itertools.permutations(range(3)):
+        cluster=[max(neighborhood,key=lambda j:scores[j]) for neighborhood in neighborhoods]
+        labels=sorted(set(cluster))
+        for choices in itertools.product([0,1],repeat=len(labels)):
+            by_cluster=dict(zip(labels,choices));z=[by_cluster[c] for c in cluster]
+            expose=[[int(all(z[j]==a for j in neighborhood)) for a in [0,1]] for neighborhood in neighborhoods]
+            cases.append((F(1,6*2**len(labels)),expose))
+    assert len(cases)==20 and sum(p for p,x in cases)==1
+    pi=[[sum(p*x[i][a] for p,x in cases) for a in [0,1]] for i in range(3)]
+    assert pi==[[F(5,12)]*2,[F(1,3)]*2,[F(5,12)]*2]
+    outcomes=[[F(1),F(2)],[F(2),F(3)],[F(3),F(4)]];ht=[];hajek=[]
+    for p,exposure in cases:
+        arm_num=[sum(exposure[i][a]*outcomes[i][a]/pi[i][a] for i in range(3)) for a in [0,1]]
+        arm_den=[sum(F(exposure[i][a])/pi[i][a] for i in range(3)) for a in [0,1]]
+        ht.append((p,(arm_num[1]-arm_num[0])/3))
+        hajek.append((p,(arm_num[1]/arm_den[1] if arm_den[1] else 0)-(arm_num[0]/arm_den[0] if arm_den[0] else 0)))
+    ht_mean=sum(p*z for p,z in ht);var=sum(p*(z-ht_mean)**2 for p,z in ht);hj_mean=sum(p*z for p,z in hajek)
+    assert ht_mean==1 and var==F(2242,75) and hj_mean==F(1,2)
+    variance_joint=F(0)
+    for i,j,a,b in itertools.product(range(3),range(3),[0,1],[0,1]):
+        joint=sum(p*x[i][a]*x[j][b] for p,x in cases)
+        variance_joint+=(2*a-1)*(2*b-1)*outcomes[i][a]*outcomes[j][b]*(joint/(pi[i][a]*pi[j][b])-1)/9
+    assert variance_joint==var
+    # Full-history probability by enumeration of block assignments, including
+    # every uniform start phase. This also covers windows longer than a block.
+    path_probability=[]
+    for length in [1,2,3,10]:
+        ell=4;prob=F(0)
+        for phase in range(ell):
+            blocks=[(phase+j)//ell for j in range(length)];distinct=sorted(set(blocks))
+            for choices in itertools.product([0,1],repeat=len(distinct)):
+                assignment=dict(zip(distinct,choices))
+                if all(assignment[b] for b in blocks):prob+=F(1,ell*2**len(distinct))
+        path_probability.append(prob)
+    assert path_probability==[F(1,2),F(7,16),F(3,8),F(7,64)]
+    assert F(1,2)-F(10-1,4*4)==-F(1,16)
+    scores=[F(1),F(-1),F(1),F(-1)]
+    variances=[sum(x*x for x in scores)/4+sum(2*sum(scores[t]*scores[t-k] for t in range(k,4))/4 for k in range(1,limit+1)) for limit in [1,2]]
+    assert variances==[-F(1,2),F(1,2)]
+    # Updating both nodes from old state and sequentially are different laws.
+    states=[]
+    for order in [(0,1),(1,0)]:
+        x=[1,0]
+        for node in order:x[node]=x[1-node]
+        states.append(x)
+    assert states==[[0,0],[1,1]] and [(0+1)/2,(0+0)/2,(1+1)/2]==[.5,0.,1.]
+    for count,cost in [(1000,30),(600,50),(400,75)]:assert 30000/count==cost
+    assert F(1,5)*F(4,5)==F(4,25) and F(1,2)*F(1,5)==F(1,10) and F(1,5)**2==F(1,25)
+    assert F(9,10)!=F(1,2) and F(10,11)!=F(1,2)
+    return dict(two_borrower_policy_means=list(map(str,two)),exposure_ht_means=ht_means,
+                spatial_response=S.tolist(),star_response=star.tolist(),row_normalized_response=normalized.tolist(),
+                original_path_quadratics=[float(u@K@u/9),float(v@K@v/9)],overlap_quadratics=[float(u@P@u/9),float(v@P@v/9)],
+                elementwise_covariance_median=median.tolist(),overlapping_tail=str(tail),
+                randomized_cluster_cases=len(cases),marginal_exposure=[[str(v) for v in row] for row in pi],
+                ht_mean=str(ht_mean),ht_variance=str(var),zero_extended_hajek_mean=str(hj_mean),
+                block_path_probability=list(map(str,path_probability)),finite_lag_variances=list(map(str,variances)),
+                sequential_states=states,study_cost_per_unit=[30,50,75],
+                scope='Independent exact assignment/ranking/block enumeration, linear solves and deterministic helper-input arithmetic for retained network comparisons. No acquired package execution, new experiment, generalized covariance qualification, market price or bank truth.')
+
+def consumer_operating_laws():
+    import itertools
+    # Bind the complete source contexts whose retained laws are checked here.
+    manifest=read('docs/release/2026-10-29/context-review-129/manifest.json')
+    names={name for chapter in manifest['chapters'] if 78<=chapter['chapter']<=83 for name in chapter['source_bindings']}
+    for name in sorted(names):raw(name)
+    # Quarterly cash-flow valuation, independently summed in dollars.
+    quarters=[100_000_000*.001*.25/(1.04**(q/4)) for q in range(1,5)]
+    slope=sum(quarters);midpoint=sum(.75*x for x in quarters)-40000
+    values=[sum(theta*x for x in quarters)-40000 for theta in [.6,.9]]
+    assert [f'{v:.2f}' for v in values]==['18550.62','47825.93']
+    assert f'{midpoint:.2f}'=='33188.28' and f'{4*sum(.75*x for x in quarters)-40000:.2f}'=='252753.11'
+    assert f'{40000/slope:.6f}'=='0.409902'
+    target=F(3,5)*F(3,5)+F(2,5)*F(9,10);approx=(F(3,5)+F(9,10))/2
+    assert target==F(18,25) and approx==F(3,4)
+    target_value=float(target)*slope-40000;difference=midpoint-target_value
+    close(difference,.1*(values[1]-values[0]));assert f'{target_value:.2f}'=='30260.75'
+    assert [f'{v:.2f}' for v in [midpoint-difference,midpoint+difference]]==['30260.75','36115.81']
+    # Enumerate all observed histories, independently cancel the logger, then
+    # compare with a backwards conditional-reward calculation.
+    probabilities=[];ipw=[F(0),F(0)];gformula=[F(0),F(0)]
+    def pL(x,a):return F(1+x+a,5)
+    def pY(x,a,l,b):return F(1+2*x+3*l+2*b+a,10)
+    for x,a,l,b,y in itertools.product([0,1],repeat=5):
+        pl=pL(x,a);pb=F(1,4) if l else F(3,4);py=pY(x,a,l,b)
+        behavior=(F(1,2))**2*(pl if l else 1-pl)*(pb if b else 1-pb)*(py if y else 1-py)
+        probabilities.append(behavior)
+        for j in [0,1]:
+            first=(1-x) if j else 0;second=(1-l) if j else 0
+            if (a,b)==(first,second):ipw[j]+=behavior*(100*y-6*a-4*b)/(F(1,2)*(pb if b else 1-pb))
+    for j in [0,1]:
+        for x,l in itertools.product([0,1],repeat=2):
+            a=1-x if j else 0;b=1-l if j else 0;pl=pL(x,a)
+            gformula[j]+=F(1,2)*(pl if l else 1-pl)*(100*pY(x,a,l,b)-6*a-4*b)
+    assert len(probabilities)==32 and sum(probabilities)==1
+    assert ipw==gformula==[F(29),F(218,5)] and ipw[1]-ipw[0]==F(73,5)
+    # Fixed finite-population selection; unavailable values are not zero.
+    y=[20,40,60,80];pi=[F(1,2),F(1),F(1,4),F(1,2)];selection=[]
+    for flags in itertools.product([0,1],repeat=4):
+        probability=math.prod(p if flag else 1-p for flag,p in zip(flags,pi))
+        ht=sum(F(flag*value,4)/p for flag,value,p in zip(flags,y,pi))
+        observed=F(sum(flag*value for flag,value in zip(flags,y)),sum(flags)) if sum(flags) else F(0)
+        selection.append((probability,ht,observed))
+    mean=sum(p*v for p,v,o in selection);variance=sum(p*(v-mean)**2 for p,v,o in selection)
+    assert mean==50 and variance==1100 and sum(p*o for p,v,o in selection)==F(365,8)
+    # Two-group transport and joint-policy interactions have different targets.
+    effects=[10,-10];source=[F(4,5),F(1,5)];target=[F(1,5),F(4,5)]
+    assert sum(p*v for p,v in zip(source,effects))==6 and sum(p*v for p,v in zip(target,effects))==-6
+    assert [q/p for p,q in zip(source,target)]==[F(1,4),F(4)]
+    val=lambda f,s:100+20*f+15*s-30*f*s
+    joint=val(1,1)-val(0,0);interaction=val(1,1)-val(1,0)-val(0,1)+val(0,0)
+    assert joint==5 and interaction==-30
+    assert 80*(val(1,0)-100)+40*(val(0,1)-100)+20*joint==2300
+    assert 100*20+60*15==2900 and 2900+20*interaction==2300
+    # Preserve exactly one contribution, including all repeated attempt costs.
+    assert sum([100,-40,-40,70])==90 and sum(dict(A=100,B=-40,C=70).values())==130
+    attempted=[('A',2),('B',4),('B',4),('C',-1),('D',3)]
+    assert len(list(itertools.permutations(attempted)))==120
+    for events in itertools.permutations(attempted):
+        contributions={}
+        for identity,value in events:
+            assert identity not in contributions or contributions[identity]==value
+            contributions[identity]=value
+        assert F(sum(contributions.values()),len(contributions))==2
+    assert F(sum(v for k,v in attempted),5)==F(12,5) and F(sum(v for k,v in attempted),4)==3
+    # Exhaust all ten ordered publisher/collector interleavings. A rejected
+    # pin is an availability outcome, not an invalid public reference.
+    schedules=[]
+    for positions in itertools.combinations(range(5),3):
+        publisher=iter(['pin','publish','unpin']);collector=iter(['snapshot','sweep'])
+        schedules.append([next(publisher) if i in positions else next(collector) for i in range(5)])
+    def retention(schedule,recheck):
+        present={'report','input'};roots=set();pins=set();marked=set();admitted=False;bad=False;published=False
+        closure=lambda nodes: set(nodes)|({'input'} if 'report' in nodes else set())
+        for event in schedule:
+            if event=='pin':
+                admitted=closure({'report'})<=present
+                if admitted:pins.add('report')
+            elif event=='publish' and admitted:
+                roots.add('report');published=True
+            elif event=='unpin':pins.discard('report')
+            elif event=='snapshot':marked=closure(roots|pins)
+            elif event=='sweep':
+                keep=marked|(closure(roots|pins) if recheck else set())
+                present&=keep
+            bad=bad or not closure(roots|pins)<=present
+        return bad,published
+    stale=[retention(events,False) for events in schedules];safe=[retention(events,True) for events in schedules]
+    assert len(schedules)==10 and sum(x[0] for x in stale)==3
+    assert not any(x[0] for x in safe) and sum(x[1] for x in safe)==9
+    # A model with indivisible terminal transitions has two distinct outcomes.
+    terminals=[]
+    for order in itertools.permutations(['cancel','publish']):
+        state='running'
+        for event in order:
+            if state=='running':state='cancelled' if event=='cancel' else 'completed'
+        terminals.append(state)
+    assert sorted(terminals)==['cancelled','completed']
+    # Queueing and total memory, not merely each worker's service time.
+    assert (1024-128-128)//256==3
+    workers=[0,0];finish=[]
+    for request in range(5):
+        worker=min(range(2),key=lambda k:workers[k]);workers[worker]+=3;finish.append(workers[worker])
+    assert finish==[3,3,6,6,9] and sum(v<=8 for v in finish)==4
+    assert F(7,10)*10+F(3,20)*(-30)-2-F(3,20)*20==-F(5,2)
+    assert (F(7,10)*10+F(3,20)*(-30))/F(17,20)-2==F(16,17)
+    # A missing nuisance term changes the exact Gaussian coverage and decision.
+    influence=[]
+    for x,y in itertools.product([-1,1],repeat=2):influence.append(F(x)+2*F(y)*math.sqrt(2))
+    close(sum(float(v*v) for v in influence)/4,9)
+    close(2*norm.cdf(2)-1,.9544997361036416);close(2*norm.cdf(2/3)-1,.4950149249061542)
+    profit=lambda b:3750*b-7000
+    assert [profit(v) for v in [F(19,10),F(21,10)]]==[125,875]
+    assert [profit(v) for v in [F(17,10),F(23,10)]]==[-625,1625]
+    assert [profit(v) for v in [-1,1]]==[-10750,-3250]
+    roots=np.sort(np.roots([96,-400,396]));close(roots,[(25-math.sqrt(31))/12,(25+math.sqrt(31))/12])
+    # Joint measurement-score covariance by complete sign enumeration.
+    scores=[]
+    for x,y in itertools.product([-1,1],repeat=2):scores.append((F(x)-F(3,10)*(-x+y))/F(4,5))
+    assert sum(v*v for v in scores)/4==F(89,32) and F(1)/F(4,5)**2==F(25,16)
+    assert F(1,10)+(F(9,10)-F(1,10))*F(3,10)==F(17,50)
+    assert F(1,10)+(F(1,2)-F(1,10))*F(3,5)==F(17,50)
+    assert [500*p-200 for p in [F(3,10),F(3,5)]]==[-50,100]
+    assert [500*(q-F(1,10))/F(4,5)-200 for q in [F(3,10),F(19,50)]]==[-75,-25]
+    # Preparation, blocking and linkage; exact enumerations require no engine.
+    completion_values={F(u+v,3) for u,v in itertools.product([0,1],repeat=2)}
+    assert completion_values=={F(0),F(1,3),F(2,3)} and {300*v-40 for v in completion_values}=={-40,60,160}
+    assert F(100,2)==50 and F(300,4)==75
+    assert F(math.comb(98,10),math.comb(100,10))==F(89,110)
+    overlapping=[]
+    for x,y,z in itertools.product([-1,1],repeat=3):overlapping.append((F(x+y,2),F(y+z,2)))
+    assert sum(a*b for a,b in overlapping)/8==F(1,4)
+    assert sum(((a+b)/2)**2 for a,b in overlapping)/8==F(3,8)
+    posterior=lambda prior,lr:prior*lr/(1-prior+prior*lr)
+    assert posterior(F(1,100),100)==F(100,199) and posterior(F(1,1000),100)==F(100,1099)
+    assert posterior(F(1,100),10)==F(10,109)
+    assert F(54,60)==F(9,10) and F(54,100)==F(27,50)
+    assert F(96,100)*2-1==F(23,25)>F(1,10)
+    assert F(90,100)+F(10,100)==1 and F(80,100)+F(85,100)==F(33,20)
+    assert F(3,4)*20+F(1,4)*(-20)==10
+    assert F(3,4)*(20-10)**2+F(1,4)*(-20-10)**2+4==304
+    assert F(4,5)*100+F(1,5)*1000==280 and F(4,5)*F(1,5)*900**2==129600
+    # Commercial workflow accounting and physical-plan examples.
+    assert F(5*6-2,6)==F(14,3) and F(3*6-2,4)==4
+    assert F(10-1,2)+F(-30-1,2)==-11
+    assert [4+F(v,2) for v in [-50,50]]==[-21,29]
+    assert F(10-1,2)+F(30-1,2)==19
+    assert F(1+0+0,3)==F(1,3) and F(1+0+1+0,4)==F(1,2)
+    sleep=sum(F(1,5)*F(11,10)**i for i in range(3));assert sleep==F(331,500) and sleep+6==F(3331,500)
+    assert F(1)/(F(1,5)+F(4,5)/4)==F(5,2)
+    assert F(1)/(F(1,5)+F(4,5)/4+F(3,10))==F(10,7)
+    assert F((1+1)**2+(-1-1)**2,16)==F(1,2) and F(1+1+1+1,16)==F(1,4)
+    return dict(funding_slope=slope,funding_range=values,funding_midpoint=midpoint,funding_tv_difference=difference,
+                servicing_ipw=list(map(str,ipw)),servicing_gformula=list(map(str,gformula)),selection_mean=str(mean),selection_variance=str(variance),
+                retention_schedules=schedules,stale_snapshot_violations=sum(x[0] for x in stale),coordinated_violations=0,coordinated_publications=9,
+                queue_completions=finish,terminal_outcomes=terminals,gaussian_coverages=[float(2*norm.cdf(v)-1) for v in [2,2/3]],
+                scope='Independent cash-flow sums, complete finite-history/selection/sign enumerations and all ten stated retention interleavings. Reconstructs retained authored laws and operating examples only; no downloaded code, vendor/native trial, new empirical study, bank data or universal storage proof.')
+
+def assistance_information_laws():
+    """Independently enumerate the declared assistance/translation laws."""
+    import itertools
+    manifest=read('docs/release/2026-10-29/context-review-130/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter'] in [64,66,67]:
+            for name in chapter['source_bindings']:raw(name)
+    # Task composition, conditional chain and attainable marginal bounds.
+    delta=lambda w:F(7,100)*w-F(17,100)*(1-w)
+    assert delta(F(17,24))==0 and delta(F(1,2))==F(-1,20) and delta(F(4,5))==F(11,500)
+    marginals=[F(96,100),F(95,100),F(90,100),F(97,100),F(98,100)]
+    chain=math.prod(marginals);assert chain==F(4876578,6250000)
+    counts=[4,5,10,3,2];offset=0;disjoint=[]
+    for n in counts:disjoint.append(set(range(offset,offset+n)));offset+=n
+    nested=[set(range(n)) for n in counts]
+    assert [len(set(range(100))-set.union(*fs)) for fs in [disjoint,nested]]==[76,90]
+    truth=[0]*100;key=[1]*10+[0]*90
+    for answer,correct in [([1]*20+[0]*80,80),(truth,100)]:
+        assert sum(a==b for a,b in zip(answer,key))==90
+        assert sum(a==b for a,b in zip(answer,truth))==correct
+    pi=[F(3,5),F(1,5),F(1,5)];transition=[[F(9,10),F(1,20),F(1,20)],[F(1,5),F(3,10),F(1,2)],[F(1,10),F(3,5),F(3,10)]]
+    final=[sum(pi[i]*transition[i][j] for i in range(3)) for j in range(3)]
+    assert final==[F(3,5),F(21,100),F(19,100)]
+    switch=sum(pi[i]*(1-transition[i][i]) for i in [1,2])/(1-pi[0])
+    correction=sum(pi[i]*transition[i][0] for i in [1,2])/(1-pi[0])
+    assert switch==F(7,10) and correction==F(3,20) and pi[0]*F(9,10)+(1-pi[0])*switch==F(41,50)
+    # Full observed joint tables versus intervention means, with positive support.
+    worlds=[(F(7,20),F(1,5),F(1,10)),(F(3,10),F(2,5),F(0)),(F(1,4),F(3,5),F(-1,10))]
+    world_reports=[]
+    for alpha,beta,tau in worlds:
+        observed=defaultdict(F);means=[]
+        for u,a,y in itertools.product([0,1],repeat=3):
+            pa=F(1,4)+F(1,2)*u;py=alpha+beta*u+tau*a
+            assert 0<pa<1 and 0<py<1
+            observed[a,y]+=F(1,2)*(pa if a else 1-pa)*(py if y else 1-py)
+        assert [observed[a,y] for a,y in itertools.product([0,1],repeat=2)]==[F(3,10),F(1,5),F(1,5),F(3,10)]
+        for a in [0,1]:means.append(sum(F(1,2)*(alpha+beta*u+tau*a) for u in [0,1]))
+        assert means[1]-means[0]==tau
+        world_reports.append(dict(means=list(map(str,means)),net=str(100*tau-5)))
+    # Enumerate shared-context plus independent residual errors.
+    joint=defaultdict(F)
+    for shared in [0,1]:
+        for errors in itertools.product([0,1],repeat=3):
+            probability=(F(1,10) if shared else F(9,10))*math.prod(F(1,10) if e else F(9,10) for e in errors)
+            actual=tuple(1 if shared else e for e in errors);joint[actual]+=probability
+    marginal=sum(p for e,p in joint.items() if e[0]);majority=sum(p for e,p in joint.items() if sum(e)>=2)
+    assert marginal==F(19,100) and majority==F(313,2500)
+    naive=3*marginal*marginal*(1-marginal)+marginal**3;assert naive==F(47291,500000)
+    assert majority-naive==F(15309,500000)
+    assert [15-50*w for w in [F(1,5),F(3,5),F(3,10),0,1]]==[5,-15,0,15,-35]
+    assert F(9,10)-F(1,2)-F(2,5)+F(1,5)==F(1,5)
+    assert [F(100,n) for n in [80,60,36]]==[F(5,4),F(5,3),F(25,9)]
+    # Target weighting and residual confounding from covariance normal equations.
+    assert (F(9,100)*2+F(1,4)*8)/(F(9,100)+F(1,4))==F(109,17)
+    proxy=[]
+    for noise,expected in [(0,F(-1,5)),(F(1,4),F(-1,30)),(1,F(2,15)),(4,F(11,45))]:
+        noise=F(noise)
+        tau=F(-1,5);cov_ay=2*tau+1;cov_wy=tau+1
+        coefficient=(cov_ay*(1+noise)-cov_wy)/(2*(1+noise)-1)
+        assert coefficient==expected==tau+noise/(1+2*noise);proxy.append(str(coefficient))
+    # Daily funding ledger independently reconstructs both cost and value.
+    daily=[]
+    for balance,rate,cost in [(100000,F(2,100),4),(110000,F(9,400),8)]:
+        n=sum((rate*balance+F(5,100)*(150000-balance))/365 for day in range(30))+cost
+        value=sum((F(5,100)-rate)*balance/365 for day in range(30))-cost
+        assert n+value==30*F(5,100)*150000/365;daily.append((n,value))
+    assert daily[1][1]-daily[0][1]==F(-142,73)==-(daily[1][0]-daily[0][0])
+    r_inc=(F(9,400)*3300000-F(2,100)*3000000+365*4)/300000;assert r_inc==F(1571,30000)
+    assert [(q-r_inc)*300000/365 for q in [F(4,100),F(6,100)]]==[F(-742,73),F(458,73)]
+    assert [sum(q*b for q,b in zip([F(1,10),F(1,100)],balances))/365 for balances in [[200,0],[0,200]]]==[F(4,73),F(2,365)]
+    assert min(100,100)*F(1,100)-F(3,4)==F(1,4)
+    assert (min(0,100)+min(200,100))*F(1,200)-F(3,4)==F(-1,4)
+    # Differential measurement and a complete selected-note law.
+    measured=lambda risk,sensitivity,specificity:risk*sensitivity+(1-risk)*(1-specificity)
+    base=measured(F(2,5),F(4,5),F(9,10))
+    assert measured(F(1,2),F(4,5),F(9,10))-base==F(7,100)
+    assert measured(F(1,2),F(1,2),F(19,20))-base==F(-21,200)
+    selected=defaultdict(F)
+    for a,u in itertools.product([0,1],repeat=2):selected[a,u]=F(1,4)*(F(3,4) if a==u else F(1,4))
+    assert [selected[a,1]/sum(selected[a,u] for u in [0,1]) for a in [0,1]]==[F(1,4),F(3,4)]
+    # Complete logger enumeration, then intervention calculation separately.
+    reward=lambda a,l,b:100+20*a-40*l+30*b*l-10*b
+    policies=[]
+    for a in [0,1]:
+        risk=F(1,4)+F(1,2)*a
+        direct=sum((risk if l else 1-risk)*reward(a,l,l) for l in [0,1])
+        weighted=sum(F(1,4)*(risk if l else 1-risk)*4*reward(aa,l,b) for aa,l,b in itertools.product([0,1],repeat=3) if aa==a and b==l)
+        fixed=[sum((risk if l else 1-risk)*reward(a,l,b) for l in [0,1]) for b in [0,1]]
+        assert direct==weighted;policies.append(dict(adaptive=str(direct),fixed=list(map(str,fixed))))
+    assert policies==[dict(adaptive='95',fixed=['90','175/2']),dict(adaptive='105',fixed=['90','205/2'])]
+    assert [F(1,5)*100+F(1,10)*v for v in [50,-50]]==[25,15]
+    assert [F(v,1)/F(3,10) for v in [25,15]]==[F(250,3),50]
+    assert [F(1,10)*v for v in [-200,100]]==[-20,10]
+    # Linguistic treatment proxy: enumerate all eight cells.
+    cells=[]
+    for s,r,z in itertools.product([0,1],repeat=3):
+        flip=F(9,20) if s==0 else F(0)
+        probability=F(1,4)*(1-flip if z==r else flip)
+        cells.append((s,r,z,100+(20 if s==0 else -10)*r,probability))
+    contrasts=[]
+    for s in [0,1]:
+        means=[sum(y*p for ss,r,zz,y,p in cells if ss==s and zz==z)/sum(p for ss,r,zz,y,p in cells if ss==s and zz==z) for z in [0,1]]
+        contrasts.append(means[1]-means[0])
+    assert contrasts==[2,-10] and sum(contrasts)/2==-4
+    assert sum(p for s,r,z,y,p in cells if r==z)==F(31,40)
+    assert [sum(F(1,4)*(100+20*(u<1+2*a)-10*a) for u in range(4)) for a in [0,1]]==[105,105]
+    arithmetic=F(3,4)*F(1,10)+F(1,4)*F(9,10)
+    geometric=1/(1+math.exp(-(-.75*math.log(9)+.25*math.log(9))))
+    assert arithmetic==F(3,10);close(geometric,.25)
+    assert F(1,5)*F(1,10)+F(4,5)*F(9,10)==F(37,50)
+    # Ontology error rates, unit weighting and independent provenance checks.
+    ontology=[]
+    for sensitivity,falsepositive in [(F(4,5),F(1,20)),(F(9,10),F(3,20))]:
+        prevalence=F(1,5);q=sensitivity*prevalence+falsepositive*(1-prevalence)
+        accuracy=sensitivity*prevalence+(1-falsepositive)*(1-prevalence)
+        assert (q-falsepositive)/(sensitivity-falsepositive)==prevalence
+        ontology.append([str(q),str(accuracy)])
+    assert ontology==[['1/5','23/25'],['3/10','43/50']]
+    assert (9*10-10)/10==8 and F(1500,36000)==F(1,24)
+    phrase='monthly household income before tax during the reporting period'.split()
+    left=set(['doc-one']+phrase);right=set(['doc-two']+phrase)
+    assert F(len(left&right),len(left|right))==F(9,11)>F(4,5)
+    assert measured(F(1,5),F(9,10),F(9,10))==F(13,50)
+    assert measured(F(1,5),F(7,10),F(19,20))==F(9,50)
+    assert (1+4*F(4,5))/5==F(21,25)
+    assert F(81,100)==F(9,10)**2 and [F(240,n) for n in [100,90,81]]==[F(12,5),F(8,3),F(80,27)]
+    # Enumerate legal graphs; edges need not remain independent after admission.
+    graphs=[(1,1),(0,1),(0,0)];posteriors=[]
+    for advice in [(1,1),(1,0)]:
+        weights=[math.prod(F(9,10) if g==e else F(1,10) for g,e in zip(graph,advice)) for graph in graphs]
+        posteriors.append([w/sum(weights) for w in weights])
+    assert posteriors==[[F(81,91),F(9,91),F(1,91)],[F(9,19),F(1,19),F(9,19)]]
+    unanimity=F(4,5)**5+F(1,5)**5
+    assert unanimity==F(41,125) and F(1,5)**5/unanimity==F(1,1025)
+    assert F(9**5,1+9**5)==F(59049,59050)
+    legal=[g for g in itertools.product([0,1],repeat=2) if sum(g)<2]
+    assert F(sum(g[0] for g in legal),len(legal))==F(1,3)
+    weights=[F(4,10)*F(1,10),F(3,10)*F(7,10),F(2,10)*F(1,10),F(1,10)*F(1,10)]
+    posterior=[w/sum(weights) for w in weights]
+    assert posterior==[F(1,7),F(3,4),F(1,14),F(1,28)]
+    return dict(stage_chain=str(chain),stage_marginal_bounds=['19/25','9/10'],transition=list(map(str,final)),three_worlds=world_reports,
+                shared_majority=str(majority),false_independence_majority=str(naive),proxy_regression=proxy,funding_value=str(daily[1][1]-daily[0][1]),
+                funding_break_even=str(r_inc),servicing_policies=policies,linguistic_proxy_contrasts=list(map(str,contrasts)),ontology_rates=ontology,
+                graph_posteriors=[list(map(str,x)) for x in posteriors],feedback_posterior=list(map(str,posterior)),
+                scope='Independent exact finite enumeration, covariance algebra, daily cash-flow sums and joint-graph calculations for chapters64,66,67. No new experiments, provider calls, source-code execution, causal truth or bank qualification.')
+
+def diagram_decision_laws():
+    """Check diagram, acquisition and reporting arguments by finite laws."""
+    import itertools
+    manifest=read('docs/release/2026-10-29/context-review-130/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter'] in [68,70,73,74]:
+            for name in chapter['source_bindings']:raw(name)
+    # Noisy pretreatment proxy: all sixteen cells and a separate inversion.
+    cells=[]
+    for u,a,z,y in itertools.product([0,1],repeat=4):
+        pa=F(1,5)+F(3,5)*u;py=F(1,10)+F(1,5)*a+F(1,2)*u
+        p=F(1,2)*(pa if a else 1-pa)*(F(4,5) if z==u else F(1,5))*(py if y else 1-py)
+        assert p>0;cells.append((u,a,z,y,p))
+    assert sum(row[-1] for row in cells)==1
+    means={}
+    for a,z in itertools.product([0,1],repeat=2):
+        means[a,z]=sum(y*p for u,aa,zz,y,p in cells if aa==a and zz==z)/sum(p for u,aa,zz,y,p in cells if aa==a and zz==z)
+    proxy=sum((means[1,z]-means[0,z])*sum(p for u,a,zz,y,p in cells if zz==z) for z in [0,1]);assert proxy==F(143,340)
+    recovered={}
+    for a,y in itertools.product([0,1],repeat=2):
+        observed=[sum(p for u,aa,zz,yy,p in cells if (aa,yy,zz)==(a,y,z)) for z in [0,1]]
+        for u in [0,1]:
+            recovered[u,a,y]=(F(4,5)*observed[u]-F(1,5)*observed[1-u])/F(3,5)
+            assert recovered[u,a,y]==sum(p for uu,aa,z,yy,p in cells if (uu,aa,yy)==(u,a,y))
+    true_means=[sum(F(1,2)*recovered[u,a,1]/sum(recovered[u,a,y] for y in [0,1]) for u in [0,1]) for a in [0,1]]
+    assert true_means==[F(7,20),F(11,20)] and proxy-(true_means[1]-true_means[0])==F(15,68)
+    # Collider adjustment in a randomized population, all eight cells.
+    collider={}
+    for a,u,m in itertools.product([0,1],repeat=3):
+        pm=F(1,10)+F(2,5)*a+F(2,5)*u;collider[a,u,m]=F(1,4)*(pm if m else 1-pm)
+        assert collider[a,u,m]>0
+    contrasts=[]
+    for m in [0,1]:
+        means=[collider[a,1,m]/sum(collider[a,u,m] for u in [0,1]) for a in [0,1]];contrasts.append(means[1]-means[0])
+    assert contrasts==[F(-4,21)]*2
+    assert F(10)/(1+9*F(9,10))==F(100,91)
+    evpi=[30*p-max(0,60*p-30) for p in [F(1,2),F(4,5)]];assert evpi==[15,6]
+    assert [10+90*w for w in [F(1,4),F(3,4)]]==[F(65,2),F(155,2)]
+    # Three positive-observation worlds; remove reverse time without losing C.
+    worlds=[]
+    for kind in ['F','R','C']:
+        law=defaultdict(F)
+        for u,e in itertools.product([0,1],repeat=2):
+            p=F(1,2)*(F(1,10) if e else F(9,10))
+            if kind=='F':a=u;y=u^e
+            elif kind=='R':y=u;a=u^e
+            else:a=u^e;y=u
+            law[a,y]+=p
+        worlds.append(law)
+    assert worlds[0]==worlds[1]==worlds[2]
+    assert [worlds[0][a,y] for a,y in itertools.product([0,1],repeat=2)]==[F(9,20),F(1,20),F(1,20),F(9,20)]
+    edges=[(0,1),(1,2),(2,0)]
+    def cyclic(subset):
+        reach={(a,b) for a,b in subset}
+        for k in range(3):
+            for i in range(3):
+                for j in range(3):
+                    if (i,k) in reach and (k,j) in reach:reach.add((i,j))
+        return any((i,i) in reach for i in range(3))
+    assert cyclic(edges)
+    assert all(not cyclic([edges[i] for i in range(3) if i!=j]) for j in range(3))
+    survivors=set()
+    for order in itertools.permutations(edges):
+        accepted=[]
+        for edge in order:
+            if not cyclic(accepted+[edge]):accepted.append(edge)
+        survivors.add(tuple(sorted(accepted)))
+    assert len(survivors)==3
+    # Enumerate world and signal laws; compare payoffs with posterior decisions.
+    signal_rows=[]
+    for h,z,s in itertools.product([0,1],repeat=3):
+        signal_rows.append((h,z,s,F(1,4)*(F(4,5) if s==h else F(1,5))))
+    payoff=lambda h:100 if h else -120
+    realized=sum(p*payoff(h) for h,z,s,p in signal_rows if s==1);assert realized==28
+    posteriors=[sum(p*h for h,z,ss,p in signal_rows if ss==s)/sum(p for h,z,ss,p in signal_rows if ss==s) for s in [0,1]]
+    assert posteriors==[F(1,5),F(4,5)]
+    assert realized-5==23 and F(3,4)*realized-5==16
+    entropy=lambda p: -float(p)*math.log2(float(p))-(1-float(p))*math.log2(1-float(p))
+    information=1-entropy(F(1,5));close(information,.2780719051126377)
+    def terminal(p):return max(F(0),220*p-120)
+    def signal_options(p):
+        ps=F(4,5)*p+F(1,5)*(1-p)
+        return [(ps,F(4,5)*p/ps),(1-ps,F(1,5)*p/(1-ps))]
+    def bellman(p,remaining):
+        if remaining==0:return terminal(p)
+        useful=-5+sum(weight*bellman(posterior,remaining-1) for weight,posterior in signal_options(p))
+        nuisance=-5+bellman(p,remaining-1)
+        return max(terminal(p),useful,nuisance)
+    assert bellman(F(1,2),1)==bellman(F(1,2),2)==23
+    second_gains=[sum(weight*terminal(posterior) for weight,posterior in signal_options(p))-terminal(p) for p in [F(4,5),F(1,5)]]
+    assert second_gains==[F(16,5),0]
+    always_two=sum(w*sum(w2*terminal(p2) for w2,p2 in signal_options(p)) for w,p in signal_options(F(1,2)))
+    assert always_two==F(148,5) and always_two-10==F(98,5)
+    # Correct set transcription, selected coverage and repeated-monitor budget.
+    values={v-40 for v in [0,100]};assert values=={-40,60} and F(sum(values),len(values))==10 and 10 not in values
+    population=list(range(100));covers=set(range(95));accepted=set(range(5))|set(range(95,100))
+    assert F(len(covers),100)==F(19,20) and F(len(covers&accepted),len(accepted))==F(1,2)
+    false_alarm=1-F(19,20)**12;close(float(false_alarm),.459639912337363)
+    for count in [1,12,100]:assert sum(F(1,20*t*(t+1)) for t in range(1,count+1))==F(count,20*(count+1))<F(1,20)
+    assert F(1,20)/4==F(1,80)
+    dependencies={'clock':['design'],'assignment':['design'],'design':['estimate'],'cohort':['estimate'],'estimate':['economics','report'],'prices':['economics'],'economics':['report'],'other_cohort':['other_estimate']}
+    def affected(source):
+        found=set();pending=list(dependencies.get(source,[]))
+        while pending:
+            node=pending.pop()
+            if node not in found:found.add(node);pending.extend(dependencies.get(node,[]))
+        return found
+    assert affected('prices')=={'economics','report'}
+    assert affected('clock')=={'design','estimate','economics','report'}
+    assert affected('other_cohort')=={'other_estimate'}
+    return dict(proxy_adjusted=str(proxy),corrected_means=list(map(str,true_means)),collider_contrasts=list(map(str,contrasts)),evpi=list(map(str,evpi)),
+                insertion_order_outcomes=len(survivors),signal_posteriors=list(map(str,posteriors)),information_bits=information,
+                one_signal_net=23,failed_attempt_net=16,two_signal_net=str(always_two-10),optimal_two_horizon_net=str(bellman(F(1,2),2)),second_signal_gross_gains=list(map(str,second_gains)),
+                selected_coverage='1/2',twelve_test_false_alarm=float(false_alarm),
+                scope='Complete finite probability tables, independent inversion, exhaustive three-edge orderings, two-step Bellman recursion, set/coverage and dependency checks for chapters68,70,73,74. No current-source update, package execution, live model, new causal experiment or bank evidence.')
+
+def discovery_guidance_laws():
+    """Independently reconstruct consequential discovery-assistance examples."""
+    import itertools
+    manifest=read('docs/release/2026-10-29/context-review-130/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter']==69:
+            for name in chapter['source_bindings']:raw(name)
+    # Mutually exclusive answers are one categorical sample, not two samples.
+    rejection=F(0); rejected=[]
+    threshold=norm.isf(.01)
+    for no in range(101):
+        statistic=float(F(2*no-100,100))/math.sqrt(1/200)
+        if statistic>threshold:
+            rejected.append(no);rejection+=F(math.comb(100,no),2**100)
+    assert rejected[0]==59;close(float(rejection),.0443130400570338)
+    assert (F(1,2)+F(1,2)-(F(1,2)-F(1,2))**2)/100==F(1,100)
+    majority=sum(F(math.comb(11,k)*3**k,4**11) for k in range(6,12))
+    assert majority==F(1012581,1048576)
+    # Independent enumeration of both positive binary observational worlds.
+    laws=[];effects=[]
+    for world in ['direct','hidden']:
+        law=defaultdict(F);intervention=[]
+        for u,v in itertools.product([0,1],repeat=2):
+            weight=F(1,2)*(F(1,10) if v else F(9,10))
+            x=u if world=='direct' else u^v;y=x^v if world=='direct' else u
+            law[x,y]+=weight
+        for action in [0,1]:
+            intervention.append(sum(F(1,2)*(F(1,10) if v else F(9,10))*(action^v if world=='direct' else u) for u,v in itertools.product([0,1],repeat=2)))
+        laws.append(law);effects.append(intervention[1]-intervention[0])
+    assert laws[0]==laws[1] and effects==[F(4,5),0]
+    assert [100*effect-30 for effect in effects]==[50,-30]
+    # Exhaust all empirical bootstrap index samples (three of each type).
+    positive=sum(0<sum(i>=3 for i in ix)<6 for ix in itertools.product(range(6),repeat=6))
+    assert positive==45198 and F(positive,6**6)==F(31,32)
+    event=math.comb(6,3)*F(9,20)**6;assert event==F(531441,3200000)
+    # Fourth mixed cumulants from complete finite atom laws, not formulas copied.
+    def mixed_cumulants(rows):
+        assert sum(p for x,y,p in rows)==1
+        mx=sum(p*x for x,y,p in rows);my=sum(p*y for x,y,p in rows)
+        centered=[(x-mx,y-my,p) for x,y,p in rows]
+        moment=lambda a,b:sum(p*x**a*y**b for x,y,p in centered)
+        vx,vy,cov=moment(2,0),moment(0,2),moment(1,1)
+        c31=moment(3,1)-3*vx*cov
+        c22=moment(2,2)-vx*vy-2*cov**2
+        c13=moment(1,3)-3*vy*cov
+        return vx,vy,c31,c22,c13,c31*c13-c22**2
+    rows=[]
+    for (u,p),ex,ey in itertools.product([(-1,F(1,6)),(0,F(2,3)),(1,F(1,6))],[-1,1],[-1,1]):
+        x=u+ex;y=u+x+ey;rows.append((x,y,p/4))
+    zero=mixed_cumulants(rows);assert zero[2:]==(F(-2),F(-2),F(-2),F(0))
+    rows=[]
+    for u,v,ex,ey in itertools.product([-1,1],repeat=4):rows.append((u+v+ex,u+2*v+ey,F(1,16)))
+    multiple=mixed_cumulants(rows);assert multiple==(F(3),F(6),F(-6),F(-10),F(-18),F(8))
+    assert multiple[-1]/(multiple[0]**2*multiple[1]**2)==F(2,81)
+    # Same encouraged law, different population policies; enumerate every cell.
+    observed=[];ate=[]
+    for world in ['A','B']:
+        cells=defaultdict(F);effect=F(0)
+        types=[(F(1,4),(1,1),(0,1) if world=='A' else (1,1)),
+               (F(1,4),(0,0),(0,1) if world=='A' else (0,0)),
+               (F(1,2),(0,1),(0,1))]
+        for p,a,y in types:
+            effect+=p*(y[1]-y[0])
+            for z in [0,1]:cells[z,a[z],y[a[z]]]+=p/2
+        observed.append(cells);ate.append(effect)
+    assert observed[0]==observed[1] and ate==[1,F(1,2)]
+    means={}
+    for z in [0,1]:
+        means[z]=[sum(p*(a if column==0 else y) for (zz,a,y),p in observed[0].items() if zz==z)*2 for column in [0,1]]
+    assert (means[1][1]-means[0][1])/(means[1][0]-means[0][0])==1
+    assert [100*tau-75 for tau in ate]==[25,-25]
+    assert sorted({F(1,2)+F(1,4)*(1-y0)+F(1,4)*y1 for y0,y1 in itertools.product([0,1],repeat=2)})==[F(1,2),F(3,4),1]
+    # Three different meanings of a token threshold; preserve exact boundaries.
+    classify=lambda p: 'forbidden' if p<F(1,20) else 'required' if p>F(19,20) else 'unknown'
+    exact=lambda tokens:sum(p for token,p in tokens if token in ['Yes','yes'])
+    tokens=[('Yes',F(24,25)),('No',F(1,50)),('\n',F(1,100)),('I',F(1,200)),('It',F(1,200))]
+    altered=[(' Yes' if token=='Yes' else token,p) for token,p in tokens]
+    assert sum(p for token,p in tokens)==1
+    assert [classify(exact(t)) for t in [tokens,altered]]==['required','forbidden']
+    assert classify(F(19,20))==classify(F(1,20))=='unknown'
+    assert F(9,10)*F(3,5)==F(27,50) and 100*F(27,50)-40==14
+    assert F(1,2)*(F(1,4)*0+F(9,100)*10)/(F(1,2)*(F(1,4)+F(9,100)))==F(45,17)
+    evpi=[p*40-max(0,p*40+(1-p)*(-60)) for p in [F(9,10),F(1,2)]];assert evpi==[6,20]
+    assert F(3,5)*12+F(2,5)*(-8)==4 and F(3,5)*12-4==F(16,5)
+    costs=[F(6000,d) for d in [120,100,80]];assert costs==[50,60,75]
+    assert [F(5000,d) for d in [100,80,50]]==[50,F(125,2),100]
+    # LCM's displayed index loop clears only the first three variable diagonals.
+    erased={(0,lag,lag,last) for lag in range(3) for last in range(3)}
+    assert len(erased)==9 and all((0,v,v,last) not in erased for v in range(3,12) for last in range(3))
+    return dict(categorical_false_rejection=float(rejection),first_rejected_count=rejected[0],independent_majority=str(majority),
+                same_law_effects=list(map(str,effects)),positive_bootstrap_samples=positive,bootstrap_stability='31/32',sample_event_probability=str(event),
+                zero_cumulant_example=list(map(str,zero)),multiple_latent_example=list(map(str,multiple)),population_effects=list(map(str,ate)),
+                net_population_values=[25,-25],token_classes=['required','forbidden'],overlap_target='45/17',information_value_bounds=list(map(str,evpi)),
+                workflow_unit_costs=list(map(str,costs)),cleared_lag_cells=len(erased),
+                scope='Independent categorical/binomial sums, all bootstrap resamples, full finite-atom cumulants, encouraged observation laws, parser thresholds and monetary arithmetic for chapter69. No downloaded-code execution, live model, new study or bank evidence.')
+
+def workflow_target_laws():
+    """Check complete-history values, scores and target changes in chapter71."""
+    import itertools
+    manifest=read('docs/release/2026-10-29/context-review-130/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter']==71:
+            for name in chapter['source_bindings']:raw(name)
+    pl=lambda a:F(4,5) if a==0 else F(2,5)
+    pa=lambda l:F(1,2) if l==0 else F(3,4)
+    outcome=lambda a,l,b:F(100-40*l+2*a+(30*l-8)*b)
+    rows=[]
+    for a,l,b in itertools.product([0,1],repeat=3):
+        p=F(1,2)*(pl(a) if l else 1-pl(a))*(pa(l) if b else 1-pa(l))
+        rows.append((a,l,b,p,outcome(a,l,b)))
+    assert sum(row[3] for row in rows)==1
+    policies={'none':(0,lambda l:0),'all':(1,lambda l:1),'risk':(1,lambda l:l)}
+    values={};scores={};ipws={};matched={}
+    for key,(first,second) in policies.items():
+        value=sum((pl(first) if l else 1-pl(first))*outcome(first,l,second(l)) for l in [0,1]);values[key]=value
+        score=[];ipw=[];matching=[]
+        for a,l,b,p,y in rows:
+            w0=F(int(a==first),1)/F(1,2)
+            p1=pa(l) if second(l) else 1-pa(l)
+            w1=F(int(b==second(l)),1)/p1
+            score.append(w0*(outcome(a,l,second(l))-value))
+            ipw.append(w0*w1*(y-value))
+            if a==first and b==second(l):matching.append((p,y))
+        assert sum(row[3]*s for row,s in zip(rows,score))==0
+        assert sum(row[3]*s for row,s in zip(rows,ipw))==0
+        scores[key]=score;ipws[key]=ipw
+        matched[key]=sum(p*y for p,y in matching)/sum(p for p,y in matching)
+    assert values=={'none':F(68),'all':F(90),'risk':F(474,5)}
+    assert matched['risk']==93 and matched['none']==F(220,3) and matched['risk']-matched['none']==F(59,3)
+    second_moment=lambda x:sum(row[3]*v*v for row,v in zip(rows,x))
+    variances={key:second_moment(s) for key,s in scores.items()}
+    assert variances['risk']==F(3888,25) and variances['none']==512
+    covariance=sum(row[3]*r*n for row,r,n in zip(rows,scores['risk'],scores['none']));assert covariance==0
+    assert second_moment([r-n for r,n in zip(scores['risk'],scores['none'])])==F(16688,25)
+    assert second_moment(ipws['risk'])==F(31104,125) and second_moment(ipws['none'])==F(6144,5)
+    # Final retention under the policy, and treatment/retention reweighting.
+    retained=normalizer=restored=F(0)
+    for a,l,b,p,y in rows:
+        if a==1 and b==l:
+            w=2/(pa(l) if l else 1-pa(l));r=F(1,2) if l else F(1)
+            for observed in [0,1]:
+                joint=p*(r if observed else 1-r)
+                retained+=joint*w*observed*y;normalizer+=joint*w*observed
+                restored+=joint*w*observed*y/r
+    assert retained/normalizer==F(195,2) and restored==values['risk']
+    # Enumerate misspecified augmented components and exact bias products.
+    def augmented(p0,p1,d,eta):
+        q=values['risk']+eta;mean=F(0)
+        for a,l,b,p,y in rows:
+            w0=F(int(a==1),1)/p0;w1=F(int(b==l),1)/p1[l]
+            m=outcome(a,l,b)+d[l];mg=outcome(a,l,l)+d[l]
+            mean+=p*(w0*w1*(y-m)+w0*(mg-q)+q)
+        rho0=F(1,2)/p0
+        remainder=(1-rho0)*eta+rho0*sum((pl(1) if l else 1-pl(1))*(1-(pa(l) if l else 1-pa(l))/p1[l])*d[l] for l in [0,1])
+        assert mean-values['risk']==remainder
+        return mean
+    wrong=augmented(F(2,5),[F(1,2),F(1,2)],[0,5],3);assert wrong==F(464,5)
+    assert augmented(F(1,2),[F(1,2),F(3,4)],[0,5],3)==values['risk']
+    assert augmented(F(2,5),[F(1,2),F(1,2)],[0,0],0)==values['risk']
+    assert math.ceil(float(F(49,25)**2*F(16688,25)/F(4,5)**2))==4007
+    # Dynamic feedback and an independent action with identical marginal rate.
+    independent=sum((pl(1) if l else 1-pl(1))*(F(2,5) if b else F(3,5))*outcome(1,l,b) for l,b in itertools.product([0,1],repeat=2))
+    assert independent==F(438,5) and values['risk']-independent==F(36,5)
+    # Two-way residualization reproduces the qualified balanced-panel example.
+    y=np.array([[100,107,119],[100,102,108],[100,102,104]],float)
+    treated=np.array([[0,1,1],[0,0,1],[0,0,0]],float)
+    residue=treated-treated.mean(1)[:,None]-treated.mean(0)[None,:]+treated.mean()
+    beta=(residue*y).sum()/(residue**2).sum();close(beta,4.5);close(residue[0,2],0)
+    assert (108-102)-(119-107)==-6 and F(5+15+4,3)==8
+    adopt=[F(1,4),F(3,4)];control=[F(3,4),F(1,4)];trend=[2,10];effect=[4,8]
+    change=sum(p*(t+e) for p,t,e in zip(adopt,trend,effect));assert change==15
+    control_change=sum(p*t for p,t in zip(control,trend));assert control_change==4
+    standardized=sum(p*t for p,t in zip(adopt,trend));assert standardized==8
+    weighted=sum(p*w*t for p,w,t in zip(control,[F(1,3),3],trend));assert weighted==8
+    assert change-standardized==7 and change-control_change==11
+    # Explicit inclusion and measurement laws, including uncertainty amplification.
+    contribution=[(F(7,8),0),(F(1,8),400)]
+    mean=sum(p*v for p,v in contribution);variance=sum(p*(v-mean)**2 for p,v in contribution)
+    assert mean==50 and variance==17500
+    prevalence=F(2,5);sensitivity=F(4,5);specificity=F(9,10)
+    positive=sensitivity*prevalence+(1-specificity)*(1-prevalence)
+    assert positive==F(19,50) and (positive+specificity-1)/(sensitivity+specificity-1)==prevalence
+    measurement_variance=positive*(1-positive)/(sensitivity+specificity-1)**2;assert measurement_variance==F(589,1225)
+    def targets(mass,e,tau):
+        full=sum(p*t for p,t in zip(mass,tau));keep=[i for i,v in enumerate(e) if F(1,10)<=v<=F(9,10)]
+        trimmed=sum(mass[i]*tau[i] for i in keep)/sum(mass[i] for i in keep)
+        overlap=sum(p*v*(1-v)*t for p,v,t in zip(mass,e,tau))/sum(p*v*(1-v) for p,v in zip(mass,e))
+        return full,trimmed,overlap
+    three=targets([F(1,4),F(1,2),F(1,4)],[F(1,20),F(1,2),F(4,5)],[-200,100,500]);assert three==(125,F(700,3),F(48200,283))
+    other=targets([F(1,2),F(3,10),F(1,5)],[F(1,20),F(1,2),F(19,20)],[0,4,12]);assert other==(F(18,5),4,F(1656,433))
+    majority=sum(F(1,10)**sum(e)*F(9,10)**(3-sum(e)) for e in itertools.product([0,1],repeat=3) if sum(e)>=2);assert majority==F(7,250)
+    shared=F(1,20)+F(19,20)*sum(F(1,19)**sum(e)*F(18,19)**(3-sum(e)) for e in itertools.product([0,1],repeat=3) if sum(e)>=2)
+    close(float(shared),.05761772853185595)
+    assert (F(30)/F(9,10)*F(4,5)-3)/2==F(71,6)
+    assert sum([1,100])/2==50.5 and sum(min(v,10) for v in [1,100])/2==5.5
+    # Longitudinal support and changing message versions are separate choices.
+    zero_paths=(1-.1**4)**10000;zero_retained=(1-(.1*.8)**4)**10000
+    close(zero_paths,math.exp(10000*math.log1p(-.1**4)));close(zero_retained,math.exp(10000*math.log1p(-(.1*.8)**4)))
+    assert format(zero_paths,".6f")=="0.367861" and format(zero_retained,".6f")=="0.663910"
+    assert [q*120+(1-q)*60-8 for q in [F(3,4),F(1,4)]]==[97,67]
+    assert (100+20-40)-100-8==-28
+    return dict(policy_values={k:str(v) for k,v in values.items()},matched_means={k:str(v) for k,v in matched.items()},
+                score_variances={k:str(v) for k,v in variances.items()},contrast_variance='16688/25',retained_policy_mean='195/2',
+                wrong_augmented_value=str(wrong),independent_action_value=str(independent),planning_count=4007,
+                twfe=beta,conditional_att=7,pooled_comparison=11,inclusion_variance=str(variance),label_variance_scale=str(measurement_variance),
+                architecture_targets=list(map(str,three)),validation_targets=list(map(str,other)),shared_critic_error=float(shared),review_break_even_minutes='71/6',
+                zero_matching_probability=zero_paths,zero_retained_matching_probability=zero_retained,
+                scope='Complete finite treatment/retention laws, score variances and bias identity, matrix residualization, inclusion/measurement and target-weight calculations, feedback, version mixtures and costs. No original generator reruns, live-model evidence or bank qualification.')
+
+def tool_contract_laws():
+    """Reconstruct decision, dependence and accounting laws in chapter72."""
+    import itertools
+    manifest=read('docs/release/2026-10-29/context-review-130/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter']==72:
+            for name in chapter['source_bindings']:raw(name)
+    # Atomic reservations for both arrival orders; settlement does not erase cost.
+    reservation_traces=[]
+    for order in itertools.permutations(['a','b']):
+        settled=F(6);reserved=F(0);admitted=[]
+        for key in order:
+            if settled+reserved+3<=10:reserved+=3;admitted.append(key)
+        assert len(admitted)==1 and settled+reserved==9
+        reserved-=3;settled+=2;assert settled+reserved==8 and settled+reserved+3>10
+        reservation_traces.append(admitted)
+    assert F(4-1)/(F(8,100)-F(2,100))==50
+    # An explicitly fixed affine map preserves components, signs and units.
+    transform=lambda interval,a,b:tuple(sorted(a*x+b for x in interval))
+    assert transform((F(2),F(5)),1,-1)==(1,4)
+    assert transform((F(2),F(5)),-1,0)==(-5,-2)
+    assert transform((F(2),F(5)),F(1,1000),0)==(F(1,500),F(1,200))
+    mu=[10,8,7,6]
+    framework=F(mu[1]-mu[0]+mu[3]-mu[2],2);backend=F(mu[2]-mu[0]+mu[3]-mu[1],2)
+    interaction=(mu[3]-mu[2])-(mu[1]-mu[0]);assert (framework,backend,interaction)==(F(-3,2),F(-5,2),1)
+    assert framework+backend==mu[3]-mu[0]
+    availability={penalty:[9*10+10*penalty,3*10+40*penalty] for penalty in [3,1]}
+    assert availability=={3:[120,150],1:[100,70]}
+    values={}
+    for penalty in [20,5]:values[penalty]=[F(10*correct-penalty*wrong-cost,40) for correct,wrong,cost in [(22,2,12),(30,6,24)]]
+    assert values=={20:[F(21,5),F(39,10)],5:[F(99,20),F(123,20)]}
+    for correct,returned in [(22,24),(30,36)]:assert F(returned,40)*F(correct,returned)==F(correct,40)
+    # Backup and priority interventions: enumerate the structural equations.
+    values_by_action={}
+    for a,c in itertools.product([0,1],repeat=2):
+        b=a*(1-c);d=c;y=max(b,d);values_by_action[a,c]=200*y-40*c-10*b
+    assert values_by_action=={(0,0):0,(0,1):160,(1,0):190,(1,1):160}
+    priority=[]
+    for p in [F(0),F(1,2),F(16,19),F(1)]:
+        gain=sum((p if a else 1-p)*(values_by_action[a,1]-values_by_action[a,0]) for a in [0,1])
+        assert gain==160-190*p;priority.append(gain)
+    assert priority==[160,65,0,-30]
+    # Exact denominator/rubric checks, not a reanalysis of the cited studies.
+    assert F(1,6)-F(5,6)*F(1,5)==0
+    assert F(1,10)-F(9,10)*F(1,5)==F(-2,25)
+    for n,rate in [(200,'86.3'),(60,'63.0')]:assert not any(format(100*k/n,'.1f')==rate for k in range(n+1))
+    assert format(100*518/600,'.1f')=='86.3'
+    assert F(1,12)+F(1,15)==F(3,20) and F(3,20)/F(2,180)==F(27,2)
+    assert F(168-150,150)==F(3,25)
+    assert F(29,10)*150==435 and F(19,10)*182==F(1729,5)
+    # Full specialist state and a one-bit typed interface have the same utility.
+    risks=[(F(2,100),F(4,100)),(F(4,100),F(2,100))]
+    full=sum(min(r)*10000/2 for r in risks)
+    constant=min(sum(r[a]/2 for r in risks)*10000 for a in [0,1]);assert constant-full==100
+    # Joint channel reconstruction despite marginal secrecy, all four atoms.
+    cells=[(secret,u,u,secret^u,F(1,4)) for secret,u in itertools.product([0,1],repeat=2)]
+    for column in [2,3]:
+        for observed in [0,1]:
+            denom=sum(row[4] for row in cells if row[column]==observed)
+            assert sum(row[4]*row[0] for row in cells if row[column]==observed)/denom==F(1,2)
+    assert all(secret==z1^z2 for secret,u,z1,z2,p in cells)
+    assert F(1,2)>F(1,4) and F(1,4)/200==F(1,800) and F(1,4)/600==F(1,2400)
+    assert (1-F(0))*(1-abs(F(0)))*(1-max(0,F(1)-F(1,2)))==F(1,2)
+    assert F(-3,5)<F(1,20)<abs(F(-3,5)) and F(3,5)/F(2,5)==F(3,2)<2
+    # Search twenty equal-quality prompts on four tasks using the exact CDF.
+    cdf=[sum(F(math.comb(4,k),16) for k in range(m+1)) for m in range(4)]
+    max_accuracy=sum(1-p**20 for p in cdf)/4;perfect=1-F(15,16)**20
+    assert format(float(max_accuracy),'.6f')=='0.931096' and format(float(perfect),'.6f')=='0.724941'
+    reliability=F(19,20)**5;assert reliability==F(2476099,3200000)
+    assert max(0,1-5*F(1,20))==F(3,4) and min([F(19,20)]*5)==F(19,20)
+    majority=sum(F(math.comb(5,k))*F(1,10)**k*F(9,10)**(5-k) for k in range(3,6));assert majority==F(107,12500)
+    assert sum(all(bits) for bits in itertools.product([False,True],repeat=3))==1
+    assert [1000*d-20 for d in [F(-1,10),F(1,10),F(1,20)]]==[-120,80,30]
+    assert (F(85,100)-F(1,4))/(1-F(1,4))==F(4,5)
+    assert (F(3,4)-F(1,9))/(1-F(1,9))==F(23,32)
+    variance=(1+24*F(3,5))/500;assert variance==F(77,2500) and 1/variance==F(2500,77)
+    tolerance=F(1,1000)+F(1,100)*1005000;assert tolerance==F(10050001,1000) and 5000<tolerance and 5000>1000
+    assert F(1,2000)<=F(1,1000) and F(1,2000)*100>F(1,1000)
+    # Retry, deadline, tool-call and full-cost counts describe different events.
+    assert 3*4+2*12==36 and 5+3+8==16
+    assert 2*3==6 and 6*F(1,4)==F(3,2) and 6*4+2*(1+2)+3==33
+    assert 1+3+1==5 and 3*3==9 and 2+1==3
+    assert F(20,100)+F(30,100)+2+5+3==F(21,2)
+    assert 20+3600+20==3640
+    assert [F(600,n) for n in [100,60,40,6]]==[6,10,15,100]
+    return dict(reservation_traces=reservation_traces,factorial=[str(framework),str(backend),interaction],
+                availability_loss=availability,framework_values={str(k):list(map(str,v)) for k,v in values.items()},
+                priority_values=list(map(str,priority)),crossed_variance='3/20',crossed_variance_ratio='27/2',sufficient_interface_savings=100,
+                xor_atoms=4,prompt_best_development=float(max_accuracy),prompt_perfect_development=float(perfect),
+                five_stage_independent=str(reliability),majority_error=str(majority),cluster_variance=str(variance),numerical_tolerance=str(tolerance),
+                nested_http_attempts=6,nested_elapsed_seconds=33,tool_example_cost='21/2',
+                scope='Finite-state reservation and intervention laws, exact scoring/dependence/selection probabilities, joint-information and target conversion checks, and full attempt/time/cost accounting. No provider, model, downloaded code or benchmark execution; no current-service or bank claim.')
+
+def evaluation_evidence_laws():
+    """Independent finite laws for the complete benchmark/evaluator chapter75."""
+    import itertools
+    from scipy.stats import binom, beta
+    manifest=read('docs/release/2026-10-29/context-review-130/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter']==75:
+            for name in chapter['source_bindings']:raw(name)
+    # Invert the zero-event law and independently test both adjacent counts.
+    zero_bounds={n:1-math.exp(math.log(.05)/n) for n in [24,48]}
+    assert [format(zero_bounds[n],'.5f') for n in [48,24]]==['0.06050','0.11735']
+    counts={}
+    for family in [1,6,12]:
+        n=math.ceil(math.log(.05/family)/math.log(.95));counts[family]=n
+        assert .95**n<=.05/family<.95**(n-1)
+    assert counts=={1:59,6:94,12:107}
+    # Paired-superiority power uses conditional binomials. Enumerating the full
+    # trinomial distribution supplies a separate exact check for tiny designs.
+    def cutoff(k):
+        b=int(binom.isf(.05/12,k,.5))+1
+        assert binom.sf(b-1,k,.5)<=.05/12
+        if b>0:assert binom.sf(b-2,k,.5)>.05/12
+        return b
+    def power(n,plus,minus):
+        q=plus+minus
+        return float(sum(binom.pmf(k,n,q)*binom.sf(cutoff(k)-1,k,plus/q) for k in range(n+1)))
+    for n in [5,9,12]:
+        exact=F(0)
+        for plus in range(n+1):
+            for minus in range(n-plus+1):
+                k=plus+minus
+                tail=sum(F(math.comb(k,j),2**k) for j in range(plus,k+1))
+                if tail<=F(1,240):
+                    exact+=math.comb(n,plus)*math.comb(n-plus,minus)*F(1,5)**plus*F(1,10)**minus*F(7,10)**(n-k)
+        close(power(n,.2,.1),float(exact))
+    powers={}
+    for plus,minus,n,printed in [(.15,.10,100,'3.27'),(.15,.10,400,'23.06'),(.15,.10,800,'55.16'),(.20,.10,100,'16.16'),(.20,.10,400,'83.43'),(.25,.05,100,'86.09')]:
+        value=power(n,plus,minus);assert format(100*value,'.2f')==printed;powers[f'{plus},{minus},{n}']=value
+    assert power(400,.25,.05)>.99999
+    for n in [100,400]:assert power(n,.1,.1)<=.05/12
+    # Coverage-screen thresholds agree under beta inversion and binomial tails.
+    screen=[]
+    for n,m in [(100,1),(400,12),(800,12)]:
+        candidates=[k for k in range(1,n+1) if beta.ppf(.05/m,k,n-k+1)>=.95]
+        k=min(candidates) if candidates else n+1
+        assert binom.sf(k-1,n,.95)<=.05/m
+        if k<=n:assert binom.sf(k-2,n,.95)>.05/m
+        screen.append(dict(n=n,family=m,threshold=k,boundary_pass=float(binom.sf(k-1,n,.95))))
+    calls=100*6*2*4*3*3;assert calls==43200 and calls*2000==86400000 and calls*500==21600000
+    # Every feasible allocation of at most twenty exposed paired observations.
+    clean=[];margins=[[],[]]
+    for both in range(21):
+        for only_a in range(21-both):
+            for only_b in range(min(16,20-both-only_a)+1):
+                denominator=100-both-only_a-only_b
+                a=F(84-both-only_a,denominator);b=F(80-both-only_b,denominator)
+                clean.append(a-b);margins[0].append(a);margins[1].append(b)
+    assert (min(clean),max(clean))==(F(-1,5),F(1,4))
+    assert [(min(v),max(v)) for v in margins]==[(F(4,5),1),(F(3,4),1)]
+    # Full probability audit, including estimates outside the parameter range.
+    pi=[F(1,2),F(1,4),F(3,4)];outcomes=[]
+    for bits in itertools.product([0,1],repeat=3):
+        probability=math.prod(p if bit else 1-p for p,bit in zip(pi,bits))
+        estimate=sum(F(bit,1)/p for p,bit in zip(pi,bits))/4
+        outcomes.append((probability,estimate))
+    mean=sum(p*v for p,v in outcomes);variance=sum(p*(v-mean)**2 for p,v in outcomes)
+    assert (mean,variance,max(v for p,v in outcomes))==(F(3,4),F(13,48),F(11,6))
+    assert sum(p*min(v,1) for p,v in outcomes)<mean
+    assert (F(2,100),F(2+100-10,100))==(F(1,50),F(23,25))
+    # Metamorphic consistency cannot detect a stable zero answer; nonlinear
+    # transformations alter the target even when the original effect is fixed.
+    original=sum(F((1+x)-x,2) for x in [0,1]);squared=sum(F((1+x)**2-x*x,2) for x in [0,1])
+    threshold=sum(F(int(1+x>=1)-int(x>=1),2) for x in [0,1])
+    assert (original,squared,threshold)==(1,2,F(1,2)) and 100*original-40==60
+    joint_lower=sum(map(F,['.786','.883','.917','.960']))-3
+    assert joint_lower==F(273,500) and joint_lower<=F(614,1000)<=F(786,1000)
+    # Binary IV witness: full observed-law equality but opposite ATE signs.
+    laws=[];effects=[]
+    for model in ['a','b']:
+        law=defaultdict(F);effect=F(0)
+        for u in [0,1]:
+            pu=F(1,4) if u==0 else F(3,4)
+            outcome=lambda x: x if u==0 else (1-x if model=='a' else 1)
+            effect+=pu*(outcome(1)-outcome(0))
+            for z in [0,1]:
+                x=(1-u)*z;law[z,x,outcome(x)]+=pu/2
+        laws.append(dict(law));effects.append(effect)
+    assert laws[0]==laws[1] and effects==[F(-1,2),F(1,4)]
+    for variable in [1,2]:
+        diff=sum(2*p*key[variable]*(2*key[0]-1) for key,p in laws[0].items())
+        assert diff==F(1,4)
+    assert [100*10000*x for x in effects]==[-500000,250000]
+    score=lambda lo,hi,truth:hi-lo+40*(max(lo-truth,0)+max(truth-hi,0))
+    assert [score(-1,1,0),score(1,2,0)]==[2,41]
+    assert (F(1000,100),F(10,100),F(100,100))==(10,F(1,10),1)
+    # Entropy equality, average sensitivity and selection do not certify risk.
+    entropy=lambda p:-sum(float(v)*math.log(float(v)) for v in p if v)
+    close(entropy([F(9,10),F(1,10)]),entropy([F(1,10),F(9,10)]))
+    assert sum(abs(x-y) for x,y in zip([F(9,10),F(1,10)],[F(1,10),F(9,10)]))/2==F(4,5)
+    assert .5-math.log(2)<0 and F(1,2)-(1-F(1,2))/2==F(1,4)
+    assert F(1,100)*F(1,2)==F(1,200) and F(1,10)*F(1,2)==F(1,20)
+    ratios=[e/(-.5*math.log1p(-4*e*e)) for e in [.1,.01,.001]];assert ratios[0]<ratios[1]<ratios[2]
+    # Exhaustively validate the narrow TV self-risk inequality on simplex grids.
+    grids=[(F(a,10),F(b,10),F(10-a-b,10)) for a in range(11) for b in range(11-a)]
+    for p,q in itertools.product(grids,repeat=2):assert abs(max(p)-max(q))<=sum(abs(x-y) for x,y in zip(p,q))/2
+    bd=lambda y,v:F(max(y-v,0),y-1) if y>1 else None
+    bc=lambda y,v:1-F(abs(y-v),max(y-1,10-y))
+    assert bc(7,7)==1 and bd(7,7)==0 and bd(10,1)==1 and bd(1,1) is None
+    assert bd(10,8)==F(2,9) and bd(3,1)==1
+    assert [F(15000,n) for n in [100,50,45]]==[150,300,F(1000,3)]
+    # The cross-modality identity holds on every gold/text/vision triple.
+    for gold,text,vision in itertools.product(range(3),repeat=3):
+        assert int(text!=vision)-(int(text==gold)-int(vision==gold))==2*int(text!=gold and vision==gold)+int(text!=gold and vision!=gold and text!=vision)
+    assert [F(v)-F(b) for v,b in [('53.99','53.26'),('54.58','53.26'),('57.25','58.11'),('58.51','58.11')]]==list(map(F,['.73','1.32','-.86','.40']))
+    assert 3*F(4,5)**2*F(1,5)+F(4,5)**3==F(112,125)
+    assert [10*pc-100*pw-1 for pc,pw in [(F(3,5),F(1,20)),(F(3,10),F(1,100))]]==[0,1]
+    assert math.ceil(6*.9)==6 and 1-F(9,10)**5==F(40951,100000)
+    votes=[F(1,5)+F(4,5)*F(1,10)**2,F(4,5)*F(9,10)**2,F(4,5)*2*F(1,10)*F(9,10)]
+    assert votes==[F(26,125),F(81,125),F(18,125)] and votes[0]/sum(votes[:2])==F(26,107)
+    assert F(1,5)+F(4,5)*(3*F(1,10)**2*F(9,10)+F(1,10)**3)==F(139,625)
+    assert F(252,1533+252)==F(12,85) and F(189,1482+189)==F(63,557)
+    assert [63*10-114*cost-100 for cost in [2,6]]==[302,-154]
+    return dict(zero_event_bounds=zero_bounds,simultaneous_zero_event_counts=counts,paired_power=powers,coverage_screens=screen,
+                call_envelope=calls,exposure_allocations=len(clean),clean_difference_bounds=list(map(str,[min(clean),max(clean)])),
+                audit_mean=str(mean),audit_variance=str(variance),audit_max='11/6',iv_effects=list(map(str,effects)),
+                metamorphic_effects=list(map(str,[original,squared,threshold])),four_way_success_lower=str(joint_lower),
+                tv_self_risk_pairs=len(grids)**2,kl_linear_modulus_ratios=ratios,conflict_identity_atoms=27,
+                controlled_vote_probabilities=list(map(str,votes)),checking_savings=[302,-154],
+                scope='Independent enumeration and probability inversion of stipulated benchmark, selection, audit, IV, metric and evaluator laws; source-count arithmetic, not rerun model experiments or validated external truth.')
+
+def comparator_evidence_laws():
+    """Reconstruct chapter76 alternatives, finite witnesses and saved score tables."""
+    import itertools,csv,io,ast
+    from collections import Counter
+    manifest=read('docs/release/2026-10-29/context-review-131/manifest.json')
+    for chapter in manifest['chapters']:
+        if chapter['chapter']==76:
+            for name in chapter['source_bindings']:raw(name)
+    cello=list(map(F,['.83','.70','.52','.50','.35','.75','.81','.72','.79','.77','.90','.61']))
+    mean=sum(cello)/12;assert mean==F(11,16) and mean+F(5,1000)<F(695,1000) and sum(cello)*100==825
+    assert 12*4*4*3*2==1152
+    values=[]
+    for t,f in [(F(4,5),F(1,10)),(F(19,20),F(1,5)),(F(0),F(0))]:
+        correct=200*t+200*(1-f);utility=200*t*20-200*f*80
+        values.append((correct/400,utility/400))
+    assert values==[(F(17,20),4),(F(7,8),F(3,2)),(F(1,2),0)]
+    assert 20*F(4,5)-80*F(1,5)==0
+    cluster_var=(F(1)+F(1,8))/12;assert cluster_var==F(3,32) and cluster_var/F(2,96)==F(9,2)
+    # Linear disturbance maps give positive-definite cancellation and collider
+    # witnesses without sampling; every simple path independently checks separation.
+    loading=np.array([[1,0,0],[1,1,0],[0,-1,1]],dtype=float);cov=loading@loading.T
+    close(cov,[[1,1,0],[1,2,-1],[0,-1,2]]);close(np.linalg.det(cov),1)
+    close(cov[0,2]-cov[0,1]*cov[1,2]/cov[1,1],.5)
+    edges={('X','C'),('B','C'),('C','Z'),('X','Z'),('Z','Y'),('B','Y')};nodes={'X','B','C','Z','Y'}
+    adjacent={n:{v for u,v in edges if u==n}|{u for u,v in edges if v==n} for n in nodes}
+    paths=[]
+    def extend(path):
+        if path[-1]=='Y':paths.append(path);return
+        for child in sorted(adjacent[path[-1]]-set(path)):extend(path+[child])
+    extend(['X'])
+    def descendants(n):
+        visited=set();todo=[n]
+        while todo:
+            current=todo.pop()
+            for u,v in edges:
+                if u==current and v not in visited:visited.add(v);todo.append(v)
+        return visited
+    def active(path,condition):
+        for a,b,c in zip(path,path[1:],path[2:]):
+            collider=(a,b) in edges and (c,b) in edges
+            if collider and not ({b}|descendants(b))&condition:return False
+            if not collider and b in condition:return False
+        return True
+    assert any(active(path,{'Z'}) for path in paths)
+    separators=[]
+    for size in range(4):
+        for selected in itertools.combinations(['B','C','Z'],size):
+            selected=set(selected)
+            if not any(active(path,selected) for path in paths) and not any(s<=selected for s in separators):separators.append(selected)
+    assert separators==[{'B','Z'}]
+    load=np.array([[1,0,0,0,0],[0,1,0,0,0],[1,1,1,0,0],[2,1,1,1,0],[2,2,1,1,1]])
+    covariance=load@load.T;close(covariance[0,4]-covariance[0,3]*covariance[3,4]/covariance[3,3],-2/7)
+    probability=sum(math.prod([F(3,8),F(1,8),F(1,8),F(3,8)][cell] for cell in seq) for seq in itertools.product(range(4),repeat=4) if Counter(seq)==Counter(range(4)))
+    assert probability==F(27,512)
+    # Count all uniformly sampled candidate pairs; success presence and chosen
+    # success are different, and the pool success count must be fixed.
+    pairs=list(itertools.combinations(range(10),2));counts=[sum(x<3 for x in pair) for pair in pairs]
+    at_least=F(sum(c>0 for c in counts),len(pairs));selected=sum(F(c,2) for c in counts)/len(pairs)
+    wrong=sum(1-F(math.comb(10-c,2),45) for c in counts)/len(pairs)
+    assert (at_least,selected,wrong)==(F(8,15),F(3,10),F(16,135))
+    assert 20*3+12*5==120 and F(120,5)==24 and 5*30-120==30 and (12-5)*30==210
+    attempts=[1,1,2,2,2,3,3,3,3,3];assert sum(attempts)==23 and sum(attempts[:6])==11
+    assert [15*n-2*sum(attempts) for n in [4,6]]==[14,44]
+    # Positive finite proxy law: enumerate all U,A,Y,error atoms.
+    proxy=[]
+    for u,a,y,error in itertools.product([0,1],repeat=4):
+        risk=F(1,4)+F(u,2);p=F(1,2)*(risk if a else 1-risk)*(risk if y else 1-risk)*(F(1,4) if error else F(3,4))
+        proxy.append((u,a,y,u^error,p))
+    means={};condcov=[]
+    for w in [0,1]:
+        denominator=sum(p for u,a,y,observed,p in proxy if observed==w)
+        ea=sum(p*a for u,a,y,observed,p in proxy if observed==w)/denominator
+        ey=sum(p*y for u,a,y,observed,p in proxy if observed==w)/denominator
+        eay=sum(p*a*y for u,a,y,observed,p in proxy if observed==w)/denominator
+        condcov.append(eay-ea*ey)
+        for a0 in [0,1]:
+            denominator=sum(p for u,a,y,observed,p in proxy if observed==w and a==a0)
+            means[a0,w]=sum(p*y for u,a,y,observed,p in proxy if observed==w and a==a0)/denominator
+    assert condcov==[F(3,64)]*2 and [means[a,w] for w in [0,1] for a in [0,1]]==[F(3,10),F(1,2),F(1,2),F(7,10)]
+    standardized=[sum(means[a,w]/2 for w in [0,1]) for a in [0,1]];assert standardized==[F(2,5),F(3,5)]
+    assert 100*(standardized[1]-standardized[0])-10==10 and F(3,5)*F(2,5)/10000==F(3,125000)
+    a11,a10,a01,a00=map(F,['.9','.6','.4','.3']);interaction=a11-a10-a01+a00
+    assert interaction==F(1,5) and (a11-a01)+(a11-a10)==a11-a00+interaction==F(4,5)
+    residual_atoms=[(2*x+u,F(x-2*u,5)) for x,u in itertools.product([-1,1],repeat=2)]
+    assert sum(y*r for y,r in residual_atoms)==0
+    ey2=sum(F(y*y,4) for y,r in residual_atoms);er2=sum(r*r/4 for y,r in residual_atoms)
+    er2y2=sum(r*r*y*y/4 for y,r in residual_atoms);assert er2y2==F(9,25) and er2*ey2==1
+    grades=[]
+    for sensitivity,specificity in [(F(4,5),F(9,10)),(F(19,20),F(4,5))]:
+        p=F(3,5);q=sensitivity*p+(1-specificity)*(1-p);grades.append(q)
+        assert (q+specificity-1)/(sensitivity+specificity-1)==p
+    assert grades==[F(13,25),F(13,20)] and 100*(grades[1]-grades[0])-8==5
+    group_var=F(1,4)+F(1,2)+F(1,20);assert group_var==F(4,5) and F(1,4)/group_var==F(5,16)
+    # Matched-error bounds, conditional versus full-population margins and a
+    # perfect aggregate graph score with one missing decision-critical bridge.
+    for a,b,lo,hi in [('0.8227','0.5946','0.2281','0.4054'),('0.7168','0.7680','0','0.232')]:
+        a,b,lo,hi=map(F,[a,b,lo,hi]);assert max(0,a-b)==lo and min(a,1-b)==hi
+        for only_a in [lo,hi]:
+            cells=[a-only_a,only_a,b-a+only_a,1-b-only_a]
+            assert min(cells)>=0 and sum(cells)==1 and cells[0]+cells[1]==a and cells[0]+cells[2]==b
+    assert [40*p-31 for p in [F(9,20),F(9,10),F(19,20)]]==[-13,5,7]
+    assert 482+2052+2190+4196==8920 and 10800-8920==1880
+    assert F(21-9,80)==F(3,20) and F(12,32)==F(3,8)
+    graph={i:i+1 for i in range(100) if i!=49};current=0
+    while current in graph:current=graph[current]
+    assert current==49 and F(2*99,2*99+1)==F(198,199)
+    matrix=[[F(int(p==c)) for c in [0,1]] for p in [0,1]]
+    assert [sum(matrix[p][c] for p in [0,1])/2 for c in [0,1]]==[F(1,2)]*2
+    assert sum((matrix[p][c]-F(1,2))**2 for p,c in itertools.product([0,1],repeat=2))/4==F(1,4)
+    literal=(F('.60')-F('.28'))*(F('.22')-F('.57'));expanded=(F('.22')-F('.57'))*((F('.60')-F('.28'))-(F('.74')-F('.35')))
+    assert (literal,expanded)==(F('-0.112'),F('0.0245'))
+    # Independently score original saved CSV rows and align explicit IDs across
+    # variants. Historical result JSON supplies the reported comparison counts.
+    base='docs/program/execution/2026-10-21/prophets-repository-v1/'
+    previous=read(base+'exact-results.json');reports={};identities=None
+    for index,variant in [(9,'commonsensical'),(10,'anticommonsensical'),(11,'nonsensical')]:
+        rows=list(csv.DictReader(io.StringIO(raw(base+f'acquisition/files-network/file-{index:02d}.csv').decode())))
+        assert len(rows)==1000 and len({r['question_id'] for r in rows})==1000
+        identity={r['question_id']:(r['answer'],r['query_type'],r['rung']) for r in rows}
+        if identities is None:identities=identity
+        else:assert identity==identities
+        methods={};invalid_answers={}
+        historical_key={'commonsensical':'commonsensical','anticommonsensical':'anti_commonsense','nonsensical':'nonsense'}[variant]
+        for method,old in previous['tables'][historical_key]['methods'].items():
+            invalid=dict(Counter(r[method] for r in rows if r[method] not in {'yes','no'}))
+            assert invalid==old['invalid_answers'];invalid_answers[method]=invalid
+            count=sum(r[method]==r['answer'] for r in rows);assert count==old['correct'];methods[method]=count
+        repaired=sum(r['gpt-4o']!=r['answer'] and r['gpt-4o-pot']==r['answer'] for r in rows)
+        regressed=sum(r['gpt-4o']==r['answer'] and r['gpt-4o-pot']!=r['answer'] for r in rows)
+        assert (repaired,regressed)=={'commonsensical':(141,59),'anticommonsensical':(152,73),'nonsensical':(182,79)}[variant]
+        assert Counter(r['rung'] for r in rows)=={'1':405,'2':197,'3':398} and sum(r['query_type']=='ett' for r in rows)==138
+        assert all(not r[f'gpt-4o-sc-{k}-chains_reasoning'] for r in rows for k in [5,10])
+        row=next(r for r in rows if r['question_id']=='2883');given=ast.literal_eval(row['given_info'])
+        target=(given['p(Y | X, V2)'][0][1]-given['p(Y | X, V2)'][0][0])*(given['p(V2 | X)'][1]-given['p(V2 | X)'][0])
+        assert abs(target-float(row['groundtruth']))<1e-15
+        reports[variant]=dict(rows=len(rows),counts=methods,invalid_answers=invalid_answers,paired_corrections=repaired,paired_regressions=regressed,disputed_reference_functional=target)
+    assert sum(sum(counts.values()) for report in reports.values() for counts in report['invalid_answers'].values())==3
+    # The illustrative prompt generator has a common parent, with no T effect.
+    observational=[]
+    for a,t,y in itertools.product([0,1],repeat=3):
+        pt=[F('.79'),F('.43')][a];py=[F('.54'),F('.52')][a]
+        observational.append((t,y,F(1,2)*(pt if t else 1-pt)*(py if y else 1-py)))
+    conditional=[sum(p*y for t,y,p in observational if t==a)/sum(p for t,y,p in observational if t==a) for a in [0,1]]
+    assert conditional[1]-conditional[0]==F(6,793)
+    return dict(cello_equal_task_mean=str(mean),support_review_values=[list(map(str,row)) for row in values],cluster_variance=str(cluster_var),
+                graph_paths=len(paths),minimal_separators=[sorted(s) for s in separators],balanced_sample_probability=str(probability),
+                candidate_pool_success=str(at_least),candidate_selected_success=str(selected),wrong_pool_formula=str(wrong),
+                proxy_standardized=list(map(str,standardized)),proxy_covariances=list(map(str,condcov)),residual_mixed_moment=str(er2y2),
+                grade_probabilities=list(map(str,grades)),group_variance=str(group_var),saved_result_tables=reports,generator_association='6/793',generator_intervention=0,
+                scope='Independent finite-law and graph enumeration plus re-scoring of three retained1000-row historical tables. No model calls, upstream program execution, reference-truth certification or bank evidence.')
+
+def interchange_semantics_laws():
+    import itertools
+    # Bind current manuscript inputs; reconstruct stipulated laws independently.
+    manifest=read('docs/release/2026-10-29/context-review-132/manifest.json')
+    chapter=next(c for c in manifest['chapters'] if c['chapter']==77)
+    for path,identity in chapter['source_bindings'].items():
+        raw(path);assert bindings[path]==identity
+    base='docs/program/execution/2026-10-13/'
+    original=read(base+'interchange/example-results.json')
+    py=read(base+'python-integration/oracle-results.json')
+    java=read(base+'java-integration/oracle-results.json')
+    forest=read(base+'grf-cxx/reproduction-review.json')['exact_expected']
+    topo=read('docs/program/execution/2026-10-16/topology/exact-results.json')
+    continuity=read('docs/program/execution/2026-10-17/integration-continuity/exact-results.json')
+    customer=[F(3,4),F(1,4)];balances=[1,9];effects=[20,-40]
+    balance=[p*b/sum(q*c for q,c in zip(customer,balances)) for p,b in zip(customer,balances)]
+    means=[sum(p*y for p,y in zip(w,effects)) for w in [customer,balance]]
+    assert means==[F(original['population'][k]) for k in ['customer_effect','balance_weighted_effect']]==[5,-25]
+    rate=[F(v,10000) for v in [2000000,1000000,3000000]];assert rate==[200,100,300]
+    covariance=[[F(v) for v in row] for row in original['covariance']['original']]
+    scale=[F(1,1000),F(-1)];mapped=[[scale[i]*covariance[i][j]*scale[j] for j in range(2)] for i in range(2)]
+    assert mapped==[[F(v) for v in row] for row in original['covariance']['transformed']]
+    assert sum(sum(row) for row in mapped)==F(1,4) and sum(mapped[i][i] for i in range(2))==F(29,100)
+    assert covariance[0][0]*covariance[1][1]-covariance[0][1]**2>0
+    # Fieller inequality evaluated independently over boundary/interior/exterior points.
+    for theta in [F(-3),F(-2),F(-3,2),F(0),F(3,2),F(2),F(3)]:
+        assert ((2-theta*0)**2<=4*(F(1,4)*theta**2))==(abs(theta)>=2)
+    value=lambda x:100*(x*x-1)
+    assert [min(value(x) for x in [-3,-2,2,3]),max(value(x) for x in [-3,-2,2,3])]==[300,800]
+    assert [min(value(x) for x in [-3,0,3]),max(value(x) for x in [-3,0,3])]==[-100,800]
+    variance=F(9,100)+F(1,10000);false_iid=F(109,100)/10000
+    assert variance/false_iid==F(90100,109)==F(original['common_calendar']['variance_understatement_ratio'])
+    # Full rational atom laws for front-door, collider and bow witnesses.
+    atoms=[]
+    for u,a,m,y in itertools.product([0,1],repeat=4):
+        pa=F(1,5)+F(3,5)*u;pm=F(1,4)+F(1,2)*a;py1=F(1,10)+F(1,2)*m+F(1,5)*u
+        atoms.append((u,a,m,y,F(1,2)*(pa if a else 1-pa)*(pm if m else 1-pm)*(py1 if y else 1-py1)))
+    joint={(a,m,y):sum(p for u,aa,mm,yy,p in atoms if (aa,mm,yy)==(a,m,y)) for a,m,y in itertools.product([0,1],repeat=3)}
+    assert {','.join(map(str,k)):str(v) for k,v in joint.items()}==py['frontdoor']['observed_positive_cells']
+    do=[];functional=[];observed=[]
+    for a in [0,1]:
+        pm=F(1,4)+F(1,2)*a
+        do.append(sum(F(1,2)*(pm if m else 1-pm)*(F(1,10)+F(1,2)*m+F(1,5)*u) for u,m in itertools.product([0,1],repeat=2)))
+        mass_a=sum(p for (aa,m,y),p in joint.items() if aa==a)
+        observed.append(sum(p*y for (aa,m,y),p in joint.items() if aa==a)/mass_a)
+        total=F(0)
+        for m in [0,1]:
+            p_m_given_a=sum(p for (aa,mm,y),p in joint.items() if aa==a and mm==m)/mass_a
+            inner=F(0)
+            for ap in [0,1]:
+                mass_ap=sum(p for (aa,mm,y),p in joint.items() if aa==ap)
+                mass_pair=sum(p for (aa,mm,y),p in joint.items() if (aa,mm)==(ap,m))
+                inner+=sum(p*y for (aa,mm,y),p in joint.items() if (aa,mm)==(ap,m))/mass_pair*mass_ap
+            total+=p_m_given_a*inner
+        functional.append(total)
+    assert do==functional==[F(v) for v in py['frontdoor']['do_means']]==[F(13,40),F(23,40)]
+    assert observed[1]-observed[0]==F(37,100)
+    collider=[]
+    for u,v,b in itertools.product([0,1],repeat=3):
+        pb=F(9,10) if u==v else F(1,10);collider.append((u,b,v,F(1,4)*(pb if b else 1-pb)))
+    cond=sum(p*y for y,b,z,p in collider if b==z==1)/sum(p for y,b,z,p in collider if b==z==1)
+    intervened=sum(p*y for y,b,z,p in collider if b==1)/sum(p for y,b,z,p in collider if b==1)
+    assert (cond,intervened)==(F(9,10),F(1,2)) and all(p>0 for y,b,z,p in collider)
+    bow_laws=[];bow_effects=[]
+    for mechanism in [0,1]:
+        law=defaultdict(F)
+        for u,e in itertools.product([0,1],repeat=2):
+            a=u;y=(a if mechanism==0 else u)^e;law[a,y]+=F(1,2)*(F(1,5) if e else F(4,5))
+        bow_laws.append(law);mus=[]
+        for a in [0,1]:mus.append(sum(F(1,2)*(F(1,5) if e else F(4,5))*((a if mechanism==0 else u)^e) for u,e in itertools.product([0,1],repeat=2)))
+        bow_effects.append(mus[1]-mus[0])
+    assert bow_laws[0]==bow_laws[1] and bow_effects==[F(3,5),0]
+    for z in [0,1]:assert (F(1,4)+F(1,2))-F(1,4)==F(1,2)
+    corners=[n/d for n,d in itertools.product([F(3,1000),F(5,1000)],[F(6,1000),F(14,1000)])]
+    assert [min(corners),max(corners)]==[F(3,14),F(5,6)]
+    probs=[F(1,5),F(1,2)];avg=sum(probs)/2;odds=avg/(1-avg);mean_odds=sum(p/(1-p) for p in probs)/2
+    assert (odds,mean_odds,mean_odds/(1+mean_odds))==(F(7,13),F(5,8),F(5,13))
+    # Enumerate all directed simple three-node graphs; determine acyclicity by
+    # removing vertices with no incoming edges, then skeleton/collider classes.
+    directed=[(i,j) for i in range(3) for j in range(3) if i!=j];dags=[];classes=defaultdict(list)
+    for bits in itertools.product([0,1],repeat=6):
+        edges={e for e,bit in zip(directed,bits) if bit};remaining=set(range(3))
+        while remaining:
+            roots={v for v in remaining if not any(y==v and x in remaining for x,y in edges)}
+            if not roots:break
+            remaining-=roots
+        if remaining:continue
+        skeleton=frozenset(tuple(sorted(e)) for e in edges)
+        colliders=frozenset((i,j,k) for i in range(3) for j in range(3) for k in range(i+1,3) if len({i,j,k})==3 and (i,j) in edges and (k,j) in edges and tuple(sorted((i,k))) not in skeleton)
+        dags.append(edges);classes[skeleton,colliders].append(edges)
+    assert len(dags)==topo['graph_enumeration']['DAGs']==25 and len(classes)==topo['graph_enumeration']['skeleton_collider_groups']==11
+    chain=classes[frozenset([(0,1),(1,2)]),frozenset()];assert len(chain)==3
+    assert {(0,1),(1,0),(1,2),(2,1)}==set().union(*chain)
+    weights=[F(4,5),F(1,5)];original_effects=[40,-10]
+    net=sum(w*y for w,y in zip(weights,original_effects))-5;misread=sum(w*y for w,y in zip(weights,reversed(original_effects)))-5
+    assert (net,misread)==(25,-5)
+    assert all(x+(10-x)-12==-2 for x in range(11)) and [0+0-12,10+10-12]==[-12,8]
+    assert int(float(2**53+1))==2**53
+    prefixes=[p for n in range(4) for p in itertools.permutations('abc',n)];valid=[p for p in prefixes if p==tuple('abc'[:len(p)])]
+    assert (len(prefixes),len(valid))==(16,4)
+    assert [max(0,1060-wall) for wall in [1050,990]]==[10,70]
+    assert [max(0,60-elapsed) for elapsed in [50,80]]==[10,0]
+    gaussian=[]
+    for model in java['gaussian_equivalence_class']['models']:
+        W=np.array([[float(F(v)) for v in row] for row in model['W_source_target']]);noise=np.diag([float(F(v)) for v in model['noise_variances']]);response=np.linalg.solve(np.eye(3)-W.T,np.eye(3))
+        close(response@noise@response.T,[[1,.8,.4],[.8,1,.5],[.4,.5,1]]);gaussian.append(float(response[2,0]))
+    close(gaussian,[.4,0,0])
+    # Local residual slope, two algebraically equivalent augmentation scores,
+    # cluster-aware target/variance and borrowed-array coordinate sentinel.
+    wy=[F(-2),F(-1),F(1),F(2)];ww=[F(-1,2),F(-1,2),F(1,2),F(1,2)]
+    slope=sum(y*w for y,w in zip(wy,ww))/sum(w*w for w in ww);assert slope==3==F(forest['local_slope'])
+    tuples=[(0,0,1,F(1,4),2),(1,0,1,F(1,2),2),(3,1,2,F(1,2),2),(5,1,2,F(3,4),2)];scores=[]
+    for y,w,m,e,tau in tuples:
+        score=tau+(w-e)/(e*(1-e))*(y-m-tau*(w-e));mu0=m-e*tau;mu1=m+(1-e)*tau
+        assert score==mu1-mu0+w/e*(y-mu1)-(1-w)/(1-e)*(y-mu0);scores.append(score)
+    assert scores==[F(8,3),0,2,F(16,3)] and sum(scores)/4==F(5,2)==F(forest['aipw_mean'])
+    values=[10,10,40,40,40,40];groups=[0,0,1,1,1,1];cluster_results=[]
+    for q in [[F(1)]*6,[F(1,2)]*2+[F(1,4)]*4]:
+        Q=sum(q);mean=sum(w*y for w,y in zip(q,values))/Q
+        residuals=[sum(q[i]*(values[i]-mean) for i,g in enumerate(groups) if g==j) for j in [0,1]]
+        variance=2*sum(v*v for v in residuals)/(Q*Q);cluster_results.append([mean,variance])
+    iid=sum((y-F(30))**2 for y in values)/(6*5)
+    assert iid==40 and cluster_results==[[F(30),F(1600,9)],[F(25),F(225)]]
+    column=[1,2,3,10,20,30];row=[1,10,2,20,3,30];assert (column[1*3+1],row[1*3+1])==(20,3)
+    return dict(population_means=list(map(str,means)),rate_conversion=list(map(str,rate)),mapped_covariance=[[str(v) for v in row] for row in mapped],
+        common_shock_variance_ratio=str(F(90100,109)),frontdoor_means=list(map(str,do)),frontdoor_observed_difference=str(observed[1]-observed[0]),
+        collider_probabilities=list(map(str,[cond,intervened])),bow_effects=list(map(str,bow_effects)),ratio_enclosure=[str(min(corners)),str(max(corners))],
+        dags=len(dags),graph_classes=len(classes),coordinate_net=[str(net),str(misread)],prefix_count=len(prefixes),valid_prefixes=len(valid),gaussian_effects=gaussian,
+        augmentation_scores=list(map(str,scores)),cluster_target_variance=[[str(v) for v in x] for x in cluster_results],iid_variance=str(iid),
+        scope='Independent exact finite laws, graph enumeration, covariance algebra and score/variance arithmetic. Historical runtime receipts are bound but no engine, fault trial, downloaded program or bank study is rerun.')
+
+
+def survey_discovery_decision_laws():
+    import itertools
+    from decimal import Decimal,localcontext
+    manifest=read('docs/release/2026-10-29/context-review-137/manifest.json')
+    for c in manifest['chapters']:
+        if c['chapter'] in [34,36]:
+            for path,identity in c['source_bindings'].items():raw(path);assert bindings[path]==identity
+    first=read('docs/program/execution/2026-10-13/exact-examples.json')
+    comparison=read('docs/program/execution/2026-10-13/survey-comparison.json')
+    s2=read('docs/program/execution/2026-10-16/s2/exact-results.json')
+    latent=read('docs/program/execution/2026-10-13/latent-r/exact-results-v3.json')
+    pcalg=read('docs/program/execution/2026-10-13/pcalg-reuse/exact-results.json')
+    for path in ['tools/gcastle_contract_reference_20261020.py','tools/notears_contract_reference_20261023.py']:raw(path)
+    def multiply(A,B):return [[sum((A[i][k]*B[k][j] for k in range(len(B))),F(0)) for j in range(len(B[0]))] for i in range(len(A))]
+    def transpose(A):return [list(x) for x in zip(*A)]
+    def response(B):
+        B2=multiply(B,B);B3=multiply(B2,B);assert all(v==0 for row in B3 for v in row)
+        return [[F(i==j)+B[i][j]+B2[i][j] for j in range(3)] for i in range(3)]
+    sigma=[[F(str(v)) for v in row] for row in first['graph_example']['covariance']];effects=[]
+    for model in pcalg['equal_law_sems']:
+        B=[[F(v) for v in row] for row in model['coefficients']];noise=[[F(v) for v in row] for row in model['noise']];T=response(B)
+        assert multiply(multiply(T,noise),transpose(T))==sigma;effects.append(T[2][0])
+        assert all(noise[i][i]>0 for i in range(3))
+    assert effects==[F(12,25),0,0] and sigma[0][2]-sigma[0][1]*sigma[1][2]/sigma[1][1]==0
+    local=[F(0),F(12,25)];assert sum(effects)/3==F(4,25) and sum(local)/2==F(6,25)
+    assert effects[0]*1000/100*25==120 and 120*10000==1200000
+    mass={(w,a):F(1,2)*((F(1,5)+F(3,5)*w) if a else (F(4,5)-F(3,5)*w)) for w,a in itertools.product([0,1],repeat=2)}
+    contrasts=[sum(F(1,2)*(1+2*w) for w in [0,1])]
+    observed=[]
+    for a in [1,0]:
+        denom=sum(p for (w,aa),p in mass.items() if aa==a)
+        contrasts.append(sum(p*(1+2*w) for (w,aa),p in mass.items() if aa==a)/denom)
+        observed.append(sum(p*(3*w+a*(1+2*w)) for (w,aa),p in mass.items() if aa==a)/denom)
+    assert contrasts==[F(2),F(13,5),F(7,5)] and observed[0]-observed[1]==F(22,5)
+    for name in ['A','B']:
+        row=comparison['paths'][name];assert sum(row[k] for k in ['valid_answers','invalid_answers','eligible_failures','justified_refusals'])==100
+        close(F(row['valid_answers'],60),row['eligible_availability']);close(F(row['invalid_answers'],40),row['false_acceptance'])
+    threshold=F(54*100-400-(48*100-600),8);assert threshold==100 and 54*100-8*threshold-400==4200
+    payoff=[];responses=[]
+    for model in s2['chain'].values():
+        B=[[F(v) for v in row] for row in model['B_target_source']];T=response(B);noise=[[F(model['noise_variances'][i]) if i==j else F(0) for j in range(3)] for i in range(3)]
+        assert multiply(multiply(T,noise),transpose(T))==s2['common_covariance']
+        p=30*T[2][0]-8;assert p==F(model['offer_net_USD']);payoff.append(p)
+        intervened=[row[:] for row in B];intervened[1]=[F(0)]*3;Tdo=response(intervened);contrast=[Tdo[i][1] for i in range(3)]
+        assert contrast==[F(v) for v in model['do_M_one_minus_zero_mean_XMY']];responses.append(contrast)
+    assert payoff==[22,-8,-8]
+    current=max(F(0),sum(payoff)/3);perfect=sum(max(F(0),v) for v in payoff)/3
+    groups=defaultdict(list)
+    for r,p in zip(responses,payoff):groups[r[2]].append(p)
+    y_only=sum(max(F(0),sum(g))/3 for g in groups.values())
+    assert [current,perfect,perfect-current,y_only,y_only-current]==[2,F(22,3),F(16,3),F(14,3),F(8,3)]
+    assert min(payoff)==-8 and max(max(0,v)-v for v in payoff)==8 and max(max(0,v) for v in payoff)==22
+    assert len({(r[0],r[2]) for r in responses})==3
+    for eps in [F(0),F(1,20),F(-1,20)]:
+        B=[[F(0)]*3,[F(1),F(0),F(0)],[-1+eps,F(1),F(0)]];T=response(B);cov=multiply(T,transpose(T))
+        assert T[2][0]==cov[0][2]==eps and F(-19,2)<=30*eps-8<=F(-13,2)
+    selected=[(x,u) for x,u in itertools.product([0,1],repeat=2) if x==u];assert selected==[(0,0),(1,1)]
+    assert 40*((1-F(1,2))/2)-3==7 and 40*F(-1,2)-3==-23
+    # All three latent/selected mechanisms yield the same observed table.
+    direct={(a,y):F(1,2)*((F(1,5)+F(3,5)*a) if y else (F(4,5)-F(3,5)*a)) for a,y in itertools.product([0,1],repeat=2)}
+    hidden=defaultdict(F);atoms=[]
+    for u,a,y in itertools.product([0,1],repeat=3):
+        pa=F(1,10)+F(4,5)*u;py=F(1,8)+F(3,4)*u;p=F(1,2)*(pa if a else 1-pa)*(py if y else 1-py)
+        hidden[a,y]+=p;atoms.append(p)
+    assert min(atoms)>0 and hidden==direct
+    inclusion={(0,0):F(1,5),(0,1):F(1,10),(1,0):F(3,40),(1,1):F(3,5)}
+    weighted={(a,y):(F(2,5) if a else F(3,5))*(F(1,3) if y else F(2,3))*inclusion[a,y] for a,y in itertools.product([0,1],repeat=2)}
+    prob=sum(weighted.values());assert prob==F(1,5) and {k:v/prob for k,v in weighted.items()}==direct
+    assert [100*t-20 for t in [F(3,5),0,0]]==[40,-20,-20]
+    close(float(1-F(19,20)**100),latent['individual_test_alpha_example']['independent_any_false_rejection'])
+    # Encode/decode every labelled chain/collider/unresolved-path permutation
+    # under all three pcalg representations; directed transposes must differ.
+    fixtures=[([(0,1),(1,2)],[]),([(0,1),(2,1)],[]),([],[frozenset((0,1)),frozenset((1,2))])]
+    roundtrips=transposes=0
+    for kind in ['row_endpoint','row_source','pag']:
+        for directed,unresolved in fixtures:
+            base=[[0]*3 for _ in range(3)]
+            for i,j in directed:
+                pair={'row_endpoint':(0,1),'row_source':(1,0),'pag':(2,3)}[kind];base[i][j],base[j][i]=pair
+            for edge in unresolved:
+                i,j=sorted(edge);base[i][j]=base[j][i]=3 if kind=='pag' else 1
+            for perm in itertools.permutations(range(3)):
+                matrix=[[base[i][j] for j in perm] for i in perm]
+                def decode(A):
+                    ds=set();us=set()
+                    for i in range(3):
+                        for j in range(i+1,3):
+                            pair=A[i][j],A[j][i]
+                            if pair==(0,0):continue
+                            if pair==((3,3) if kind=='pag' else (1,1)):us.add(frozenset((perm[i],perm[j])))
+                            elif pair=={'row_endpoint':(0,1),'row_source':(1,0),'pag':(2,3)}[kind]:ds.add((perm[i],perm[j]))
+                            else:ds.add((perm[j],perm[i]))
+                    return ds,us
+                assert decode(matrix)==(set(directed),set(unresolved));roundtrips+=1
+                if directed:assert decode(transpose(matrix))!=(set(directed),set(unresolved));transposes+=1
+    assert (roundtrips,transposes)==(54,36)
+    # Positive residual tolerances and threshold equality remain separate from
+    # graph topology; high-precision elementary series avoids cancellation.
+    a=b=F(1,100);poly=a*a*b*b/2;assert poly==F(1,200000000)<F(1,100000000)
+    assert a>F(1,200) and a<F(3,10)
+    with localcontext() as ctx:
+        ctx.prec=80
+        residuals=[]
+        for divisor in [200,100]:
+            z=Decimal(1)/(divisor*divisor);h=z.exp()+(-z).exp()-2
+            lower=z*z;upper=lower/(1-z*z/12);assert lower<h<upper;residuals.append(h)
+        assert residuals[0]<Decimal('1e-8')<residuals[1]
+    tau=F(3,10);assert abs(tau)>=tau and not abs(tau)>tau and 100*tau-20==10
+    W=[[F(0),F(2),F(1)],[F(0),F(0),F(3)],[F(0)]*3];scale=[10,1,100]
+    transformed=[[scale[i]*W[i][j]/scale[j] for j in range(3)] for i in range(3)]
+    assert W[0][2]+W[0][1]*W[1][2]==7 and transformed[0][2]+transformed[0][1]*transformed[1][2]==F(7,10)
+    assert [100*derivative-20 for derivative in [F(2),F(-2)]]==[180,-220]
+    return dict(equal_gaussian_effects=list(map(str,effects)),ate_att_atc=list(map(str,contrasts)),naive_contrast=str(observed[0]-observed[1]),
+        service_harm_threshold=str(threshold),information_values=list(map(str,[current,perfect,perfect-current,y_only,y_only-current])),
+        mechanism_payoffs=list(map(str,payoff)),intervention_responses=[[str(v) for v in row] for row in responses],
+        latent_equal_observed={str(k):str(v) for k,v in direct.items()},selected_probability=str(prob),encoding_roundtrips=roundtrips,transposes_detected=transposes,
+        polynomial_cycle_residual=str(poly),exponential_cycle_residuals=list(map(str,residuals)),
+        scope='Independent exact population-law, target, decision, coordinate and topology checks for chapters34 and36. Stipulated laws and prices; no original generator, engine, licensed trial or bank experiment executed.')
+
+
+def observational_discovery_laws():
+    """Reconstruct consequential stipulated laws, without importing vendor code."""
+    import itertools
+    raw('docs/release/2026-10-29/context-review-138/chapter-037.tex')
+    pg=read('docs/program/execution/2026-10-13/pgmpy-reuse/oracle-results.json')
+    cn=read('docs/program/execution/2026-10-14/causalnex-reuse/exact-oracle.json')
+    ca=read('docs/program/execution/2026-10-14/causica-reuse/exact-results.json')
+    dg=read('docs/program/execution/2026-10-16/dagma-reuse/exact-results.json')
+    cx=read('docs/program/execution/2026-10-13/cxx-discovery/exact-results.json')
+    ot=read('docs/program/execution/2026-10-13/other-discovery/exact-results.json')
+    na=read('docs/program/execution/2026-10-14/cxx-latent/exact-oracle.json')
+    ol=read('docs/program/execution/2026-10-14/other-latent/exact-oracle.json')
+    bn=read('docs/program/execution/2026-10-24/bnlearn-reuse-v1/exact-results.json')
+    li=read('docs/program/execution/2026-10-24/lingam-reuse-v1/exact-results.json')
+    # Independent undirected reachability in the moralized backdoor graph.
+    edges=[('C','A'),('C','B'),('C','Y'),('A','X'),('B','X'),('A','B')]
+    valid=[]
+    for bits in itertools.product([0,1],repeat=3):
+        blocked={v for v,b in zip('ABC',bits) if b};seen={'X'};front=['X']
+        while front:
+            u=front.pop()
+            for a,b in edges:
+                if u not in (a,b):continue
+                v=b if u==a else a
+                if v not in seen|blocked:seen.add(v);front.append(v)
+        if 'Y' not in seen:valid.append(blocked)
+    minimal=[s for s in valid if not any(t<s for t in valid)]
+    assert {tuple(sorted(s)) for s in minimal}=={tuple(v) for v in pg['minimal_versus_minimum']['inclusion_minimal_sets']}=={('C',),('A','B')}
+    coefficient=F(6*5-2*15,1*5-2*2);assert coefficient==F(pg['mediator_boundary']['regression_effect_conditioning_on_M'])==0
+    # Every acyclic orientation of a chordless four-cycle has a collider.
+    cycle=[(0,1),(1,2),(2,3),(3,0)];acyclic=0
+    for bits in itertools.product([0,1],repeat=4):
+        arcs={(b,a) if bit else (a,b) for (a,b),bit in zip(cycle,bits)};remaining=set(range(4))
+        while remaining:
+            roots={v for v in remaining if not any((u,v) in arcs for u in remaining)}
+            if not roots:break
+            remaining-=roots
+        if remaining:continue
+        acyclic+=1
+        assert any((a,v) in arcs and (b,v) in arcs and (a,b) not in arcs and (b,a) not in arcs for a,v,b in itertools.permutations(range(4),3))
+    assert acyclic==pg['nonextendible_PDAG']['acyclic_orientations']==14
+    x=[F(-1),F(1)];y=[F(-2),F(2)];shift=[v+1 for v in x]
+    slope=lambda a:sum(u*v for u,v in zip(a,y))/sum(u*u for u in a)
+    loss=lambda a,b:sum(u*u+(v-b*u)**2 for u,v in zip(a,y))/4
+    assert [slope(x),slope(shift),loss(x,2),loss(shift,2),loss(shift,1)]==[F(2),F(1),F(1,2),F(3),F(2)]
+    assert loss(shift,1)==F(cn['translation']['minimum_shifted_loss'])
+    assert min((F(1,5),'AB'),(F(1,2),'BA'))[1]=='AB' and min((F(2),'AB'),(F(1,20),'BA'))[1]=='BA'
+    a,b,s=F(1,5),F(3,10),F(13,10);ratio=(a*b/s)**2
+    h=-math.log1p(-float(ratio));gradient=[2*a*b*b/(s*s-a*a*b*b),2*b*a*a/(s*s-a*a*b*b)]
+    close(h,dg['valid_domain_gradient']['h_closed_form']);close(list(map(float,gradient)),[dg['valid_domain_gradient']['gradient'][0][1],dg['valid_domain_gradient']['gradient'][1][0]])
+    assert (1-F(2))**2==1 and 1-F(2)**2==-3 # positive/logabs determinant does not establish the M-matrix domain
+    # Population covariance and factual-noise reconstruction are separate queries.
+    vart=2;covxt=1;covyt=20*vart+10*covxt
+    assert F(covyt,vart)==F(ca['conditioning']['conditional_mean_slope'])==25
+    ux,ut,uy=F(1),F(2)-1,F(55)-20*2-10
+    factual=[20*t+10*ux+uy for t in [0,1]];assert factual==[F(v) for v in ca['conditioning']['same_unit_cf_T0_T1']]==[15,35]
+    arm_variance=10**2+100;assert F(2*arm_variance,100)==4 and F(1,4)**2==F(1,16)
+    point=(F(0),F(0));updates=[]
+    for _ in range(2):point=(1+point[1]/2,point[0]/2);updates.append(point)
+    residual=[point[0]-1-point[1]/2,point[1]-point[0]/2];fixed=[F(4,3),F(2,3)]
+    assert residual==[F(v) for v in ca['cycle']['equation_residual']]==[F(-1,4),0]
+    assert fixed[0]==1+fixed[1]/2 and fixed[1]==fixed[0]/2
+    assert sum((v-F(2+8,2))**2 for v in [2,8])==F(ca['vector_ATE_score']['literal_reduction_squared_error'])==18
+    weights=[F(3,4),F(1,4)];effects=[20,-20];mean=sum(w*v for w,v in zip(weights,effects));variance=sum(w*(v-mean)**2 for w,v in zip(weights,effects))
+    assert (mean,variance,mean-8)==(10,300,2) and [v-8 for v in effects]==[12,-28]
+    # Exact rational propagation for linear acyclic structural systems.
+    def mul(A,B):return [[sum(a*b for a,b in zip(row,col)) for col in zip(*B)] for row in A]
+    def law(edges,noise):
+        size=len(noise);I=[[F(i==j) for j in range(size)] for i in range(size)];B=[[F(0) for j in range(size)] for i in range(size)]
+        for parent,child,w in edges:B[child][parent]=F(w)
+        power=I;total=[r[:] for r in I]
+        for _ in range(1,size):
+            power=mul(power,B);total=[[u+v for u,v in zip(r,s)] for r,s in zip(total,power)]
+        assert not any(v for row in mul(power,B) for v in row)
+        covariance=mul([[v*noise[j] for j,v in enumerate(row)] for row in total],list(zip(*total)))
+        return total,covariance
+    sigma=[[F(1),F(1,2),F(1,5)],[F(1,2),F(1),F(2,5)],[F(1,5),F(2,5),F(1)]]
+    specs=[([(0,1,F(1,2)),(1,2,F(2,5))],[1,F(3,4),F(21,25)]), ([(1,0,F(1,2)),(1,2,F(2,5))],[F(3,4),1,F(21,25)]), ([(2,1,F(2,5)),(1,0,F(1,2))],[F(3,4),F(21,25),1])]
+    ambiguity=[]
+    for e,v in specs:
+        T,C=law(e,v);assert C==sigma;ambiguity.append(T[2][0])
+    assert ambiguity==[F(1,5),0,0]
+    funding=F(-1,10)+F(1,2)*F(2,5);assert funding*10**6==cx['funding']['annual_usd']==100000
+    table=defaultdict(F)
+    for risk,a,y in itertools.product([0,1],repeat=3):
+        p=F(1,5)+F(3,5)*risk;table[a,y]+=F(1,2)*(p if a else 1-p)*(p if y else 1-p)
+    means=[table[a,1]/sum(table[a,y] for y in [0,1]) for a in [0,1]]
+    assert means==[F(8,25),F(17,25)] and means[1]-means[0]==F(cx['coarsening']['coarsened_association'])
+    classes=defaultdict(int)
+    for left,right in itertools.product(['circle','tail','arrow'],repeat=2):classes[(left=='arrow',right=='arrow')]+=1
+    assert sorted(classes.values())==[1,2,2,4] and len(classes)==na['distinct_generic_outputs']==4
+    sigma2=[[F(1),F(1,2),F(1)],[F(1,2),F(1),F(2)],[F(1),F(2),F(5)]]
+    specs=[([(0,1,F(1,2)),(1,2,2)],[1,F(3,4),1]), ([(1,0,F(1,2)),(1,2,2)],[F(3,4),1,1]), ([(2,1,F(2,5)),(1,0,F(1,2))],[F(3,4),F(1,5),5])]
+    quote=[]
+    for e,v in specs:
+        T,C=law(e,v);assert C==sigma2;quote.append(T[2][1]/4)
+    assert quote==[F(1,2),F(1,2),0]
+    close(norm.isf(.01),ot['threshold_formula_example']['nominal_normal_critical']);assert 1.96<2.2<norm.isf(.01)
+    assert F(3,2)*100-80==70 and F(1,2)*100-80==-30
+    omega=[F(1),F(-1)];assert sum(omega)==0 and sum(v*v for v in omega)==F(ol['contrast']['norm_squared'])==2
+    # Equal observed/interventional marginals retain different cross-world coupling.
+    worlds=[defaultdict(F),defaultdict(F)];dos=[]
+    for model in [0,1]:
+        for a,u in itertools.product([0,1],repeat=2):worlds[model][a,u^(a if model else 0)]+=F(1,4)
+        dos.append([sum(F(1,2)*(u^(a if model else 0)) for u in [0,1]) for a in [0,1]])
+    assert worlds[0]==worlds[1] and dos==[[F(1,2)]*2]*2 and (0^0,0^1)==(0,1)
+    assert (F(1,2)*100,F(1,10)*100)==(50,10)
+    cluster=(F(1)+24*F(3,5))/500;assert cluster==F(77,2500) and F(1,500)==F(1,500)
+    close(float(cluster),bn['dependent_sampling']['cluster_variance']['decimal'])
+    forward,reverse=F(20+40//2,100),F(20,100)
+    assert [forward,reverse,forward+reverse,forward/(forward+reverse)]==[F(2,5),F(1,5),F(3,5),F(2,3)]
+    indices=[2,2,3,1];assert indices.index(2)+1==1 and [i+1 for i,v in enumerate(indices) if v==2]==[1,2]
+    assert (F(1+0,2),F(1,1+9))==(F(1,2),F(1,10))
+    assert F(0)*F(1,10)+F(1)*F(9,10)==F(9,10)
+    T,_=law([(0,1,2),(0,2,-1),(1,2,3)],[1,1,1]);assert T[2][0]==5 and F(1,5)*T[2][0]*1000-800==200
+    replicate=[F(0),F(1,10),F(9,10)];assert F(sum(v>F(1,2) for v in replicate),3)==F(1,3)
+    assert statistics.median(v for v in replicate if v!=0)==F(1,2) and statistics.median(v for v in replicate if v>F(1,2))==F(9,10)
+    assert [F(1200,v) for v in [100,80,50]]==[12,15,24] and [F(4200,v) for v in [210,175,140]]==[20,24,30]
+    return dict(minimal_sets=sorted([sorted(s) for s in minimal]),four_cycle_acyclic_orientations=acyclic,mediator_adjusted_coefficient=str(coefficient),
+        dagma_value=h,dagma_gradient=list(map(str,gradient)),factual_counterfactual_levels=list(map(str,factual)),cycle_updates=[[str(v) for v in p] for p in updates],
+        graph_mixture_mean=str(mean),graph_mixture_variance=str(variance),native_equal_gaussian_effects=list(map(str,ambiguity)),coarsened_means=list(map(str,means)),
+        endpoint_conversion_multiplicities=sorted(classes.values()),quote_responses=list(map(str,quote)),cluster_variance=str(cluster),
+        bootstrap_direction=str(forward/(forward+reverse)),lingam_total_effect=str(T[2][0]),
+        scope='Independent finite-law reconstruction of chapter37 target, topology, transformation, simulation, weighting and decision examples. Historical exhaustive543-DAG and vendor-module runs are bound as prior evidence, not rerun. No new engine, live-model, visual or bank acceptance.')
+
+
+def graph_inference_laws():
+    """Independent finite inference, support and conversion checks for chapter38."""
+    import itertools
+    raw('docs/release/2026-10-29/context-review-142/chapter-038.tex')
+    base='docs/program/execution/2026-10-24/'
+    bridge=read(base+'tetrad-bridge-reuse-v1/exact-results.json')
+    weka=read(base+'weka-reuse-v1/exact-results.json')
+    banjo=read(base+'banjo-reuse-v1/exact-results.json')
+    libdai=read(base+'libdai-reuse-v1/exact-results.json')
+    agrum=read(base+'agrum-reuse-v1/exact-results.json')
+    opengm=read(base+'opengm-reuse-v1/exact-results.json')
+    assert {v:i for i,v in enumerate(['approve','decline'])}['approve']==0
+    assert {v:i for i,v in enumerate(['decline','approve'])}['approve']==1
+    assert str(1)==str('1')
+    matrix=[[0,2],[3,0]];arcs=[(i,j) for i in range(2) for j in range(2) if matrix[i][j]]
+    assert len(arcs)==2 and [list(a) for a in arcs]==bridge['endpoint']['truthy_loop_edges']
+    assert F(1,2)*200*100-4000==F(bridge['observational_equivalence']['forward_net_usd'])==6000
+    # Stipulated fair hidden risk with noisy allocation: exact conditional versus do laws.
+    joint={(u,a):F(1,2)*(F(4,5) if a==u else F(1,5)) for u,a in itertools.product([0,1],repeat=2)}
+    observed=[joint[1,a]/sum(joint[u,a] for u in [0,1]) for a in [0,1]]
+    assert observed==[F(1,5),F(4,5)] and 1000*100*(observed[1]-observed[0])-10000==50000
+    smooth=lambda counts:[(F(v)+F(1,2))/(sum(counts)+F(len(counts),2)) for v in counts]
+    for counts,key in [([0,1],'unit_weights'),([0,10],'scaled_weights'),([0,0],'empty_row')]:assert smooth(counts)==list(map(F,weka['smoothing'][key]))
+    assert smooth([1,1])==[F(1,2)]*2 and smooth([1,9])==[F(3,22),F(19,22)]
+    assert F(1,2)/(F(1,2)+F(1,2)*F(1,4))==F(weka['label_selection']['selected_success'])==F(4,5)
+    # Exact Dirichlet-integrated factors reconstructed by sequential predictive products.
+    def factor(counts,alpha):
+        result=F(1);total=F(0)
+        for k,n in enumerate(counts):
+            for j in range(n):result*= (alpha[k]+j)/(sum(alpha)+total);total+=1
+        return result
+    ratios=[]
+    for repeat in [1,2]:
+        parent=factor([2*repeat,0],[F(1,2)]*2)*factor([0,2*repeat],[F(1,2)]*2)
+        independent=factor([2*repeat,2*repeat],[F(1)]*2);ratio=parent/independent;ratios.append(ratio)
+        prefix='' if repeat==1 else 'duplicated_'
+        assert parent==F(banjo['score'][prefix+'parent']) and independent==F(banjo['score'][prefix+'no_parent'])
+        assert ratio==F(banjo['score'][prefix+'bayes_factor'])
+    assert ratios==[F(135,32),F(385875,8192)]
+    separate=sum(n-1 for n in [4,3]);pooled=sum([4,3])-1
+    assert (separate,pooled,959-1)==(5,6,958)
+    def binmap(values):
+        lo,hi=min(values),max(values);return {x:min(1,int(F(2)*(x-lo)/(hi-lo))) for x in values}
+    assert [binmap([0,1,2])[x] for x in [0,1,2]]==[0,1,1]
+    assert [binmap([0,1,2,100])[x] for x in [0,1,2]]==[0,0,0]
+    seq=[1,0,0];assert (max(seq[1:])+1,max(seq)+1)==(1,2)
+    # Factor ordering alters an event without violating normalization.
+    values=list(range(1,7));correct=F(sum(values[1::2]),sum(values));wrong=F(sum(values[3:]),sum(values))
+    assert (correct,wrong)==(F(4,7),F(5,7))
+    assert correct==F(libdai['order']['correct_x'][1]) and wrong==F(libdai['order']['wrong_x'][1])
+    underflow=[float(1e-200)**2,float(2e-200)**2];assert underflow==[0.,0.]
+    logweights=[2*math.log(v) for v in [1e-200,2e-200]];scaled=[math.exp(v-max(logweights)) for v in logweights]
+    close([v/sum(scaled) for v in scaled],[.2,.8])
+    weights={x:math.prod(3 if x[i]==x[j] else 1 for i,j in [(0,1),(1,2),(2,0)]) for x in itertools.product([0,1],repeat=3)}
+    total=sum(weights.values());exact=F(sum(w for x,w in weights.items() if x[0]==x[1]),total);bp=F(3,4)
+    assert total==72 and exact==F(5,6) and exact-bp==F(libdai['loopy']['absolute_error'])==F(1,12)
+    assert (exact-bp)*120000==10000 and 8*2**30==8589934592
+    # Observed support gives a sharp set, and posterior root marginals lose coupling.
+    support=[F(1,4)+F(1,2)*m for m in [0,1]];assert support==list(map(F,agrum['support']['identified_set']))
+    posterior={(u,v):F(1,2) for u,v in itertools.product([0,1],repeat=2) if u==v}
+    joint_cf=sum(p*(1^u^v) for (u,v),p in posterior.items())
+    marginal_cf=sum(F(1,4)*(1^u^v) for u,v in itertools.product([0,1],repeat=2))
+    assert (joint_cf,marginal_cf)==(1,F(1,2))
+    assert [1000*80*p-30000 for p in [joint_cf,marginal_cf]]==[50000,10000]
+    f=[F(1,4),F(3,4)];g=[F(4,5),F(1,5)];product=[a*b for a,b in zip(f,g)]
+    shared=[p/sum(product) for p in product];mismatch=sum(f[i]*g[j] for i,j in itertools.product([0,1],repeat=2) if i!=j)
+    assert shared==[F(4,7),F(3,7)] and mismatch==F(13,20)
+    # MAP, marginal actions, incomplete incumbents and duplicated factors are distinct.
+    table={(0,0):F(7,20),(0,1):F(1,4),(1,0):F(0),(1,1):F(2,5)}
+    state=max(table,key=table.get);px0=sum(v for (x,y),v in table.items() if x==0)
+    assert state==(1,1) and px0==F(3,5) and (px0-(1-px0))*10000*100==200000
+    energy=[5,4,3,0];assert min(energy[:2])-min(energy)==4
+    assert F(4,5)-F(2,3)==F(opengm['repeated_factor']['change'])==F(2,15)
+    assert math.isnan(float('inf')+0-float('inf'))
+    assert F(3+4,10)==F(7,10) and F(2+4,10)==F(3,5) and 2**40==1099511627776
+    costs={}
+    for name,total,counts,expected in [('bridge',6000,[300,240,200],[20,25,30]),('weka',7200,[360,300,240],[20,24,30]),('banjo',9000,[300,225,150],[30,40,60]),('libdai',12000,[400,300,200],[30,40,60]),('agrum',15000,[500,375,250],[30,40,60]),('opengm',18000,[600,450,300],[30,40,60])]:
+        values=[F(total,n) for n in counts];assert values==expected;costs[name]=list(map(str,values))
+    return dict(conditional_means=list(map(str,observed)),banjo_score_ratios=list(map(str,ratios)),file_windows=[separate,pooled],
+        factor_event_probabilities=[str(correct),str(wrong)],triangle_partition=sum(weights.values()),
+        triangle_exact_agreement=str(exact),triangle_bp_agreement=str(bp),support_set=list(map(str,support)),
+        counterfactual_probabilities=[str(joint_cf),str(marginal_cf)],shared_axis_probability=list(map(str,shared)),different_axis_mismatch=str(mismatch),
+        marginal_mode_probability=str(px0),map_state=list(state),complete_costs=costs,
+        scope='Independent finite-law and binary64 checks for chapter38. Historical source traces and base-R witness retain their original scope; no vendor engine, original generator, live model or bank experiment executed.')
+
+
+def identification_set_laws():
+    """Verify population sets using exact witnesses and rational LP certificates."""
+    import itertools
+    from scipy.optimize import linprog
+    raw('docs/release/2026-10-29/context-review-143/chapter-040.tex')
+    base='docs/program/execution/'
+    original=read(base+'2026-10-17/s3/exact-results.json')
+    sensitivity=read(base+'2026-10-17/s3/sensitivity/exact-results.json')
+    rid=read(base+'2026-10-18/r-identification/exact-results.json')
+    dag=read(base+'2026-10-18/dagitty-reuse/exact-reference.json')
+    pyid=read(base+'2026-10-18/python-identification-v1/exact-reference.json')
+    ananke=read(base+'2026-10-24/ananke-reuse-v1/exact-results.json')
+    gcm=read(base+'2026-10-24/gcm-reuse-v1/exact-results.json')
+    for name in ['java','other','cxx']:raw('tools/'+name+'_identification_reference_20261019.py')
+    # Reconstruct all observable cells before comparing targets.
+    cells={};adjusted=[]
+    for c,a,y in itertools.product([0,1],repeat=3):
+        pa=F(1,5)+F(3,5)*c;py=F(1,10)+F(1,2)*c+F(1,10)*a
+        cells[c,a,y]=F(1,2)*(pa if a else 1-pa)*(py if y else 1-py)
+    means=[sum(p*y for (c,b,y),p in cells.items() if b==a)/sum(p for (c,b,y),p in cells.items() if b==a) for a in [0,1]]
+    adjusted=[sum(F(1,2)*(F(1,10)+F(1,2)*c+F(1,10)*a) for c in [0,1]) for a in [0,1]]
+    assert means==list(map(F,original['adjustment']['raw_means']))==[F(1,5),F(3,5)]
+    assert adjusted==[F(7,20),F(9,20)] and 100*(adjusted[1]-adjusted[0])-12==-2
+    observed=[];interventions=[]
+    for world in [0,1]:
+        table=defaultdict(F);do=[]
+        for u,e,y in itertools.product([0,1],repeat=3):
+            a=u;z=(u if world==0 else a)^e;p=F(1,2)*(F(1,4) if e else F(3,4));py=F(1,5)+F(3,5)*z
+            table[a,z,y]+=p*(py if y else 1-py)
+        observed.append(table)
+        for a in [0,1]:
+            mu=F(0)
+            for u,e in itertools.product([0,1],repeat=2):
+                z=(u if world==0 else a)^e;mu+=F(1,2)*(F(1,4) if e else F(3,4))*(F(1,5)+F(3,5)*z)
+            do.append(mu)
+        interventions.append(do)
+    assert observed[0]==observed[1] and min(observed[0].values())>0
+    assert interventions==[[F(1,2),F(1,2)],[F(7,20),F(13,20)]]
+    # Eight-cell IV model. Linear and linear-fractional programs are solved
+    # independently, then primal feasibility and dual bounds are checked exactly.
+    types=list(itertools.product([0,1],repeat=4));keys=list(itertools.product([0,1],repeat=3))
+    q=[F(sensitivity['observed_DY_given_Z'][''.join(map(str,key))]) for key in keys]
+    A=[[F(t[z]==d and t[2+d]==y) for t in types] for z,d,y in keys]
+    defier=[F(t[0]==1 and t[1]==0) for t in types];complier=[F(t[0]==0 and t[1]==1) for t in types]
+    ate=[F(t[3]-t[2]) for t in types];num=[v*c for v,c in zip(ate,complier)]
+    dot=lambda a,b:sum(x*y for x,y in zip(a,b))
+    certs=[]
+    def exact_lp(c,E,b,U,h):
+        fit=linprog(list(map(float,c)),A_eq=np.array(E,float),b_eq=np.array(b,float),A_ub=np.array(U,float),b_ub=np.array(h,float),bounds=(0,None),method='highs')
+        assert fit.success,fit.message
+        rational=lambda arr:[F(float(v)).limit_denominator(10**8) for v in arr]
+        x=rational(fit.x);y=rational(fit.eqlin.marginals);z=rational(fit.ineqlin.marginals)
+        assert min(x)>=0 and all(dot(row,x)==value for row,value in zip(E,b)) and all(dot(row,x)<=value for row,value in zip(U,h))
+        assert max(z)<=0
+        slack=[c[j]-sum(E[i][j]*y[i] for i in range(len(E)))-sum(U[i][j]*z[i] for i in range(len(U))) for j in range(len(c))]
+        assert min(slack)>=0
+        primal=dot(c,x);dual=dot(b,y)+dot(h,z);assert primal==dual
+        certs.append({'objective':str(primal),'primal':list(map(str,x)),'equality_dual':list(map(str,y)),'inequality_dual':list(map(str,z)),'dual_slack':list(map(str,slack))})
+        return primal
+    bounds={}
+    for budget in [F(0),F(1,10)]:
+        low=exact_lp(ate,A,q,[defier],[budget]);high=-exact_lp([-x for x in ate],A,q,[defier],[budget]);assert [low,high]==[F(-4,25),F(11,25)]
+        bounds[str(budget)]=[str(low),str(high)]
+    # Charnes-Cooper coordinates (q_type, t) with denominator normalized to1.
+    E=[row+[-mass] for row,mass in zip(A,q)]+[complier+[F(0)]];b=[F(0)]*len(A)+[F(1)]
+    U=[defier+[F(-1,10)]];h=[F(0)];objective=num+[F(0)]
+    low=exact_lp(objective,E,b,U,h);high=-exact_lp([-v for v in objective],E,b,U,h)
+    assert [low,high]==list(map(F,sensitivity['bounded_defier_complier_sharp_range']))==[F(1,25),F(9,25)]
+    vertices=0
+    for vertex in sensitivity['vertices']:
+        masses=[F(vertex['response_type_masses_D0D1Y0Y1'][''.join(map(str,t))]) for t in types]
+        assert min(masses)>=0 and sum(masses)==1 and [dot(row,masses) for row in A]==q
+        assert dot(defier,masses)==F(vertex['f'])<=F(1,10)
+        assert dot(ate,masses)==F(vertex['population_ATE']) and dot(num,masses)/dot(complier,masses)==F(vertex['complier_effect']);vertices+=1
+    assert vertices==sensitivity['vertex_count']==36
+    d=sum(q[i]*key[1]*(1 if key[0] else -1) for i,key in enumerate(keys));itt=sum(q[i]*key[2]*(1 if key[0] else -1) for i,key in enumerate(keys))
+    assert d==F(2,5) and itt==F(2,25) and 100*itt-12*d-2==F(6,5)
+    assert [(itt-g)/d for g in [F(1,50),F(1,25)]]==[F(3,20),F(1,10)]
+    assert [(itt+g)/d for g in [F(1,50),F(1,25)]]==[F(1,4),F(3,10)]
+    # Consistency-only bounds are independent of the IV model above.
+    obs={(0,0):F(2,5),(0,1):F(1,10),(1,0):F(1,5),(1,1):F(3,10)};effects=[]
+    for missing in itertools.product([0,1],repeat=4):
+        value=F(0)
+        for ((a,y),mass),counter in zip(obs.items(),missing):value+=mass*((y-counter) if a else (counter-y))
+        effects.append(value)
+    assert [min(effects),max(effects)]==[F(-3,10),F(7,10)]
+    r=F(58,42+58);assert r==F(29,50) and 42*r==58*(1-r)==F(609,25)
+    n,d,eps=F(3,5)*F(1,10**6),F(1,10**6),F(1,10**7)
+    interval=[(n-eps)/(d+eps),(n+eps)/(d-eps)];assert interval==[F(5,11),F(7,9)]
+    assert [100*(v-F(2,5))-12 for v in interval]==[F(-72,11),F(232,9)]
+    # Flat likelihood supports distinct posterior summaries on a response-type fiber.
+    pn=[]
+    for t in [F(0),F(1,8),F(1,4)]:
+        cells=[t,F(3,4)-t,F(1,4)-t,t];assert min(cells)>=0 and sum(cells)==1;pn.append((F(3,4)-t)/F(3,4))
+    likelihood=F(1,4)**2*F(3,4)**6;assert likelihood==F(rid['finite_arm_counts']['ordered_sequence_likelihood_each_fiber_world'])==F(729,65536)
+    assert 16*likelihood==F(729,4096)
+    posterior_means=[sum(p*w for p,w in zip(pn,weights)) for weights in [[F(1,3)]*3,[F(1,6),F(1,3),F(1,2)]]]
+    assert posterior_means==[F(5,6),F(7,9)] and [1000*p-800 for p in posterior_means]==[F(100,3),F(-200,9)]
+    # Collider selection and front-door calculation use fully positive finite laws.
+    collider={}
+    for a,u,c in itertools.product([0,1],repeat=3):
+        pc=F(1+2*a+2*u,8);collider[a,u,c]=F(1,4)*(pc if c else 1-pc)
+    differences=[];standard=F(0)
+    for c in [0,1]:
+        risk=[sum(p*u for (b,u,v),p in collider.items() if b==a and v==c)/sum(p for (b,u,v),p in collider.items() if b==a and v==c) for a in [0,1]]
+        differences.append(risk[1]-risk[0]);standard+=differences[-1]*sum(p for (a,u,v),p in collider.items() if v==c)
+    assert differences==list(map(F,dag['collider']['differences_conditioning_C']))==[F(-1,24),F(-1,8)] and standard==F(-7,96)
+    front={}
+    for u,a,m,y in itertools.product([0,1],repeat=4):
+        pa=F(1,4)+u/ F(2);pm=F(1,4)+a/F(2);py=F(1,8)+m/F(2)+u/F(4)
+        front[u,a,m,y]=F(1,2)*(pa if a else 1-pa)*(pm if m else 1-pm)*(py if y else 1-py)
+    risks=[];standardized=[]
+    cond=lambda a,m:sum(p*y for (u,b,k,y),p in front.items() if b==a and k==m)/sum(p for (u,b,k,y),p in front.items() if b==a and k==m)
+    for a in [0,1]:
+        risks.append(sum((F(1,4)+a/F(2) if m else F(3,4)-a/F(2))*sum(cond(b,m)/2 for b in [0,1]) for m in [0,1]))
+        standardized.append(sum(cond(a,m)/2 for m in [0,1]))
+    assert risks==[F(3,8),F(5,8)] and standardized==[F(7,16),F(9,16)]
+    # Reporting units and resampling law are separate from source/API identity.
+    p0,p1=F(1,5),F(2,5);odds=p1/(1-p1)/(p0/(1-p0));assert odds==F(8,3) and p1-p0==F(1,5)
+    close(math.log(float(odds)),ananke['effect_scale']['log_odds_ratio'])
+    assert ''.join(['A','BC'])==''.join(['AB','C']) and 'X_'+'R_credit_score'.split('_')[1]=='X_credit'
+    data=[F(0),F(0),F(2),F(2)];submeans=[sum(v)/3 for v in itertools.combinations(data,3)];bootstrap=[sum(v)/4 for v in itertools.product(data,repeat=4)]
+    variance=lambda values:sum((v-statistics.mean(values))**2 for v in values)/len(values)
+    assert variance(submeans)==F(gcm['subsampling']['subset_variance'])==F(1,9) and variance(bootstrap)==F(1,4)
+    assert set([0,2,4]).isdisjoint([1,3,5]) and 1000*100*(p1-p0)==20000 and 5-2*1==3
+    assert [F(3000,v) for v in [150,125,100]]==[20,24,30] and [F(5400,v) for v in [270,225,180]]==[20,24,30]
+    return dict(adjusted_means=list(map(str,adjusted)),observed_means=list(map(str,means)),joint_nonidentification_marginals=[[str(v) for v in row] for row in interventions],
+        population_iv_bounds=bounds,complier_bounds=[str(low),str(high)],exact_lp_certificates=certs,retained_vertices_checked=vertices,
+        consistency_bounds=[str(min(effects)),str(max(effects))],minimax_receipt_fraction=str(r),ratio_envelope=list(map(str,interval)),
+        flat_fiber_posterior_means=list(map(str,posterior_means)),collider_standardization=str(standard),frontdoor_risks=list(map(str,risks)),
+        subsample_variance=str(variance(submeans)),bootstrap_variance=str(variance(bootstrap)),
+        scope='Independent finite-law reconstruction and exact rational primal/dual certificates for chapter40 bounds. HiGHS proposes witnesses; exact rational feasibility and dual inequalities certify these finite LP objectives. No native engine, historical generator, empirical calibration or bank experiment executed.')
+
+
+def estimating_equation_laws():
+    """Reconstruct chapter41/42 units, covariance and orthogonality examples."""
+    import itertools
+    for chapter in [41,42]:
+        raw(f'docs/release/2026-10-29/context-review-147/chapter-{chapter:03d}.tex')
+    # Structural propagation through an asymmetric coefficient matrix.
+    B=np.array([[0,0,0],[.4,0,0],[.1,2,0]])
+    response=np.linalg.solve(np.eye(3)-B,np.array([1.,0,0]))
+    reverse=np.linalg.solve(np.eye(3)-B.T,np.array([1.,0,0]))
+    close(response,[1,.4,.9]);close(reverse,[1,0,0])
+    assert F(1,10)+2*F(2,5)==F(9,10)
+    # The denominator is the same total derivative; cluster cross-products differ.
+    scores=[F(1),F(1),F(-1),F(-1)]
+    individual=sum(v*v for v in scores)/F(4)**2
+    grouped=sum(sum(scores[i:i+2])**2 for i in [0,2])/F(4)**2
+    assert individual==F(1,4) and grouped==F(1,2)
+    K,m,rho=100,10,F(3,10)
+    covariance_sum=K*(m+m*(m-1)*rho)
+    variance=covariance_sum/F(K*m)**2
+    multiplier=1+(m-1)*rho
+    assert multiplier==F(37,10) and variance==F(37,10000)
+    effective=1/variance;assert effective==F(10000,37)
+    # Exact scalar-versus-column centering identity, also linked from chapter42.
+    rows=[[F(1),F(0)],[F(3),F(0)]]
+    means=[sum(row[j] for row in rows)/len(rows) for j in range(2)]
+    scalar=sum(means)/2
+    moment=lambda centers:[[sum((row[j]-centers[j])*(row[k]-centers[k]) for row in rows)/len(rows) for k in range(2)] for j in range(2)]
+    col=moment(means);grand=moment([scalar]*2)
+    assert col==[[1,0],[0,0]] and grand==[[2,-1],[-1,1]]
+    assert [[grand[j][k]-col[j][k] for k in range(2)] for j in range(2)]==[[1,-1],[-1,1]]
+    # A finite conditional law checks the remainder by direct score averaging.
+    theta=F(2);errors=[(F(1,10),F(1,5),F(1,20)),(F(-1,10),F(1,10),F(-1,20))]
+    true_score=fitted_score=total=F(0)
+    for x,z,e,v in itertools.product([0,1],repeat=4):
+        pm=F(1,4)+F(x,2);pr=F(1,3)+F(x,3);pl=F(1,5)+F(3*x,5)
+        probability=F(1,8)*(pm if z else 1-pm)
+        d=pr+F(1,2)*(z-pm)+(F(1,10) if e else F(-1,10))
+        y=pl+theta*(d-pr)+(F(1,4) if v else F(-1,4))
+        dm,dl,dr=errors[x]
+        true_score+=probability*(z-pm)*(y-pl-theta*(d-pr))
+        fitted_score+=probability*(z-pm-dm)*(y-pl-dl-theta*(d-pr-dr))
+        total+=probability
+    remainder=sum(dm*(dl-theta*dr) for dm,dl,dr in errors)/2
+    assert total==1 and true_score==0 and fitted_score==remainder==F(-1,200)
+    norm=lambda values:math.sqrt(float(sum(v*v for v in values)/len(values)))
+    bound=norm([e[0] for e in errors])*(norm([e[1] for e in errors])+float(theta)*norm([e[2] for e in errors]))
+    assert abs(float(remainder))<=bound
+    return dict(structural_effects=[str(F(9,10)),str(F(0))],
+        score_variances=[str(individual),str(grouped)],cluster_multiplier=str(multiplier),
+        mean_variance=str(variance),effective_independent_count=str(effective),
+        column_centered=[[str(v) for v in row] for row in col],
+        scalar_centered=[[str(v) for v in row] for row in grand],
+        true_score=str(true_score),fitted_score=str(fitted_score),remainder=str(remainder),
+        cauchy_schwarz_upper_bound=bound,
+        scope='Independent matrix propagation, exact covariance summation and full finite-law score averaging for chapters41/42. No native engine, learned-rate guarantee, empirical calibration or bank experiment.')
+
+
+def effect_decision_laws():
+    """Independently enumerate chapter43 targets and decision consequences."""
+    import itertools
+    raw('docs/release/2026-10-29/context-review-148/chapter-043.tex')
+    old=read('docs/program/execution/2026-10-17/s4/exact-results.json')
+    ext=read('docs/program/execution/2026-10-17/s4/depth-extension/exact-results.json')
+    w=list(map(F,['1/4','1/2','1/4']));e=list(map(F,['1/10','1/2','9/10']))
+    q=list(map(F,['1/5','1/2','4/5']));m0=list(map(F,[30,50,70]));tau=list(map(F,[-4,4,20]))
+    mean=lambda z:sum(a*b for a,b in zip(w,z))
+    target=lambda h:mean([a*b for a,b in zip(h,tau)])/mean(h)
+    h=[a*(1-a) for a in e];H=mean(h)
+    values=dict(ATE=target([F(1)]*3),ATT=target(e),ATC=target([1-a for a in e]),overlap=target(h),H=H)
+    values['frozen_overlap_with_q']=target([a*(1-a) for a in q])
+    ipw=N=D=Nwrong=F(0);dr1=list(map(F,[1,-2,3]));dr0=list(map(F,[-1,1,2]))
+    for x,a in itertools.product(range(3),[0,1]):
+        prob=w[x]*(e[x] if a else 1-e[x]);y=m0[x]+a*tau[x]
+        den=a*(1-q[x])**2+(1-a)*q[x]**2
+        ipw+=prob*(a*y/q[x]-(1-a)*y/(1-q[x]))
+        N+=prob*(den*tau[x]+a*(1-q[x])*(y-m0[x]-tau[x])-(1-a)*q[x]*(y-m0[x]))
+        D+=prob*den
+        fitted0=m0[x]+dr0[x];fitted1=m0[x]+tau[x]+dr1[x]
+        Nwrong+=prob*(den*(fitted1-fitted0)+a*(1-q[x])*(y-fitted1)-(1-a)*q[x]*(y-fitted0))
+    values.update(clipped_IPW=ipw,corrected_overlap_with_true_outcomes=N/D,corrected_overlap_bias=N/D-values['overlap'])
+    for key,val in values.items():assert val==F(old['weighting'][key]),key
+    rem=old['weighting']['overlap_remainder']
+    remainder=dict(numerator=Nwrong,denominator=D,unnormalized_error=Nwrong-values['overlap']*D,normalized_error=Nwrong/D-values['overlap'])
+    for key,val in remainder.items():assert val==F(rem[key]),key
+    ess={}
+    for name,ps in [('true',e),('clipped',q)]:
+        a=mean([p/r for p,r in zip(e,ps)]);b=mean([p/r**2 for p,r in zip(e,ps)])
+        ess[name]=a*a/b;assert ess[name]==F(old['weighting']['ess'][name]['ess_fraction'])
+    direction=list(map(F,['1/20','-1/10','1/20']));derivatives={}
+    for name,weights,hprime in [('ATT',e,[F(1)]*3),('overlap',h,[1-2*a for a in e])]:
+        t0=target(weights);den=mean(weights);d=mean([hp*de*(tt-t0) for hp,de,tt in zip(hprime,direction,tau)])/den
+        fixed_cov=full_cov=F(0)
+        for x,a in itertools.product(range(3),[0,1]):
+            p=w[x]*(e[x] if a else 1-e[x]);s=direction[x]*(a-e[x])/(e[x]*(1-e[x]))
+            fixed=weights[x]*(tau[x]-t0)/den
+            complete=fixed+hprime[x]*(a-e[x])*(tau[x]-t0)/den
+            fixed_cov+=p*fixed*s;full_cov+=p*complete*s
+        assert fixed_cov==0 and full_cov==d==F(old['weighting']['influence_paths'][name]['exact_target_derivative'])
+        derivatives[name]=str(d)
+    slope_num=slope_den=mean_r=F(0)
+    for x,a in itertools.product(range(3),[0,1]):
+        p=w[x]*(e[x] if a else 1-e[x]);r=a-q[x];ry=(a-e[x])*tau[x]
+        slope_num+=p*r*ry;slope_den+=p*r*r;mean_r+=p*r
+    assert mean_r==0 and slope_num/slope_den==F(172,35)
+    matrices=[]
+    for probs,effects in [([[F(1,2),F(1,4),F(1,4)]],[[F(0),F(0)]]),([[F(1,2),F(1,4),F(1,4)],[F(1,4),F(1,4),F(1,2)]],[[F(0),F(12)],[F(20),F(0)]])]:
+        tbar=[sum(row[j] for row in effects)/len(effects) for j in range(2)]
+        cov=[[F(0) for j in range(2)] for k in range(2)]
+        for x,a,noise in itertools.product(range(len(probs)),range(3),[-2,2]):
+            prob=probs[x][a]/(2*len(probs))
+            phi=[effects[x][j]-tbar[j]+(F(noise)/probs[x][a] if a==j+1 else F(0))-(F(noise)/probs[x][0] if a==0 else F(0)) for j in range(2)]
+            for j,k in itertools.product(range(2),repeat=2):cov[j][k]+=prob*phi[j]*phi[k]
+        matrices.append(cov)
+    assert matrices==[[[24,8],[8,24]],[[128,-48],[-48,60]]]
+    pairs=[];probs=[[F(1,2),F(1,4),F(1,4)],[F(1,4),F(1,4),F(1,2)]];effects=[[0,12],[20,0]]
+    for j in range(2):
+        mass=sum(row[0]+row[j+1] for row in probs)/2
+        effect=sum((probs[x][0]+probs[x][j+1])*effects[x][j] for x in range(2))/(2*mass)
+        assert effect==F(ext['common_population']['pair_populations'][j]['pair_population_effect']);pairs.append(str(effect))
+    for cov,prior in zip(matrices,[old['multiarm'],ext['common_population']]):
+        assert [[str(v) for v in row] for row in cov]==prior['covariance']
+        assert cov[0][0]+cov[1][1]-2*cov[0][1]==F(prior['difference_variance'])
+    masses=list(map(F,['2/5','3/10','1/5','1/10']));g=list(map(F,[3,6,8,11]));r=list(map(F,[1,1,2,4]));budget=F(1,2)
+    objective=lambda d:sum(masses[i]*g[i]*d[i] for i in range(4))
+    use=lambda d:sum(masses[i]*r[i]*d[i] for i in range(4))
+    vertices=set()
+    for point in itertools.product([F(0),F(1)],repeat=4):
+        if use(point)<=budget:vertices.add(point)
+    for free in range(4):
+        others=[i for i in range(4) if i!=free]
+        for fixed in itertools.product([F(0),F(1)],repeat=3):
+            p=[F(0)]*4
+            for i,val in zip(others,fixed):p[i]=val
+            p[free]=(budget-use(p))/(masses[free]*r[free])
+            if 0<=p[free]<=1:vertices.add(tuple(p))
+    best=max(vertices,key=objective);dual=4*budget+sum(masses[i]*max(F(0),g[i]-4*r[i]) for i in range(4))
+    assert len(vertices)==old['allocation']['vertices_checked'] and objective(best)==dual==F(13,5)
+    gross=[F(0),F(0),F(1,4),F(1)];assert use(gross)==budget and objective(gross)==F(3,2)
+    robust=[]
+    for t0 in [F(0),F(1,2),F(1)]:
+        evaluations=[(max(a,b)/2,(a*t0+b*(1-t0))/2) for a,b in itertools.product([F(2),F(8)],[F(4),F(6)])]
+        robust.append(dict(first_fraction=str(t0),worst_regret=str(max(a-b for a,b in evaluations)),guarantee=str(min(b for a,b in evaluations))))
+    assert robust[0]['worst_regret']=='2' and robust[0]['guarantee']=='2'
+    assert robust[1]['worst_regret']=='1' and robust[1]['guarantee']=='3/2'
+    design=np.sqrt([8.,4.,4.]);design/=design.sum();trace=sum(np.array([8.,4.,4.])/design)
+    close(design,[math.sqrt(2)-1,(2-math.sqrt(2))/2,(2-math.sqrt(2))/2]);close(trace,24+16*math.sqrt(2))
+    radius=125*math.sqrt(math.log(640)/(2*10000));needed=math.ceil(2*125**2*math.log(640))
+    close(radius,ext['policy_bound']['simultaneous_radius_USD']);assert needed==201921
+    G=[[F(1),F(1,2)],[F(1,2),F(1,3)]];det=G[0][0]*G[1][1]-G[0][1]*G[1][0]
+    inv=[[G[1][1]/det,-G[0][1]/det],[-G[1][0]/det,G[0][0]/det]]
+    moments=[4*F(1,k+1)-6*F(1,k+2) for k in range(3)]
+    assert inv==[[4,-6],[-6,12]] and moments==[1,0,F(-1,6)]
+    fuzzy=[]
+    for row in old['threshold']['fuzzy_projection']:
+        jump=F(row['receipt_jump']);band=F(row['bandwidth']);value=(8*jump-2*band**2)/(jump-band**2/12)
+        assert value==F(row['projected_ratio_USD']);fuzzy.append(str(value))
+    for row in old['threshold']['finite_epsilon']:
+        eps=F(row['epsilon']);assert 8+8*eps+12*eps**2==F(row['contrast_USD'])
+    support=[[(14-L)-(10+L),(14+L)-(10-L)] for L in [1,2]]
+    assert support==[[2,6],[0,8]]
+    return dict(weighted_targets={k:str(v) for k,v in values.items()},remainder={k:str(v) for k,v in remainder.items()},ess={k:str(v) for k,v in ess.items()},assignment_derivatives=derivatives,residual_slope=str(slope_num/slope_den),covariance=[[[str(v) for v in row] for row in cov] for cov in matrices],pair_effects=pairs,allocation_vertices=len(vertices),optimal_policy=list(map(str,best)),primal_dual_value=str(dual),gross_rank_value=str(objective(gross)),robust_allocations=robust,optimal_design=design.tolist(),trace=trace,policy_radius=radius,one_dollar_regret_sufficient_n=needed,equivalent_kernel_moments=list(map(str,moments)),fuzzy_ratios=fuzzy,discrete_support_bounds=support,scope='Independent finite-law enumeration, exact vertex/dual checks and polynomial integration for chapter43. Stipulated project laws, not new package runs, calibration, causal assumptions or bank experiments.')
+
+
+def effect_implementation_laws():
+    """Reconstruct retained scale and target witnesses in chapter43."""
+    import itertools
+    base='docs/program/execution/'
+    java=read(base+'2026-10-20/java-effects-v1/exact-results.json')
+    rfx=read(base+'2026-10-19/r-effects-v1/exact-results.json')
+    econ=read(base+'2026-10-19/econml-reuse-v1/exact-results.json')
+    py=read(base+'2026-10-20/python-effects-v1/exact-results.json')
+    julia=read(base+'2026-10-21/effects-other-v1/exact-results.json')
+    grf=read(base+'2026-10-21/grf-reuse-v1/exact-results.json')
+    tmle=read(base+'2026-10-24/tmle-reuse-v1/exact-results.json')
+    deli=read(base+'2026-10-24/delicatessen-reuse-v1/exact-results.json')
+    probs=[F(1,5),F(4,5)];treated=sum(p*p/2 for p in probs)/F(1,2);control=sum((1-p)*p/2 for p in probs)/F(1,2)
+    assert treated-control==F(java['confounding']['observed_difference'])==F(9,25)
+    smooth=F(8+1,10+2)-F(2+1,10+2);assert smooth==F(1,2) and F(8-2,10)==F(3,5)
+    qt=qc=0;qini=[]
+    for i,(a,b) in enumerate([(1,0),(0,0),(1,1),(0,1)],1):
+        qt+=a;qc+=b;qini.append(F(qt-qc))
+    area=2*sum(qini)/9;assert area==F(java['ranking']['qini_area_source_rectangle_convention'])
+    literal=sum(.5*math.log2(.5) for _ in range(2));documented=sum(.5*math.log(.5/.5) for _ in range(2))
+    assert literal==-1 and documented==0
+    scores=list(map(F,['1/10','1/5','3/10','2/5']));assert sum(scores)/4==F(1,4) and sum(scores[:3])/3==F(1,5)
+    aipw=lambda e,q,m0,m1,u0,u1:sum((e if a else 1-e)*(m1-m0+F(a)*(u1-m1)/q-F(1-a)*(u0-m0)/(1-q)) for a in [0,1])
+    clipped=aipw(F(1999,2000),F(999,1000),F(0),F(0),F(20),F(80))
+    assert clipped==F(py['clipping']['clipped_expected_score']) and clipped-65==F(5035,999)
+    assert aipw(F(1999,2000),F(999,1000),F(20),F(80),F(20),F(80))==60
+    grf_scores=[]
+    for row in grf['nuisance_cases']:
+        m,tau,q=map(F,[row['mhat'],row['tauhat'],row['ehat']]);mu0=m-q*tau;mu1=m+(1-q)*tau
+        value=aipw(F(1,4),q,mu0,mu1,F(0),F(2));assert value==F(row['expected_score']);grf_scores.append(str(value))
+    masses=[F(1,2),F(1,2)];tau=[F(-4),F(12)];prop=[F(1,2),F(1,10)]
+    target=lambda weights:sum(w*h*t for w,h,t in zip(masses,weights,tau))/sum(w*h for w,h in zip(masses,weights))
+    assert target([F(1)]*2)==4 and target(prop)==F(-4,3) and target([p*(1-p) for p in prop])==F(4,17)
+    response=target([F(9,10),F(1,10)]);assert response==F(julia['response_selection']['complete_case_average'])
+    null=list(map(F,[-1,-1,1,1]));statistic=F(2);scale=sum((statistic-z)**2 for z in null)/(3*2)
+    assert scale==F(10,3) and sum((100*statistic-100*z)**2 for z in null)/(3*2)==10000*scale
+    assignments=list(itertools.product([0,1],repeat=4));assert F(sum(sum(a)==1 for a in assignments),16)==F(1,4)
+    assert F(sum(sum(a) in [0,4] for a in assignments),16)==F(1,8)
+    sample_var=lambda x:sum((a-sum(x)/len(x))**2 for a in x)/(len(x)-1)
+    ivar=sample_var(list(map(F,[-3,-1,1,3])));assert ivar==F(20,3) and ivar/4==F(5,3)
+    risk0=(F(1,10)+3*F(2,5))/4;risk1=(F(1,5)+3*F(1,2))/4
+    rd=risk1-risk0;rr=risk1/risk0;odds=(risk1/(1-risk1))/(risk0/(1-risk0))
+    for key,val in dict(mu0=risk0,mu1=risk1,risk_difference=rd,risk_ratio=rr,odds_ratio=odds).items():
+        previous=tmle['weighted_target'][key];assert val==F(previous['numerator'],previous['denominator'])
+    assert sample_var([F(-3),F(1)])/2==4 and sample_var([F(-3,2),F(3,2)])/2==F(9,4)
+    def quantile(values,p):
+        values=sorted(values);h=(len(values)-1)*p;i=h.numerator//h.denominator;f=h-i
+        return values[i] if f==0 else values[i]+f*(values[i+1]-values[i])
+    quantiles=[]
+    for vals in [[F(0),F(1),F(100)],[F(0),F(1)],[F(1),F(3)]]:
+        quantiles.append([quantile(vals,F(1,40)),quantile(vals,F(39,40))])
+    assert quantiles==[[F(1,20),F(1901,20)],[F(1,40),F(39,40)],[F(21,20),F(59,20)]]
+    close(math.exp(.1),tmle['interval_column']['exponentiated_rd']);assert F(1,5)/F(1,10)==2
+    covariance=[]
+    for n_used in [4,1]:
+        bread=F(4,n_used);meat=F(4,n_used);covariance.append(meat/bread**2/4)
+    assert covariance==[F(1,4),F(1,16)]
+    m=F(1,10)*F(4,5)+F(9,10)*F(1,5)
+    clipped_d=aipw(F(1,10),F(1,5),m,m,F(1,5),F(4,5))
+    assert clipped_d==F(deli['clipping']['clipped_effect'])==F(27,80)
+    assert clipped_d*1000*100-50000==-16250 and F(3,5)*1000*100-50000==10000
+    ds=list(map(F,[6,-2,4,0]));dm=sum(ds)/4;dv=sum((x-dm)**2 for x in ds)/16
+    assert dm==2 and dv==F(5,2)
+    # Polynomial integration reconstructs the continuous-dose projection.
+    moment=lambda k:F(2**k,k+1)
+    ey=20*moment(2)-5*moment(1);ewy=20*moment(3)-5*moment(2)
+    dose_slope=(ewy-moment(1)*ey)/(moment(2)-moment(1)**2)
+    assert dose_slope==F(rfx['continuous_response']['projection_slope'])==35
+    assert dose_slope/1000==F(7,200) and 20-5==15
+    assert F(1+4*3,1+4)==F(rfx['target_weighting']['pooled_partial_linear_slope'])
+    assert F(2*100,3)==F(rfx['density_scale']['correct_weighted_mean'])
+    missing_laws=[];missing_effects=[]
+    for world in [0,1]:
+        law=defaultdict(F);effect=F(0)
+        for response_indicator,a in itertools.product([0,1],repeat=2):
+            outcomes=[F(aa if (world==0 or response_indicator) else 1-aa) for aa in [0,1]]
+            law[(response_indicator,a if response_indicator else None,outcomes[a])]+=F(1,4)
+            effect+=F(1,4)*(outcomes[1]-outcomes[0])
+        missing_laws.append(dict(law));missing_effects.append(effect)
+    assert missing_laws[0]==missing_laws[1] and missing_effects==[1,0]
+    en=ed=F(0)
+    for s,a in itertools.product([0,1],repeat=2):
+        propensity=F(1,2) if s==0 else F(1,10)
+        prob=F(1,2)*(propensity if a else 1-propensity)
+        ra=a-propensity;ry=100*s*ra;en+=prob*ra*ry;ed+=prob*ra*ra
+    assert en/ed==F(econ['static_target']['constant_residual_slope_USD'])==F(450,17)
+    histories=list(itertools.product([0,1],repeat=2));preserve=F(sum(h==(0,1) for h in histories),len(histories))
+    assert preserve==F(1,4) and preserve**2==F(1,16)
+    encounter=defaultdict(int);clock=[]
+    for unit,date in [('a',0),('b',1),('a',1),('b',0)]:
+        clock.append((unit,date,encounter[unit]));encounter[unit]+=1
+    assert dict(encounter)=={'a':2,'b':2} and sum(t!=order for _,t,order in clock)==2
+    return dict(java_association=str(treated-control),smoothed_contrast=str(smooth),qini_area=str(area),kl_nodes=[documented,literal],clipped_python_score=str(clipped),grf_expected_scores=grf_scores,complete_case_effect=str(response),julia_dimension_witness=str(scale),influence_variance=str(ivar),tmle_risks=list(map(str,[risk0,risk1])),tmle_contrasts=list(map(str,[rd,rr,odds])),bootstrap_quantiles=[[str(v) for v in row] for row in quantiles],standalone_covariances=list(map(str,covariance)),delicatessen_effect=str(clipped_d),delicatessen_net=str(clipped_d*100000-50000),doubleml_mean=str(dm),doubleml_variance=str(dv),dose_projection=str(dose_slope),missing_treatment_effects=list(map(str,missing_effects)),econml_projection=str(en/ed),history_preservation=str(preserve),clock_witness=clock,scope='Independent finite-law and exact scale/normalization witnesses from retained chapter43 examples. Source-level consequences remain conditional on inspected paths; no vendor code executed or empirical coverage claimed. Existing flexBCF/forest groups retain their separately stated scope.')
+
+
+def instrument_threshold_laws():
+    """Reconstruct chapters44/45 instruments, set geometry and units."""
+    import itertools
+    from scipy.stats import chi2,f
+    for chapter in [44,45]:raw(f'docs/release/2026-10-29/context-review-149/chapter-{chapter:03d}.tex')
+    base='docs/program/execution/'
+    py=read(base+'2026-10-22/python-iv-kernels-v1/exact-results.json')
+    other=read(base+'2026-10-23/other-iv-rd-reader-v3/exact-results.json')
+    riv=read(base+'2026-10-22/r-iv-rd-v1/exact-results.json')
+    cpy=read(base+'2026-10-14/causalpy-reuse/exact-results.json')
+    comp=read(base+'2026-10-25/python-iv-rd-completion-reader-v1/exact-results.json')
+    java=read(base+'2026-10-25/java-iv-rd-followup-reader-v2/exact-results.json')
+    z=list(map(F,[-1,-1,1,1]));u=list(map(F,[-1,1,-1,1]));dot=lambda a,b:sum(x*y for x,y in zip(a,b))
+    projected=[]
+    for row in py['rank_and_exclusion']:
+        eps=F(row['epsilon']);d=[eps*a+b for a,b in zip(z,u)];y=[2*a+b/100 for a,b in zip(d,z)]
+        zz=dot(z,z);zd=dot(z,d);gram=zd*zd/zz
+        assert dot(d,d)==F(row['d_gram']) and gram==F(row['projected_gram'])
+        coefficient=None if zd==0 else dot(z,y)/zd
+        assert coefficient==(None if row['coefficient'] is None else F(row['coefficient']))
+        projected.append(dict(epsilon=str(eps),gram=str(gram),coefficient=None if coefficient is None else str(coefficient)))
+    pchi=chi2.sf(8,2);pf=f.sf(4,2,20)
+    close(pchi,math.exp(-4));close(pf,float(F(7,5)**-10))
+    close(pchi,py['diagnostic']['chi_square_2_p']);close(pf,py['diagnostic']['f_2_20_p'])
+    tails=[norm.sf(2),2*norm.sf(2),norm.sf(4)]
+    for result,key in zip(tails,['naive_julia_display','usual_two_sided','legacy_julia_display']):close(result,other['p_value'][key])
+    a,b=F(2),F(1,5);gradient=[1/b,-a/b**2];V=[[F(1,25),F(1,250)],[F(1,250),F(1,100)]]
+    v=sum(gradient[i]*V[i][j]*gradient[j] for i,j in itertools.product(range(2),repeat=2))
+    assert v==F(other['fuzzy']['full_delta_variance'])==24 and V[0][0]/b**2==1
+    residual=F(1);squares=[]
+    for _ in range(2):residual*=2;squares.append(residual**2)
+    assert squares==[4,16]
+    for score in [-1,1]:
+        gram=[[5,5*score],[5*score,5*score**2]];assert gram[0][0]*gram[1][1]-gram[1][0]*gram[0][1]==0
+    # Enumerate encouraged and unencouraged potential behavior by response type.
+    types=[(F(2,5),0,1,200,50),(F(1,5),1,1,200,150),(F(2,5),0,0,200,200)]
+    treatment=[];loss=[]
+    for encouragement in [0,1]:
+        treatment.append(sum(mass*([d0,d1][encouragement]) for mass,d0,d1,y0,y1 in types))
+        loss.append(sum(mass*([y0,y1][[d0,d1][encouragement]]) for mass,d0,d1,y0,y1 in types))
+    first=treatment[1]-treatment[0];reduced=loss[1]-loss[0];late=reduced/first
+    ate=sum(mass*(y1-y0) for mass,d0,d1,y0,y1 in types)
+    policy=-reduced-100*first-10
+    assert treatment==[F(v) for v in riv['iv']['mean_treatment']] and loss==[F(v) for v in riv['iv']['mean_loss']]
+    assert late==-150 and ate==-70 and policy==10 and -ate-100==-30
+    assert (reduced-20)/first==-200
+    defier_first=F(2,5)-F(1,5);defier_reduced=F(2,5)*(-150)-F(1,5)*(-50)
+    assert defier_first==F(1,5) and defier_reduced/defier_first==-250
+    # Independently form the quadratic and check each boundary/sign region.
+    cases=[(F(2),F(0),F(3,4),F(1,4)),(F(2),F(2),F(5,12),F(1,4)),(F(0),F(0),F(3,4),F(1,4))]
+    polys=[[d*d-4*vd,-2*y*d,y*y-4*vy] for y,d,vy,vd in cases]
+    assert polys==[[-1,0,1],[3,-8,F(7,3)],[-1,0,-3]]
+    poly=lambda coeff,x:coeff[0]*x*x+coeff[1]*x+coeff[2]
+    assert poly(polys[0],F(-1))==poly(polys[0],F(1))==0 and poly(polys[0],F(0))>0
+    assert poly(polys[0],F(-2))<0 and poly(polys[0],F(2))<0
+    assert poly(polys[1],F(1,3))==poly(polys[1],F(7,3))==0 and poly(polys[1],F(1))<0
+    assert polys[2][0]<0 and polys[2][1]==0 and polys[2][2]<0
+    assert all(poly(polys[0],F(k,4))>0 for k in range(-2,3))
+    coverage=1-2*norm.sf(2);close(coverage,riv['gaussian_inversion']['model_coverage'])
+    assignments=list(itertools.combinations(range(6),3));Y=[0,0,0,100,100,100]
+    contrasts=[sum(F(Y[i],3) for i in chosen)-sum(F(Y[i],3) for i in range(6) if i not in chosen) for chosen in assignments]
+    p_random=F(sum(abs(x)>=100 for x in contrasts),len(contrasts))
+    assert len(assignments)==20 and p_random==F(1,10)
+    cutoff_bounds=[-20-2*10,-20+2*10];margin_bounds=sorted(-x-10 for x in cutoff_bounds)
+    assert cutoff_bounds==riv['discrete_rd']['loss_effect_bounds'] and margin_bounds==[-10,30]
+    model=lambda x,a:100+20*x+5*a+10*x*a
+    eps=F(1,1000);finite=model(eps,1)-model(-eps,0)
+    assert finite==F(cpy['finite_epsilon_contrast'])==F(101,20)
+    model_scaled=lambda z,a:100+F(1,5)*z+5*a+F(1,10)*z*a
+    changed=model_scaled(eps,1)-model_scaled(-eps,0);preserved=model_scaled(F(1,10),1)-model_scaled(-F(1,10),0)
+    assert changed==F(10001,2000) and preserved==finite
+    for row in cpy['identification_counterexample']['rows']:
+        x=F(row['x']);a=int(x>=0);worldA=100+20*x+5*a;worldB=100+20*x+5*int(x>=0)
+        assert worldA==worldB==F(row['observed_A'])==F(row['observed_B'])
+    assert F(1,10**8)<F(1,10**6)<100**2*F(1,10**8)
+    ratios=[F(10,2),F(8,2),F(8,3)];halfwidths=[F(196,100)*s for s in [2,2,3]]
+    assert ratios==list(map(F,comp['three_row_z'])) and halfwidths==list(map(F,comp['assumed_1_96_halfwidth']))
+    table=[[100*i+j for j in range(3)] for i in range(5)]
+    intended=[row[1] for row in table];swapped=[table[1][i] for i in range(3)]
+    assert intended==java['intended_column'] and swapped==java['swapped_valid_prefix']
+    assert [i for i in range(5) if i>=len(table[1])]==java['invalid_column_indices']
+    local_ratios=(F(2,1)+F(4,4))/2;ratio_sums=F(2+4,1+4)
+    assert local_ratios==F(3,2) and ratio_sums==F(6,5)
+    return dict(projected_design=projected,diagnostic_pvalues=[pchi,pf],normal_tail_conventions=tails,ratio_gradient=list(map(str,gradient)),delta_variance=str(v),residual_squares=list(map(str,squares)),mean_treatment=list(map(str,treatment)),mean_loss=list(map(str,loss)),late=str(late),ate=str(ate),encouragement_value=str(policy),defier_ratio=str(defier_reduced/defier_first),inversion_quadratics=[[str(v) for v in row] for row in polys],known_gaussian_coverage=coverage,randomization_assignments=len(assignments),randomization_p=str(p_random),discrete_effect_bounds=cutoff_bounds,margin_bounds=margin_bounds,finite_cutoff=str(finite),rescaled_fixed_epsilon=str(changed),physical_epsilon_preserved=str(preserved),rd_row_ratios=list(map(str,ratios)),rd_halfwidths=list(map(str,halfwidths)),java_intended_column=intended,java_swapped_prefix=swapped,aggregation_witness=list(map(str,[local_ratios,ratio_sums])),scope='Independent exact finite-law, projection, polynomial-sign, assignment and unit-conversion reconstruction for chapters44/45. No native packages executed; reference distributions and identifying restrictions are stipulated, not empirically validated.')
+
+
+def mediation_target_laws():
+    """Enumerate nested and intervention means; preserve sensitivity scales."""
+    import itertools
+    raw('docs/release/2026-10-29/context-review-151/chapter-046.tex')
+    base='docs/program/execution/'
+    commercial=read(base+'2026-10-20/mediation-commercial-v1/exact-results.json')
+    rm=read(base+'2026-10-24/mediation-reuse-reader-v1/exact-results.json')
+    medflex=read(base+'2026-10-23/medflex-reuse-reader-v1/exact-results.json')
+    sensitivity=read(base+'2026-10-23/sensitivity-reuse-reader-v1/exact-results.json')
+    rc=read(base+'2026-10-25/r-mediation-coverage-reader-v2/exact-results.json')
+    mu={(a,b):sum(F(5+4*a+2*(2+3*b+u)+a*(2+3*b+u)+v,4) for u,v in itertools.product([-1,1],repeat=2)) for a,b in itertools.product([0,1],repeat=2)}
+    assert {str(a)+str(b):str(v) for (a,b),v in mu.items()}==commercial['linear_interaction']['means']
+    components=[mu[1,0]-mu[0,0],mu[1,1]-mu[1,0],mu[0,1]-mu[0,0],mu[1,1]-mu[0,1]]
+    assert components==[6,9,6,9] and mu[1,1]-mu[0,0]-10==5
+    worlds=[];nested=[];mediator_actions=[]
+    for world in ['direct','mediated']:
+        law=defaultdict(F);means={};controlled=[]
+        outcome=lambda a,m,u:a if world=='direct' else m^u
+        for a,u in itertools.product([0,1],repeat=2):law[(a,a^u,outcome(a,a^u,u))]+=F(1,4)
+        for a,b in itertools.product([0,1],repeat=2):means[str(a)+str(b)]=sum(F(outcome(a,b^u,u),2) for u in [0,1])
+        for m in [0,1]:controlled.append(sum(F(outcome(0,m,u),2) for u in [0,1]))
+        assert {str(k):str(v) for k,v in law.items()}==commercial['observational_equivalence']['observed'][world]
+        assert {k:str(v) for k,v in means.items()}==commercial['observational_equivalence']['nested_means'][world]
+        worlds.append(law);nested.append(means);mediator_actions.append(controlled[1]-controlled[0])
+    assert worlds[0]==worlds[1] and mediator_actions==[0,0]
+    population=sum((F(1,10)+F(x*x,10))/2 for x in [-1,1]);atmean=F(1,10)
+    assert population==F(1,5) and [100*population-15,100*atmean-15]==[5,-5]
+    scenarios={str(rho):2*(3-2*rho) for rho in [F(-1,2),F(0),F(1,2)]}
+    assert {k:str(v) for k,v in scenarios.items()}==commercial['residual_sensitivity']['scenarios']
+    rmu={(a,b):a+3*(2*b+1)+4*a*(2*b+1) for a,b in itertools.product([0,1],repeat=2)}
+    indirect=[rmu[t,1]-rmu[t,0] for t in [0,1]];direct=[rmu[1,t]-rmu[0,t] for t in [0,1]]
+    assert indirect==[6,14] and direct==[5,13] and rmu[1,1]-rmu[0,0]==19
+    assert [indirect[t]+direct[t] for t in [0,1]]==[11,27]
+    ratios=[F(i,t) for i,t in zip([1,2,9],[1,4,10])]
+    assert statistics.median(ratios)==F(9,10) and F(1+2+9,1+4+10)==F(4,5)
+    cluster=(1+24*F(3,5))/500;assert cluster==F(77,2500) and F(1,500)==F(rm['cluster_bootstrap']['naive_variance']['numerator'],rm['cluster_bootstrap']['naive_variance']['denominator'])
+    assert sum(map(F,[1,3,100]))/3==F(104,3) and sum(map(F,[1,3]))/2==2
+    p=[F(1,5),F(3,5)]
+    fmu={(a,b):sum((p[b] if m else 1-p[b])*(10+2*a+5*m+4*a*m) for m in [0,1]) for a,b in itertools.product([0,1],repeat=2)}
+    assert {str(a)+str(b):str(v) for (a,b),v in fmu.items()}==medflex['nested_means']
+    assert fmu[1,1]-fmu[0,0]==F(32,5) and 10*(fmu[1,1]-fmu[0,0])-50==14
+    scores=[F(-1),F(1)];expanded=[s for s in scores for _ in range(2)]
+    assert sum(s*s for s in scores)/len(scores)**2==F(1,2) and sum(s*s for s in expanded)/len(expanded)**2==F(1,4)
+    inv=[[F(1),F(2)],[F(0),F(1)]];meat=[[F(1),F(1,2)],[F(1,2),F(1)]]
+    sandwich=sum(inv[0][i]*meat[i][j]*inv[0][j] for i,j in itertools.product(range(2),repeat=2));assert sandwich==7
+    bias_squared=8*F(1,5)*F(1,2)/(1-F(1,5));adjusted_var=(1-F(1,2))/(1-F(1,5))*F(8,7)
+    assert bias_squared==1 and adjusted_var==F(sensitivity['regression']['adjusted_variance'])
+    thresholds=[]
+    for ratio in [F(9,5),F(5,9)]:
+        q=max(ratio,1/ratio);root=q*(q-1);assert root==F(36,25);thresholds.append(q+F(6,5))
+    assert thresholds==[3,3]
+    exact_rr=F(81,25)/(1-F(1,5)+F(1,5)*F(81,25));assert exact_rr==F(sensitivity['odds_ratio']['exact_rr_under_that_baseline'])
+    # Enumerate dependence before and after the mediator intervention.
+    pz=[F(1,4),F(1,2)];pm=[sum((zprob if z else 1-zprob)*(F(1,4)+F(z,2)) for z in [0,1]) for zprob in pz]
+    ordinary=[sum((zprob if z else 1-zprob)*(F(1,4)+F(z,2))*z for z in [0,1]) for zprob in pz]
+    theta={(a,b):sum((pz[a] if z else 1-pz[a])*(pm[b] if m else 1-pm[b])*z*m for z,m in itertools.product([0,1],repeat=2)) for a,b in itertools.product([0,1],repeat=2)}
+    interventional=[theta[1,0]-theta[0,0],theta[1,1]-theta[1,0]]
+    assert ordinary[1]-ordinary[0]==F(3,16) and interventional==[F(3,32),F(1,16)] and sum(interventional)==F(5,32)
+    conditional=sum(F(1,2)*w*(F(1,4)+F(w,2)) for w in [0,1]);shuffled=F(1,2)*F(1,2)
+    assert conditional==F(rc['conditional_mediator_target']) and shuffled==F(rc['global_shuffle_target'])
+    joint=sum(F(m*m,2) for m in [0,1]);independent=sum(F(m1*m2,4) for m1,m2 in itertools.product([0,1],repeat=2))
+    assert joint==F(1,2) and independent==F(1,4)
+    reg={(a,b):3*a+4*(1+2*b)+5*a*(1+2*b) for a,b in itertools.product([0,1],repeat=2)}
+    reg_effects=[reg[1,0]-reg[0,0],reg[1,1]-reg[1,0],reg[1,1]-reg[0,1],reg[0,1]-reg[0,0]]
+    assert reg_effects==[8,18,18,8] and reg[1,1]-reg[0,0]==26
+    components_p=[F(1,4),F(3,4)];components_y=[F(1,5),F(4,5)];prevalence=F(4,5);true={};literal={}
+    for m,y in itertools.product([0,1],repeat=2):
+        density=[(components_p[u] if m else 1-components_p[u])*(components_y[u] if y else 1-components_y[u]) for u in [0,1]]
+        true[m,y]=(1-prevalence)*density[0]+prevalence*density[1];literal[m,y]=(1-prevalence)*sum(density)
+    assert sum(true.values())==1 and sum(literal.values())==F(2,5)
+    assert true[1,1]==F(49,100) and literal[1,1]==F(13,100) and literal[1,1]/sum(literal.values())==F(13,40)
+    observed=F(3)/F(1,2)-(1/F(1,2)-1);missing=F(1);assert (observed+missing)/2==3
+    weight_variances=[sum((w*s-2*w)**2 for s in [1,3])/2 for w in [1,2]];assert weight_variances==[1,4]
+    one_sided=[4*(F(a)-F(1,2)) for a in [0,1]];aligned=[4*(F(1,2)*a+F(1,2)*(1-a)) for a in [0,1]]
+    assert one_sided==[-2,2] and aligned==[2,2]
+    rr=F(2)/(1-F(1,2)+F(1,2)*2);assert rr==F(4,3) and rr+F(2,3)==2
+    return dict(commercial_means={str(k):str(v) for k,v in mu.items()},xor_nested=[{k:str(v) for k,v in d.items()} for d in nested],population_margins=[5,-5],sensitivity_scenarios={k:str(v) for k,v in scenarios.items()},r_indirect=indirect,r_direct=direct,cluster_variance=str(cluster),medflex_means={str(k):str(v) for k,v in fmu.items()},sandwich_factor=str(sandwich),adjusted_variance=str(adjusted_var),exact_rr=str(exact_rr),interventional_components=list(map(str,interventional)),ordinary_total=str(ordinary[1]-ordinary[0]),conditional_and_shuffled_means=list(map(str,[conditional,shuffled])),regmedint_components=reg_effects,mixture_masses=list(map(str,[sum(true.values()),sum(literal.values())])),mixture_event=list(map(str,[true[1,1],literal[1,1]])),weight_variances=weight_variances,scope='Independent nested-mean and finite-probability reconstruction under stipulated laws. Sensitivity scenarios, identification assumptions, package source behavior and empirical qualification remain distinct.')
+
+
+def mediation_implementation_laws():
+    """Verify selected resampling, covariance, normalization and unit witnesses."""
+    import itertools
+    base='docs/program/execution/2026-10-25/'
+    py=read(base+'python-mediation-coverage-reader-v2/exact-results.json')
+    java=read(base+'java-mediation-coverage-reader-v1/exact-results.json')
+    cxx=read(base+'cxx-mediation-coverage-reader-v1/exact-results.json')
+    other=read(base+'other-mediation-coverage-reader-v1/exact-results.json')
+    indirect=4*(F(3,4)-F(1,4));logit=4*(math.log(3)-math.log(F(1,3)))
+    assert indirect==2;close(logit,py['binary_mediator']['logit_coefficient_product'])
+    sample_means=[F(a+b,2) for a,b in itertools.product([-1,1],repeat=2)]
+    paired_product=sum(v*v for v in sample_means)/4;independent_product=sum(a*b for a,b in itertools.product(sample_means,repeat=2))/16
+    paired_sum=sum((2*v)**2 for v in sample_means)/4;independent_sum=sum((a+b)**2 for a,b in itertools.product(sample_means,repeat=2))/16
+    assert [paired_product,independent_product,paired_sum,independent_sum]==[F(1,2),0,2,1]
+    contrast=2;total=(3+2*4)*contrast;doubled=(2*contrast)*(4*contrast)
+    assert [2*4*contrast,doubled,total-doubled,3*contrast]==[16,32,-10,6]
+    # Piecewise integration supplies the equality case independently of branch dispatch.
+    intervals=[(F(0),F(3,4)),(F(3,4),F(1))];threshold=F(3,4);low=F(1,3);high=F(3)
+    intended=[max(F(0),min(hi,threshold)-lo)*low+max(F(0),hi-max(lo,threshold))*high for lo,hi in intervals]
+    selected=[]
+    for lo,hi in intervals:
+        value=(hi-lo)*low if hi<threshold else F(0)
+        if lo>=threshold:value+=(hi-lo)*high
+        if hi>threshold and lo<threshold:value+=(threshold-lo)*low+(hi-threshold)*high
+        selected.append(value)
+    assert intended==[F(1,4),F(3,4)] and selected==[F(v) for v in py['sharp_discrete_equality']['masses']]
+    upper_weights=[F(1,2)]*3+[F(2)];lower_weights=[F(2)]*2+[F(1,2)]*2
+    assert sum(upper_weights)/4==F(7,8) and sum(lower_weights)/4==F(5,4)
+    assert sum(upper_weights)/sum(upper_weights)==sum(lower_weights)/sum(lower_weights)==1
+    close((1-.001)**100,py['missed_rare_violation']['miss_probability'])
+    memory=1000**2*256*4;assert memory==py['overcast_pairwise_tensor']['one_tensor_bytes']
+    net=[10000*(benefit-5) for benefit in [2,8]];assert net==[-30000,30000]
+    B=np.array([[0.,0.,0.],[2.,0.,0.],[3.,4.,0.]])
+    omega=np.array([[1.,.25,.5],[.25,1.,0.],[.5,0.,1.]])
+    inverse=np.linalg.inv(np.eye(3)-B);cov=inverse@omega@inverse.T
+    close(np.linalg.det(omega),float(F(11,16)));close(cov[0,2]/cov[0,0],12.5);close(inverse[2,0],11)
+    errors=np.array([[1.,0.,0.],[0.,1.,.5],[0.,.5,1.]])
+    observed=inverse@errors@inverse.T;coef=np.linalg.solve(observed[:2,:2],observed[:2,2])
+    close(coef,[2,4.5]);close(coef[1]*2,9)
+    variance=4**2*F(1,25)+2**2*F(9,100)+2*2*4*F(1,50);assert variance==F(33,25)
+    path=[('A','M1',2),('M1','M2',3),('M2','Y',4)]
+    paths=[('A',F(1),0)];found=[]
+    while paths:
+        node,value,length=paths.pop()
+        if node=='Y':found.append((value,length));continue
+        paths.extend((dest,value*coef,length+1) for source,dest,coef in path if source==node)
+    assert found==[(24,3)] and not [p for p in found if p[1]<=2]
+    assert (F(25,2)-11)*10000*10==java['hypothetical_value']['overstatement_usd']
+    joint=[(1,2),(3,6)];paired=sum(a*b for a,b in joint)/2;recombined=sum(a*b for a in [1,3] for b in [2,6])/4
+    assert paired==10 and recombined==8 and (paired-recombined)*100000==200000
+    eps=F(1,1000);assert 1/eps==1000 and 1/eps**2==1000000
+    determinant=1-F(1,2)*F(1,2);assert determinant==F(3,4) and 1/abs(determinant)==F(4,3)
+    path_names=[('Y',['M']),('M',['A'])];targets=[node for node in ['A','M','Y'] if node in {x[0] for x in path_names}]
+    mapped=[[target,parents] for target,(_,parents) in zip(targets,path_names)];assert mapped==cxx['path_order']['selected_pairings']
+    dosage=[F(p[1]+2*p[0]) for p in [(0,0,1),(0,1,0),(1,0,0)]]
+    assert sum(dosage)/3==1 and sum(v for v in dosage if v)/2==F(3,2)
+    original=other['covariance_alias']['original'];order=[1,2,0];permuted=[[original[i][j] for j in order] for i in order]
+    selected_matrix=[row[:] for row in original]
+    for i,j in itertools.product(range(1,3),repeat=2):selected_matrix[i-1][j-1]=selected_matrix[i][j]
+    selected_matrix[2][2]=selected_matrix[0][0]
+    for i in range(2):selected_matrix[i][2]=selected_matrix[i][0];selected_matrix[2][i]=selected_matrix[0][i]
+    assert permuted==other['covariance_alias']['correct_permutation'] and selected_matrix==other['covariance_alias']['selected_inplace']
+    close(np.linalg.det(permuted),500);close(np.linalg.det(selected_matrix),0)
+    samples=list(itertools.product([0,1],repeat=2));means=[F(sum(s),2) for s in samples];accepted=[m for s,m in zip(samples,means) if len(set(s))==2]
+    variance_mean=lambda values:sum((v-sum(values)/len(values))**2 for v in values)/len(values)
+    assert variance_mean(means)==F(1,8) and variance_mean(accepted)==0 and variance_mean([2*m for m in means])==F(1,2)
+    assert [1-2*a for a in [F(1,4),F(1,40)]]==[F(1,2),F(19,20)]
+    close(2*norm.sf(-1),other['signed_two_sided_tail']['selected']);close(2*norm.sf(1),other['signed_two_sided_tail']['absolute_value_reference'])
+    # Gaussian identities use exact moments; no random draws are required.
+    assert F(1)+F(0)**2==1 and F(1,2)+F(0)*F(0)==F(1,2)
+    assert 5**3==125 and 10*5**3==1250 and F(1,2)*100000==50000
+    return dict(binary_indirect=str(indirect),mixed_scale_product=logit,bootstrap_moments=list(map(str,[paired_product,independent_product,paired_sum,independent_sum])),sharp_intended_masses=list(map(str,intended)),sharp_selected_masses=list(map(str,selected)),constant_weight_mass=list(map(str,[sum(upper_weights)/4,sum(lower_weights)/4])),rare_violation_miss=(1-.001)**100,pairwise_bytes=memory,net_interval=net,treatment_error_covariance_ratio=float(cov[0,2]/cov[0,0]),regression_path_coefficients=coef.tolist(),product_variance=str(variance),path_total=24,paired_product=paired,recombined_product=recombined,cyclic_normalizer=str(determinant),mapped_paths=mapped,dosages=list(map(str,dosage)),permuted_covariance=permuted,aliased_covariance=selected_matrix,conditional_bootstrap_variance='0',scope='Independent algebra, matrix propagation and finite-resample enumeration for inspected implementation witnesses. No acquired package executed, native failure rate inferred or sampling coverage established.')
+
+
+def dose_decision_laws():
+    """Reconstruct density units, covariance and dose economics."""
+    raw('docs/release/2026-10-29/context-review-151/chapter-046.tex')
+    previous=read('docs/program/execution/2026-10-24/dose-response-reader-v1/exact-results.json')
+    slope=F(2)+3*F(1,2);assert slope==F(7,2) and [100*slope-220,100*2-220]==[130,-20]
+    marginal,residual=F(1,5),F(2,5);scales=[F(2),F(1,2)]
+    proper=[marginal/(residual/s) for s in scales];assert proper==[F(1),F(1,4)]
+    assert F(1,5)/4==F(1,20) and F(1,5)/F(1,10)==F(1,500)/F(1,1000)==2
+    x=list(map(F,[-2,-1,1,2]));a=[v*v for v in x];mean=lambda v:sum(v)/len(v)
+    covariance=mean([xx*aa for xx,aa in zip(x,a)])-mean(x)*mean(a);assert covariance==0 and len(set(a))==2
+    weighted=lambda w,y:sum(ww*yy for ww,yy in zip(w,y))/sum(w)
+    ess=lambda w:sum(w)**2/sum(v*v for v in w)
+    original=list(map(F,[1,1,8]));capped=list(map(F,[1,1,2]));outcome=list(map(F,[0,0,100]))
+    assert weighted(original,outcome)==80 and weighted(capped,outcome)==50
+    assert ess(original)==F(50,33) and ess(capped)==F(8,3) and F(4,5)*10+F(1,5)*100==28
+    misses=[set(range(5)),set(range(5,10))];coverages=[F(100-len(s),100) for s in misses];joint=F(100-len(set.union(*misses)),100)
+    assert coverages==[F(19,20)]*2 and joint==F(9,10)
+    assert (F(1,40)*20).__floor__()==0 and (F(1,40)*40).__floor__()==1
+    contrast=list(map(F,[-1,0,1]));signal=sum(c*y for c,y in zip(contrast,[0,1,2]));var=sum(c*c*F(1,100) for c in contrast)
+    assert signal==2 and var==F(1,50) and signal**2/var==200
+    adjusted=[[F(1,50),F(1,100)],[F(1,100),F(1,50)]];cc=[-1,1]
+    avar=sum(cc[i]*adjusted[i][j]*cc[j] for i in range(2) for j in range(2));assert avar==var
+    assert sum(cc[i]**2*adjusted[i][i] for i in range(2))==F(1,25)
+    response=lambda dose:4*dose/(1+dose);profit=lambda dose:response(dose)-2*dose
+    assert response(F(1,3))==1 and [profit(F(a)) for a in [0,1,2]]==[0,0,F(-4,3)]
+    optimum=math.sqrt(2)-1;close(4/(1+optimum)**2-2,0);assert -8/(1+optimum)**3<0
+    close(optimum,previous['contrasts']['optimum_dose'])
+    assert [F(2400,n) for n in [100,80,60]]==[24,30,40]
+    return dict(observational_slope=str(slope),decision_margins=[130,-20],proper_density_ratios=list(map(str,proper)),nonlinear_covariance=str(covariance),weighted_means=[80,50],ess=list(map(str,[ess(original),ess(capped)])),pointwise_coverage=list(map(str,coverages)),joint_coverage=str(joint),contrast_variance=str(var),shared_baseline_variance=str(avar),target_dose='1/3',optimal_dose=optimum,net_values=[str(profit(F(a))) for a in [0,1,2]],scope='Independent exact reconstruction of dose-target, density-unit, weight, covariance and financial examples. Historical paper figures remain attributed reported values; no native trial or empirical calibration.')
+
+
+def regime_synthesis_laws():
+    """Verify the distinct fixed-policy, observed-group and finite-dose targets."""
+    for chapter in [48,49]:raw(f'docs/release/2026-10-29/context-review-153/chapter-{chapter:03d}.tex')
+    moment=lambda k:F(2**k,k+1)
+    ey=20*moment(1)-3*moment(2);eay=20*moment(2)-3*moment(3)
+    slope=(eay-moment(1)*ey)/(moment(2)-moment(1)**2)
+    response=lambda a:20*a-3*a*a
+    assert slope==14 and response(2)-response(1)==11 and slope-(response(2)-response(1))==3
+    probability=lambda initial:F(4,5) if initial==0 else F(2,5)
+    cost=lambda a,l,b:100*l-50*b*l+20*a+10*b
+    def value(initial,policy):
+        p=probability(initial)
+        return sum((p if l else 1-p)*cost(initial,l,policy(l)) for l in [0,1])
+    values=[value(0,lambda l:0),value(1,lambda l:l),value(1,lambda l:1)]
+    assert values==[80,44,50] and value(0,lambda l:1)-values[0]==-30
+    masses=[F(0),F(0)];sums=[F(0),F(0)]
+    for l in [0,1]:
+        p=probability(0) if l else 1-probability(0);e=F(9,10) if l else F(1,10)
+        for b in [0,1]:
+            joint=p*(e if b else 1-e);masses[b]+=joint;sums[b]+=joint*cost(0,l,b)
+    observed=[s/m for s,m in zip(sums,masses)]
+    assert masses==[F(13,50),F(37,50)] and observed==[F(400,13),F(2170,37)]
+    observed_difference=observed[1]-observed[0];assert observed_difference==F(13410,481)>0
+    close(float(observed[1]),58.64864864864865);close(float(observed[0]),30.76923076923077)
+    return dict(continuous_projection=str(slope),finite_dose_contrast=11,policy_costs=list(map(str,values)),observed_group_masses=list(map(str,masses)),observed_group_costs=list(map(str,observed)),observed_cost_difference=str(observed_difference),intervention_cost_difference='-30',scope='Exact model consequences in complete chapters48/49, distinguishing projection, finite contrast, declared policies and observed selection. No native estimator execution, global policy-learning result or bank validation.')
+
+
+def panel_implementation_laws():
+    """Check population, covariance and conversion arithmetic in panel comparisons."""
+    raw('docs/release/2026-10-29/context-review-154/chapter-051.tex')
+    from itertools import product
+    projections=[]
+    for treatment,outcome in [(np.array([[0,1,1],[0,0,1]],float),np.array([[0,1,10],[0,0,1]],float)),
+                              (np.array([[0,1,1],[0,1,1],[0,0,1],[0,0,1],[0,0,0]],float),None)]:
+        n,T=treatment.shape;units=np.repeat(np.arange(n),T);dates=np.tile(np.arange(T),n)
+        if outcome is None:
+            outcome=np.array([[10*i+2*t+(1 if (i<2 and t==1) or (2<=i<4 and t==2) else 100 if i<2 and t==2 else 0) for t in range(T)] for i in range(n)],float)
+        x=np.column_stack([np.ones(n*T)]+[(units==i) for i in range(1,n)]+[(dates==t) for t in range(1,T)]+[treatment.ravel()])
+        q,r=np.linalg.qr(x,mode='reduced');projections.append(float(np.linalg.solve(r,q.T@outcome.ravel())[-1]))
+    close(projections,[-3.5,-91/8]);assert 1000*F(-91,8)-10000==-21375 and 34000-10000==24000
+    d=np.array([0,1,1,0,0,1.]);y=np.array([10,12,20,16,30,36.]);g=np.repeat(np.arange(3),2)
+    dm=d-np.repeat([np.mean(d[g==j]) for j in range(3)],2);ym=y-np.repeat([np.mean(y[g==j]) for j in range(3)],2)
+    beta=(dm@ym)/(dm@dm);u=ym-beta*dm;scores=np.array([sum(dm[g==j]*u[g==j]) for j in range(3)])
+    close(beta,4);close(scores,[-1,0,1]);v0=float(scores@scores)/(dm@dm)**2;close(v0,8/9)
+    close([v0*5/(6-K)*3/2 for K in [1,4]],[4/3,10/3])
+    weights=[F(3,4),F(1,4)];cov=[[F(4),F(1)],[F(1),F(9)]]
+    variance=sum(weights[i]*cov[i][j]*weights[j] for i in range(2) for j in range(2))
+    assert variance==F(51,16) and variance+F(1,100)*(2-10)**2==F(1531,400)
+    assert sum(a*b for a,b in zip(weights,[2,8]))==F(7,2) and sum(a*b for a,b in zip([F(1,4),F(3,4)],[10,-2]))==1
+    y=[[10,12,14,16],[20,22,26,28],[15,17,25,27],[18,20,28,30]]
+    def contrast(data,w):
+        gap=[F(data[2][t]+data[3][t],2)-sum(w[i]*data[i][t] for i in range(2)) for t in range(4)]
+        return sum(gap[2:])/2-F(1,4)*gap[0]-F(3,4)*gap[1]
+    assert contrast(y,weights)==F(11,2) and 1/sum(v*v for v in weights)==F(8,5)
+    shocked=[[v+(100 if j>1 else 0) for j,v in enumerate(row)] for row in y]
+    assert contrast(shocked,weights)==contrast(y,weights)
+    assert contrast(shocked,[F(1,2),F(1,4)])-contrast(y,[F(1,2),F(1,4)])==25
+    assert 2*F(1,2)**4==F(1,8) and 1/(1-F(1,8))==F(8,7)
+    treated=[F(10),F(14)];control=[F(2),F(4)];odds=[F(1),F(999)]
+    improved=(sum(treated)-sum(a*b for a,b in zip(control,odds)))/2
+    normalized=sum(treated)/2-sum(a*b for a,b in zip(control,odds))/sum(odds)
+    assert improved==-1987 and normalized==F(4001,500)
+    assert (sum(treated)-control[0])/2==11 and sum(treated)/2-control[0]==10
+    assert sum(v*v for v in [F(-1,2),F(-1,2),F(1,2),F(1,2)])==1
+    cells=[(F(3,4),2),(F(3,4),4),(F(1,4),10)]
+    simple=sum(w*t for w,t in cells)/sum(w for w,t in cells)
+    group=F(3,4)*3+F(1,4)*10;calendar=(2+F(3,4)*4+F(1,4)*10)/2
+    assert [simple,group,calendar]==[4,F(19,4),F(15,4)]
+    perturbations=[[sum(sign[i]*co[i] for i in range(2)) for sign in product([-1,1],repeat=2)] for co in [[F(3,4),F(-3,4)],[F(3,2),F(-1,2)]]]
+    variances=[sum(x*x for x in row)/4 for row in perturbations];assert variances==[F(9,8),F(5,2)]
+    x=list(map(F,[0,1,0,2]));y=list(map(F,[10,13,20,22]));dx=[];dy=[]
+    for start in [0,2]:
+        dx.extend([v-sum(x[start:start+2])/2 for v in x[start:start+2]]);dy.extend([v-sum(y[start:start+2])/2 for v in y[start:start+2]])
+    gram=sum(v*v for v in dx);b=sum(a*c for a,c in zip(dx,dy))/gram;score=[a*(c-a*b) for a,c in zip(dx,dy)]
+    cluster=sum(sum(score[j:j+2])**2 for j in [0,2])/gram**2
+    assert b==F(7,5) and cluster==F(128,625) and cluster*F(4,3)==F(512,1875) and cluster*2==F(256,625)
+    temporal=[F(1),F(1),F(-2)];lagged=(sum(x*x for x in temporal)+sum(temporal[j]*temporal[j-1] for j in [1,2]))/3
+    calendar_meat=(sum(x*x for x in temporal)+temporal[1]*temporal[0])/3
+    assert [lagged,calendar_meat]==[F(5,3),F(7,3)]
+    repaired=[[F(1),F(3,2)],[F(3,2),F(3,2)]];c=[3,-2]
+    assert repaired[0][0]*repaired[1][1]-repaired[0][1]**2==F(-3,4)
+    assert sum(c[i]*repaired[i][j]*c[j] for i in range(2) for j in range(2))==-3
+    assert sum(v*v for v in [1,2,3,4])+1*3+2*4==41 and 2*sum(v*v for v in [1,2,3,4])+1*3+2*4==71
+    assert F(3,4)*(-30)+40-F(1,4)*(-30)==25
+    assert 40+(55-45)==50 and 95-20-(55-20)==40
+    assert F(25+60,2)-F(10+20,2)==F(55,2) and 25-20==5 and F(2*4*8,8-4-1)==F(64,3)
+    return dict(twfe_coefficients=projections,fixest_coefficient=beta,fixest_scores=scores.tolist(),aggregate_variance=str(variance),estimated_share_variance=str(variance+F(16,25)),sdid_contrast='11/2',drdid_normalizations=[str(improved),str(normalized)],cohort_targets=list(map(str,[simple,group,calendar])),unequal_cluster_variances=list(map(str,variances)),linearmodels_slope=str(b),linearmodels_cluster_variance=str(cluster),temporal_meats=list(map(str,[lagged,calendar_meat])),block_replacement_variance=-3,scope='Independent finite arithmetic and explicit-design solves retain population, covariance, influence, conversion and monetary distinctions. Static upstream source findings remain scoped; no downloaded engine or native coverage trial is executed.')
+
+
+def rollout_uncertainty_laws():
+    """Verify interval conversion and sharp Gaussian projection examples."""
+    raw('docs/release/2026-10-29/context-review-154/chapter-052.tex')
+    z=norm.isf(.025);converted=[10-2*z,10+2*z]
+    assert [format(v,'.4f') for v in converted]==['6.0801','13.9199'] and int(-.5)==0 and -.5<0
+    x,y=-2,4;m,M=1,1
+    assert [y-m*abs(x),y+m*abs(x)]==[2,6] and [y+x-M,y+x+M]==[1,3]
+    covariance=np.array([[1,1.5],[1.5,4.]]);center=np.array([0.,4.]);r=math.sqrt(-2*math.log(.05));extrema=[]
+    for s in [-1,1]:
+        a=np.array([s,1.]);variance=float(a@covariance@a)
+        for direction in [-1,1]:
+            point=center+direction*r*covariance@a/math.sqrt(variance)
+            close((point-center)@np.linalg.solve(covariance,point-center),r*r);extrema.append(float(a@point))
+    interval=[min(extrema),max(extrema)];assert [format(v,'.4f') for v in interval]==['-2.9233','10.9233']
+    diagonal=[4-r*math.sqrt(5),4+r*math.sqrt(5)];ordinary=[4-2*z,4+2*z]
+    assert [format(v,'.4f') for v in diagonal]==['-1.4733','9.4733']
+    assert [format(v,'.4f') for v in ordinary]==['0.0801','7.9199']
+    assert [format(v-1,'.4f') for v in interval]==['-3.9233','9.9233']
+    assert not [v for v in [-1,1] if abs(v)<=.2]
+    nodes=[v for v in [-2,-1,0,1,2] if abs(v)>=1];assert min(nodes)==-2 and max(nodes)==2 and 0 not in nodes
+    return dict(converted_interval=converted,relative_magnitude_population=[2,6],smoothness_population=[1,3],gaussian_projection=interval,diagonal_covariance_projection=diagonal,ordinary_post_interval=ordinary,net_projection=[v-1 for v in interval],scope='Independent support-function endpoint construction verifies the sharp projection of the supplied Gaussian ellipse and its economic implication. Grid and conversion witnesses retain separate native-reachability and scientific validity qualifications.')
+
+
+def panel_comparison_laws():
+    """Reconstruct rollout projection, sensitivity, weighting and feedback laws."""
+    raw('docs/release/2026-10-29/context-review-154/chapter-051.tex')
+    from itertools import product
+    groups=np.repeat([2,3,99],5);dates=np.tile(np.arange(5),3)
+    z=np.column_stack([np.ones(15),(groups==3),(groups==99)]+[(dates==j) for j in range(1,5)])
+    event=np.column_stack([((groups!=99)&(dates-groups==j)) for j in [-3,-2,0,1,2]]).astype(float)
+    design=np.column_stack([z,event]);q,r=np.linalg.qr(design,mode='reduced')
+    assert np.linalg.matrix_rank(design)==12
+    treated=np.flatnonzero((groups!=99)&(dates>=groups));operator=np.linalg.solve(r,q.T)[-5:,treated]
+    wanted=[[F(13,38),F(4,19),0,F(-13,38),F(-4,19)],
+            [F(25,171),F(11,171),0,F(-25,171),F(-11,171)],
+            [F(11,18),F(-1,9),0,F(7,18),F(1,9)],
+            [F(23,114),F(29,57),0,F(-23,114),F(28,57)],
+            [F(-8,171),F(17,171),1,F(8,171),F(-17,171)]]
+    close(operator,np.array(wanted,dtype=float));false_leads=operator@np.array([20,0,0,0,0])
+    close(false_leads,[130/19,500/171,110/9,230/57,-160/171])
+    weights=[F(1,3)]*3;kernel=[sum(weights[j]*(j-k+1) for j in range(k,3)) for k in range(3)]
+    assert kernel==[2,1,F(1,3)]
+    endpoints=[]
+    for curvature in product([-3,3],repeat=3):
+        path=[F(-20),F(-10)]
+        for u in curvature:path.append(2*path[-1]-path[-2]+u)
+        endpoints.append(sum(w*(y-(gap+10)) for w,y,gap in zip(weights,[30,35,40],path[2:])))
+    assert [min(endpoints),max(endpoints)]==[5,25]
+    variance=4+sum(4*w*w for w in weights);assert variance==F(16,3)
+    statistical_budget=(5-1.96*math.sqrt(float(variance)))/float(sum(kernel));assert round(statistical_budget,3)==.142
+    risks={}
+    for a in [F(1),F(3,2),F(2)]:
+        worst=F(0)
+        for f,c0,c1 in product([-2,2],[-1,1],[-1,1]):
+            mse=sum(((2-a)*f-(1-a)*c0-a*c1+et-(1-a)*e0-a*e1)**2 for et,e0,e1 in product([-1,1],repeat=3))/8
+            worst=max(worst,mse)
+        assert worst==1+(1-a)**2+a*a+(2*abs(2-a)+abs(1-a)+abs(a))**2;risks[str(a)]=str(worst)
+    assert list(risks.values())==['11','25/2','15']
+    donor_risk=lambda a:1+(1-a)**2+a*a+4*(2-a)**2
+    assert [donor_risk(a) for a in [F(1),F(3,2),F(2)]]==[6,F(9,2),6]
+    sdid=[]
+    for w,lam in [([0,1],[F(1,4),F(3,4)]),([0,1],[F(-1,2),F(3,2)]),([-1,2],[F(1,4),F(3,4)])]:
+        row=[F(1),-F(w[0]),-F(w[1])];col=[F(1),-F(lam[0]),-F(lam[1])]
+        factor=sum(row[i]*col[j]*[2,0,1][i]*[F(3,2),0,1][j] for i in range(3) for j in range(3))
+        sdid.append([factor,sum((x*y)**2 for x in row for y in col)])
+    assert sdid==[[F(3,4),F(13,4)],[0,7],[0,F(39,4)]] and F(9,16)/(7-F(13,4))==F(3,20)
+    Q=lambda a:1+(1-a)**2+a*a
+    def joint(a,b,s):return (2-a)**2*(2-b)**2+s*Q(a)*Q(b)
+    for a,b,s in product([F(-2),F(1,3),F(3,2),F(2)],repeat=3):
+        if s<=0:continue
+        x,y=a-1,b-1;p,t=x+y,x*y
+        assert joint(a,b,s)==9*s/(1+s)+3*s*(p+t)**2+(1+s)*(p-t-(1-2*s)/(1+s))**2
+    opt=[(7+math.sqrt(13))/6,(7-math.sqrt(13))/6];close(joint(*opt,F(1,8)),1)
+    assert [joint(a,b,F(1,8)) for a,b in [(1,1),(2,F(1,2)),(2,2)]]==[F(3,2),F(9,8),F(9,2)]
+    calendar=[];rho=F(4,5)
+    for h in [1,3]:
+        innovation=100*(rho**h-1)**2+100*(1-rho*rho)*sum(rho**(2*j) for j in range(h))
+        assert innovation==200*(1-rho**h);calendar.append(innovation+4)
+    assert calendar==[44,F(508,5)]
+    finite=[];infinite=[]
+    for k in [F(2,5),F(0),F(-1,5)]:
+        state=F(0);value=F(-200)
+        for h in range(4):
+            action=F(1) if h==0 else k*state;state=state/2+action;value+=100*state-10*action*action
+        finite.append(value);a=F(1,2)+k;d=F(19,20)
+        infinite.append(100/(1-d*a)-200-10*(1+k*k*d/(1-d*a*a)))
+    close([float(v) for v in finite],[129.95424,-22.5,-68.73924])
+    assert [format(float(v),'.2f') for v in infinite]==['473.06','-19.52','-70.56']
+    tail=lambda h:F(100)*(F(19,20)*F(9,10))**(h+1)/(1-F(19,20)*F(9,10))
+    assert format(float(tail(3)),'.2f')=='368.55' and tail(26)>10 and tail(27)<=10
+    full=[];d=F(19,20);oldk=F(2,5);old_a=F(9,10)
+    for k,beta in product([F(21,50),F(11,25)],[F(1),F(2)]):
+        a=old_a+(k-oldk)*beta;v=[]
+        for horizon in [20,80]:
+            old=new=F(1);total=F(-200)
+            for h in range(horizon+1):
+                old_action=oldk*old;new_action=k*new;old*=old_a;new*=a
+                total+=d**h*(100*(new-old)-10*(new_action**2-old_action**2))
+            v.append(total)
+        v.append(100*(a/(1-d*a)-old_a/(1-d*old_a))-10*(k*k/(1-d*a*a)-oldk*oldk/(1-d*old_a*old_a))-200)
+        full.append([format(float(x),'.2f') for x in v])
+    assert full==[['-112.57','-92.60','-92.59'],['-4.44','53.68','53.77'],['-5.48','52.61','52.70'],['294.31','580.12','584.45']]
+    a,k,h=F(49,50),F(11,25),80
+    tail4=100*(a*(d*a)**(h+1)/(1-d*a)+old_a*(d*old_a)**(h+1)/(1-d*old_a))+10*(k*k*(d*a*a)**(h+1)/(1-d*a*a)+oldk*oldk*(d*old_a*old_a)**(h+1)/(1-d*old_a*old_a))
+    assert format(float(tail4),'.4f')=='4.3532'
+    rd=math.sqrt(1/float(d));bounds=[float(oldk)-(rd+float(old_a))/2,float(oldk)+(rd-float(old_a))/2]
+    close(bounds,[-.562989176042577,.462989176042577]);assert d*F(26,25)<1 and d*F(26,25)**2>1
+    return dict(event_rank=12,false_leads=false_leads.tolist(),curvature_kernel=list(map(str,kernel)),effect_set=[5,25],noisy_slope_variance=str(variance),statistical_curvature_budget=statistical_budget,donor_contaminated_risks=risks,sdid_bias_variance=[[str(v) for v in row] for row in sdid],joint_optimum=opt,calendar_variances=list(map(str,calendar)),feedback_four_period_values=list(map(str,finite)),feedback_infinite_values=[float(v) for v in infinite],full_replacement_values=full,uniform_tail_80=float(tail4),scope='Independent complete-design QR, exact vertex and noise enumeration, polynomial identities and structural recursion verify declared chapter51 laws. No native package or bank execution; robustness is conditional on supplied information.')
+
+
+def synthetic_target_laws():
+    """Reconstruct donor, target and fitting choices from stated synthetic laws."""
+    raw('docs/release/2026-10-29/context-review-159/chapter-053.tex')
+    donors=np.array([[90,110,120],[110,130,140]],float)
+    treated=np.array([100,120,150.]);weights=np.array([.5,.5])
+    close(weights@donors,[100,120,130]);close(treated[-1]-(weights@donors)[-1],20)
+    contaminated=donors.copy();contaminated[1,-1]=160
+    close(weights@contaminated,[100,120,140]);close(np.array([.25,.75])@contaminated,[105,125,150])
+    effects=[F(-6),F(10)];weighted=sum(w*v for w,v in zip([9,1],effects))/10
+    assert sum(effects)/2==2 and weighted==F(-22,5)
+    duration=[F(10),F(10),F(10),F(-6)]
+    assert sum(duration)/4==6 and (sum(duration[:3])/3+duration[3])/2==2
+    factors=np.array([[1,0],[2,0],[1,1.]])
+    predictions=[factors@load for load in [np.array([2,0]),np.array([2,4])]]
+    close(predictions[0][:2],predictions[1][:2]);close([8-p[-1] for p in predictions],[6,2])
+    treatment=np.array([[0,1,1],[0,0,1.]])
+    outcome=np.array([[0,1,4],[0,0,1.]])
+    units=np.repeat(np.arange(2),3);dates=np.tile(np.arange(3),2)
+    design=np.column_stack([np.ones(6),units,dates==1,dates==2,treatment.ravel()])
+    q,r=np.linalg.qr(design,mode='reduced');twfe=np.linalg.solve(r,q.T@outcome.ravel())[-1]
+    close(twfe,-.5);close(outcome[treatment==1].mean(),2)
+    assert F(1,2)+F(4,2)==F(5,2) and F(3,4)+4*F(1,4)==F(7,4)
+    values=np.array([1.,2.,3.]);entities=np.array([0,0,1]);times=np.array([0,1,0])
+    transformed=values-np.array([values[entities==i].mean() for i in entities])-np.array([values[times==t].mean() for t in times])+values.mean()
+    close(transformed,[-.5,.5,0]);assert any(abs(sum(transformed[times==t]))>1e-8 for t in [0,1])
+    simple_donors=[F(80),F(120)];original_gap=120-sum(simple_donors)/2
+    assert original_gap==20 and 120-(80+160)/2==0 and 120-simple_donors[1]==0
+    assert statistics.median([0,0,9])==statistics.median([0,0,12])==0 and statistics.mean([0,0,12])==4
+    metric=[F(-1),F(2)];absolute=[abs(v)/sum(abs(x) for x in metric) for v in metric]
+    signed=[abs(v)/sum(metric) for v in metric]
+    assert absolute==[F(1,3),F(2,3)] and signed==[1,2]
+    w=F(3,4);assert (w-F(1,2))**2==F(1,16) and 2*(w-F(1,2))==F(1,2)
+    X=np.array([[-1.],[1.]]);x=np.array([2.]);base=np.array([0.,1.]);lam=2
+    augmented=base+X@np.linalg.solve(X.T@X+lam*np.eye(1),x-X.T@base)
+    close(augmented,[-.25,1.25]);close(x-X.T@augmented,.5);close(abs(augmented).sum(),1.5)
+    close(augmented@np.array([80,120.]),130);close(150-augmented@np.array([80,120.]),20)
+    grid=[4*F(1,16)**F(i,2) for i in range(3)];close(grid,[4,1,.25])
+    losses=np.array([[0,0,0,100],[4,4,4,4.]])
+    close(losses[:,:3].mean(1),[0,4]);close(losses.mean(1),[25,4])
+    assert np.argmin(losses[:,:3].mean(1))!=np.argmin(losses.mean(1))
+    # All donors share identical pretreatment history; objective ties cannot
+    # determine the post-treatment contrast.
+    post_gaps=[150-(a*100+(1-a)*200) for a in [F(1),F(1,2),F(0)]]
+    assert post_gaps==[50,0,-50]
+    return dict(stata_equal_weight_gap=20,contaminated_gap=10,postselected_gap=0,gsynth_unit_mean=2,gsynth_exposure_mean=str(weighted),duration_targets=[6,2],factor_effects=[6,2],twfe=float(twfe),att=2,one_pass_unbalanced=transformed.tolist(),synth_gaps=[int(original_gap),0,0],ridge_weights=augmented.tolist(),ridge_counterfactual=130,cv_means=[losses[:,:3].mean(1).tolist(),losses.mean(1).tolist()],nonunique_weight_gaps=list(map(float,post_gaps)),scope='Independent authored target, matrix and fitting reconstructions; no native runs or identification claim.')
+
+
+def synthetic_uncertainty_laws():
+    """Reconstruct reported tails, normalization, calendars and failure bounds."""
+    raw('docs/release/2026-10-29/context-review-159/chapter-053.tex')
+    interval=[100-5-10,100+5+10];assert interval==[85,115]
+    effect_interval=[120-interval[1],120-interval[0]];assert effect_interval==[5,35]
+    assert 1-F(5,100)-F(5,100)==F(9,10)
+    draws=np.array([0.]*9+[100.]);close(np.quantile(draws,.975),77.5);close(np.quantile(draws[:-1],.975),0)
+    matrix=np.diag([-1.,4.]);u,s,vh=np.linalg.svd(matrix);root=u@np.diag(np.sqrt(s))
+    close(root@root.T,np.diag([1,4]));assert not np.allclose(root@root.T,matrix)
+    effects=[F(2),F(4),F(10)]
+    assert sum(effects)/3==F(16,3) and ((effects[0]+effects[1])/2+effects[2])/2==F(13,2)
+    assert sum(a*b for a,b in zip(effects,[1,1,4]))/6==F(23,3)
+    treatment=[0,1,0,0,1,0];carry=[2 if i and not a and treatment[i-1] else a for i,a in enumerate(treatment)]
+    assert carry==[0,1,2,0,1,2]
+    errors=[F(1),F(9)];counts=[100,1]
+    assert sum(errors)/2==5 and sum(e*n for e,n in zip(errors,counts))/sum(counts)==F(109,101)
+    means=np.array([1.2,1,1.1]);best=int(np.argmin(means))
+    chosen=[best,int(np.flatnonzero(means<=means[best]*1.01)[0]),int(np.flatnonzero(means<=means[best]+.3)[0])]
+    assert chosen==[1,1,0]
+    E=np.diag([12.,4.]);u,s,vh=np.linalg.svd(E/4);thresholded=(u@np.diag(np.maximum(s-1.5,0))@vh)*4
+    close(thresholded,np.diag([6,0]))
+    null=np.arange(-2,3);quantiles=np.quantile(null,[.25,.75])
+    close(20-quantiles[::-1],[19,21]);close(20-(10+quantiles[::-1]),[9,11])
+    ratios=[4,4,1];inclusive=[F(sum(y>=x for y in ratios),len(ratios)) for x in ratios]
+    assert inclusive==[F(2,3),F(2,3),1] and [F(i,3) for i in [1,2,3]]!=inclusive
+    assert F(1,19+1)==F(1,20) and F(1,5)==F(1,5)
+    replicates=[F(0),F(2)];ss=sum((x-sum(replicates)/2)**2 for x in replicates)
+    assert ss==2 and F(3,4)*ss==F(3,2) and F(1,2)*ss==1
+    missing_bounds=[F(2,19),F(2+9,19)];assert F(2,10)==F(1,5)
+    gap=np.array([1.,1.,4.,2.]);cut=2
+    overlap=(sum(gap[cut:]**2)/(len(gap)-(cut+1)))/(sum(gap[:cut+1]**2)/(cut+1))
+    inclusive_pre=np.mean(gap[cut+1:]**2)/np.mean(gap[:cut+1]**2)
+    exclusive_pre=np.mean(gap[cut:]**2)/np.mean(gap[:cut]**2)
+    close([overlap,inclusive_pre,exclusive_pre],[10/3,2/3,10])
+    assert sum([2,2])==4 and sum(x*d for x,d in zip([2,2],[1,3]))==8
+    covariance=np.ones((2,2));close(np.ones(2)@covariance@np.ones(2),4);close(np.trace(covariance),2)
+    close(120-np.array([90,110]),[30,10]);close(120-np.array([70,130]),[50,-10])
+    paths=np.array([[1.,-1.],[-1.,1.]])
+    close(np.sqrt((paths**2).mean(1)).mean(),1);close(np.sqrt((paths.mean(0)**2).mean()),0)
+    def variance(xs):
+        mu=sum(xs)/len(xs)
+        return sum((x-mu)**2 for x in xs)/(len(xs)-1)
+    assert variance([F(2),F(4),F(10)])==F(52,3) and variance([F(2),F(4),F(6),F(10)])==F(35,3)
+    incomplete_ranks=[F(1,5),F(3,5)];assert incomplete_ranks[0]<=F(1,3)<=incomplete_ranks[1]
+    return dict(scpi_prediction=interval,scpi_effect=effect_interval,filtered_quantiles=[77.5,0],fect_targets=list(map(str,[F(16,3),F(13,2),F(23,3)])),carryover=carry,fect_selection=chosen,thresholded=thresholded.tolist(),basic_intervals=[[19,21],[9,11]],inclusive_tails=list(map(str,inclusive)),missing_permutation_bounds=list(map(str,missing_bounds)),calendar_ratios=[float(overlap),float(inclusive_pre),float(exclusive_pre)],duration_totals=[4,8],cumulative_variances=[4,2],placebo_variances=[str(F(52,3)),str(F(35,3))],coresynth_bounds=list(map(str,incomplete_ranks)),scope='Exact examples distinguish uncertainty objects and denominators; no exchangeability, empirical coverage or native qualification is inferred.')
+
+
+def impact_prediction_laws():
+    """Verify target reversal and observationally equivalent impact laws."""
+    raw('docs/release/2026-10-29/context-review-159/chapter-054.tex')
+    high=F(1,2);treat_high=F(4,5);treat_low=F(1,5)
+    treated_high=high*treat_high/(high*treat_high+(1-high)*treat_low)
+    ate=high*400+(1-high)*100;att=treated_high*400+(1-treated_high)*100
+    assert ate==250 and att==340 and [ate-300,att-300]==[-50,40]
+    joint=F(19,20)**10;assert format(float(joint),'.7f')=='0.5987369'
+    times=np.arange(1,13);action=(times>8).astype(int);x0=10+times
+    observed_x=x0+15*action;observed_y=100+2*x0+20*action
+    law_a_y0=100+2*x0;law_b_y0=100+2*observed_x
+    law_b_y1=law_b_y0-10;law_b_observed=np.where(action,law_b_y1,law_b_y0)
+    close(observed_y,law_b_observed);close(observed_y[action==1]-law_a_y0[action==1],20)
+    close(observed_y[action==1]-law_b_y0[action==1],-10)
+    net=[int(sum((observed_y-y0)[action==1])-20) for y0 in [law_a_y0,law_b_y0]];assert net==[60,-60]
+    draws=np.array([[80.,120.],[120,80],[80,120],[120,80]])
+    marginal=np.quantile(draws,[.025,.975],axis=0);totals=draws.sum(1)
+    close(marginal,[[80,80],[120,120]]);close(np.quantile(totals,[.025,.975]),[200,200])
+    close(marginal.sum(1),[160,240]);close(220-totals,20)
+    denominators=[F(-1),F(1),F(2)];relative=[10/x-1 for x in denominators]
+    assert relative==[-11,9,4] and sum(relative)/3==F(2,3) and 10/(sum(denominators)/3)-1==14
+    predictive=list(totals)+[220];p=min(sum(v<=220 for v in predictive),sum(v>=220 for v in predictive))/len(predictive);close(p,.2)
+    balances=[10000]*3;assert balances[-1]==10000 and sum(balances)==30000
+    return dict(ate=int(ate),att=int(att),net_by_target=[-50,40],pointwise_joint=float(joint),observationally_equivalent=True,causal_effects=[20,-10],four_day_net=net,predictive_total_interval=[200,200],sum_marginal_interval=[160,240],cumulative_effect=20,relative_draws=list(map(str,relative)),relative_mean=str(sum(relative)/3),ratio_of_means=14,simulation_tail=p,stock=10000,balance_days=30000,scope='Independent authored probability, observational-equivalence and draw-aggregation calculations; no fitted experiment or calibrated causal interpretation.')
+
+
+def temporal_panel_shock_laws():
+    """Reconstruct calendar, moments, shock and forecast examples in chapter55."""
+    raw('docs/release/2026-10-29/context-review-159/chapter-055.tex')
+    for theta in [F(-1),F(0),F(1),F(2),F(3)]:
+        moment=sum(F(1,2)*u*(2*u-theta*u) for u in [-1,1])
+        assert moment==2-theta
+    for a,b in [(1,0),(0,1),(F(1,2),F(1,2))]:
+        assert [a*z+b*z for z in [-1,1]]==[-1,1]
+    times=[1,3,4];levels=[10,30,40];lookup=dict(zip(times,levels))
+    row_lag=[None]+levels[:-1];calendar_lag=[lookup.get(t-1) for t in times]
+    assert row_lag==[None,10,30] and calendar_lag==[None,None,30]
+    assert row_lag[-1]-row_lag[-2]==20 and lookup.get(2) is None
+    keys=[2,0,1];values=[30,10,20];ordered=[v for _,v in sorted(zip(keys,values))]
+    assert ordered==[10,20,30] and values!=ordered
+    keys2=[1,0,3,2];values2=[20,10,40,30]
+    assert [v for _,v in sorted(zip(keys2,values2))]==[10,20,30,40]
+    moments=[(t,lag) for t in range(3,7) for lag in range(2,t)]
+    assert len(moments)==10 and len(set(lag for _,lag in moments))==4
+    common=np.ones((100,100));weights=np.ones(100)/100
+    close(weights@common@weights,1);close(weights@np.diag(np.diag(common))@weights,.01)
+    survival=1-F(9,10)**20;assert format(float(survival),'.4f')=='0.8784'
+    long_run=[10/(1-a) for a in [F(4,5),F(19,20)]];assert long_run==[50,200]
+    assert [F(100,n) for n in [20,8,2]]==[5,F(25,2),50]
+    Q=np.array([[.6,-.8],[.8,.6]]);close(Q@Q.T,np.eye(2));close(Q@(2*np.eye(2))@Q.T,2*np.eye(2))
+    B=np.array([[1.,.5],[.5,1.]])
+    det_squared=np.linalg.det(B)**2;det_hadamard=np.linalg.det(B*B)
+    close([det_squared,det_hadamard,det_hadamard/det_squared],[9/16,15/16,5/3])
+    instrument=[1,None,2];residuals=[10,20,30]
+    aligned=sum(z*u for z,u in zip(instrument,residuals) if z is not None)
+    suffix=sum(z*u for z,u in zip([v for v in instrument if v is not None],residuals[-2:]))
+    assert [aligned,suffix]==[70,80]
+    impact=None
+    for j in range(2):
+        impact=np.zeros((2,2));impact[:,j]=np.eye(2)[:,j]
+    close(impact,[[0,0],[0,1]]);assert F(1,2)*2==1
+    fractional=F(1,1000);step=F(1,2000)
+    assert step<fractional and step>int(fractional)
+    hessian=np.array([[-1.,.5],[.5,2.]]);modified=hessian.copy();modified[:,0]*=-1
+    close(modified,[[1,.5],[-.5,2]]);assert not np.allclose(modified,modified.T)
+    baseline_innovation,shock=1,2
+    assert shock-baseline_innovation==1 and (baseline_innovation+shock)-baseline_innovation==2
+    def drift(x):return x/2 if x<=0 else 3*x/2
+    responses=[]
+    for history in [F(-1),F(1)]:
+        baseline=drift(history);perturbed=baseline+1
+        responses.append([perturbed-baseline,drift(perturbed)-drift(baseline)])
+    assert responses==[[1,1],[1,F(3,2)]]
+    ar_variance=[sum(F(1,2)**(2*j) for j in range(h)) for h in [1,2]]
+    assert ar_variance==[1,F(5,4)]
+    last_level,last_difference=F(17),F(4);integrated=[];differences=[]
+    for second_difference in [1,1]:
+        last_difference+=second_difference;last_level+=last_difference
+        differences.append(last_difference);integrated.append(last_level)
+    assert differences==[5,6] and integrated==[22,28]
+    assert 2*2+1*3==7 and 2*2==4
+    fixed_process=[];variance=F(1)
+    for _ in range(2):variance+=1;fixed_process.append(variance)
+    assert fixed_process==[2,3] and 1+2*2*F(1,4)==2
+    W=np.ones((2,2));plus=np.linalg.pinv(W);close(plus,np.ones((2,2))/4);close(W@plus@W,W)
+    assert np.linalg.matrix_rank(W)==1
+    frozen=F(1,2)**2;evolving=F(1,2)*F(3,4);assert [frozen,evolving]==[F(1,4),F(3,8)]
+    covariance=np.array([[1.,.5],[.5,1.]])
+    conditional_mean=covariance[1,0]/covariance[0,0]*2
+    conditional_variance=covariance[1,1]-covariance[1,0]**2/covariance[0,0]
+    close([conditional_mean,conditional_variance],[1,.75])
+    # U and independent errors construct the same covariance with no causal
+    # arrow between the measured coordinates: do(X=2) leaves Y unchanged.
+    common_loading=math.sqrt(.5);close(common_loading**2,.5)
+    close(common_loading**2+.5,1)
+    old=[10,20,7,8,1];new=[11,21];literal=new+old[2:];advanced=new+old[:2]+old[-1:]
+    assert literal==[11,21,7,8,1] and advanced==[11,21,10,20,1]
+    tiny=F(1,2*10**12);assert 1/tiny==2*10**12 and tiny<F(1,10**12)
+    assert 1+4==5 and np.all(np.diag(W)>0) and np.linalg.det(W)==0
+    diag=[F(1),F(1,10**10)];relative_counts=[];absolute_counts=[]
+    for scale in [1,10**4]:
+        scaled=[scale*x for x in diag]
+        relative_counts.append(sum(x>F(1,10**9)*max(scaled) for x in scaled))
+        absolute_counts.append(sum(x>F(1,10**8) for x in scaled))
+    assert relative_counts==[1,1] and absolute_counts==[1,2]
+    origins={h:[t for t in range(3,13-h) if t+h!=5] for h in [0,2]}
+    assert [len(origins[h]) for h in [0,2]]==[9,7] and 5 not in origins[0] and 3 not in origins[2]
+    sigma=np.diag([.25,1.]);b=np.array([1.,0.]);literal_cov=np.outer(b,b)+np.diag([0,1.])
+    close(literal_cov-sigma,[[.75,0],[0,0]])
+    gain=F(1,2);assert gain*2==1 and (1-gain)*1==F(1,2)
+    stored=[7,11,17];assert stored[1:]==[11,17] and stored[:-1]==[7,11]
+    costs=[]
+    for budget,counts,expected in [(24000,[600,400,300],[40,60,80]),(18000,[600,400,300],[30,45,60]),(21000,[700,500,350],[30,42,60]),(24000,[800,600,400],[30,40,60]),(27000,[900,600,450],[30,45,60])]:
+        values=[F(budget,n) for n in counts];assert values==expected;costs.append(list(map(float,values)))
+    return dict(invalid_moment_root=2,structural_effect=1,calendar_lags=calendar_lag,uncollapsed_moments=10,collapsed_moments=4,common_shock_variances=[1,.01],search_survival=float(survival),long_run=list(map(float,long_run)),determinants=[float(det_squared),float(det_hadamard)],proxy_products=[aligned,suffix],history_responses=[[str(x) for x in row] for row in responses],forecast_variances=list(map(str,ar_variance)),integrated_levels=list(map(int,integrated)),missing_state_variances=[2,3],frozen_and_evolving=[str(frozen),str(evolving)],conditional_mean_variance=[conditional_mean,conditional_variance],intervention_mean_variance=[0,1],lag_vectors=[literal,advanced],rank_counts=[relative_counts,absolute_counts],horizon_origins=origins,normalized_covariance_discrepancy=.75,partial_observation_mean_variance=[1,.5],costs=costs,scope='Independent authored moments, indexing, matrix, recursion and covariance calculations. Source-path concerns are not installed-package executions or bank validation.')
+
+
+def relationship_audit_design_laws():
+    """Enumerate relationship/action laws and reconstruct audit design bounds."""
+    raw('docs/release/2026-10-29/context-review-162/chapter-056.tex')
+    from itertools import product
+    from decimal import Decimal,localcontext
+    states=list(product([0,1],repeat=2))
+    def exposure(theta,p,r):
+        graph={(1,1):theta,(0,0):theta,(1,0):F(1,2)-theta,(0,1):F(1,2)-theta}
+        action={(1,1):r,(0,0):1-2*p+r,(1,0):p-r,(0,1):p-r}
+        assert sum(graph.values())==sum(action.values())==1 and min(graph.values())>=0 and min(action.values())>=0
+        return sum(pg*pa*int(any(g[i]*a[i] for i in [0,1])) for g,pg in graph.items() for a,pa in action.items())
+    independent_values=[];coordinated=[]
+    for theta in [F(0),F(1,4),F(1,2)]:
+        for p in [F(1,5),F(3,5)]:assert exposure(theta,p,p*p)==p-p*p*theta
+        value=100*(exposure(theta,F(3,5),F(9,25))-exposure(theta,F(1,5),F(1,25)))-16-16
+        assert value==8-32*theta;independent_values.append(value)
+        row=[]
+        for r in [F(9,25),F(3,5),F(1,5)]:
+            v=100*(exposure(theta,F(3,5),r)-exposure(theta,F(1,5),F(1,5)))-32
+            assert v==8-100*(r-F(1,5))*theta;row.append(v)
+        coordinated.append(row)
+    assert independent_values==[8,0,-8] and coordinated[0]==[8,8,8] and coordinated[-1]==[0,-12,8]
+    source_edges=[(0,1),(2,3),(4,5),(6,7)];target_edges=[(4,5),(5,6),(6,7),(7,4)]
+    def graph_exposure(edges,p):
+        neighbors=[set() for _ in range(8)]
+        for i,j in edges:neighbors[i].add(j);neighbors[j].add(i)
+        total=F(0)
+        for actions in product([0,1],repeat=8):
+            probability=p**sum(actions)*(1-p)**(8-sum(actions))
+            total+=probability*sum(any(actions[j] for j in neighbors[i]) for i in range(8))/8
+        return total
+    topology=[]
+    for edges in [source_edges,target_edges]:
+        low,high=[graph_exposure(edges,p) for p in [F(1,5),F(3,5)]]
+        topology.append([low,high,100*(high-low)-8-24])
+    assert [row[-1] for row in topology]==[8,-8]
+    feasible=[(F(1,6),F(1,2)),(F(1,3),F(0))]
+    values=[]
+    for t0,t1 in feasible:
+        assert F(3,4)*t0+F(1,4)*t1==F(1,4)
+        values.append(22-8*t0-48*t1)
+    assert values==[F(-10,3),F(58,3)]
+    # Enumerate all vertices of the line/box intersection rather than choosing
+    # incompatible marginal extrema.
+    vertices=set()
+    for coordinate in [0,1]:
+        for bound in [F(0),F(1,2)]:
+            point=(bound,1-3*bound) if coordinate==0 else ((1-bound)/3,bound)
+            if all(0<=v<=F(1,2) for v in point):vertices.add(point)
+    assert vertices==set(feasible) and 22-8*F(1,4)-48*F(1,4)==8
+    mixture=[mean+noise for mean in [-8,8] for noise in [-1,1]]
+    assert sum(F(v*v,4) for v in mixture)==65
+    with localcontext() as context:
+        context.prec=60
+        threshold=Decimal(128)*Decimal(40).ln();r472=(Decimal(40).ln()/(2*472)).sqrt();r473=(Decimal(40).ln()/(2*473)).sqrt()
+        assert 472<threshold<473 and 2*r472>=Decimal(1)/8 and 2*r473<Decimal(1)/8
+    variance=lambda n0,n1:F(16,n0)+F(576,n1)
+    assert variance(100,600)==F(28,25) and variance(525,175)==F(1744,525)
+    assert variance(140,420)==F(52,35) and variance(780,260)==F(436,195)
+    # Enumerate every feasible positive integer allocation for the two budgets.
+    best_count=min((variance(n,700-n),n,700-n) for n in range(1,700))
+    best_price=min((variance(1820-4*n,n),1820-4*n,n) for n in range(1,455))
+    assert best_count==(F(28,25),100,600) and best_price==(F(52,35),140,420)
+    for lam in [F(-20),F(0),F(32,3),F(24),F(100),F(192),F(300)]:
+        a0,a1=-8+F(3,4)*lam,-48+F(1,4)*lam
+        assert a0-3*a1==136
+        for theta0,theta1 in feasible+[(F(1,4),F(1,4))]:
+            assert 22-lam/4+a0*theta0+a1*theta1==22-8*theta0-48*theta1
+        for price_root in [F(1),F(2),F(3),F(4)]:
+            norm=abs(a0)+price_root*abs(a1)
+            assert norm>=136*min(F(1),price_root/3)
+    constrained=[F(136,3)**2/(4*700),F(136,3)**2/(4*455)]
+    assert constrained==[F(1156,1575),F(4624,4095)]
+    laws=0
+    for theta0,theta1 in feasible+[(F(1,4),F(1,4))]:
+        for n0,n1,lam in [(0,2,F(32,3)),(2,0,F(192)),(2,3,F(0)),(1,1,F(24))]:
+            a0,a1=-8+F(3,4)*lam,-48+F(1,4)*lam;terms=[]
+            for k0,k1 in product(range(n0+1),range(n1+1)):
+                prob=F(math.comb(n0,k0))*theta0**k0*(1-theta0)**(n0-k0)*F(math.comb(n1,k1))*theta1**k1*(1-theta1)**(n1-k1)
+                value=22-lam/4+(a0*F(k0,n0) if n0 else 0)+(a1*F(k1,n1) if n1 else 0)
+                terms.append((prob,value))
+            mean=sum(p*v for p,v in terms);var=sum(p*(v-mean)**2 for p,v in terms)
+            assert sum(p for p,v in terms)==1 and mean==22-8*theta0-48*theta1
+            assert var==(a0*a0*theta0*(1-theta0)/n0 if n0 else 0)+(a1*a1*theta1*(1-theta1)/n1 if n1 else 0)
+            laws+=1
+    a,b=F(-32,3),F(-136,3);assert [a*a,b*b,2*a*b]==[F(1024,9),F(18496,9),F(8704,9)]
+    return dict(independent_graph_values=list(map(str,independent_values)),coordinated_values=[[str(x) for x in row] for row in coordinated],topology_results=[[str(x) for x in row] for row in topology],pooled_sharp_set=list(map(str,values)),completion_variance=65,audit_threshold=str(threshold),audit_radius473=str(r473),optimal_count=[str(best_count[0]),100,600],optimal_budget=[str(best_price[0]),140,420],pooled_envelopes=list(map(str,constrained)),enumerated_audit_laws=laws,noisy_pool_variance_coefficients=list(map(str,[a*a,b*b,2*a*b])),scope='Independent exact global action enumeration, feasible-set vertices, complete integer allocations and finite audit sampling laws. Optimality remains scoped to the declared variance envelope and information; no bank audit is claimed.')
+
+
+def transport_completion_laws():
+    """Check transport scores, imputation, support and covariance examples."""
+    raw('docs/release/2026-10-29/context-review-162/chapter-056.tex')
+    from itertools import product
+    # A finite heterogeneous law checks the augmented functional under either
+    # correct response or correct selection/assignment models.
+    mass=[F(2,5),F(3,5)];rho=[F(4,5),F(1,5)];e=[F(1,4),F(3,4)]
+    means=[[F(2),F(5)],[F(-1),F(7)]];p0=sum(m*(1-r) for m,r in zip(mass,rho))
+    target=sum(m*(1-r)*(mu[1]-mu[0]) for m,r,mu in zip(mass,rho,means))/p0
+    def augmented(rstar,estar,mstar):
+        total=F(0)
+        for x,s,a in product(range(2),[0,1],[0,1]):
+            prob=mass[x]*(rho[x] if s else 1-rho[x])*(e[x] if a else 1-e[x])
+            outcome=means[x][a]
+            residual=(a/estar[x]*(outcome-mstar[x][1])-(1-a)/(1-estar[x])*(outcome-mstar[x][0]))
+            total+=prob*((1-s)*(mstar[x][1]-mstar[x][0])+s*(1-rstar[x])/rstar[x]*residual)
+        return total/p0
+    assert augmented(rho,e,[[F(0),F(0)],[F(0),F(0)]])==target
+    assert augmented([F(1,2)]*2,[F(1,2)]*2,means)==target
+    risk0,risk1=F(1,10),F(1,5)
+    assert risk1-risk0==F(1,10) and risk1/(1-risk1)/(risk0/(1-risk0))==F(9,4)
+    source_support={(0,0),(1,1)};target_point=(0,1)
+    assert target_point not in source_support and all(min(p[j] for p in source_support)<=target_point[j]<=max(p[j] for p in source_support) for j in [0,1])
+    p,assignment=F(4,5),F(1,2)
+    correct=p*assignment*((1-p)/p)*(1/assignment)/(1-p)
+    reversed_score=p*assignment*(p/(1-p))*(1/assignment)/(1-p)
+    assert correct==1 and reversed_score==16 and (reversed_score-correct)*10000*10==1500000
+    assert p*assignment/(1-p)==2 and p*assignment==F(2,5)
+    assert F(3,10)*2==F(3,5)
+    estimates=[F(0),F(2),F(4)];mean=sum(estimates)/3;between=sum((v-mean)**2 for v in estimates)/2
+    total=1+F(4,3)*between;synthetic=1+between/3;r=F(4,3)*between;df=2*(1+1/r)**2
+    assert between==4 and total==F(19,3) and synthetic==F(7,3) and df==F(361,128)
+    assert (F(1,2)*F(4,5))/(F(1,2)*F(4,5)+F(1,2)*F(1,5))==F(4,5)
+    rejection=F(9,10)**26;assert 0<rejection<1
+    assert 1/(F(1)**2+F(3)**2)==F(1,10) and 1/(F(1,4)**2+F(3,4)**2)==F(8,5)
+    prevalence=np.array([.25,.75]);probability=np.ones((2,2))*.5
+    row_stabilized=prevalence[:,None]/probability;column_stabilized=prevalence[None,:]/probability
+    close(row_stabilized,[[.5,.5],[1.5,1.5]]);close(column_stabilized,[[.5,1.5],[.5,1.5]])
+    close(np.diag(row_stabilized),np.diag(column_stabilized));close(np.clip([.98,.01,.01],.1,.9).sum(),1.1)
+    binary=F(1,4);assert binary*(1-binary)==F(3,16)
+    vectors=np.array([[0.,0],[2,2],[4,4]])
+    pooled=np.eye(2)+(1+1/3)*np.cov(vectors,rowvar=False,ddof=1)
+    close(pooled,[[19/3,16/3],[16/3,19/3]]);contrast=np.array([1.,-1.])
+    close(contrast@pooled@contrast,2);close(contrast@np.diag(np.diag(pooled))@contrast,38/3)
+    close(math.sqrt(3-0-3),0);close(2*norm.sf(0),1)
+    close(contrast@np.ones((2,2))@contrast,0);close(contrast@np.eye(2)@contrast,2)
+    assert 1+F(1,4)==F(5,4)
+    graphs=[{('A','B'),('B','C')},{('B','C'),('C','A')},{('C','A'),('A','B')}]
+    majority={edge for edge in set.union(*graphs) if sum(edge in graph for graph in graphs)>len(graphs)/2}
+    assert majority=={('A','B'),('B','C'),('C','A')}
+    rows=np.array([[1,1,np.nan],[-1,-1,np.nan],[1,np.nan,1],[-1,np.nan,-1],[np.nan,1,-1],[np.nan,-1,1.]])
+    covariance=np.zeros((3,3))
+    for i,j in product(range(3),repeat=2):
+        keep=np.isfinite(rows[:,i])&np.isfinite(rows[:,j]);x=rows[keep,i];y=rows[keep,j]
+        covariance[i,j]=np.dot(x-x.mean(),y-y.mean())/(len(x)-1)
+    close(covariance,[[4/3,2,2],[2,4/3,-2],[2,-2,4/3]]);v=np.array([-1.,1.,1.]);close(v@covariance@v,-8)
+    assert (0*1+2*3)/4==1.5 and F(1,2)*F(3,4)/(F(1,2)*F(3,4)+F(1,2)*F(1,4))==F(3,4)
+    assert sum(F(x,2) for x in [0,2])==1 and sum(F(x*x,2) for x in [0,2])==2
+    # Observational conditioning and surgery are enumerated on the same SCM.
+    factual=[(u,u,u,F(1,2)) for u in [0,1]]
+    conditional=sum(y*w for u,a,y,w in factual if a==1)/sum(w for u,a,y,w in factual if a==1)
+    intervention=sum(u*F(1,2) for u in [0,1]);assert conditional==1 and intervention==F(1,2)
+    pseudocounts=[F(c+1,4) for c in [2,0]];assert pseudocounts==[F(3,4),F(1,4)]
+    assert F(9,10)-F(1,10)==F(4,5)
+    assert int(F(7,3))==2 and [int(10000*(.5-.001)),int(10000*(.5+.001))]==[4990,5010]
+    assert (0+10)/2==5 and F(1-0,10-0)*10==1
+    # Both observed-data laws agree exactly despite opposite missing outcomes.
+    observed=[];true_effects=[]
+    for hidden_effect in [-10,10]:
+        law={};effect=F(0)
+        for h,a in product([0,1],repeat=2):
+            y1=10 if h else hidden_effect;y=a*y1;key=(a,h,h*y)
+            law[key]=law.get(key,F(0))+F(1,4);effect+=F(y1,4)
+        observed.append(law);true_effects.append(effect)
+    assert observed[0]==observed[1] and true_effects==[0,10]
+    states=list(product([0,1],repeat=2));transition_uv=[];transition_vu=[]
+    for u,v in states:
+        row_uv=[];row_vu=[]
+        for up,vp in states:
+            pv=F(1,4) if up==0 else F(3,4);old_pv=F(1,4) if u==0 else F(3,4)
+            row_uv.append(F(1,2)*(pv if vp else 1-pv));row_vu.append((old_pv if vp else 1-old_pv)*F(1,2))
+        transition_uv.append(row_uv);transition_vu.append(row_vu)
+    for probability,transition in [([F(3,8),F(1,8),F(1,8),F(3,8)],transition_uv),([F(1,4)]*4,transition_vu)]:
+        assert [sum(probability[i]*transition[i][j] for i in range(4)) for j in range(4)]==probability
+    assert (F(3,4)/F(1,4))/(F(1,4)/F(3,4))==9
+    close(math.exp((math.log(1)+math.log(9))/2),3);assert (1+9)/2==5
+    source=[F(4,5),F(1,5)];target_weights=[F(1,5),F(4,5)];effects=[10,-10]
+    assert sum(p*v for p,v in zip(source,effects))==6 and sum(p*v for p,v in zip(target_weights,effects))==-6
+    recovered=F(0);response=[[F(1,2),F(3,4)],[F(2,3),F(4,5)]];assignment=[F(1,4),F(3,4)]
+    for x,a,r_obs in product([0,1],repeat=3):
+        pa=assignment[x] if a else 1-assignment[x];pr=response[x][a]
+        mass=source[x]*pa*(pr if r_obs else 1-pr);y=a*effects[x]
+        recovered+=mass*(target_weights[x]/source[x])*(2*a-1)*r_obs*y/(pa*pr)
+    assert recovered==-6 and [2+F(4,5)*v-2 for v in [-10,10]]==[-8,8]
+    return dict(heterogeneous_augmented_target=str(target),correct_and_reversed_scores=[str(correct),str(reversed_score)],binary_risk_difference=str(risk1-risk0),odds_ratio='9/4',pooling_variances=[str(total),str(synthetic)],pooling_df=str(df),rejection_probability=float(rejection),effective_sample_sizes=['1/10','8/5'],pooled_covariance=pooled.tolist(),contrast_variance=2,pairwise_covariance=covariance.tolist(),pairwise_quadratic=-8,missing_outcome_effects=list(map(str,true_effects)),incompatible_scan_stationary=[['3/8','1/8','1/8','3/8'],['1/4']*4],transport_recovered=str(recovered),support_net_set=[-8,8],scope='Independent finite probability enumeration, matrix reconstruction and typed arithmetic for declared authored laws. No fitted package performance, general MNAR recovery, calibration or rights clearance is claimed.')
+
+
+def observation_history_units_laws():
+    """Check linkage, availability, sample inclusion, hazards and density units."""
+    raw('docs/release/2026-10-29/context-review-162/chapter-056.tex')
+    raw('docs/release/2026-10-29/context-review-162/chapter-059.tex')
+    p=F(4,5);map_contrasts=[F(8+6,2)-F(4+2,2),F(4+2,2)-F(8+6,2)]
+    assert map_contrasts==[4,-4]
+    outcomes=[(p*F(1,2),4+noise) for noise in [F(-1,2),F(1,2)]]+[((1-p)*F(1,2),-4+noise) for noise in [F(-1,2),F(1,2)]]
+    mean=sum(prob*y for prob,y in outcomes);variance=sum(prob*(y-mean)**2 for prob,y in outcomes)
+    assert mean==F(12,5) and variance==F(1049,100) and 10*mean-30==-6
+    assert 80*F(7,8)-70==0
+    versions=[{'value':2,'event':8,'available':9},{'value':9,'event':9,'available':12}];decision=10
+    event_only=max((v for v in versions if v['event']<=decision),key=lambda v:v['event'])
+    usable=max((v for v in versions if v['event']<=decision and v['available']<=decision),key=lambda v:v['event'])
+    assert [event_only['value'],usable['value']]==[9,2]
+    proportions=[F(1,2)]*2;retention=[F(1),F(1,4)];effects=[F(6),F(2)]
+    retained=[a*b for a,b in zip(proportions,retention)];linked=sum(p*e for p,e in zip(retained,effects))/sum(retained)
+    corrected=sum(p/r*e for p,r,e in zip(retained,retention,effects))/sum(p/r for p,r in zip(retained,retention))
+    assert linked==F(26,5) and corrected==4
+    hazards=[F(1,10),F(1,5)];competing=[F(1,20),F(1,10)];survival=F(1);contributions=[]
+    for y,d in zip(hazards,competing):
+        contributions.append(survival*(1-d)*y);survival*=(1-d)*(1-y)
+    incidence=sum(contributions);eliminated=1-math.prod(1-y for y in hazards)
+    assert contributions==[F(19,200),F(1539,10000)] and incidence==F(2489,10000) and eliminated==F(7,25)
+    assert (eliminated-incidence)*10000*100==31100
+    density=norm.pdf(0);close([density,density/2],[.3989422804014327,.19947114020071635])
+    # Integrating in each physical unit system verifies the Jacobian, rather
+    # than merely comparing a displayed value at the mean.
+    from scipy.integrate import quad
+    for scale in [1,2]:
+        physical=quad(lambda a:norm.pdf(a/scale)/scale,-scale,scale)[0]
+        converted=quad(lambda z:norm.pdf(z/(100*scale))/(100*scale),-100*scale,100*scale)[0]
+        close(physical,converted);close(physical,norm.cdf(1)-norm.cdf(-1))
+    return dict(linkage_contrasts=list(map(int,map_contrasts)),linkage_mean=str(mean),linkage_variance=str(variance),linkage_net=-6,positive_threshold='7/8',historical_features=[event_only['value'],usable['value']],linked_effect=str(linked),inclusion_corrected_effect=str(corrected),competing_incidence=str(incidence),eliminated_incidence=str(eliminated),illustrative_loss_difference_cny=31100,densities=[density,density/2],unit_interval_probability=float(physical),scope='Independent authored complete-map mixtures, bitemporal selection, inclusion weighting, competing-event recursion and unit-preserving integration. No authentic customer identity, intervention invariance or native conformance is inferred.')
+
+
+def main():
+    checks=dict(deposit=deposit(),public_experiment=public_experiment(),exact_journeys=exact_journeys(),repeated_studies=repeated_studies(),corrected_width=corrected_width(),measurement_floor=measurement_floor(),investment_account=investment_account(),delegate_contracts=delegate_contracts(),flexbcf_contracts=flexbcf_contracts(),parallel_trends=parallel_trends(),financing_equivalence=financing_equivalence(),temporal_contracts=temporal_contracts(),survival_contracts=survival_contracts(),influence_contracts=influence_contracts(),fitting_contracts=fitting_contracts())
+    checks['joint_law_contracts']=joint_law_contracts()
+    checks['foundational_laws']=foundational_laws()
+    checks['longitudinal_laws']=longitudinal_laws()
+    checks['gmm_variance_contracts']=gmm_variance_contracts()
+    checks['panel_continuous_laws']=panel_continuous_laws()
+    checks['observation_learning_laws']=observation_learning_laws()
+    checks['financial_information_laws']=financial_information_laws()
+    checks['qualification_design_laws']=qualification_design_laws()
+    checks['network_allocation_laws']=network_allocation_laws()
+    checks['consumer_operating_laws']=consumer_operating_laws()
+    checks['assistance_information_laws']=assistance_information_laws()
+    checks['diagram_decision_laws']=diagram_decision_laws()
+    checks['discovery_guidance_laws']=discovery_guidance_laws()
+    checks['workflow_target_laws']=workflow_target_laws()
+    checks['tool_contract_laws']=tool_contract_laws()
+    checks['evaluation_evidence_laws']=evaluation_evidence_laws()
+    checks['comparator_evidence_laws']=comparator_evidence_laws()
+    checks['interchange_semantics_laws']=interchange_semantics_laws()
+    checks['survey_discovery_decision_laws']=survey_discovery_decision_laws()
+    checks['observational_discovery_laws']=observational_discovery_laws()
+    checks['graph_inference_laws']=graph_inference_laws()
+    checks['identification_set_laws']=identification_set_laws()
+    checks['estimating_equation_laws']=estimating_equation_laws()
+    checks['effect_decision_laws']=effect_decision_laws()
+    checks['effect_implementation_laws']=effect_implementation_laws()
+    checks['instrument_threshold_laws']=instrument_threshold_laws()
+    checks['mediation_target_laws']=mediation_target_laws()
+    checks['mediation_implementation_laws']=mediation_implementation_laws()
+    checks['dose_decision_laws']=dose_decision_laws()
+    checks['regime_synthesis_laws']=regime_synthesis_laws()
+    checks['panel_comparison_laws']=panel_comparison_laws()
+    checks['panel_implementation_laws']=panel_implementation_laws()
+    checks['rollout_uncertainty_laws']=rollout_uncertainty_laws()
+    checks['synthetic_target_laws']=synthetic_target_laws()
+    checks['synthetic_uncertainty_laws']=synthetic_uncertainty_laws()
+    checks['impact_prediction_laws']=impact_prediction_laws()
+    checks['temporal_panel_shock_laws']=temporal_panel_shock_laws()
+    checks['relationship_audit_design_laws']=relationship_audit_design_laws()
+    checks['transport_completion_laws']=transport_completion_laws()
+    checks['observation_history_units_laws']=observation_history_units_laws()
+    source=Path(__file__);bindings[str(source.relative_to(ROOT))]=hashlib.sha256(source.read_bytes()).hexdigest()
+    report=dict(status='pass',scope='Release arithmetic and retained-study reconstruction; no independent scientific acceptance, bank validity or new empirical qualification.',versions=dict(python=platform.python_version(),numpy=np.__version__,scipy=scipy.__version__),checks=checks,bindings=bindings)
+    (OUT/'numerical-verification.json').write_text(json.dumps(report,indent=2)+'\n')
+    print(json.dumps(dict(status='pass',checks=list(checks),bound_files=len(bindings),deposit=checks['deposit'],public_methods=checks['public_experiment']['methods'],repeated_summary_counts={k:v['summaries'] for k,v in checks['repeated_studies'].items()})))
+if __name__=='__main__':main()

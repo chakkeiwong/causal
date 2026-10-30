@@ -1,0 +1,5 @@
+# Current author-review scope
+
+Batch027:116 exact edits;1,900-page reader and four-page sponsor. Thirty full-context records now include complete chapters19,23,24,28,29 and30, in addition to the separately scoped earlier readings. Three edits define the offer table decision rule, specify assignment uncertainty for a fixed finite population, and connect sensitivity foundations to the existing projection/financial example. Source and final rendered passages have author review; no fresh whole-book, independent or visual acceptance is asserted.
+
+Post-build preservation reports no mathematical removals, lost labels, citation keys or distinct numeric facts. All additions have evidence-bound review. One of1,607 protected identities remains at its declared archived location. Sixteen numerical groups pass, with public-data diagnostics additionally reconstructed. The frozen batch026 packages retain their successful byte-identical relocation and adverse-evidence checks; renew them for the final candidate.

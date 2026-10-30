@@ -1,0 +1,191 @@
+\section{Analytical preparation must preserve the population and its information clock}
+\label{exec19:duckdb-preparation}
+
+A servicing analyst may ask whether an additional contact improves recovery,
+then construct the analysis table by joining account records, contact events
+and repayment observations. The resulting query can execute successfully while
+changing the population, discarding unobserved outcomes or incorporating
+information that did not exist when contact was chosen. The database is
+therefore part of the causal workflow's measurement boundary. Its useful
+product role is to make a declared preparation repeatable and inspectable;
+query success cannot establish the causal premises of the subsequent analysis.
+
+DuckDB is a concrete candidate for local analytical preparation. The selected
+historical source is version 1.4.0, released on 16 September 2025, at commit
+\texttt{b8a06e4a2267}. This choice fixes a reproducible object for discussion;
+it is not a claim about the newest release, present support or any installed
+binary. The inspected C++ interface distinguishes a materialized
+\texttt{Query} call from streaming and pending paths. Result objects expose
+column information, errors and potentially chained results, while fetching a
+materialized result consumes its contents. These interfaces suggest a narrow
+first integration: a typed request produces one bounded, completed table and
+an explicit completion status. They do not justify treating every query handle,
+first batch or returned row as a completed analysis. The Python client is a
+separate wrapper boundary whose conversions and installed dependencies require
+their own inspection.\citep{exec19_duckdb_source}
+
+\subsection{A missing outcome is not an observed failure}
+\label{exec19:duckdb-missingness}
+
+Consider an authored six-account example with three contacted and three
+uncontacted accounts. The contacted outcomes are $(1,\mathrm{missing},
+\mathrm{missing})$ and the uncontacted outcomes are $(1,0,0)$, where one means
+recovery. These are stipulated binary observations, without a randomization,
+exchangeability or missingness assumption. The contrast among observed
+outcomes is
+\begin{equation}
+ \widehat d_{\mathrm{observed}}=1-\frac13=\frac23.
+ \label{exec19:duckdb-observed}
+\end{equation}
+If the two missing contacted outcomes are denoted $u,v\in\{0,1\}$, the
+full six-account descriptive contrast instead satisfies
+\begin{equation}
+ d(u,v)=\frac{1+u+v}{3}-\frac13
+       =\frac{u+v}{3}\in\left\{0,\frac13,\frac23\right\}.
+ \label{exec19:duckdb-completions}
+\end{equation}
+Both endpoints are attainable, so $[0,2/3]$ is the sharp endpoint range for
+this stipulated finite completion problem. The feasible set has three values;
+it is not every real number in that interval. Neither the complete-case
+contrast nor the completion set is a causal effect without additional
+assignment and observation assumptions. Exact rational enumeration reproduces
+all four binary completions.\citep{exec19_duckdb_reference}
+
+The economic consequence of the transformation is visible before any bank
+experiment. Suppose solely for illustration that a unit change in this
+descriptive contrast is valued at USD 300 and an additional contact policy
+costs USD 40 per case. The resulting arithmetic is
+\begin{equation}
+ V(u,v)=300d(u,v)-40\in\{-40,60,160\}\quad\text{USD per case}.
+ \label{exec19:duckdb-value}
+\end{equation}
+Using only observed outcomes produces the optimistic plug-in value USD 160;
+the declared completion problem also permits minus USD 40. This is an
+illustration of how an unacknowledged denominator choice can reverse an
+economic recommendation, not evidence of treatment value or bank ROI. A
+missingness model, additional observations or a deliberately restricted target
+population would change the problem and must be stated before interpretation.
+\citep{exec19_duckdb_reference}
+
+The selected upstream aggregate tests reinforce why the interface must retain
+these distinctions. On an empty input, the tests expect zero counts but NULL
+for sums, averages and several other aggregates; grouped all-null values also
+produce NULL aggregates. Those are inspected upstream expectations, not native
+test results obtained here. A zero-row relation, two rows with no observed
+outcome, and two observed zeros therefore require different records. The
+proposed record carries total rows, observed outcomes and nullable summaries;
+it never silently replaces a missing mean with zero. NaN, overflow and invalid
+type conversions need additional explicit cases rather than being folded into
+the SQL NULL convention.\citep{exec19_duckdb_source,exec19_duckdb_reference}
+
+\subsection{Joins and clocks define the observation being analyzed}
+\label{exec19:duckdb-keys}
+
+For a second exact example, let two contacted accounts have observed amounts
+USD 100 and USD 0, and two uncontacted accounts both have USD 0. The
+account-level descriptive difference is USD 50. Suppose a one-to-many contact
+join duplicates the positive contacted account three times while leaving each
+other account once. The joined table has six rows and a contacted mean of
+USD 75. No account outcome changed: the join changed the weights. The input
+and output keys, expected join cardinality and analytical unit must therefore
+be part of the preparation request. A deliberate contact-event target is
+possible, but it is a different target and does not turn six joined rows into
+six independent accounts.\citep{exec19_duckdb_reference}
+
+Time ordering creates a separate problem. In the authored reference, an
+account has a feature with value zero on day one, an action on day two and a
+feature with value one on day three. Selecting the latest unrestricted record
+returns the postaction value; selecting the latest strictly preaction record
+returns zero. A production definition must additionally distinguish event time
+from availability time: a backdated event received after the decision was not
+necessarily available to the decision maker. The proposed table carries both
+clocks, the action cutoff, time-zone interpretation and an explicit tie-break
+for events with equal timestamps. This clock discipline is an authored
+requirement; the small reference does not validate a bank's record history.
+
+Row position is an unsuitable replacement for those keys. The selected tests
+make null ordering configurable, and an insertion-order test explicitly
+disclaims which tuples an unordered limit selects when insertion-order
+preservation is disabled. A reproducible export consequently specifies a total
+order with unique tie-breaks and a declared NULL convention. All 24 permutations
+of the four-account reference return the same rows after sorting by its unique
+account key. That exact property belongs to the reference construction; native
+parallel execution, collations and timestamp conversions remain future
+conformance cases.\citep{exec19_duckdb_source,exec19_duckdb_reference}
+
+\subsection{Local execution needs explicit permissions and completion}
+\label{exec19:duckdb-controls}
+
+The selected source initially enables external access. When external access is
+disabled on a running instance, its setting handler adds already attached
+database and write-ahead-log paths to allowed paths and permits a configured
+temporary directory. Selected storage and attachment tests continue to permit
+writes or checkpoints to attached databases after this setting is disabled.
+It is therefore neither a read-only guarantee nor an operating-system sandbox.
+The proposed worker needs independently defined filesystem permissions,
+reviewed attachments and scratch storage, even when that database option is
+false. Its input copies must be immutable under the declared execution policy.
+\citep{exec19_duckdb_source}
+
+Extension behavior is also a build and runtime question. The selected CMake
+options default automatic installation and loading to false, but compile-time
+definitions can change the configuration defaults. The base extension
+configuration includes core functions and Parquet, and conditionally includes
+jemalloc under its platform rules. Inspecting those declarations does not prove
+the configuration of a wheel, executable or embedded library. For the initial
+proposal profile, automatic extension installation and loading should be
+disabled and any required artifact explicitly selected and bound. An agent
+may propose a typed preparation request; it should not acquire unrestricted SQL
+and installation authority as a side effect. The inspected autoload helper
+catches exceptions and can return false. Such a dependency failure is not
+evidence that an intervention is unidentified or that an estimated effect is
+zero.\citep{exec19_duckdb_source}
+
+Transactions do not remove the need for those boundaries. The C++ begin,
+commit and rollback wrappers inspect errors and throw them; a selected upstream
+test expects a conflict for overlapping updates. These observations support
+explicit transaction-error handling but do not prove a complete isolation
+regime or an immutable snapshot of files outside the database. The preparation
+manifest binds input bytes separately from the transaction identifier and
+records whether an output is complete. A timeout, cancellation, incomplete
+stream or later error invalidates a claim of completed output. Materialization
+simplifies the initial completion boundary while increasing memory exposure;
+row and byte limits, disk use and cancellation costs must be measured on the
+selected prototype rather than assumed from the interface name.
+\citep{exec19_duckdb_source}
+
+\subsection{Reuse the original engine under a bounded proposal contract}
+\label{exec19:duckdb-route}
+
+The preferred proposal route retains the original engine behind that typed
+preparation boundary. A port would reproduce SQL, optimization, storage and
+conversion obligations without a demonstrated platform need. The selected
+historical build declares C++11, twelve direct non-amalgamation third-party
+subdirectories, additional conditional test directories and extension inputs.
+The root MIT notice is not the complete distribution inventory. The inspected
+RE2 and Zstd notices are BSD-style, utf8proc carries MIT and Unicode data
+notices, and MbedTLS declares Apache-2.0 or GPL-2.0-or-later alternatives. These
+four inspected third-party notices illustrate scope differences; they do not
+clear every dependency, wrapper, extension or actual distribution arrangement.
+\citep{exec19_duckdb_source}
+
+A transparent explicit-file implementation remains the small-case reference.
+SQLite is a separate SQL/storage candidate; dataframe and columnar libraries
+are separate preparation candidates. Each alternative requires its own type,
+join, missingness, ordering and resource review. The choice among them should
+follow the declared workload and measured end-to-end costs, including frozen
+inputs, conversions, failed requests, maintenance and retained evidence. No
+unmeasured speed, feature parity or maintenance advantage is assumed here.
+
+The proposal choice is consequently concrete while executable admission is
+deferred. Before admitting the selected engine/client path, a prototype must
+bind its complete distribution and notices, exercise native empty/all-missing/
+zero cases, duplicate joins, information cutoffs, total ordering and precision,
+and compare errors, cancellations, external-file changes and extension
+behavior with the typed contract. The analyst owns the scientific population
+and causal assumptions; the adapter maintainer owns conversion, execution and
+resource behavior; the distribution owner reviews the actual retained software
+and notices. None of these public or synthetic prototype steps requires bank
+data. Institution-specific assignment, audit truth and economic value remain
+distinct later questions. The database prepares the evidence; it does not
+certify the causal meaning of that evidence.

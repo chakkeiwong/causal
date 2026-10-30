@@ -1,0 +1,235 @@
+\chapter{Customer histories, heterogeneous effects and economic units}
+\label{v131:histories-forests}
+
+\section{Resampling a sequence requires a sampling model}
+
+Consider a bank evaluating a sequence of servicing decisions over twelve
+months. The data contain repeated observations of each borrower, interventions
+that depend on previous balances and competing events such as account closure.
+The statistical unit might be a borrower history, a household, a branch or an
+independent economic calendar. These choices imply different resampling laws.
+A routine with ``bootstrap'' in its name does not determine the appropriate law.
+
+LiNGAM's generic bootstrap resamples rows and refits the model. VARLiNGAM has
+a distinct path: it fits a lag model, applies a contemporaneous LiNGAM model to
+the residuals, resamples residual vectors and reconstructs a sequence using the
+fitted autoregressive coefficients. The inspected loop temporarily sets the
+lag-selection criterion to \texttt{None}. Consequently, one must inspect the
+initial lag/coefficient settings and the loop's refit behavior before claiming
+that it propagates model-selection uncertainty.\cite{v131_sw_lingam}
+
+Residual resampling can be a sensible candidate under an appropriate innovation
+law. It does not automatically preserve persistent residual dependence,
+unmodeled common shocks or a different sampling calendar. Row resampling is a
+different candidate suitable for a different observational unit. A banking
+comparison should include a correctly specified innovation model and an adverse
+case with persistent residuals, preserving the uncertainty target and failures
+in both. Bootstrap edge frequencies should not be reported as a calibrated
+effect confidence region without an additional argument.
+
+pygformula's inspected bootstrap draws observed subject identifiers with
+replacement, copies each subject's complete history and assigns a fresh replicate
+identifier to each draw. It updates histories and refits covariate and outcome
+models. Expanding to the requested simulation population occurs in a separate
+step. These operations distinguish the observed sampling unit from the Monte
+Carlo population used to evaluate a fitted regime.\cite{v131_sw_pygformula}
+
+The fresh identifiers matter. Drawing borrower 17 twice should produce two
+bootstrap histories, not concatenate them into one impossible person with two
+records at every date. An integration test needs duplicate draws, unequal
+history lengths and multiple interventions. It must also preserve the original
+calendar when that calendar is part of the estimand. Subject resampling alone
+does not account for a market shock shared by every subject on the same date.
+
+Failed fits require equally explicit handling. The inspected bootstrap helper
+catches an exception, warns and returns a dictionary whose
+\texttt{boot\_results} is \texttt{None}. The caller filters such entries when
+assembling one result list, but subsequently constructs \texttt{bootests} by
+indexing every original entry. A failed entry therefore exposes a static
+inconsistency in that caller path. This observation requires reproduction in
+the pinned runtime before attributing an observed frequency or impact to it.
+The integration must count attempted, successful and failed replications and
+preserve the failure reason, irrespective of whether the eventual repair
+aborts, returns an explicit unavailable interval or uses a preregistered rule.
+\cite{v13_sw_pygformula,v131_sw_pygformula}
+
+\section{The intervention clock and competing-event target}
+
+The inspected simulation path applies an intervention to the current simulated
+frame and then refreshes history variables before outcome prediction. Static
+schedules index their values by the absolute time index \texttt{int\_values[t]}.
+Threshold interventions bound the current action between the supplied limits.
+Custom interventions receive the current frame, available pool and time index.
+The API permits useful regimes, but does not itself certify that a custom
+function uses only information available at the decision time.
+\cite{v131_sw_pygformula}
+
+For example, ``contact once delinquency has persisted for two months'' refers
+to the observed history before the action, whereas ``contact borrowers who
+will be delinquent next month'' uses future information. Both can be expressed
+as executable code if future fields have been made available. A valid interface
+must enforce the declared information clock and treat prohibited reads as a
+contract violation. Thresholds should also retain their monetary units and
+whether they change an action, a measurement or an eligibility condition.
+
+Competing events alter the target even when the same outcome model is used.
+In a stipulated discrete-time model, let $d_t$ be the probability of a competing
+event in period $t$ among those still at risk, and let $y_t$ be the outcome
+hazard conditional on avoiding that competing event. If competing events occur
+before outcomes within a period, the cumulative incidence through $T$ is
+\[
+ F_Y(T)=\sum_{t=1}^T
+ \left\{\prod_{s<t}(1-d_s)(1-y_s)\right\}(1-d_t)y_t.
+\]
+This formula follows by partitioning on the period of the first outcome event.
+It differs from a hypothetical law that eliminates the competing event.
+
+For two periods with $y=(0.1,0.2)$ and $d=(0.05,0.1)$, the first contribution
+is $0.095$ and the second is $0.9(0.95)(0.9)(0.2)=0.1539$. Total incidence is
+$0.2489$. Removing competing events while holding these outcome hazards fixed
+gives $1-(0.9)(0.8)=0.28$. At a stipulated 10,000 accounts and CNY 100 per event,
+the corresponding expected-loss difference is CNY 31,100. This is exact
+illustrative arithmetic. It does not identify the effect of eliminating a
+real bank's competing event or establish that the outcome hazard would remain
+fixed under that intervention.\cite{v131_project_semantics}
+
+The inspected pygformula source separately computes survival risks with and
+without a competing-event path, using subject-level cumulative products and
+then population means. That code provides a concrete place to check the
+within-period ordering, history alignment and target definition. It does not
+settle whether observed censoring or competing-event assumptions are valid in
+the proposed banking application.\cite{v131_sw_pygformula}
+
+\section{Following an R forest operation into its C++ implementation}
+
+For grf, the causal-forest binding assigns the same variable index to treatment
+and instrument, then calls an instrumental predictor. The predictor factory
+constructs \texttt{InstrumentalPredictionStrategy}. The native prediction uses
+a ratio of centered outcome--instrument and treatment--instrument moments.
+When instrument and treatment coincide, this corresponds to a weighted local
+covariance divided by a weighted local treatment variance. This traced route
+supports the interpretation of continuous-treatment output as a local slope
+under its functional assumptions.\cite{v131_sw_grf}
+
+It does not identify an arbitrary finite change in a nonlinear dose-response
+curve. A change from an offer rate of one unit to two units needs the appropriate
+counterfactual contrast and exposure support. A slope, an average slope and a
+finite contrast can coincide in a linear model and diverge otherwise. The bank
+must choose the target before comparing software outputs.
+
+The native variance routine forms influence-like quantities across tree
+groups, separates between-group variation from group noise and calls a Bayes
+debiaser. These groups concern the forest's computation. They are distinct
+from the observed borrower clusters used by the R average-effect calculation.
+Inspecting both paths avoids the false inference that a tree-group variance
+option automatically accounts for a persistent banking calendar. The debiaser,
+forest sampling, serialization and numerical safeguards require additional
+review before a direct native interface is qualified.\cite{v131_sw_grf}
+
+The maintained R interface is therefore a reasonable first integration
+candidate, subject to a complete license/dependency and behavioral review.
+A direct C++ port would have to preserve the forest representation, prediction
+strategy, variance method, randomization and exceptional outcomes across version
+changes. Avoiding one language boundary does not by itself justify that
+maintenance commitment. The open-source decision should compare the operational
+cost of an R process or library bridge with the full scientific and technical
+cost of a maintained port.
+
+\section{Population averaging, support and unavailable combinations}
+
+In grf's inspected all-population AIPW path, the mean is a weighted average of
+\texttt{get\_scores} output. The variance calculation sums centered weighted
+scores within the declared clusters, squares these group contributions and
+applies a group-count correction. For binary treatment, the score uses the
+usual propensity residual divided by $\widehat e(1-\widehat e)$. For continuous
+treatment, an auxiliary regression forest estimates the conditional variance
+of the treatment; the debiasing weight divides the treatment residual by that
+estimate.\cite{v131_sw_grf}
+
+Small conditional variance is an information problem. Borrowers with essentially
+one available offer rate do not support precise estimation of a local rate
+response simply because a forest can fit the outcome. Qualification should
+retain weak-support cases and identify whether the operation returns a
+warning, an extreme weight, an unavailable result or a misleading finite value.
+The inspected formula alone supplies no finite-sample guarantee for such cases.
+
+The all, treated, control and overlap populations must remain distinct. In the
+overlap path the code fits a residualized outcome on a residualized treatment
+and uses cluster or heteroskedastic covariance as applicable. Moving to an
+overlap target may improve stability while changing which banking population
+the result describes. A wrapper must not silently make that choice on the
+analyst's behalf.\cite{v131_sw_grf}
+
+Option support must be determined from reachable control flow. The inspected
+average-effect routine rejects TMLE when clusters or sample weights are supplied
+before reaching later formulas that contain cluster-related expressions. Seeing
+those later formulas would not justify advertising clustered TMLE at this entry
+point. Likewise, only specified combinations support continuous treatment.
+The adapter's capability matrix needs explicit accepted combinations and
+typed refusal for the others.\cite{v131_sw_grf}
+
+\section{A generalized propensity score has physical units}
+
+Let a continuous exposure follow a location-scale law
+$A=\mu(X)+s(X)R$, with $s(X)>0$. Conditional change of variables gives
+\[
+ f_{A\mid X}(a\mid x)
+ =\frac{1}{s(x)}f_{R\mid X}
+       \left(\frac{a-\mu(x)}{s(x)}\middle|x\right).
+\]
+The Jacobian $1/s(x)$ is necessary for a density with respect to the original
+exposure measure. If a common residual density is used instead of
+$f_{R\mid X}$, an additional residual-distribution assumption is being made.
+
+CausalGPS's inspected \texttt{compute\_resid} returns the standardized residual
+$(a-b)/c$. Its \texttt{compute\_density} helper calls R's density estimate and
+interpolates it with \texttt{rule=2}. In the inspected kernel branch of
+\texttt{estimate\_gps}, the standardized-residual density is assigned to the
+GPS field without division by the predicted scale in that branch. The normal
+branch instead evaluates a normal density using its fitted mean and scale.
+These observations establish a concrete scale question for downstream matching,
+weighting and dose-response construction. They do not establish the behavior
+of every downstream operation.\cite{v13_sw_causalgps,v131_sw_causalgps}
+
+At a standardized residual of zero, a standard normal density is about
+$0.3989423$. Two strata with scales one and two have original-exposure densities
+$0.3989423$ and $0.1994711$ at their respective means. Retaining only the common
+standardized-residual value loses that difference. If the exposure is measured
+in units one hundred times smaller, its numerical value is multiplied by one
+hundred and the corresponding density must be divided by one hundred. The
+probability of any physical exposure interval remains unchanged. These exact
+transformations provide a reference for a future unit-consistency test.
+\cite{v131_project_semantics}
+
+Some downstream procedures might deliberately use a transformed balancing
+quantity, while others require a density in the original units. The integration
+decision therefore remains deferred until each use of the returned field is
+traced and the intended quantity is established. Silently changing the helper
+could alter package behavior without resolving the scientific contract. A
+matched comparison should examine heterogeneous scales, near-zero scales,
+counterfactual dose evaluation and an explicit unit conversion, retaining any
+unsupported cases.
+
+The causaldrf comparison has a separate source obligation. Its accompanying
+license notice identifies the year and copyright holder, supplementing the
+package's license declaration. That resolves the availability of that notice;
+it does not settle transitive licensing or the statistical behavior of its
+interval routines. Source availability, permission to distribute and justified
+uncertainty remain separate questions.\cite{v131_sw_causaldrf}
+
+\section{Implications for reusable causal operations}
+
+These examples support a common semantic contract with explicit graph
+orientation, query/failure type, independent observational unit, decision clock,
+target population, dose units and uncertainty construction. A business-facing
+assistant can elicit these fields and explain unresolved choices, while a
+deterministic validator checks the declared operation against its supported
+combinations. An LLM's plausible description is not evidence that a package
+uses the intended covariance or intervention target.
+
+The relevant next qualification compares complete causal requests. It retains
+the same estimand and information across packages, separates sampling from
+Monte Carlo error, includes failed fits and preserves unbounded sets. Numerical
+agreement in a benign case is useful evidence about implementation, but cannot
+establish assignment truth, identification or useful precision in adverse
+banking regimes. Those remain scientific and institutional requirements.

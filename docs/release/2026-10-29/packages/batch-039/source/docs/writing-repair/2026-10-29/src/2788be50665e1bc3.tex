@@ -1,0 +1,124 @@
+\section{Computational scale follows the statistical construction}
+\label{s5:dominant-workloads}
+Ten million precomputed scores say little about the cost of fitting a latent
+decision model. A scientific workload must retain the dimensions that make
+its inference difficult. For responses these include dates, horizons and
+covariance coordinates; for controlled states, the number of states,
+trajectory length, validation sample and complete refits; for discovery,
+variables, lag window and conditioning-set search. The expanded measurements
+therefore execute the operations developed in the preceding chapters.
+
+\subsection{Measured work and numerical outputs}
+Each case runs twice in a fresh process on one AMD EPYC 7773X host, with one
+thread in every observed numerical pool. Synthetic repetitions use separate
+fixed seeds; the public case changes its declared fold seed. The ranges
+therefore include data-dependent algorithm cost and host variation, not just
+identical-input timing noise. Process elapsed time includes interpreter and
+module loading, generation or public-data reading, local write/read,
+estimation, the specified uncertainty calculation and report serialization.
+It excludes analyst review, remote storage, bank access controls and a
+distributed scheduler. Memory is process peak resident memory.
+
+\begin{center}\small
+\begin{tabular}{P{.57\textwidth}rr}\toprule
+Scientific workload & Seconds & Peak MiB\\\midrule
+Responses: 4,000 dates, horizon 12 & .77--.78 & 100\\
+Responses: 16,000 dates, horizon 36 & 1.19--1.22 & 153--154\\
+Private finite states: $K=3,N=300,H=8$ & 2.12--2.26 & 74--76\\
+Private finite states: $K=4,N=600,H=12$ & 7.49--7.64 & 78--79\\
+Private finite states: $K=6,N=3,000,H=24$ & 121.66--132.50 & 151--153\\
+Temporal search: 6 variables, 2 lags, 1,600 dates & 1.34--1.44 & 104\\
+Temporal search: 12 variables, 4 lags, 3,200 dates & 4.28--5.23 & 106\\
+Temporal search: 24 variables, 8 lags, 6,400 dates & 50.59--101.89 & 128--158\\
+Observed history: 2,400 customers, 4 decisions & 2.37--2.38 & 188--192\\
+Gaussian controlled state: 800 customers, 12 decisions & .93--.95 & 96\\
+Public finance: 9,915 households, ATE and LATE & 3.83--3.84 & 283--286\\\bottomrule
+\end{tabular}\end{center}
+Responses compute all three covariance alternatives and weak-denominator
+sets. Each finite-state run includes a two-start joint fit, observed
+information and three refits of whole trajectories and validation data. The three draws
+measure cost; they do not estimate confidence-interval tails. The state grids
+use respectively four, five and seven signals and 300, 600 and 1,500
+validation measurements. All six main fits and eighteen refits converge
+without a reported parameter boundary; main information calculations are
+available. This numerical availability does not supersede the undercoverage
+experiment in Section~\ref{s5:private-logger}.
+
+In the largest finite model, fitting and information take 45.94--48.55
+seconds, while three refits take 75.28--83.49 seconds. In the largest
+discovery model, PCMCI+ takes 7.74--8.05 seconds and LPCMCI takes
+41.98--92.97 seconds, with the conditioning cap of three retained.
+These searches preserve graph and test matrices; their output is an
+exploratory graph, not an automatically qualified effect interval. The
+history workload includes independent policy training, backwards nuisance
+fitting and contrast covariance. The Gaussian workload includes the joint
+logger likelihood, analytic score, information and policy value.
+
+The public workflow fits eligibility and participation nuisances, constructs
+the ratio set, and checks DoubleML using the same predictions. The matched
+package call adds about .043 seconds after those shared fits; it excludes a
+second nuisance-learning pass. It is therefore a semantic cross-check, not
+evidence that the product is faster than an expert using DoubleML directly.
+Installed versions are Python 3.13.13, NumPy 2.5.2, SciPy 1.18.1,
+scikit-learn 1.9.0, DoubleML 0.11.4 and Tigramite 5.2.10.1. These are observed
+execution identities. Only the separately preserved release records establish
+the two causal packages' availability before the literature cutoff; runtime
+versions of other dependencies are not silently treated as cutoff releases.
+
+\subsection{Deriving the execution choices}
+For $N$ independent trajectories, $H$ decisions and $K$ finite states, one
+forward/backward pass with dense transitions costs $O(NHK^2)$. With $A$
+actions and $M$ signal categories, the parameter count is
+\[
+ p=(K-1)+K(M-1)+K(A-1)+AK(K-1)+AK.
+\]
+The current reference retains adjacent-state posterior arrays, requiring
+$O(NHK^2)$ memory as well as forward/backward arrays. Batching whole
+trajectories can reduce that memory because their likelihoods and scores
+add at a common parameter. It cannot replace the shared parameter by
+independently optimized shard parameters. Finite-differencing an analytic
+score for information adds $2p$ score evaluations and an $O(p^3)$ dense
+factorization. Extra starts and $B$ full refits multiply the fitting cost;
+the elapsed-time table includes only its stated $B=3$ cost experiment.
+
+Independent trajectories and independent bootstrap fits are natural
+parallel units. For a fixed parameter, deterministic reductions can combine
+batch log likelihoods, gradients and information, with roundoff checked
+against the serial reference. Distributed optimization additionally needs
+synchronized parameters and a stopping rule on the global score. Emission
+validation terms must enter exactly once, with their original sample weight;
+duplicating them on every worker changes the likelihood and understates
+calibration uncertainty. A trajectory cannot be cut into independent
+fragments without transferring the correct filtering distribution and its
+parameter sensitivities across the boundary.
+
+For a response vector with $d$ coordinates, direct dense Bartlett covariance
+cost is $O(nLd^2)$ and storage includes the $n\times d$ scores. Prefiltering
+adds a $d$-variable regression and recolouring solves. A date partition needs
+the original lagged observations, future outcome horizons and score-lag
+cross-products that straddle its boundaries. Halo records supply context;
+only owned origins contribute to the target sum. Center with the global
+mean and retain the cross-boundary terms. Dropping them for faster reduction
+changes the covariance. Customer shards under common shocks must combine
+their scores by calendar date before a time-series covariance is formed.
+
+Conditional-independence search has a different obstacle. With $v$ variables
+and lag window $L$, each node can have order $vL$ candidate parents. Testing
+all conditioning sets of size $s$ involves up to
+$\binom{vL}{s}$ sets per candidate relation before pruning; a dense
+partial-regression calculation also depends on sample size and $s$.
+Actual parent selection can remove much of this work, explaining why two
+samples with the same dimensions need different time. A search cap is an
+algorithmic restriction that can remove oracle completeness, not a purely
+physical optimization. Parallel tests must preserve stage dependencies and
+orientation rules. Distributed throughput cannot be inferred by multiplying
+the one-thread table by the host's 256 logical CPUs.
+
+The resulting architecture uses whole-customer batches for history and
+controlled fits, date-aware reductions for common-shock responses, and
+explicit stage scheduling for discovery. Every physical plan must reproduce
+the declared serial target and numerical tolerance before claiming a speed
+benefit. The measured references identify dominant costs and feasible
+parallel units. Large distributed storage, fault recovery, accelerator
+qualification and institutional workload service levels remain concrete
+construction tasks rather than conclusions of these local measurements.

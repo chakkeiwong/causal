@@ -1,0 +1,10 @@
+# Energy per useful causal study, rather than energy per generated token
+
+Inspect candidate218's genuine IEEE Access paper and the pinned EnergyMeter source. Distinguish the2024 paper's mean-power method from the2026 source's trapezoidal integration. Read the direct2025 quantization/accuracy comparator and its actual task/scoring protocol. Do not infer causal-study quality from generic answer benchmarks or metadata.
+
+Exact project calculations:
+1. A declared synthetic timestamp/power/utilization trace compares full timestamp integration,zeroed-idle integration,and removing idle samples before integration. Verify the latter can bridge an excluded idle interval. These are arithmetic consequences of source logic,not hardware measurements or a claim about the2024 experiments.
+2. Derive average collection delay for count batching of b Poisson arrivals at rate lambda: (b-1)/(2lambda),excluding service and queue backlog. Verify with100000 independent batches for b=1,4,20 and rates1,10,60 requests per minute;new fixed seed. Report means,Monte Carlo errors and upper quantiles,not a bank traffic forecast. For sparse interactive requests,large batch throughput can conceal substantial user wait.
+3. Define whole-study energy and expense per independently accepted result,including setup,failed attempts/retries,verification and idle allocation. Derive break-even quality ratio for two configurations and distinguish valid refusal from an answer. Use symbolic costs plus exact authored illustrative numbers only;no fabricated measured hardware or bank price.
+
+Review: do not port or execute downloaded sensor code;do not request root permissions or hardware sampling. Public original and static source plus independent authored arithmetic suffice for the proposal comparison. Preserve every limitation. The proposal disposition can be conditional integration with measurement repairs,not vendor rejection based on a toy trace or universal efficiency claims. New source counts change only after primary technical reading and source ledgers are complete.

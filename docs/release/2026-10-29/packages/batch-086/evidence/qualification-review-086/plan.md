@@ -1,0 +1,7 @@
+# Late statistical qualification review — batch082
+
+Read the complete source of chapters97–99 and the complete corresponding rendered text. Verify that the banking target, information law, nuisance assumptions, uncertainty, adverse examples, precision calculations and proposed next experiments remain connected and scoped. Use the existing qualification_design_laws numerical reconstruction; add checks only for a confirmed additional defect.
+
+The manuscript and numerical batch082 packages have passed actual relocation. Both publications reproduce byte-identically; all237 edits replay from478 originals and68 numerical groups reconstruct. Five missing/corrupt manuscript-evidence cases and ten missing/corrupt external-input cases are rejected. Record any repair by exact ledger and renew affected review and packages. If no defect is established, retain the source and record the review without manufacturing edits.
+
+Plan review: source-context reading is separate from primary-source rereading and visual acceptance. A mathematically valid confidence construction can still be economically uninformative; negative results, weak-instrument sets, failed certificates and availability denominators must survive. No repeated experiments, new external acquisitions or claims of independent acceptance. Freeze new investigations by01:58:35 UTC; complete final controls, package verification and delivery by02:58:35 UTC.

@@ -1,0 +1,243 @@
+### CELL 0 code
+import csv
+import scipy.stats as st
+import statistics
+import math
+import os
+from random import sample
+
+class causal_cell():
+    def __init__(self,Feature,value,z_score,probability_do,probability_not_do,p_value,support,condition_list):
+        self.Feature = Feature
+        self.value = value
+        self.z_score = z_score
+        self.probability_do = probability_do
+        self.probability_not_do = probability_not_do
+        self.probability_difference = probability_do-probability_not_do
+        self.p_value = p_value
+        self.support = support
+        self.condition_list=condition_list
+    def set_condition_list(condition_list):
+        self.condition_list=condition_list
+    def get_variable_list1(self):
+        variable_list=[self.Feature,self.value,self.z_score,self.probability_do,self.probability_not_do,
+                self.probability_difference,self.p_value,self.support]
+        return variable_list
+    def get_variable_list2(self):
+        variable_list=[self.Feature,self.value,self.z_score,self.probability_do,self.probability_not_do,
+                self.probability_difference,self.p_value,self.support,self.condition_list]
+        return variable_list
+    
+def causal_tree(feature_file,probability_file,threshold,condition_list):
+
+    topic_dict={}
+    topic_not_empty_dict={}
+    filter_list=[]
+    probability_dict={}
+    def condition(condition_list,line):
+
+        all_term_in=True
+        if condition_list==[]:
+            return False
+        for term in condition_list:
+            if not term in line:
+                all_term_in=False
+        if all_term_in:
+            return False
+        else:
+            return True
+
+    def put_in_dict(index,str,dict):
+        a=str.split(', ')
+        for item in a:        
+            if not item in dict:
+                dict[item]=[index]
+            else:
+                dict[item].append(index)
+        return dict
+
+    with open(feature_file) as tsvfile:
+        tsvreader = csv.reader(tsvfile, delimiter="\t")
+        for index,line in enumerate(tsvreader):
+            if index==0:
+                continue
+            else:
+                topic=''.join(line)
+                if condition(condition_list,line):
+                    continue           
+                if topic!='*':
+                    topic_not_empty_dict[index]=True
+                topic_dict=put_in_dict(index,topic,topic_dict)
+    with open(probability_file) as tsvfile:
+        tsvreader = csv.reader(tsvfile, delimiter="\t")
+        for line in enumerate(tsvreader):
+            probability_dict[line[0]+1]=line[1]
+    def compute_gap(feature_dict,p_dict,not_empty_dict):
+        dict={}
+        dict_in={}
+        dict_out={}
+
+        def compute_Z_score(in_list,out_list):
+            L1=[]
+            for term in in_list:
+                L1.append(float(term[1]))
+            L2=[]
+            for term in out_list:
+                L2.append(float(term[1]))
+            s1=statistics.variance(L1)
+            l1=s1/len(L1)
+            s2=statistics.variance(L2)
+            l2=s2/len(L2)
+            l=l1+l2
+            m=math.sqrt(l)
+            m1=statistics.mean(L1)
+            m2=statistics.mean(L2)
+            return (m1-m2)/m
+        def compute_expecation(list):
+            L=[]
+            for term in list:
+                L.append(float(term[1]))
+            if not len(L)==0:
+                return sum(L)/len(L)
+            else:
+                return 0
+            
+        def search( nums, target):
+            def check(x):
+                return nums[x] <= target
+            def biup(l, r):
+                while l < r:
+                    m = l + (r - l + 1) // 2
+                    if check(m):
+                        l = m
+                    else:
+                          r = m - 1
+                return l
+
+            def check(x):
+                return nums[x] >= target
+            def bilo(l, r):
+                while l < r:
+                    m = l + (r - l) // 2
+                    if check(m):
+                        r = m
+                    else:
+                        l = m + 1
+                return l
+
+            ans = biup(0, len(nums) - 1)
+            ans = bilo(0, len(nums) - 1)
+
+            return ans if nums[ans] == target else -1
+        
+        for key in feature_dict.keys():
+            l1=feature_dict[key]
+            In=[]
+            Out=[]
+            for index in p_dict.keys():
+                if index in not_empty_dict:
+                  if not search(l1,index) == -1:
+                    In.append(p_dict[index])
+                  else:
+                    Out.append(p_dict[index])
+
+            if len(In)>=threshold and len(Out)>=threshold:
+
+                dict[key]=compute_Z_score(In,Out)
+                dict_in[key]=compute_expecation(In)
+                dict_out[key]=compute_expecation(Out)
+        
+        return dict,dict_in,dict_out
+
+    topic_gap_dict,topic_in_dict,topic_out_dict=compute_gap(topic_dict,probability_dict,topic_not_empty_dict)
+
+    total_dict=topic_gap_dict
+    
+    cell_list=[]
+    for key in total_dict:
+        z_score=total_dict[key]
+        p_values = 1-st.norm.cdf(z_score)
+#         if not p_values<=0.05:
+#             continue
+
+        if key in topic_gap_dict:
+            cell=causal_cell('topic',key,total_dict[key],topic_in_dict[key],topic_out_dict[key],p_values,len(topic_dict[key]),condition_list)
+        
+        cell_list.append(cell)
+    return cell_list
+def causal_inference(probability_file,feature_file,out_dir,threshold=50):
+
+    condition_list=[]
+    cell_list=causal_tree(feature_file,probability_file,threshold,condition_list)
+    def myFunc(e):
+        return e.get_variable_list1()[2]
+    cell_list.sort(reverse=True,key=myFunc)
+    # write csv file
+    if not os.path.exists(out_dir):
+      os.mkdir(out_dir)
+    title =['Feature', 'value', 'z score', 'probability of do value', 'probability of not do value','probability difference', 'p value', 'support']
+    with open(out_dir+'/root'+'.csv', 'w', newline='') as csvfile:
+        spamwriter = csv.writer(csvfile, delimiter=',',
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        spamwriter.writerow(title)
+        for cell in cell_list:
+            a_list=cell.get_variable_list1()
+            spamwriter.writerow(a_list)
+def generate_causal_tree(probability_file,feature_file,out_dir,threshold=50):
+    def myFunc(e):
+        return e.get_variable_list1()[2]
+    condition_list=[]
+    cell_list=causal_tree(feature_file,probability_file,threshold,condition_list)
+    cell_list.sort(reverse=True,key=myFunc)
+    stack=cell_list
+    total_cell_list=[]
+    
+    while not stack==[]:
+        one_cell = stack[0]
+        condition_term=one_cell.get_variable_list2()[1]
+        condition_list=one_cell.get_variable_list2()[8].copy()
+        if one_cell.get_variable_list2()[3]>=0.5:
+            condition_list.append(condition_term)
+            if len(condition_list)>3:
+                stack.pop(0)
+                continue
+            cell_list=causal_tree(feature_file,probability_file,threshold,condition_list)
+            cell_list.sort(reverse=True,key=myFunc)
+            total_cell_list.append(one_cell)
+            stack.pop(0)
+            stack=stack+cell_list
+        else:
+            stack.pop(0)
+
+    title =['level','route','Feature', 'value', 'z score', 'probability of do value', 'probability of not do value','probability difference', 'p value', 'support']
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    with open(out_dir+'/hepatic.csv', 'w', newline='') as csvfile:
+        spamwriter = csv.writer(csvfile, delimiter=',',
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        spamwriter.writerow(title)
+        current_level=0
+        for cell in total_cell_list:
+            a_list=cell.get_variable_list2()
+            route='->'.join(a_list[-1])
+            line=[]
+            line.append(len(a_list[-1]))
+            line.append(route)        
+            line=line+cell.get_variable_list1()
+            if current_level < len(a_list[-1]):
+                current_level = len(a_list[-1])
+                spamwriter.writerow([])
+            spamwriter.writerow(line)
+def main():
+    out_dir='./results/causal_results'
+    feature_file='../dat/proc/feature.tsv'
+    probability_file='./results/test_results.tsv'
+    causal_inference(probability_file,feature_file,out_dir)
+
+if __name__ == "__main__":
+    main()
+
+### CELL 1 code
+
+
+### CELL 2 code

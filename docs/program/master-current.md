@@ -1,29 +1,19 @@
-# Current master program: causal banking proposal
+# Current master programme
 
-Updated 28 October 2026. The executable contracts, current documents, gap routes
-and continuation actions are in the [current program](execution/current-program.md).
-The [V11 master](master-program.md) is a frozen historical source whose exact
-bytes remain bound by earlier evidence. It is retained as historical scope,
-not a current progress dashboard.
+The authorized twelve-hour release programme is active through 30 October 2026 10:58:35 Asia/Shanghai. See release-programme-2026-10-29.md and docs/release/2026-10-29/state.json. The verified edition below is the preserved baseline; final release acceptance is not yet granted.
 
-The current program governs the research and product proposal for four banking
-journeys, including the software survey and reuse decisions, LLM and agent
-methods, CLI/MCP integration, public-data prototype designs and sponsor case.
-Public and synthetic evidence justify later expensive bank experiments.
-Proposal completion does not establish an implemented or accepted bank product.
+29 October 2026. Use [master-live.md](master-live.md), [the reviewed programme](writing-gap-closure-2026-10-29.md) and scientific-priorities.json. Frozen master-program.md/state.json retain historical identities.
 
-The paired reader has 1,751 pages, 1,433 audited citation records and 274 genuine
-scholarly PDFs; the sponsor has 166 pages and 1,094 audited citation records.
-There are 351 recorded outcomes among 376 original operations. All 150
-nonpassing obligations remain: 121 inconclusive, 25 open and four negative.
-The original scheduler's zero-ready count requires reviewed successors.
+The current candidate has 1,876 pages and a 4-page sponsor. W04 and W08 are complete within author-review scope: complete contextual reading and final whole-book continuity, repetition, evidence-scope, citation and sponsor review. 101 of 101 assembled chapter treatments have complete contextual author review; 0 remain. Preservation checks pass for 505 exact edits.
 
-The independent stronger local fixture passed 48 adversarial cases. Seven
-pinned Java delegates have verified originals and a completed bounded source
-review. Both packets await preserving paired-document integration; their
-completion does not award broad software or product acceptance.
+Full writing-standard attainment, fresh visual review and independent editorial/scientific acceptance remain open. Consequential method/language/version/rights comparisons and 28 unread originals remain; frontier coverage stays 85 inspected/28 unread.
 
-Use `python3 tools/run_followup_program_v2_20261028.py status`, `next` and
-`check` for active-agent work. Both original controllers continue to govern
-acceptance and full integrity. Checkpoints and phase boundaries are recovery
-records. A local blocker leaves independent eligible work available.
+In a fresh session, inspect the current reader and sponsor visually, record the PDF identities and findings, then incorporate actual independent editorial feedback. Keep consequential source-survey work separate. W06/W07 recur after any further manuscript edit. No unattended worker is running. Run python3 tools/scientific_program.py check; its next command schedules broader scientific work independently.
+
+<!-- scientific-delivery:start -->
+## Scientific continuation: 29 October 2026
+
+[Integrated scientific successor](../causal_banking_discovery_integrated_2026-10-29.pdf) · [Six-page study](../causal_banking_discovery_repair_2026-10-29.pdf) · [Evidence and remaining work](../discovery-repair/2026-10-29/README.md).
+
+The search repair recovered all 1,381 reference skeletons in the declared exact-oracle suite; the screened candidate failed on 49. The result is Chapter 21 of a preserved 1,858-page scientific successor. The live editorial reader above is separately maintained. Native package qualification, finite-sample calibration and bank validation remain open.
+<!-- scientific-delivery:end -->

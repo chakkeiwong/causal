@@ -1,0 +1,199 @@
+function (formula, data, subset, weights, na.action, method = "qr", 
+    model = TRUE, x = FALSE, y = FALSE, qr = TRUE, singular.ok = TRUE, 
+    contrasts = NULL, offset, ...) 
+{
+    ret.x <- x
+    ret.y <- y
+    cl <- match.call()
+    mf <- match.call(expand.dots = FALSE)
+    m <- match(c("formula", "data", "subset", "weights", "na.action", 
+        "offset"), names(mf), 0L)
+    mf <- mf[c(1L, m)]
+    mf$drop.unused.levels <- TRUE
+    mf[[1L]] <- quote(stats::model.frame)
+    mf <- eval(mf, parent.frame())
+    if (method == "model.frame") 
+        return(mf)
+    else if (method != "qr") 
+        warning(gettextf("method = '%s' is not supported. Using 'qr'", 
+            method), domain = NA)
+    mt <- attr(mf, "terms")
+    y <- model.response(mf, "numeric")
+    w <- as.vector(model.weights(mf))
+    if (!is.null(w) && !is.numeric(w)) 
+        stop("'weights' must be a numeric vector")
+    offset <- model.offset(mf)
+    mlm <- is.matrix(y)
+    ny <- if (mlm) 
+        nrow(y)
+    else length(y)
+    if (!is.null(offset)) {
+        if (!mlm) 
+            offset <- as.vector(offset)
+        if (NROW(offset) != ny) 
+            stop(gettextf("number of offsets is %d, should equal %d (number of observations)", 
+                NROW(offset), ny), domain = NA)
+    }
+    if (is.empty.model(mt)) {
+        x <- NULL
+        z <- list(coefficients = if (mlm) matrix(NA_real_, 0, 
+            ncol(y)) else numeric(), residuals = y, fitted.values = 0 * 
+            y, weights = w, rank = 0L, df.residual = if (!is.null(w)) sum(w != 
+            0) else ny)
+        if (!is.null(offset)) {
+            z$fitted.values <- offset
+            z$residuals <- y - offset
+        }
+    }
+    else {
+        x <- model.matrix(mt, mf, contrasts)
+        z <- if (is.null(w)) 
+            lm.fit(x, y, offset = offset, singular.ok = singular.ok, 
+                ...)
+        else lm.wfit(x, y, w, offset = offset, singular.ok = singular.ok, 
+            ...)
+    }
+    class(z) <- c(if (mlm) "mlm", "lm")
+    z$na.action <- attr(mf, "na.action")
+    z$offset <- offset
+    z$contrasts <- attr(x, "contrasts")
+    z$xlevels <- .getXlevels(mt, mf)
+    z$call <- cl
+    z$terms <- mt
+    if (model) 
+        z$model <- mf
+    if (ret.x) 
+        z$x <- x
+    if (ret.y) 
+        z$y <- y
+    if (!qr) 
+        z$qr <- NULL
+    z
+}
+<bytecode: 0x61eb18157960>
+<environment: namespace:stats>
+function (x, y, offset = NULL, method = "qr", tol = 1e-07, singular.ok = TRUE, 
+    ...) 
+{
+    if (is.null(n <- nrow(x))) 
+        stop("'x' must be a matrix")
+    if (n == 0L) 
+        stop("0 (non-NA) cases")
+    p <- ncol(x)
+    if (p == 0L) {
+        return(list(coefficients = numeric(), residuals = y, 
+            fitted.values = 0 * y, rank = 0, df.residual = length(y)))
+    }
+    ny <- NCOL(y)
+    if (is.matrix(y) && ny == 1) 
+        y <- drop(y)
+    if (!is.null(offset)) 
+        y <- y - offset
+    if (NROW(y) != n) 
+        stop("incompatible dimensions")
+    if (method != "qr") 
+        warning(gettextf("method = '%s' is not supported. Using 'qr'", 
+            method), domain = NA)
+    chkDots(...)
+    z <- .Call(C_Cdqrls, x, y, tol, FALSE)
+    if (!singular.ok && z$rank < p) 
+        stop("singular fit encountered")
+    coef <- z$coefficients
+    pivot <- z$pivot
+    r1 <- seq_len(z$rank)
+    dn <- colnames(x) %||% paste0("x", 1L:p)
+    nmeffects <- c(dn[pivot[r1]], rep.int("", n - z$rank))
+    r2 <- if (z$rank < p) 
+        (z$rank + 1L):p
+    else integer()
+    if (is.matrix(y)) {
+        coef[r2, ] <- NA
+        if (z$pivoted) 
+            coef[pivot, ] <- coef
+        dimnames(coef) <- list(dn, colnames(y))
+        dimnames(z$effects) <- list(nmeffects, colnames(y))
+    }
+    else {
+        coef[r2] <- NA
+        if (z$pivoted) 
+            coef[pivot] <- coef
+        names(coef) <- dn
+        names(z$effects) <- nmeffects
+    }
+    z$coefficients <- coef
+    r1 <- y - z$residuals
+    if (!is.null(offset)) 
+        r1 <- r1 + offset
+    if (z$pivoted) 
+        colnames(z$qr) <- colnames(x)[z$pivot]
+    qr <- z[c("qr", "qraux", "pivot", "tol", "rank")]
+    c(z[c("coefficients", "residuals", "effects", "rank")], list(fitted.values = r1, 
+        assign = attr(x, "assign"), qr = structure(qr, class = "qr"), 
+        df.residual = n - z$rank))
+}
+<bytecode: 0x61eb18232a50>
+<environment: namespace:stats>
+function (model, infl = lm.influence(model, do.coef = FALSE), 
+    ...) 
+infl$hat
+<bytecode: 0x61eb19019dc0>
+<environment: namespace:stats>
+function (object, data = environment(object), contrasts.arg = NULL, 
+    xlev = NULL, ...) 
+{
+    t <- if (missing(data)) 
+        terms(object)
+    else terms(object, data = data)
+    if (is.null(attr(data, "terms"))) 
+        data <- model.frame(object, data, xlev = xlev)
+    else {
+        reorder <- match(vapply(attr(t, "variables"), deparse2, 
+            "")[-1L], names(data))
+        if (anyNA(reorder)) 
+            stop("model frame and formula mismatch in model.matrix()")
+        if (!identical(reorder, seq_len(ncol(data)))) 
+            data <- data[, reorder, drop = FALSE]
+    }
+    int <- attr(t, "response")
+    if (length(data)) {
+        contr.funs <- as.character(getOption("contrasts"))
+        namD <- names(data)
+        for (i in namD) if (is.character(data[[i]])) 
+            data[[i]] <- factor(data[[i]])
+        isF <- vapply(data, function(x) is.factor(x) || is.logical(x), 
+            NA)
+        isF[int] <- FALSE
+        isOF <- vapply(data, is.ordered, NA)
+        for (nn in namD[isF]) if (is.null(attr(data[[nn]], "contrasts"))) 
+            contrasts(data[[nn]]) <- contr.funs[1 + isOF[nn]]
+        if (!is.null(contrasts.arg)) {
+            if (!is.list(contrasts.arg)) 
+                warning("non-list contrasts argument ignored")
+            else {
+                if (is.null(namC <- names(contrasts.arg))) 
+                  stop("'contrasts.arg' argument must be named")
+                for (nn in namC) {
+                  if (is.na(ni <- match(nn, namD))) 
+                    warning(gettextf("variable '%s' is absent, its contrast will be ignored", 
+                      nn), domain = NA)
+                  else {
+                    ca <- contrasts.arg[[nn]]
+                    if (is.matrix(ca)) 
+                      contrasts(data[[ni]], ncol(ca)) <- ca
+                    else contrasts(data[[ni]]) <- contrasts.arg[[nn]]
+                  }
+                }
+            }
+        }
+    }
+    else {
+        isF <- FALSE
+        data[["x"]] <- raw(nrow(data))
+    }
+    ans <- .External2(C_modelmatrix, t, data)
+    if (any(isF)) 
+        attr(ans, "contrasts") <- lapply(data[isF], attr, "contrasts")
+    ans
+}
+<bytecode: 0x61eb1820db28>
+<environment: namespace:stats>

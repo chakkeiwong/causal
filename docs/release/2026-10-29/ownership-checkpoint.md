@@ -1,0 +1,3 @@
+# Release branch ownership and coexistence
+
+This campaign maintains only docs/release/2026-10-29/source and the named causal_banking_release_candidate_2026-10-29 publications, with tools/release_candidate_20261029.py. Original writing-repair sources and PDFs remain protected. A separate twelve-hour-closure campaign is present; its source acquisition and audits are not duplicated or modified here. Shared master/state updates must read current contents and preserve both campaign records. Cross-campaign evidence is usable only after reading and verifying its exact source identity, claim scope and output hashes.

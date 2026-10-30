@@ -1,0 +1,151 @@
+\section{A Julia planning interface must preserve a single decision experiment}
+\label{exec23:pomdpsjl-scope}
+
+A bank considering Julia for sequential servicing needs to decide which part
+of a planning system it is buying into. POMDPs.jl supplies a common vocabulary
+for a model, solver, policy, belief updater and simulator. These interfaces are
+valuable because the same declared problem can be presented to different
+algorithms, but the interface itself neither identifies that problem from
+observations nor proves the returned policy optimal. The root package at the
+selected 8 June 2026 repository revision declares version 1.0.0. Sixteen
+authenticated source and documentation files support the present inspection.
+The root MIT license explicitly warns that other packages in the organization
+can have different licenses. POMDPTools and individual solvers therefore need
+their own source, rights and numerical reviews; the organizational name cannot
+stand in for a concrete adoption decision.
+\citep{exec23_pomdpsjl_sources}
+
+The model contracts distinguish a state space, an action space, a transition
+distribution, an observation distribution, reward and discount. Let
+$S_t$ be the account state before decision $A_t$, $S_{t+1}$ the resulting state,
+$O_{t+1}$ the information released after that decision and $R_t$ its reward.
+For a declared initial belief $b$ and policy $\pi$, a finite-horizon target is
+\[
+ V_H^\pi(b)=E_{b,\pi}\!\left[\sum_{t=0}^{H-1}\gamma^tR_t\right].
+\]
+This expression defines our supplied-model target. A causal interpretation
+also needs a justified intervention law for $A_t$, sufficient state and an
+honest observation clock. Merely writing a transition method does not supply
+those premises. Moreover, the dynamic decision network used internally to
+generate variables is a computational dependency graph; it is not a graph
+discovered from bank data or an identified causal equivalence class.
+\citep{exec23_pomdpsjl_sources,exec23_pomdpsjl_reference}
+
+\subsection{Joint generation is an event, not three independent API calls}
+\label{exec23:pomdpsjl-generation}
+
+POMDPs.jl permits explicit distributions as well as a joint generator returning
+a named tuple with next state, observation and reward. The documented caller
+uses the \texttt{@gen} interface. Its inspected implementation invokes the
+joint generator once for that invocation, takes supplied fields and fills
+missing fields using transition, observation and reward methods in dependency
+order. A POMDP observation can depend on both the old and new state, and the
+reward fallback can depend on the observation as well. An adapter that calls
+the generator separately for each output can change the joint experiment even
+if every output retains the correct marginal distribution.
+\citep{exec23_pomdpsjl_sources}
+
+Consider a stipulated one-step distress event $U\sim\mathrm{Bernoulli}(1/4)$.
+Set $S_{t+1}=U$, release alert $O_{t+1}=U$, and return reward $-40$ in distress
+or $8$ otherwise. A coherent event has expected reward $-4$, always agrees
+between state and alert, and has probability $1/4$ of an alert accompanying a
+loss. If a wrapper independently regenerates the state, alert and reward,
+the marginals survive, but state and alert agree with probability only $5/8$
+and alert with loss occurs with probability $1/16$. The difference is material
+to a policy: a subsequent rescue worth $35$ in distress and $-15$ otherwise,
+taken only on an alert, has expected incremental value $35/4$ under the coherent
+law and $-5/8$ under the split law. These are exact authored counterexamples
+to a conversion strategy, not observed failures of the Julia package.
+\citep{exec23_pomdpsjl_reference}
+
+The proposed boundary therefore transports one event identifier and one
+joint transition result, with model revision, state/action identifiers,
+observation release time and reward units. A random seed alone does not define
+equivalence across wrappers: the requested fields and invocation order also
+determine how a joint generator consumes its random stream. Reproducibility
+requires the concrete random-number implementation, serialized state or seed
+protocol, call schedule and worker environment. The source exposes an explicit
+random-number argument and a default when omitted; it does not provide the
+bank's complete replay protocol.
+\citep{exec23_pomdpsjl_sources}
+
+\subsection{Observation, reward and termination need compatible signatures}
+\label{exec23:pomdpsjl-contracts}
+
+An observation method depending only on action and next state automatically
+supports the fuller old-state signature through fallback. The reverse need
+not hold. Suppose two accounts both reach state zero after the same action,
+but an alert reports whether the previous state was one. Then the two histories
+require alert probabilities zero and one, although action and next state are
+identical. A solver requesting only those latter arguments cannot represent
+both laws. The documentation explicitly acknowledges that some solvers require
+the narrower signature. The repair is to select a compatible solver, augment
+the modeled state with a justified sufficient history, or refuse the conversion;
+silently dropping the old state changes the model.
+\citep{exec23_pomdpsjl_sources,exec23_pomdpsjl_reference}
+
+Reward conversion has a similar obligation. A solver asking for
+$\bar r(s,a)$ needs the appropriate conditional expectation of a transition
+reward, including the observation when relevant:
+\[
+ \bar r(s,a)=\sum_{s',o}T(s'\mid s,a)Z(o\mid s,a,s')r(s,a,s',o)
+\]
+in a finite explicit model. A joint generator can instead define the joint law
+directly, in which case the expectation must follow that law. The inspected
+documentation requires consistency between reward signatures. For the
+two-outcome example, weighting by the declared probabilities gives $-4$;
+averaging the two reward values uniformly gives $-16$. Returning a convenient
+number from the narrower method is not enough.
+\citep{exec23_pomdpsjl_sources,exec23_pomdpsjl_reference}
+
+Terminal value is zero after termination in the model contract. That does not
+erase the reward on the transition into the terminal state. A settlement
+paying $12$ on entry has value $12$ with zero subsequent continuation; a wrapper
+that masks the transition reward by destination terminal status reports zero.
+This parallels the episode-clock issue in other sequential packages, without
+asserting that the inspected Julia simulator implements that erroneous mask.
+The root default marks no state terminal. A concrete bank model and simulator
+must therefore bind terminal behavior, horizon, per-step discount and any
+variable-duration convention explicitly. The inspected standard generator
+fields do not by themselves establish a semi-Markov discount contract.
+\citep{exec23_pomdpsjl_sources,exec23_pomdpsjl_reference}
+
+\subsection{Belief meaning and a conditional Julia worker route}
+\label{exec23:pomdpsjl-decision}
+
+The library deliberately uses \emph{belief} broadly: it can be a posterior,
+particles, a partial history or another policy information state. Its
+initialization contract allows lossy conversion and has a pass-through default;
+the history contract permits a partial suffix, and the default current
+observation reads the last history item. Thus a successful initialization call
+does not certify posterior normalization, sufficiency, nonempty history or an
+independent snapshot. A wrapper must identify the representation and supported
+operations, copy or serialize mutable state when isolation is required, and
+refuse claims that exceed the retained information. State/action/observation
+objects also require stable equality and identity: the model guide warns
+against mutating objects used as dictionary keys or retained in histories.
+\citep{exec23_pomdpsjl_sources}
+
+The present disposition is a reference for interface design, with a conditional
+future Julia worker. Full adoption is premature because an abstract
+\texttt{solve} or \texttt{simulate} declaration is not an audited solver or
+an executed experiment. A blanket port to R, Python, Java or C++ is also
+unjustified: it would duplicate dispatch, distribution and stochastic-event
+semantics before demonstrating a benefit. An independent finite-state oracle
+remains useful precisely because it checks the intended experiment separately
+from the chosen implementation.
+\citep{exec23_pomdpsjl_sources,exec23_pomdpsjl_reference}
+
+A prototype can proceed once it pins Julia and all dependency artifacts,
+selects and reviews one concrete solver/updater/simulator combination, and
+registers conformance cases for joint outputs, asymmetric transitions,
+old-state observations, reward expectation, terminal entry, history loss,
+state mutation and randomness. Measure offline preparation and online action
+latency separately, along with compilation, serialization, memory, recovery
+and numerical error at the required accuracy. The same target, information
+clock, diagnostics and refusal must survive library, CLI and MCP use.
+An LLM may help draft a model or map a business question into these contracts,
+but a plausible generated method cannot authenticate a latent state or its
+intervention law. Native integration, scientific qualification and institutional
+adoption remain open.
+\citep{exec23_pomdpsjl_sources}

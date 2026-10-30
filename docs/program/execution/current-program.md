@@ -1,88 +1,38 @@
-# Current executable proposal program
+# Current executable proposal programme
 
-Updated 29 October 2026. [Live master](../master-live.md),
-[program review](2026-10-29/program-refresh-panel-runtime-v2/program-review.json),
-[all unresolved obligations](2026-10-29/program-refresh-panel-runtime-v2/remaining-operations.json).
+Updated 29 October 2026. [Active master](../master-live.md) · [Reviewed writing programme](../writing-gap-closure-2026-10-29.md) · [Priorities](../scientific-priorities.json).
 
-This is a scholarly product proposal. Software/reuse, LLM/agent and CLI/MCP
-coverage remain mandatory. Public evidence justifies later costly experiments.
+W04 and W08 are complete within author-review scope: complete contextual reading and final whole-book continuity, repetition, evidence-scope, citation and sponsor review. 101 of 101 assembled chapter treatments have complete contextual author review; 0 remain. The verified reader has 1,876 pages with 505 exact ledgered edits.
 
-## Current integrated documents
+Full writing-standard attainment, fresh visual review and independent editorial/scientific acceptance remain open. Consequential method/language/version/rights comparisons and 28 unread originals remain; frontier coverage stays 85 inspected/28 unread.
 
-[Monograph](../../causal_proposal_panel_runtime_reviewed_v2_2026-10-29.pdf) and [paired sponsor](../../sponsor_proposal_panel_runtime_reviewed_v2_2026-10-29.pdf).
+In a fresh session, inspect the current reader and sponsor visually, record the PDF identities and findings, then incorporate actual independent editorial feedback. Keep consequential source-survey work separate. W06/W07 recur after any further manuscript edit. No unattended worker is running. Run python3 tools/scientific_program.py check. Its next command schedules independent source-survey and scientific work; native trials and bank qualification remain separate phases.
 
-The current monograph has 1,774 pages, 1,453 audited citation
-records and 277 genuine scholarly PDFs. The paired sponsor has 172
-pages and 1,130 records. All 1,451 reader and 1,126 sponsor predecessor records,
-reader citation contexts and compiled content inputs remain. Q2-Q4 exact-reader
-author checks pass; Q1/Q5, full coverage/depth, visual and final acceptance remain open.
+## Preserved earlier account
 
-351/376 original operations are recorded. All 150 nonpassing obligations remain:
-121 inconclusive,25 open and four negative. Software is 3 passing,98 inconclusive
-and 1 open; reuse is 109 passing,4 inconclusive and 2 open. The frontier census remains
-82 inspected and 31 unread. These source additions award no canonical acceptance.
+# Current executable proposal programme
 
-The verified predecessor commit is 24fe7658044ebfa28b9cd726aca4a5da19143891.
-The complete inventory retains 105 unresolved software/reuse rows. Five have bounded
-later deltas; 100 still need semantic reconciliation. Two historical reference hash
-mismatches remain explicit alongside the passing current replay.
+Updated 29 October 2026. [Active master](../master-live.md) · [Reviewed plan](../scientific-editorial-repair.md) · [Priorities](../scientific-priorities.json).
 
-The new addition inspects 22 of 23 acquired runtime files. Development R 4.7.0,
-patched-branch R 4.6.1 and installed R 4.1.2 remain distinct. A constructed
-installed-R covariance fixture yields 1/4 versus 1 after ordering correction;
-conditional packed-bit moments pass exact enumeration. These are not native
-parglm/fastdid/BMisc qualification or coverage results.
+Run python3 tools/scientific_program.py next. Complete a scientific deliverable, record the conclusion and evidence, and continue another ready item. Streams do not depend on blanket completion of another survey or later bank acceptance.
 
-## Remaining gaps and routes
+Current result: the [1,859-page integrated successor](../../causal_banking_scientific_progress_2026-10-29.pdf) incorporates eight new chapters into the latest developmental rewrite. The [26-page additions](../../causal_banking_public_evidence_2026-10-29.pdf) contain a public experiment, 3,800 generated replications, derived uncertainty limits and new source comparisons. Current frontier inspection is 85/28. See the [execution record](../../scientific-gap-closure/2026-10-29/README.md) and [remaining inventory](../../scientific-gap-closure/2026-10-29/remaining-inventory.json).
 
-1. Software: 1 open and 98 inconclusive cells. Complete explicit search tails,
-   inspect remaining primary delegates, and qualify narrowly matched public trials.
-2. Reuse: two open and four inconclusive decisions. Resolve concrete candidates,
-   rights, targets, owners, costs and revisit conditions without umbrella approval.
-3. Frontier census: 31 unread originals and four crosscutting tasks. Candidate
-   163 original access, 165 final-original access, 217 access/date and 27 metadata
-   limits remain local. Clinical 125/207/277 client challenges and workflow 136
-   and energy 218 original access limits are preserved; candidate225 final conference
-   bytes remain a separate omission after the selected preprint review. Candidate 214 final
-   publisher layout, supplementary text and native reproduction remain separate from
-   the inspected author original. Candidates157/199/202/206 have additional recorded
-   permitted-route/identity limits; no substitute original is admitted. Independent work continues.
-4. Commercial qualification: resolve named supported server/API profiles,
-   entitlement, price and complete request/failure denominators.
-5. Public prototypes: the benchmark-oracle design now specifies independent IV,
-   identification-state, finite-interval and loss-aggregation fixtures. Qualify the
-   full native generator/scorer path,task versions,rights and complete costs before
-   expensive bank work; oracle-unknown tasks remain a separate denominator.
-6. Manuscript acceptance: complete mandatory coverage/depth, Q1/Q5 and a fresh
-   visual review. Text bounds alone do not establish visual or final acceptance.
+Eight scoped scientific tasks are complete. Two independent survey streams remain active; live-assistant benefit and editorial acceptance await their specific external inputs. No unattended worker is running. Native adapter qualification and bank validation are later prototype/deployment work, not universal blockers of the proposal. The following account is historical.
 
-Known routes exist for bounded source acquisition, explicit comparisons,
-conversion contracts, native public fixtures and manuscript integration. Unknown
-assignment truth, unrestricted hidden-state identification, arbitrary persistence
-and universal dependent-data uncertainty have no promised universal repair.
-They need additional information or justified restrictions. Independent review,
-authentic bank truth, platform acceptance and actual economic value remain later
-external gates, not global proposal blockers.
+The [integrated reading edition](../../causal_banking_scientific_continuation_2026-10-29.pdf) is delivered with thematic parts, contextual economics-language repairs, preserved mathematics and six figures. Editorial review is delegated to the separate agent arranged by the user; acceptance remains pending. Continue the software, language-model, public-evidence and integration syntheses independently. Builds and record counts do not close those obligations.
 
-## Execution and recovery
+Old dependency queues remain historical evidence and no longer determine priority. Native qualification proceeds when material to a specific proposal claim. Preserve previous failures and results without recursive review packets.
 
-Frozen historical masters, source evidence and failures retain their bytes.
+Scientific continuation delivered: 17-area comparison, two generated studies,
+three-interface walkthrough and conditional investment recommendation. Continue
+material software comparisons, frontier-source synthesis, a frozen public-data
+study and complete banking journeys independently. The [26-page supplement](../../causal_banking_scientific_supplement_2026-10-29.pdf) makes new results reviewable.
 
-## Exact continuation
+<!-- scientific-delivery:start -->
+## Scientific continuation: 29 October 2026
 
-Use python3 tools/run_followup_program_v3_20261028.py status, next and check.
-Use v2 for registered start/checkpoint/record events. Finite packet completion
-hands off to the remaining inventory; phase boundaries are not stopping points.
+[Integrated scientific successor](../../causal_banking_discovery_integrated_2026-10-29.pdf) · [Six-page study](../../causal_banking_discovery_repair_2026-10-29.pdf) · [Evidence and remaining work](../../discovery-repair/2026-10-29/README.md).
 
-Next qualify full header/RNG inclusion and actual finite-state sampling law;
-establish default-LINPACK pivot reachability and rank-deficient covariance semantics;
-pin vctrs and external reconstruction registrations, then test mixed-level results.
-Resolve upstream object editions, original-paper omissions and transitive rights.
-Use exact public profiles with complete failure and cost denominators before
-native calibration claims. Source-review completion is not product acceptance.
-
-Other software/reuse rows and 31 unread frontier originals remain independently
-eligible. Unknown counterfactual truth and unrestricted dependence require extra
-information or justified restrictions; no universal repair is promised. Bank and
-independent acceptance are later external gates. The six-image allowance is
-exhausted; fresh visual review remains open. No unattended research worker runs.
+The search repair recovered all 1,381 reference skeletons in the declared exact-oracle suite; the screened candidate failed on 49. The result is Chapter 21 of a preserved 1,858-page scientific successor. The live editorial reader above is separately maintained. Native package qualification, finite-sample calibration and bank validation remain open.
+<!-- scientific-delivery:end -->
